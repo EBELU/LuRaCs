@@ -9,7 +9,7 @@ from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QGroupBox, QPushButton, QLabel, QTextEdit,    QTabWidget,
-    QLabel
+    QLabel, QSizePolicy
 )
 from PySide6.QtCore import Qt
 from qasync import QEventLoop
@@ -17,6 +17,7 @@ from qasync import QEventLoop
 from QtGUI import SpectrumPlot, ROIInfoPane
 from QtGUI import MainMenuBar, MenuActions, ThemeManager
 from QtGUI.SpectrumClasses import Spectrum
+from QtGUI import CurrentValuesPlot
 
 import pandas as pd
 imported_data = pd.read_csv("Cyklotron_Cs.csv").to_numpy().T[1]
@@ -86,21 +87,25 @@ class MainWindow(QMainWindow):
 
 
         # ---------- SPECTRUM PLOT ----------
-        self.spectrum_plot = SpectrumPlot()
-        layout.addWidget(self.spectrum_plot)
+        self.spectrum_plot = SpectrumPlot("Spectrum Plot")
+        layout.addWidget(self.spectrum_plot, 4)
 
 
         self.bottom_tabs = QTabWidget()
+        self.bottom_tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding, )
+        
+        self.current_value_tab = CurrentValuesPlot()
+        self.bottom_tabs.addTab(self.current_value_tab, "Current Values")
 
         self.roi_info_pane = ROIInfoPane()
         self.bottom_tabs.addTab(self.roi_info_pane, "ROI Info")
 
-        self.bottom_tabs.addTab(QWidget(), "Current Values")
-        self.bottom_tabs.addTab(QWidget(), "Current Values")
+
+        self.bottom_tabs.addTab(QWidget(), "Devices")
 
 
 
-        layout.addWidget(self.bottom_tabs)
+        layout.addWidget(self.bottom_tabs, 1)
 
         self.spectrum_plot.roi_signal_sender.connect(self.roi_info_pane.recieve_roi)
         self.spectrum_plot.handle_spectrum(imported_spectrum, True)
@@ -108,7 +113,10 @@ class MainWindow(QMainWindow):
 
         self.theme = ThemeManager(ThemeManager.DARK)
 
-        self.theme.apply(plot_widgets=[self.spectrum_plot.plot_widget])
+        self.theme.apply(plot_widgets=[
+            self.spectrum_plot.plot_widget, 
+            self.current_value_tab.cps_plot_widget,
+            self.current_value_tab.dose_plot_widget])
 
 
 # ===================== MOCK DATA TASK =====================

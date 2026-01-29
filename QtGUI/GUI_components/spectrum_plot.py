@@ -3,11 +3,6 @@ from PySide6.QtCore import Qt, Signal
 import pyqtgraph as pg
 import numpy as np
 
-import pyqtgraph as pg
-import numpy as np
-
-from PySide6.QtCore import Signal, Qt
-import pyqtgraph as pg
 
 from ..gaussian_fitting import Gaussian
 
@@ -84,6 +79,7 @@ class SpectrumPlot(QWidget):
         self.y_axis_locked = True
 
         self.cbox_bkg_choises = QComboBox()
+
         self.cbox_bkg_choises.addItems(["No Background", "Background Overlay", "Background Subtract"])
         self.cbox_bkg_choises.setCurrentIndex(0)
         

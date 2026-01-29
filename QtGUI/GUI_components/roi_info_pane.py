@@ -26,7 +26,12 @@ class ROIInfoPane(QWidget):
         self.table.setColumnCount(len(titles))
         self.table.setHorizontalHeaderLabels(titles)
 
-        self.table.setMaximumWidth(920)
+
+        self.table.setMaximumWidth(
+            self.table.verticalHeader().width()
+            + self.table.horizontalHeader().length()
+            + self.table.frameWidth() * 2
+        )
         self.table.setSizePolicy(
             QSizePolicy.Expanding,      # vertical
             QSizePolicy.MinimumExpanding,  # horizontal

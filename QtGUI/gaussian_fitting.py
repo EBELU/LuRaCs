@@ -109,7 +109,7 @@ def fit_gaussian(
         B = float(np.sum(corr_f(x_region)))
         N = G - B
 
-        print(G, B, N)
+
     else:
         def corr_f(x: np.ndarray) -> np.ndarray:
             return np.zeros_like(x)
