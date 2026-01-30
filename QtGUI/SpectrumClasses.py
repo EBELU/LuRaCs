@@ -36,6 +36,7 @@ class Spectrum:
         
         self.calibration_coefficients = None
         self.calibrated = False
+        self.energy_unit = None
         
     def set_y_data(self, spectrum, uptime = None):
         assert len(spectrum) == self.channels

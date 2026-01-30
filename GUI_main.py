@@ -54,28 +54,24 @@ class SpectrumResult:
     timestamp: float
 
 
-# -------------------- ROI CLASS --------------------
-class ROI:
-    def __init__(self, low, high):
-        self.low = low
-        self.high = high
-        self.mid = (low + high)/2
-        self.gaussian = None
-        self.patch = None
-
-    def fit_gaussian(self, x, y):
-        # mock gaussian amplitude
-        self.gaussian = type('Gaussian', (), {'amplitude': max(y[int(self.low):int(self.high)+1])})
+mock_data = [
+    CurrentValuesPackage(CPS=10.2, DR=0.80, timestamp=1700000000.0),
+    CurrentValuesPackage(CPS=11.0, DR=0.83, timestamp=1700000060.0),
+    CurrentValuesPackage(CPS=12.4, DR=0.86, timestamp=1700000120.0),
+    CurrentValuesPackage(CPS=13.1, DR=0.88, timestamp=1700000180.0),
+    CurrentValuesPackage(CPS=14.0, DR=0.90, timestamp=1700000240.0),
+]
 
 
 # ===================== MAIN WINDOW =====================
 class MainWindow(QMainWindow):
+    new_current_signal = Signal(object)
+    new_spectrum_signal = Signal(object)
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Gamma Spectroscopy")
 
         self.mock_running = True
-        self.window_seconds = 20
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -87,12 +83,13 @@ class MainWindow(QMainWindow):
 
 
         # ---------- SPECTRUM PLOT ----------
-        self.spectrum_plot = SpectrumPlot("Spectrum Plot")
+        self.spectrum_plot = SpectrumPlot()
         layout.addWidget(self.spectrum_plot, 4)
 
 
-        self.bottom_tabs = QTabWidget()
+        self.bottom_tabs = QTabWidget(self)
         self.bottom_tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding, )
+ 
         
         self.current_value_tab = CurrentValuesPlot()
         self.bottom_tabs.addTab(self.current_value_tab, "Current Values")
@@ -111,12 +108,23 @@ class MainWindow(QMainWindow):
         self.spectrum_plot.handle_spectrum(imported_spectrum, True)
         self.spectrum_plot.handle_spectrum(co_spect)
 
+        self.new_current_signal.connect(self.update_current)
+        # self.new_spectrum_signal.connect(self.update_spectrum)
+
+        for mock_packet in mock_data:
+            self.current_value_tab.receive_data_packet(mock_packet, "Raysid")
+
         self.theme = ThemeManager(ThemeManager.DARK)
 
         self.theme.apply(plot_widgets=[
             self.spectrum_plot.plot_widget, 
             self.current_value_tab.cps_plot_widget,
             self.current_value_tab.dose_plot_widget])
+        
+    def update_current(self, package):
+        self.current_value_tab.receive_data_packet(package, "Raysid")
+
+    
 
 
 # ===================== MOCK DATA TASK =====================
@@ -125,16 +133,9 @@ async def mock_data_task(win: MainWindow):
         if win.mock_running:
             cps = np.random.normal(500,50)
             dr  = cps/1000 + np.random.normal(0,0.01)
-            spectrum = np.random.poisson(lam=np.linspace(1,20,1800))
             timestamp = time.time()
-            win.update_current(CurrentValuesPackage(cps, dr, timestamp))
-            win.update_spectrum(SpectrumResult(spectrum, timestamp))
-            win.update_status(StatusPackage(
-                battery=np.random.randint(20,100),
-                temperature=np.random.normal(25,2),
-                charging=np.random.choice([True,False]),
-                timestamp=timestamp
-            ))
+            # Emit signal
+            win.new_current_signal.emit(CurrentValuesPackage(cps, dr, timestamp))
         await asyncio.sleep(0.5)
 
 
@@ -156,6 +157,7 @@ def main():
 
     with loop:
         loop.run_forever()
+
 
 
 if __name__ == "__main__":
