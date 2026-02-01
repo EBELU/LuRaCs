@@ -3,7 +3,7 @@ import xml.etree.ElementTree as ET
 
 import numpy as np
 
-from .SpectrumClasses import Spectrum
+from ..SpectrumClasses import Spectrum
 class csv_io:
     def export(spectrum: Spectrum, file_name: str) -> bool:
         acc_spectrum = spectrum.get_spectrum()
@@ -21,8 +21,12 @@ class csv_io:
         return True
 
 class xml_io:
-    def export(spectrum, filename):
+    def export(spectrum, file_name):
         pass
 
+    def load(file_name):
+        pass
+
+class spe_io:
     def load(file_name):
         pass

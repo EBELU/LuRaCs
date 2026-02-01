@@ -1,10 +1,15 @@
 from PySide6.QtGui import QPalette, QColor
 from PySide6.QtCore import Qt
+from PySide6 import QtGui
 from PySide6.QtWidgets import QApplication
 import pyqtgraph as pg
 
 
 class ThemeManager:
+    """Controls the theme of the app
+    
+        Changed with predefined calls LIGHT or DARK
+    """
     DARK = "dark"
     LIGHT = "light"
 
@@ -17,7 +22,7 @@ class ThemeManager:
         self.mode = self.LIGHT if self.mode == self.DARK else self.DARK
         self.apply(plot_widgets)
 
-    def apply(self, plot_widgets=None):
+    def apply(self, plot_widgets=None, legends=None):
         app = QApplication.instance()
         if not app:
             return
@@ -28,6 +33,10 @@ class ThemeManager:
         if plot_widgets:
             for pw in plot_widgets:
                 self._style_plot_widget(pw)
+        
+        if legends:
+            for lgd in legends:
+                self._style_legend(lgd)
 
     # ---------- Qt ----------
 
@@ -84,3 +93,44 @@ class ThemeManager:
 
         # Grid only
         pw.showGrid(x=True, y=True, alpha=0.3 if self.mode == self.DARK else 0.4)
+
+    def _style_legend(self, legend: pg.LegendItem):
+        # Semi-transparent background
+        bg_color = QColor(30, 30, 30) if self.mode == self.DARK else QColor(255, 255, 255)
+        bg_alpha = 180 if self.mode == self.DARK else 220
+        bg_color.setAlpha(bg_alpha)
+        legend.setBrush(pg.mkBrush(bg_color))
+
+        # Match foreground color
+        fg_color = "w" if self.mode == self.DARK else "k"
+        for label, sample in legend.items:
+            label.setText(label.text(), color=fg_color)
+            if hasattr(sample, 'setPen'):
+                sample.setPen(pg.mkPen(fg_color))
+            if hasattr(sample, 'setBrush'):
+                sample.setBrush(pg.mkBrush(fg_color))
+
+class ColorRotator:
+    def __init__(self, colors="mpl", width=2):
+        if colors == "mpl":
+            self.colors = [
+                '#1f77b4', '#ff7f0e', '#2ca02c',
+                '#d62728', '#9467bd', '#8c564b',
+            ]
+        elif colors == "lo":
+            self.colors = [
+                '#004586', '#ff420e', '#ffd320',
+                '#579d1c', '#7e0021', '#83caff',
+            ]
+        else:
+            self.colors = colors
+        self.width = width
+        self._i = 0
+
+    def next_pen(self):
+        color = self.colors[self._i % len(self.colors)]
+        self._i += 1
+        return pg.mkPen(color, width=self.width)
+
+    def reset(self):
+        self._i = 0

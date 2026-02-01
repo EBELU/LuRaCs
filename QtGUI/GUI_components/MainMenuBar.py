@@ -25,8 +25,26 @@ class MainMenuBar(QMenuBar):
         # Device Menu
 
         device_menu = self.addMenu("&Device")
+        device_menu_connectBT = device_menu.addAction("Connect Bluetooth")
+        device_menu_retryLast = device_menu.addAction("Retry Last Connection")
+        device_menu_connectUSB = device_menu.addAction("Connect USB")
+        device_menu_connectUSB = device_menu.addAction("Disconnect")
+        device_menu_info = device_menu.addAction("Device Info")
 
-        spectrum = self.addMenu("&Spectrum")
+        spectrum_menu = self.addMenu("&Spectrum")
+        spectrum_menu_import = spectrum_menu.addAction("Import")
+        spectrum_export_menu = spectrum_menu.addMenu("&Export Spectra")
+        spectrum_export__menu_csv = spectrum_export_menu.addAction("csv")
+        spectrum_export__menu_xml = spectrum_export_menu.addAction("xml")
+        spectrum_menu_exportRoi = spectrum_menu.addAction("Export ROIs")
+        spectrum_menu_reset = spectrum_menu.addAction("Reset Accumulation")
+
+
+        calculate_menu = self.addMenu("&Calculate")
+        calculate_menu_photoEff = calculate_menu.addAction("Efficiency")
+        calculate_menu_photoActi = calculate_menu.addAction("Activity")
+        calculate_menu_photoFrac = calculate_menu.addAction("Photofraction")
+
 
         # ---------- Options Menu ----------
         options_menu = self.addMenu("&Options")

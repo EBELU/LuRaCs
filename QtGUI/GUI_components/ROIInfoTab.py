@@ -22,7 +22,7 @@ class ROIInfoPane(QWidget):
 
         # ---- Table ----
         titles = ["ROI", "Low", "High", "FWHM", "G", "B", "N", "A", r"μ", r"σ", ]
-        self.table = QTableWidget(1, len(titles))
+        self.table = QTableWidget(0, len(titles))
         self.table.setColumnCount(len(titles))
         self.table.setHorizontalHeaderLabels(titles)
 
@@ -48,11 +48,12 @@ class ROIInfoPane(QWidget):
         self.ROIs = {}
 
     def recieve_roi(self, roi: ROI):
-        # roi = ROI()
-        # if roi.tag not in self.rois:
-        #     row_index = self.table.rowCount()  # current number of rows
-        #     self.table.insertRow(row_index)
-        # self.ROIs[roi.tag] = roi
+        if roi.tag not in self.ROIs:
+            row_index = self.table.rowCount()
+            self.table.insertRow(row_index)
+            self.ROIs[roi.tag] = row_index
+        else:
+            row_index = self.ROIs[roi.tag]
 
         row = [roi.tag, roi.low, roi.high, 
                round(roi.gaussian.FWHM(), 4), 
@@ -62,11 +63,10 @@ class ROIInfoPane(QWidget):
                round(roi.gaussian.A, 4), 
                round(roi.gaussian.mu, 4), 
                round(roi.gaussian.sigma, 4), ]
-        write_row(self.table, 0, row)
+        write_row(self.table, row_index, row)
 
-
-    def set_roi_info(self, roi):
-        pass
-
+    def delete_roi(self, roi: ROI):
+        assert roi.tag in self.ROIs, f"{roi.tag} id not in self.ROIs: {self.ROIs.keys()}"
+        self.table.removeRow(self.ROIs[roi.tag])
 
     

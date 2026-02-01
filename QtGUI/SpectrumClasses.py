@@ -1,5 +1,5 @@
 import numpy as np
-from .gaussian_fitting import fit_gaussian, Gaussian
+from .utils.gaussian_fitting import fit_gaussian, Gaussian
 
 class ROI:
     def __init__(self, tag:str,  low: int, high: int, gaussian):
@@ -26,7 +26,7 @@ class Spectrum:
         self.name = name
         self.channels = channels
         self.y_data = np.zeros(channels)
-        self.x_data = np.arange(channels)
+        self.x_axis = np.arange(channels)
         self.bkg_y_data = None
         self.total_counts = 0
         self.primary_uptime = None
@@ -53,7 +53,7 @@ class Spectrum:
         """
             coeffs = [a_n, a_{n-1}, ..., a_0]
         """
-        self.x_data = np.polyval(coefficients, np.arange(self.channels))
+        self.x_axis = np.polyval(coefficients, np.arange(self.channels))
         self.calibration_coefficients = coefficients
         self.calibrated = True
         
@@ -117,7 +117,7 @@ class Spectrum:
         
     def get_ROI_plots(self, ROI_tag, log = False):
         roi = self.ROIs[ROI_tag]
-        x = self.x_data[(roi.low < self.x_data) & (self.x_data < roi.high)]
+        x = self.x_axis[(roi.low < self.x_axis) & (self.x_axis < roi.high)]
         if roi.gaussian is not None:
             lin = roi.gaussian._corr_f(x)
             gaussian = roi.gaussian.value(x) + lin
@@ -135,7 +135,7 @@ class Spectrum:
     def update_roi(self, tag, x_low, x_high, cps = None):
         try:
             y_data = self.get_spectrum(False, cps)
-            gaussian = fit_gaussian(self.x_data, y_data, x_low, x_high)
+            gaussian = fit_gaussian(self.x_axis, y_data, x_low, x_high)
         except Exception as e:
             print(f"Gaussian fit failed on ", e)
             gaussian = None
