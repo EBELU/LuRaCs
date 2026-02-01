@@ -281,15 +281,29 @@ class BluetoothListPopup(ListPopupNonBlocking):
             self.list_widget.addItem("No devices found")
             return
 
+        # Prepare list with priority devices on top
+        priority = []
+        normal = []
+
         for dev in devices:
             name = dev.name or dev.address
             self._devices_by_name[name] = dev
 
-            item = QListWidgetItem(name)
+            # Check if name contains radiacode or raysid (case-insensitive)
+            if name.lower().find("radiacode") != -1 or name.lower().find("raysid") != -1:
+                display_name = f"{name} ☢️"
+                priority.append((display_name, dev))
+            else:
+                normal.append((name, dev))
+
+        # Combine priority first, then normal devices
+        sorted_devices = priority + normal
+
+        for display_name, dev in sorted_devices:
+            item = QListWidgetItem(display_name)
             item.setTextAlignment(Qt.AlignCenter)
             item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
             item.setData(Qt.UserRole, dev)
-
             self.list_widget.addItem(item)
 
         self.list_widget.clearSelection()
@@ -320,10 +334,22 @@ class BluetoothListPopup(ListPopupNonBlocking):
             self._timer.stop()
             self.list_widget.item(0).setText("🔍 Finishing scan…")
 
-    def _on_confirmed(self, name: str):
-        device = self._devices_by_name.get(name)
-        if device:
-            self.deviceSelected.emit(device)
+    def _on_confirmed(self):
+        item = self.list_widget.currentItem()
+        if item:
+            # Remove emoji (everything after first space)
+            name = item.text().split(" ☢️")[0]
+            dev = self._devices_by_name.get(name)
+            if dev:
+                self.deviceSelected.emit(dev)
+            self.close()
+
+    def _on_double_click(self, item):
+        name = item.text().split(" ☢️")[0]
+        dev = self._devices_by_name.get(name)
+        if dev:
+            self.deviceSelected.emit(dev)
+        self.close()
 
     def closeEvent(self, event):
         self._timer.stop()
