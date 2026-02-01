@@ -130,6 +130,8 @@ class SpectrumPlot(QWidget):
 
 
     def _on_range_change(self, view_box, range):
+        if not self.y_axis_locked:
+            return
         self.user_scaled = True
         x_min, x_max = self.plot_widget.viewRange()[0]
         if x_min < 0 or x_max > 3500:
@@ -137,10 +139,14 @@ class SpectrumPlot(QWidget):
 
 
         y_max = np.max([np.max(spectrum.get_spectrum(self.log, self.cps)[(spectrum.x_axis > x_min) & (spectrum.x_axis < x_max)]) for spectrum in self.spectra.values()])
+        y_min = np.min([np.min(spectrum.get_spectrum(self.log, self.cps)[(spectrum.x_axis > x_min) & (spectrum.x_axis < x_max)]) for spectrum in self.spectra.values()])
 
-        if y_max:
+        if y_max and not self.log:
             padding = 1.1
             self.plot_widget.setYRange(0, y_max * padding, padding=0)
+        elif self.log and y_max > y_min:
+            padding = 1.1
+            self.plot_widget.setYRange(y_min / 2, y_max * padding, padding=0)
 
     def _on_bkg_option_selection(self, option):
         """Change how the background is handeled"""
@@ -272,14 +278,11 @@ class SpectrumPlot(QWidget):
     def change_lin_log(self):
         if self.log == False:
             self.log = True
+
+            self.plot_widget.enableAutoRange(axis=pg.ViewBox.YAxis, enable=True)
+
             self._redraw()
             self.btn_lin_log.setText("Lin")
-            self.plot_widget.setLimits(
-            xMin=0, xMax=3500,
-            yMin=-5, yMax=1e6,
-            minXRange=10, maxXRange=3500,
-            minYRange=-10, maxYRange=1e6
-        )
 
         else:
             self.log = False

@@ -86,8 +86,6 @@ class MainWindow(QMainWindow):
         self.menu_bar = MainMenuBar()
         self.setMenuBar(self.menu_bar)
 
-        items = ["Device 1", "Device 2", "Device 3"]
-
 
         # ---------- SPECTRUM PLOT ----------
         self.spectrum_plot = SpectrumPlot()
