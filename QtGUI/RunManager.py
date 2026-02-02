@@ -12,49 +12,13 @@ class DeviceWrapper:
     def __init__(self, name: str, client):
         self.name = name
         self.client = client
-
-        self._poll_task: asyncio.Task | None = None
-        self._running = False
-
-    async def start(self, run_manager):
+    async def start(self):
         await self.client.start()
-        self._running = True
 
-        self._poll_task = asyncio.create_task(
-            self._poll_loop(run_manager)
-        )
 
     async def stop(self):
-        self._running = False
-        if self._poll_task:
-            self._poll_task.cancel()
-            await asyncio.gather(self._poll_task, return_exceptions=True)
-
         await self.client.stop()
 
-    async def _poll_loop(self, rm):
-        """Poll latest values and emit signals"""
-        while self._running:
-            if self.client.LatestRealTimeData:
-                rm.currentUpdated.emit(
-                    self.name,
-                    self.client.LatestRealTimeData
-                )
-
-            if self.client.LatestStatusData:
-                rm.statusUpdated.emit(
-                    self.name,
-                    self.client.LatestStatusData
-                )
-
-            spectrum = self.client.LatestSpectrum
-            if spectrum is not None:
-                rm.spectrumUpdated.emit(
-                    self.name,
-                    spectrum
-                )
-
-            await asyncio.sleep(0.5)
 
 
 from PySide6.QtCore import QObject, Signal
@@ -99,6 +63,39 @@ class RunManager(QObject):
         self.available_clients = available_clients
         self.running = False
 
+        self._poll_task: asyncio.Task | None = None
+        self._polling = False
+
+    async def _poll_loop(self):
+        try:
+            while self._polling:
+                for name, wrapper in list(self.devices.items()):
+                    client = wrapper.client
+
+                    if client.LatestRealTimeData is not None:
+                        self.currentUpdated.emit(
+                            name,
+                            client.LatestRealTimeData
+                        )
+
+                    if client.LatestStatusData is not None:
+                        self.statusUpdated.emit(
+                            name,
+                            client.LatestStatusData
+                        )
+
+                    spectrum = getattr(client, "LatestSpectrum", None)
+                    if spectrum is not None:
+                        self.spectrumUpdated.emit(
+                            name,
+                            spectrum
+                        )
+
+                await asyncio.sleep(0.5)
+
+        except asyncio.CancelledError:
+            pass
+
 
     async def add_device(self, device_address, device_type):
         name = str(device_address)
@@ -136,9 +133,13 @@ class RunManager(QObject):
             wrapper = DeviceWrapper(name, client)
             self.devices[name] = wrapper
 
-            await wrapper.start(self)   # <-- cancellable point
+            await wrapper.start()   # <-- cancellable point
 
             self.deviceConnected.emit(name)
+
+            if not self._poll_task:
+                self._polling = True
+                self._poll_task = asyncio.create_task(self._poll_loop())
 
         except asyncio.CancelledError:
             # ---- cancelled while connecting ----
@@ -157,11 +158,6 @@ class RunManager(QObject):
             self._connect_tasks.pop(name, None)
 
     async def remove_device(self, device_name: str):
-        # cancel if still connecting
-        task = self._connect_tasks.pop(device_name, None)
-        if task:
-            task.cancel()
-            return
 
         wrapper = self.devices.pop(device_name, None)
         if not wrapper:
@@ -172,10 +168,22 @@ class RunManager(QObject):
             self.deviceRemoved.emit(device_name)
         except Exception as e:
             self.deviceError.emit(device_name, str(e))
+        finally:
+            # ---- stop polling if no devices remain ----
+            if not self.devices and self._poll_task:
+                self._polling = False
+                self._poll_task.cancel()
+                await asyncio.gather(self._poll_task, return_exceptions=True)
+                self._poll_task = None
 
     async def shutdown(self):
         self.shutdownStarted.emit()
 
+        if self._poll_task:
+            self._polling = False
+            self._poll_task.cancel()
+            await asyncio.gather(self._poll_task, return_exceptions=True)
+            self._poll_task = None
         # ---- cancel all pending connects ----
         connect_tasks = list(self._connect_tasks.values())
         self._connect_tasks.clear()
@@ -186,16 +194,15 @@ class RunManager(QObject):
         if connect_tasks:
             await asyncio.gather(*connect_tasks, return_exceptions=True)
 
-        # ---- stop all running devices ----
-        wrappers = list(self.devices.values())
-        self.devices.clear()
+        # ---- stop all running devices ----        
 
-        for wrapper in wrappers:
+        for wrapper in self.devices.values():
             try:
                 await wrapper.stop()
             except Exception:
                 pass  # never let shutdown fail
-
+        
+        self.devices.clear()
         self.shutdownFinished.emit()
 
 
