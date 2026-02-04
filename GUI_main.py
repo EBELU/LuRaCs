@@ -31,7 +31,8 @@ from QtGUI.SpectrumClasses import Spectrum
 from QtGUI.GUI_components.CurrentValuesTab import CurrentValuesPlot
 from QtGUI.ThemeManager import ThemeManager
 
-from QtGUI.RunManager import RunManager
+from QtGUI.Globals import SpectrumManager
+
 from QtGUI.utils.MockClient import MockClient
 
 from QtGUI.GUI_components.ListPopup import BluetoothListPopup
@@ -120,10 +121,15 @@ class MainWindow(QMainWindow):
 
 
         layout.addWidget(self.bottom_tabs, 1)
+        
+        SpectrumManager.create_spectrum( "RC103", len(imported_data),)
+        SpectrumManager.set_primary_spectrum("RC103", imported_data, 4352)
+        SpectrumManager.set_background_spectrum("RC103", imported_bkg, 69714)
+        SpectrumManager.calibrate_spectrum("RC103", [0.0003705, 2.3694975, 4.2583089])
 
-        self.spectrum_plot.EmittedSignlas.roi_created.connect(self.roi_info_pane.recieve_roi)
-        self.spectrum_plot.recieve_spectrum(imported_spectrum, True)
-        self.spectrum_plot.recieve_spectrum(co_spect)
+        # self.spectrum_plot.EmittedSignlas.roi_created.connect(self.roi_info_pane.recieve_roi)
+        # self.spectrum_plot.recieve_spectrum(imported_spectrum, True)
+        # self.spectrum_plot.recieve_spectrum(co_spect)
 
         self.new_current_signal.connect(self.update_current)
         # self.new_spectrum_signal.connect(self.update_spectrum)
@@ -202,17 +208,17 @@ def main():
     win = MainWindow()
     win.show()
 
-    run_manager = RunManager(loop, {"mock": MockClient})
-    win.run_manager = run_manager  # store reference
+    # run_manager = RunManager(loop, {"mock": MockClient})
+    # win.run_manager = run_manager  # store reference
 
-    run_manager.bluetoothFound.connect(win.recieve_BT_list)
-    run_manager.bluetoothError.connect(print)
+    # run_manager.bluetoothFound.connect(win.recieve_BT_list)
+    # run_manager.bluetoothError.connect(print)
 
-    # Schedule adding mock device safely after loop starts
-    QTimer.singleShot(0, lambda: asyncio.create_task(run_manager.add_device("Mock", "mock")))
+    # # Schedule adding mock device safely after loop starts
+    # QTimer.singleShot(0, lambda: asyncio.create_task(run_manager.add_device("Mock", "mock")))
 
-    # Schedule first Bluetooth scan safely
-    QTimer.singleShot(0, lambda: asyncio.create_task(run_manager.find_bluetooth()))
+    # # Schedule first Bluetooth scan safely
+    # QTimer.singleShot(0, lambda: asyncio.create_task(run_manager.find_bluetooth()))
 
     # Start mock tasks safely after loop starts
     QTimer.singleShot(0, lambda: asyncio.create_task(mock_data_task(win, "Raysid1")))

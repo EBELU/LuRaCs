@@ -2,6 +2,7 @@ import asyncio
 from PySide6.QtCore import QObject, Signal  # for Qt signals and QObject base class
 from qasync import QEventLoop
 
+
 from bleak import BleakScanner
 import usb.core
 import usb.util
@@ -20,13 +21,7 @@ class DeviceWrapper:
         await self.client.stop()
 
 
-
-from PySide6.QtCore import QObject, Signal
-import asyncio
-from bleak import BleakScanner
-
-
-class RunManager(QObject):
+class RunManagerBase(QObject):
     # ---- data signals ----
     currentUpdated = Signal(str, object)
     statusUpdated = Signal(str, object)
@@ -49,9 +44,9 @@ class RunManager(QObject):
 
     usbFindPorts = Signal(list)
 
-    def __init__(self, main_event_loop, available_clients):
+    def __init__(self):
         super().__init__()
-        self.event_loop = main_event_loop
+        self.event_loop = None
 
         self.devices: dict[str, DeviceWrapper] = {}
         self._connect_tasks: dict[str, asyncio.Task] = {}
@@ -60,7 +55,7 @@ class RunManager(QObject):
         self._seen_devices: dict[str, object] = {}
         self._scan_task: asyncio.Task | None = None
 
-        self.available_clients = available_clients
+        self.available_clients = None
         self.running = False
 
         self._poll_task: asyncio.Task | None = None
@@ -223,3 +218,4 @@ class RunManager(QObject):
 
 
 
+RunManager = RunManagerBase()

@@ -25,6 +25,7 @@ class Spectrum:
     def __init__(self, channels, name):
         self.name = name
         self.channels = channels
+        
         self.y_data = np.zeros(channels)
         self.x_axis = np.arange(channels)
         self.bkg_y_data = None
@@ -37,6 +38,7 @@ class Spectrum:
         self.calibration_coefficients = None
         self.calibrated = False
         self.energy_unit = None
+        self.fit_rois = True
         
     def set_y_data(self, spectrum, uptime = None):
         assert len(spectrum) == self.channels
@@ -57,7 +59,7 @@ class Spectrum:
         self.calibration_coefficients = coefficients
         self.calibrated = True
         
-    def get_spectrum(self, log = False, cps = False):
+    def get_foreground(self, log = False, cps = False):
         """
          Returns the channel counts for the primary spectrum.
         
@@ -82,13 +84,15 @@ class Spectrum:
          Returns the channel counts for the background spectrum. If the background is empty it returns None.
         
         :param log: If True applies log10 before returning spectrum. Counts of 0 is set to NaN.
-        :param cps: Converts the channel counts to cps by dividing by uptime. If the uptime is 0 it returns the normal specturm.
+        :param cps: Converts the channel counts to cps by dividing by uptime. If the uptime is 0 it returns None
         """
         if self.bkg_y_data is None:
             return
 
         if cps and self.bkg_uptime != 0:
             bkg_y_data = self.bkg_y_data / self.bkg_uptime
+        elif cps and not self.bkg_uptime > 0:
+            return
         else:
             bkg_y_data = self.bkg_y_data
 
@@ -107,15 +111,16 @@ class Spectrum:
             return
         
         if self.bkg_uptime is None or self.bkg_y_data is None:
-            return self.get_spectrum(False, True)
+            return self.get_foreground(False, True)
 
-        data = self.get_spectrum(False, True) - self.get_bkg(False, True)
+        data = self.get_foreground(False, True) - self.get_bkg(False, True)
         if log:
             return np.log10(np.where(data > 0, data, np.nan))
         else:
             return data
         
     def get_ROI_plots(self, ROI_tag, log = False):
+        """Return the x-axis and the gaussian curve and the background fit from a ROI"""
         roi = self.ROIs[ROI_tag]
         x = self.x_axis[(roi.low < self.x_axis) & (self.x_axis < roi.high)]
         if roi.gaussian is not None:
@@ -133,14 +138,20 @@ class Spectrum:
 
         
     def update_roi(self, tag, x_low, x_high, cps = None):
+        """Refit a ROI"""
         try:
-            y_data = self.get_spectrum(False, cps)
+            y_data = self.get_foreground(False, cps)
             gaussian = fit_gaussian(self.x_axis, y_data, x_low, x_high)
         except Exception as e:
             print(f"Gaussian fit failed on ", e)
             gaussian = None
         
         self.ROIs[tag] = ROI(tag, x_low, x_high, gaussian)
+        
+    
+    def _dump_state(self):
+        """Export the state of the spectrum as a dict for json format"""
+        return {}
         
         
         

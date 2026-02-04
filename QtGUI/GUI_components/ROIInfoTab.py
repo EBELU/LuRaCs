@@ -9,19 +9,24 @@ from PySide6.QtWidgets import (
 
 from ..SpectrumClasses import ROI
 
+from ..Globals import SpectrumManager
+
 def write_row(table, row_index, values):
     for col_index, value in enumerate(values):
         table.setItem(row_index, col_index, QTableWidgetItem(str(value)))
 
 class ROIInfoPane(QWidget):
+    
     def __init__(self, title="", parent=None):
         super().__init__(parent)
-
+        # --- Signals ---
+        SpectrumManager.Signals.roiUpdated.connect(self.recieve_roi)
+        
         # ---- Box ----
         self.group_box = QGroupBox(title)
 
         # ---- Table ----
-        titles = ["ROI", "Low", "High", "FWHM", "G", "B", "N", "A", r"μ", r"σ", ]
+        titles = ["ROI", "Low", "High", "Peak Center", "FWHM", "Max Height","G", "B", "N",]
         self.table = QTableWidget(0, len(titles))
         self.table.setColumnCount(len(titles))
         self.table.setHorizontalHeaderLabels(titles)
@@ -47,7 +52,9 @@ class ROIInfoPane(QWidget):
 
         self.ROIs = {}
 
-    def recieve_roi(self, roi: ROI):
+    def recieve_roi(self, roi_tag):
+        roi = list(SpectrumManager.get_spectra_dict().values())[0].ROIs[roi_tag]
+        
         if roi.tag not in self.ROIs:
             row_index = self.table.rowCount()
             self.table.insertRow(row_index)
@@ -55,14 +62,16 @@ class ROIInfoPane(QWidget):
         else:
             row_index = self.ROIs[roi.tag]
 
-        row = [roi.tag, roi.low, roi.high, 
-               round(roi.gaussian.FWHM(), 4), 
-               round(roi.gaussian.G, 4), 
-               round(roi.gaussian.B, 4), 
-               round(roi.gaussian.N, 4), 
-               round(roi.gaussian.A, 4), 
-               round(roi.gaussian.mu, 4), 
-               round(roi.gaussian.sigma, 4), ]
+        row = [roi.tag, round(roi.low), round(roi.high), 
+                round(roi.gaussian.mu, 4), 
+                round(roi.gaussian.FWHM(), 4), 
+                round(roi.gaussian.max_height(), 4),
+                round(roi.gaussian.G, 4), 
+                round(roi.gaussian.B, 4), 
+                round(roi.gaussian.N, 4), 
+                round(roi.gaussian.A, 4), 
+
+]
         write_row(self.table, row_index, row)
 
     def delete_roi(self, roi: ROI):

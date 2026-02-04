@@ -3,19 +3,21 @@ from PySide6.QtCore import Qt, QObject, Signal
 import pyqtgraph as pg
 import numpy as np
 
+from ..Globals import SpectrumManager
+
 
 
 from ..utils.gaussian_fitting import Gaussian
 
 class EmittedSignals(QObject):
-    roi_deleted = Signal(str)
-    roi_created = Signal(object)
+    updateROI = Signal(str, float, float, bool)
+    removeROI = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
 
 class DeletableROI(pg.LinearRegionItem):
-
+    """Visual ROI selector modified to have a 'tag' and can be deleted by right clicking"""
     sigDeleteRequested = Signal(str) 
 
     def __init__(
@@ -43,14 +45,24 @@ class DeletableROI(pg.LinearRegionItem):
 
 
 class SpectrumPlot(QWidget):
-    """Class to control and manage the plotting of spectra. Also manages the peak fitting.
+    """Class to control and manage the plotting of spectra.
     
-        Does not manage the creation of spectra.
+        Does not manage the spectra, can only request operations from SpectrumManager.
     """
     def __init__(self, xlabel="Channel", ylabel="Counts", parent=None):
         super().__init__(parent)
         
-        self.EmittedSignlas = EmittedSignals()
+        # --- Signals ---
+        
+        self.Signals = EmittedSignals()
+        
+        SpectrumManager.Signals.spectrumUpdated.connect(self.update_plot)
+        
+        self.Signals.updateROI.connect(SpectrumManager.update_ROI)
+        self.Signals.removeROI.connect(SpectrumManager.remove_ROI)
+        
+        
+        # --- Layout ---
         
         layout = QVBoxLayout(self)
         layout.setContentsMargins(1,1,1,1)        
@@ -110,7 +122,6 @@ class SpectrumPlot(QWidget):
 
         self.primary_lines = {}
         self.bkg_lines = {}
-        self.spectra = {}   # Tracked spectra
         self.primary_spectrum = None
 
         self.ROIs = {}  # ROI slection objects, spectra track their own rois
@@ -138,8 +149,8 @@ class SpectrumPlot(QWidget):
             self.plot_widget.setXRange(max(0,x_min), min(3500,x_max), padding=0)
 
 
-        y_max = np.max([np.max(spectrum.get_spectrum(self.log, self.cps)[(spectrum.x_axis > x_min) & (spectrum.x_axis < x_max)]) for spectrum in self.spectra.values()])
-        y_min = np.min([np.min(spectrum.get_spectrum(self.log, self.cps)[(spectrum.x_axis > x_min) & (spectrum.x_axis < x_max)]) for spectrum in self.spectra.values()])
+        y_max = np.max([np.max(spectrum.get_foreground(self.log, self.cps)[(spectrum.x_axis > x_min) & (spectrum.x_axis < x_max)]) for spectrum in SpectrumManager.get_spectra_dict().values()])
+        y_min = np.min([np.min(spectrum.get_foreground(self.log, self.cps)[(spectrum.x_axis > x_min) & (spectrum.x_axis < x_max)]) for spectrum in SpectrumManager.get_spectra_dict().values()])
 
         if y_max and not self.log:
             padding = 1.1
@@ -177,7 +188,6 @@ class SpectrumPlot(QWidget):
             self._redraw()
 
 
-
     def _set_cps(self,_ , cps_bool = None, recalculate = True):
         if cps_bool is None:
             # If the change is not made explicitly
@@ -189,10 +199,20 @@ class SpectrumPlot(QWidget):
                 self.cps = True
 
         if cps_bool:
+            if self.log:
+                self.plot_widget.setLimits(
+                yMin=-10, yMax=1e6)
+                
+            else:
+                self.plot_widget.setLimits(
+                yMin=0, yMax=1e6)
+                
             self.cps = True
             self.plot_widget.setLabel('left', "CPS")
             self.btn_cps.setText("Counts")
         else:
+            self.plot_widget.setLimits(
+                yMin=0, yMax=1e6)
             self.cps = False
             self.plot_widget.setLabel('left', "Counts")
             self.btn_cps.setText("CPS")
@@ -218,7 +238,7 @@ class SpectrumPlot(QWidget):
         self.plot_widget.clear()
         self.primary_lines.clear()
         self.bkg_lines.clear()
-        for spect in self.spectra.values():
+        for spect in SpectrumManager.get_spectra_dict().values():
             if not self.bkg_sub:
                 self.plot_primary(spect)
                 self.plot_bkg(spect)
@@ -234,17 +254,16 @@ class SpectrumPlot(QWidget):
         self.user_scaled = False
         self.plot_widget.enableAutoRange()
         self.plot_widget.setXRange(0, 2500, padding=0)
-
-    def recieve_spectrum(self, spectrum, primary = False):
-        """Outward interface of specturm plot. """
-        self.spectra[spectrum.name] = spectrum
-        if primary:
-            self.primary = spectrum.name
+        
+        
+    def update_plot(self, name):
+        """Primary method for updating a spectrum plot"""
+        spect = SpectrumManager.get_spectrum(name)
         if self.bkg_sub:
-            self.plot_bkg_subtract(spectrum)
+            self.plot_bkg_subtract(self)
         else:
-            self.plot_primary(spectrum)
-            self.plot_bkg(spectrum)
+            self.plot_primary(spect)
+            self.plot_bkg(spect)
 
     def plot_primary(self, spectrum, color="b"):
         if spectrum.name not in self.primary_lines:
@@ -252,7 +271,7 @@ class SpectrumPlot(QWidget):
             line = self.plot_widget.plot([], [], pen=pen, name=spectrum.name, stepMode=True, fillLevel=0, brush=(0, 0, 255, 150))
             self.primary_lines[spectrum.name] = line
 
-        self.primary_lines[spectrum.name].setData(spectrum.x_axis, spectrum.get_spectrum(self.log, self.cps)[:-1])
+        self.primary_lines[spectrum.name].setData(spectrum.x_axis, spectrum.get_foreground(self.log, self.cps)[:-1])
 
     def plot_bkg(self, spectrum, color = "r"):
         if spectrum.bkg_y_data is None or not self.show_bkg:
@@ -280,6 +299,14 @@ class SpectrumPlot(QWidget):
             self.log = True
 
             self.plot_widget.enableAutoRange(axis=pg.ViewBox.YAxis, enable=True)
+            if self.cps:
+                self.plot_widget.setLimits(
+                yMin=-10, yMax=1e6)
+                
+            else:
+                self.plot_widget.setLimits(
+                yMin=0, yMax=1e6)
+
 
             self._redraw()
             self.btn_lin_log.setText("Lin")
@@ -289,10 +316,8 @@ class SpectrumPlot(QWidget):
             self._redraw()
             self.btn_lin_log.setText("Log")
             self.plot_widget.setLimits(
-            xMin=0, xMax=3500,
             yMin=0, yMax=1e6,
-            minXRange=10, maxXRange=3500,
-            minYRange=1, maxYRange=1e6
+
         )
             
         self._redraw()
@@ -301,46 +326,39 @@ class SpectrumPlot(QWidget):
 
     def add_roi(self):
         """Enable interactive ROI marking with LinearRegionItem."""
-        roi_tag = f"ROI_{self.roi_counter}"
-        self.roi_counter += 1
+        roi_tag = SpectrumManager.create_ROI()
         new_roi = DeletableROI(roi_tag,[100, 500], movable=True)
         self.plot_widget.addItem(new_roi)
         self.ROIs[roi_tag] = new_roi
         
         new_roi.sigDeleteRequested.connect(self.remove_roi)
         new_roi.sigRegionChangeFinished.connect(
-            lambda: self.on_roi_dropped(new_roi)
+            lambda: self.update_roi(new_roi)
         )
         
-    def on_roi_dropped(self, roi_selection):
-        self.update_rois(roi_selection)
+        self.update_roi(new_roi)
     
     def update_all_rois(self):
         for roi in self.ROIs.values():
             if roi not in self.plot_widget.plotItem.items:
                 self.plot_widget.addItem(roi)
-            self.update_rois(roi)
+            self.update_roi(roi)
 
-    def update_rois(self, roi_selection):
+    def update_roi(self, roi_selection):
         x_min, x_max = roi_selection.getRegion()
-        x_min, x_max = int(x_min), int(x_max)
+        x_min, x_max = float(x_min), float(x_max)
 
-        for spectrum_tag, spectrum in self.spectra.items():
-            if not self.primary == spectrum.name:
-                continue
-            spectrum.update_roi(roi_selection.tag, x_min, x_max, self.cps)
+        self.Signals.updateROI.emit(roi_selection.tag, x_min, x_max, self.cps)
             
-        for spectrum_tag, spectrum in self.spectra.items():
-            if not self.primary == spectrum.name:
-                continue
+        for spectrum_tag, spectrum in SpectrumManager.get_spectra_dict().items():
             for roi_tag, roi in spectrum.ROIs.items():
                 if spectrum_tag+roi_tag not in self.ROI_lines_gasussian:
-                    pen = pg.mkPen(color="w", width=2)
+                    pen = pg.mkPen(color="w", width=1.3)
                     line = self.plot_widget.plot([], [], pen=pen, name=roi_tag)
                     self.ROI_lines_gasussian[spectrum_tag+roi_tag] = line
                 
                 if spectrum_tag+roi_tag not in self.ROI_lines_linear:
-                    pen = pg.mkPen(color="w", width=2)
+                    pen = pg.mkPen(color="w", width=1, style=Qt.DashLine)
                     line = self.plot_widget.plot([], [], pen=pen, name=roi_tag)
                     self.ROI_lines_linear[spectrum_tag+roi_tag] = line
 
@@ -351,7 +369,6 @@ class SpectrumPlot(QWidget):
                     self.ROI_lines_gasussian[spectrum_tag+roi_tag].setData(x, gaussian)
                     self.ROI_lines_linear[spectrum_tag+roi_tag].setData(x, lin)
 
-                    self.EmittedSignlas.roi_created.emit(spectrum.ROIs[roi_tag])
                 
 
             
@@ -364,9 +381,8 @@ class SpectrumPlot(QWidget):
         )
 
         if reply == QMessageBox.Yes:
-            for spect_tag, spectrum in self.spectra.items():
-                if spect_tag != self.primary:
-                    continue
+            for spect_tag, spectrum in SpectrumManager.get_spectra_dict().items():
+
                 self.plot_widget.removeItem(self.ROI_lines_gasussian[spect_tag+roi])
                 self.plot_widget.removeItem(self.ROI_lines_linear[spect_tag+roi])
 
@@ -377,4 +393,5 @@ class SpectrumPlot(QWidget):
 
             self.plot_widget.removeItem(self.ROIs[roi])
             self.ROIs.pop(roi)
+            self.Signals.removeROI.emit(roi)
 
