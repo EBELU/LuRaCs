@@ -49,7 +49,7 @@ class RunManagerBase(QObject):
         self.event_loop = None
 
         self.devices: dict[str, DeviceWrapper] = {}
-        self._connect_tasks: dict[str, asyncio.Task] = {}
+
         self._scan_task: asyncio.Task | None = None
         self._scanner = None
         self._seen_devices: dict[str, object] = {}
@@ -60,6 +60,13 @@ class RunManagerBase(QObject):
 
         self._poll_task: asyncio.Task | None = None
         self._polling = False
+        
+        
+    def set_loop(self, loop):
+        self.event_loop = loop
+    
+    def set_clients(self, clients):
+        self.available_clients = clients
 
     async def _poll_loop(self):
         try:
@@ -95,7 +102,7 @@ class RunManagerBase(QObject):
     async def add_device(self, device_address, device_type):
         name = str(device_address)
 
-        if name in self.devices or name in self._connect_tasks:
+        if name in self.devices:
             return
 
         if device_type not in self.available_clients:
@@ -104,53 +111,22 @@ class RunManagerBase(QObject):
             )
 
         self.deviceConnecting.emit(name)
-
-        task = asyncio.create_task(
-            self._connect_device_task(device_address, device_type)
-        )
-        self._connect_tasks[name] = task
-
-    def cancel_add_device(self, device_address: str):
-        name = str(device_address)
-        task = self._connect_tasks.get(name)
-        if task:
-            task.cancel()
-
-
-    async def _connect_device_task(self, device_address, device_type):
-        name = str(device_address)
-        client = None
-
+        
+        new_device = self.available_clients[device_type](device_address)
+        
         try:
-            client_cls = self.available_clients[device_type]
-            client = client_cls(device_address)
-
-            wrapper = DeviceWrapper(name, client)
-            self.devices[name] = wrapper
-
-            await wrapper.start()   # <-- cancellable point
-
-            self.deviceConnected.emit(name)
-
-            if not self._poll_task:
-                self._polling = True
-                self._poll_task = asyncio.create_task(self._poll_loop())
-
+            await new_device.start()
         except asyncio.CancelledError:
-            # ---- cancelled while connecting ----
-            if client:
-                await client.stop()
-
-            self.devices.pop(name, None)
             self.deviceCancelled.emit(name)
-            raise
+        
+        self.deviceConnected.emit(name)
+        self.devices[name] = new_device
+        
+        if not self._poll_task:
+            self._polling = True
+            self._poll_task = asyncio.create_task(self._poll_loop())
 
-        except Exception as e:
-            self.devices.pop(name, None)
-            self.deviceError.emit(name, str(e))
 
-        finally:
-            self._connect_tasks.pop(name, None)
 
     async def remove_device(self, device_name: str):
 
@@ -179,21 +155,13 @@ class RunManagerBase(QObject):
             self._poll_task.cancel()
             await asyncio.gather(self._poll_task, return_exceptions=True)
             self._poll_task = None
-        # ---- cancel all pending connects ----
-        connect_tasks = list(self._connect_tasks.values())
-        self._connect_tasks.clear()
 
-        for task in connect_tasks:
-            task.cancel()
-
-        if connect_tasks:
-            await asyncio.gather(*connect_tasks, return_exceptions=True)
 
         # ---- stop all running devices ----        
 
-        for wrapper in self.devices.values():
+        for device in self.devices.values():
             try:
-                await wrapper.stop()
+                await device.stop()
             except Exception:
                 pass  # never let shutdown fail
         
@@ -204,6 +172,7 @@ class RunManagerBase(QObject):
     async def find_bluetooth(self, timeout = 5):
         if self._scan_task and not self._scan_task.done():
             return
+
 
         async def _scan():
             try:

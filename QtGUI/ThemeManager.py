@@ -58,6 +58,8 @@ class ThemeManager:
         p.setColor(QPalette.ButtonText, Qt.white)
         p.setColor(QPalette.Highlight, QColor(90, 140, 200))
         p.setColor(QPalette.HighlightedText, Qt.black)
+        p.setColor(QPalette.ToolTipBase, QColor(45, 45, 45))
+        p.setColor(QPalette.ToolTipText, Qt.white)
 
         # ---- Disabled ----
         p.setColor(QPalette.Disabled, QPalette.Button, QColor(35, 35, 35))

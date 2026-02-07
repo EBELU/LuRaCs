@@ -3,6 +3,8 @@ from PySide6.QtCore import QObject
 import time
 from dataclasses import dataclass
 
+from .BluetoothPopUp import BluetoothListPopup
+
 @dataclass
 class MenuActions:
     """Optional container for menu-related callbacks."""
@@ -26,6 +28,8 @@ class MainMenuBar(QMenuBar):
 
         device_menu = self.addMenu("&Device")
         device_menu_connectBT = device_menu.addAction("Connect Bluetooth")
+        device_menu_connectBT.triggered.connect(parent.bt_window.start_popup)
+        
         device_menu_retryLast = device_menu.addAction("Retry Last Connection")
         device_menu_connectUSB = device_menu.addAction("Connect USB")
         device_menu_connectUSB = device_menu.addAction("Disconnect")
