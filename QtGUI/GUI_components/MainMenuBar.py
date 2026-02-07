@@ -3,7 +3,7 @@ from PySide6.QtCore import QObject
 import time
 from dataclasses import dataclass
 
-from .BluetoothPopUp import BluetoothListPopup
+from .popup_windows.BluetoothListPopup import BluetoothListPopup
 
 @dataclass
 class MenuActions:

@@ -3,9 +3,9 @@ import asyncio
 from PySide6.QtCore import Signal, QTimer, Qt
 from PySide6.QtWidgets import QListWidgetItem, QPushButton
 
-from .ListPopup import ListPopupNonBlocking
+from .ListPopupBase import ListPopupNonBlocking
 
-from ..Globals import RunManager
+from ...Globals import RunManager
 
 def _on_bt_device_selected(device):
     print("Selected device:", device)
@@ -23,10 +23,6 @@ def _on_bt_device_selected(device):
     asyncio.create_task(
         RunManager.add_device(device, device_type)
     )
-    
-    
-
-
     
 
 class BluetoothListPopup(ListPopupNonBlocking):
@@ -47,6 +43,8 @@ class BluetoothListPopup(ListPopupNonBlocking):
         self.deviceSelected.connect(_on_bt_device_selected)
         self.rescanRequested.connect(self._request_bt_scan)
         RunManager.bluetoothFound.connect(self.receive_BT_list)
+
+        self.scan_task = None
         
         self._scan_duration = scan_duration
         self._scan_start_time = None
@@ -67,6 +65,7 @@ class BluetoothListPopup(ListPopupNonBlocking):
 
         # ------------------ Hook base confirmation ------------------
         self.confirmed.connect(self._on_confirmed)
+        self.cancelled.connect(self._on_cancelled)
 
     # ------------------------------------------------
     # Public Bluetooth API
@@ -174,6 +173,10 @@ class BluetoothListPopup(ListPopupNonBlocking):
             self.deviceSelected.emit(dev)
         self.close()
 
+    def _on_cancelled(self):
+        if self.scan_task:
+            self.scan_task.cancel()
+
     def closeEvent(self, event):
         self._timer.stop()
         RunManager.bluetoothFound.disconnect(self.receive_BT_list)
@@ -181,7 +184,7 @@ class BluetoothListPopup(ListPopupNonBlocking):
 
     def _request_bt_scan(self):
         self.start_scan_ui()
-        asyncio.create_task(RunManager.find_bluetooth())
+        self.scan_task = asyncio.create_task(RunManager.find_bluetooth())
         
     def receive_BT_list(self, device_list):
         self.set_devices(device_list)

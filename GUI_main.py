@@ -28,6 +28,7 @@ from PySide6.QtCore import QTimer
 
 from QtGUI.GUI_components.SpectrumPlot import SpectrumPlot
 from QtGUI.GUI_components.ROIInfoTab import ROIInfoPane
+from QtGUI.GUI_components.SpectrumInfoTab import SpectrumInfoPane
 from QtGUI.GUI_components.MainMenuBar import MainMenuBar, MenuActions
 from QtGUI.SpectrumClasses import Spectrum
 from QtGUI.GUI_components.CurrentValuesTab import CurrentValuesPlot
@@ -38,7 +39,7 @@ from QtGUI.Globals import SpectrumManager
 from QtGUI.utils.MockClient import MockClient
 from QtGUI.Globals import RunManager
 
-from QtGUI.GUI_components.BluetoothPopUp import BluetoothListPopup
+from QtGUI.GUI_components.popup_windows.BluetoothListPopup import BluetoothListPopup
 
 # from QtGUI.GUI_components.ListPopup import BluetoothListPopup
 
@@ -126,7 +127,8 @@ class MainWindow(QMainWindow):
 
         self.bottom_tabs.addTab(QWidget(), "Devices")
 
-        self.bottom_tabs.addTab(QWidget(), "Spectra")
+        self.spectrum_info_tab = SpectrumInfoPane()
+        self.bottom_tabs.addTab(self.spectrum_info_tab, "Spectra")
         
 
 
@@ -146,6 +148,11 @@ class MainWindow(QMainWindow):
         SpectrumManager.set_background_spectrum("RC103", imported_bkg, 69714)
         SpectrumManager.calibrate_spectrum("RC103", [0.0003705, 2.3694975, 4.2583089])
 
+        SpectrumManager.create_spectrum("RC103Co", len(imported_cobolt_data))
+        SpectrumManager.set_primary_spectrum("RC103Co", imported_cobolt_data, 67286)
+        SpectrumManager.set_background_spectrum("RC103Co", imported_bkg, 69714)
+        SpectrumManager.calibrate_spectrum("RC103Co", [0.0003705, 2.3694975, 4.2583089])
+
 
         self.new_current_signal.connect(self.update_current)
 
@@ -158,12 +165,6 @@ class MainWindow(QMainWindow):
             self.current_value_tab.dose_plot_widget],
             legends=self.current_value_tab.legends)
         
-        
-        
-
-        # 
-        
-
         
     def update_current(self, package):
         self.current_value_tab.receive_data_packet(package)

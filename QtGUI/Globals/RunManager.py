@@ -140,7 +140,7 @@ class RunManagerBase(QObject):
         except Exception as e:
             self.deviceError.emit(device_name, str(e))
         finally:
-            # ---- stop polling if no devices remain ----
+            # --- stop polling if no devices remain ---
             if not self.devices and self._poll_task:
                 self._polling = False
                 self._poll_task.cancel()
