@@ -1,13 +1,12 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QHBoxLayout, QMessageBox, QComboBox
 from PySide6.QtCore import Qt, QObject, Signal
+from PySide6.QtGui import QColor
 import pyqtgraph as pg
 import numpy as np
 
 from ..Globals import SpectrumManager
 
-
-
-from ..utils.gaussian_fitting import Gaussian
+from ..SpectrumClasses import Spectrum
 
 class EmittedSignals(QObject):
     updateROI = Signal(str, float, float, bool)
@@ -137,6 +136,7 @@ class SpectrumPlot(QWidget):
         self.bkg_sub = False
 
         self.plot_widget.sigRangeChanged.connect(self._on_range_change)
+        SpectrumManager.Signals.colorUpdated.connect(self._redraw)
 
 
 
@@ -265,27 +265,59 @@ class SpectrumPlot(QWidget):
             self.plot_primary(spect)
             self.plot_bkg(spect)
 
-    def plot_primary(self, spectrum, color="b"):
+
+    def plot_primary(self, spectrum: Spectrum):
         if spectrum.name not in self.primary_lines:
-            pen = pg.mkPen(color=color, width=2)
-            line = self.plot_widget.plot([], [], pen=pen, name=spectrum.name, stepMode=True, fillLevel=0, brush=(0, 0, 255, 150))
-            self.primary_lines[spectrum.name] = line
+            pen = pg.mkPen(spectrum.color_foreground, width=2)
 
-        self.primary_lines[spectrum.name].setData(spectrum.x_axis, spectrum.get_foreground(self.log, self.cps)[:-1])
+            brush = QColor(spectrum.color_foreground)
+            brush.setAlpha(150)
 
-    def plot_bkg(self, spectrum, color = "r"):
-        if spectrum.bkg_y_data is None or not self.show_bkg:
+            self.primary_lines[spectrum.name] = self.plot_widget.plot(
+                [],
+                [],
+                name=spectrum.name,
+                pen=pen,
+                brush=brush,
+                fillLevel=0,
+                stepMode=True,
+            )
+
+        self.primary_lines[spectrum.name].setData(
+            spectrum.x_axis,
+            spectrum.get_foreground(self.log, self.cps)[:-1],
+        )
+
+
+    def plot_bkg(self, spectrum: Spectrum):
+        if not self.show_bkg or spectrum.get_background() is None:
             return
-        
+
         if spectrum.name not in self.bkg_lines:
-            pen = pg.mkPen(color=color, width=2)
-            line = self.plot_widget.plot([], [], pen=pen, name=spectrum.name, stepMode=True, brush = color)
-            self.bkg_lines[spectrum.name] = line
-        self.bkg_lines[spectrum.name].setData(spectrum.x_axis, spectrum.get_bkg(self.log, self.cps)[:-1])
+            pen = pg.mkPen(spectrum.color_foreground, width=2)
+
+            brush = QColor(spectrum.color_foreground)
+            brush.setAlpha(150)
+
+            self.bkg_lines[spectrum.name] = self.plot_widget.plot(
+                [],
+                [],
+                name=spectrum.name,
+                pen=pen,
+                brush=brush,
+                fillLevel=0,
+                stepMode=True,
+            )
+
+        self.bkg_lines[spectrum.name].setData(
+            spectrum.x_axis,
+            spectrum.get_background(self.log, self.cps)[:-1],
+        )
+
         
             
     def plot_bkg_subtract(self, spectrum, color = "m"):
-        if spectrum.bkg_y_data is None or spectrum.primary_uptime == 0 or spectrum.bkg_uptime == 0:
+        if spectrum.get_background() is None or spectrum.foreground.live_time == 0 or spectrum.background.live_time  == 0:
             return
         if spectrum.name not in self.primary_lines:
             pen = pg.mkPen(color=color, width=2)

@@ -50,14 +50,14 @@ imported_data = pd.read_csv("Cyklotron_Cs.csv").to_numpy().T[1]
 imported_cobolt_data = pd.read_csv("Cyklotron_Co.csv").to_numpy().T[1]
 imported_bkg = pd.read_csv("Cyklotron_Bkg_69714s.csv").to_numpy().T[1]
 
-imported_spectrum = Spectrum(len(imported_data), "RC103")
-imported_spectrum.set_y_data(imported_data, 4352)
-imported_spectrum.set_y_bkg(imported_bkg, 69714)
-imported_spectrum.apply_calibration([0.0003705, 2.3694975, 4.2583089])
+# imported_spectrum = Spectrum(len(imported_data), "RC103")
+# imported_spectrum.set_y_data(imported_data, 4352)
+# imported_spectrum.set_y_bkg(imported_bkg, 69714)
+# imported_spectrum.apply_calibration([0.0003705, 2.3694975, 4.2583089])
 
-co_spect = Spectrum(len(imported_data), "RC103Co")
-co_spect.set_y_data(imported_cobolt_data, 67286)
-co_spect.apply_calibration([0.0003705, 2.3694975, 4.2583089])
+# co_spect = Spectrum(len(imported_data), "RC103Co")
+# co_spect.set_y_data(imported_cobolt_data, 67286)
+# co_spect.apply_calibration([0.0003705, 2.3694975, 4.2583089])
 
 
 
@@ -79,8 +79,8 @@ class StatusPackage:
 
 @dataclass(frozen=True)
 class SpectrumResult:
-    spectrum: np.ndarray
-    uptime: float
+    y_axis: np.ndarray
+    live_time: float
     timestamp: float
 
 
@@ -144,13 +144,16 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.bottom_tabs, 1)
         
         SpectrumManager.create_spectrum( "RC103", len(imported_data),)
-        SpectrumManager.set_primary_spectrum("RC103", imported_data, 4352)
-        SpectrumManager.set_background_spectrum("RC103", imported_bkg, 69714)
+        CsSpectrum = SpectrumResult(imported_data, 4352, 0)
+        bkgSpectrum = SpectrumResult(imported_bkg, 69714, 0)
+        SpectrumManager.set_foreground_spectrum("RC103", CsSpectrum)
+        SpectrumManager.set_background_spectrum("RC103", bkgSpectrum)
         SpectrumManager.calibrate_spectrum("RC103", [0.0003705, 2.3694975, 4.2583089])
 
+        CoSpectrum = SpectrumResult(imported_cobolt_data, 67286, 0)
         SpectrumManager.create_spectrum("RC103Co", len(imported_cobolt_data))
-        SpectrumManager.set_primary_spectrum("RC103Co", imported_cobolt_data, 67286)
-        SpectrumManager.set_background_spectrum("RC103Co", imported_bkg, 69714)
+        SpectrumManager.set_foreground_spectrum("RC103Co", CoSpectrum)
+        SpectrumManager.set_background_spectrum("RC103Co", bkgSpectrum)
         SpectrumManager.calibrate_spectrum("RC103Co", [0.0003705, 2.3694975, 4.2583089])
 
 
