@@ -82,7 +82,7 @@ class SpectrumInfoPane(QWidget):
 
 
         indicies = self.saved_rows[name]
-        print(indicies)
+
         if len(indicies) == 1 and new_spect.bkg_y_data is not None:
             new_index = indicies[0] + 1
             
