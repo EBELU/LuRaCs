@@ -35,6 +35,8 @@ class DeletableROI(pg.LinearRegionItem):
         )
         self.tag = tag
 
+        self.setToolTip(f"ROI: {self.tag}\nRight-click to delete")
+
     def mouseClickEvent(self, ev):
         if ev.button() == Qt.RightButton:
             ev.accept()
@@ -294,12 +296,50 @@ class SpectrumPlot(QWidget):
             return
 
         if spectrum.name not in self.bkg_lines:
+            pen = pg.mkPen(spectrum.color_background, width=2)
+
+            brush = QColor(spectrum.color_background)
+            brush.setAlpha(150)
+
+            line = self.plot_widget.plot(
+                [],
+                [],
+                name=spectrum.name,
+                pen=pen,
+                brush=brush,
+                fillLevel=0,
+                stepMode=True,
+            )
+            line.setZValue(1)
+
+            self.bkg_lines[spectrum.name] = line
+
+        self.bkg_lines[spectrum.name].setData(
+            spectrum.x_axis,
+            spectrum.get_background(self.log, self.cps)[:-1],
+        )
+
+        
+                
+    def plot_bkg_subtract(self, spectrum: Spectrum):
+        # Skip if background or live times invalid
+        if (
+            spectrum.get_background() is None
+            or spectrum.foreground.live_time == 0
+            or spectrum.background.live_time == 0
+        ):
+            return
+
+        if spectrum.name not in self.primary_lines:
+            # Pen uses foreground color
             pen = pg.mkPen(spectrum.color_foreground, width=2)
 
+            # Brush with semi-transparent alpha
             brush = QColor(spectrum.color_foreground)
             brush.setAlpha(150)
 
-            self.bkg_lines[spectrum.name] = self.plot_widget.plot(
+            # Create the plot line
+            self.primary_lines[spectrum.name] = self.plot_widget.plot(
                 [],
                 [],
                 name=spectrum.name,
@@ -309,22 +349,13 @@ class SpectrumPlot(QWidget):
                 stepMode=True,
             )
 
-        self.bkg_lines[spectrum.name].setData(
+        # Update the data with background-subtracted spectrum
+        self.primary_lines[spectrum.name].setData(
             spectrum.x_axis,
-            spectrum.get_background(self.log, self.cps)[:-1],
+            spectrum.get_bkg_sub(self.log)[:-1],
         )
 
-        
-            
-    def plot_bkg_subtract(self, spectrum, color = "m"):
-        if spectrum.get_background() is None or spectrum.foreground.live_time == 0 or spectrum.background.live_time  == 0:
-            return
-        if spectrum.name not in self.primary_lines:
-            pen = pg.mkPen(color=color, width=2)
-            line = self.plot_widget.plot([], [], pen=pen, name=spectrum.name, stepMode=True, fillLevel=0,brush = color)
-            self.primary_lines[spectrum.name] = line
 
-        self.primary_lines[spectrum.name].setData(spectrum.x_axis, spectrum.get_bkg_sub(self.log)[:-1])
             
     def change_lin_log(self):
         if self.log == False:
@@ -356,10 +387,23 @@ class SpectrumPlot(QWidget):
             
     
 
-    def add_roi(self):
+    def add_roi(self, x_low = None, x_high = None):
         """Enable interactive ROI marking with LinearRegionItem."""
         roi_tag = SpectrumManager.create_ROI()
-        new_roi = DeletableROI(roi_tag,[100, 500], movable=True)
+        x_min, x_max = self.plot_widget.viewRange()[0]
+
+
+
+        diff = float(x_max) - float(x_min)
+        if diff > 400: diff = 400
+        if not x_low: 
+            x_low = float(x_min) + diff * 0.15 
+        if not x_high: 
+            x_high = float(x_min) + diff * 0.45
+
+
+
+        new_roi = DeletableROI(roi_tag,[x_low, x_high], movable=True)
         self.plot_widget.addItem(new_roi)
         self.ROIs[roi_tag] = new_roi
         

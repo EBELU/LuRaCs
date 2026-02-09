@@ -8,8 +8,7 @@ from dataclasses import dataclass
 import logging
 
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    level=logging.DEBUG
 )
 
 from PySide6.QtCore import Signal
@@ -29,6 +28,7 @@ from PySide6.QtCore import QTimer
 from QtGUI.GUI_components.SpectrumPlot import SpectrumPlot
 from QtGUI.GUI_components.ROIInfoTab import ROIInfoPane
 from QtGUI.GUI_components.SpectrumInfoTab import SpectrumInfoPane
+from QtGUI.GUI_components.LoggerTab import LogWidget
 from QtGUI.GUI_components.MainMenuBar import MainMenuBar, MenuActions
 from QtGUI.SpectrumClasses import Spectrum
 from QtGUI.GUI_components.CurrentValuesTab import CurrentValuesPlot
@@ -37,7 +37,7 @@ from QtGUI.ThemeManager import ThemeManager
 from QtGUI.Globals import SpectrumManager
 
 from QtGUI.utils.MockClient import MockClient
-from QtGUI.Globals import RunManager
+from QtGUI.Globals import RunManager, Log
 
 from QtGUI.GUI_components.popup_windows.BluetoothListPopup import BluetoothListPopup
 
@@ -117,38 +117,42 @@ class MainWindow(QMainWindow):
         self.bottom_tabs = QTabWidget(self)
         self.bottom_tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding, )
  
-        
-        self.current_value_tab = CurrentValuesPlot()
-        self.bottom_tabs.addTab(self.current_value_tab, "Current Values")
+        self.spectrum_info_tab = SpectrumInfoPane()
+        self.bottom_tabs.addTab(self.spectrum_info_tab, "Spectra")
 
         self.roi_info_pane = ROIInfoPane()
         self.bottom_tabs.addTab(self.roi_info_pane, "ROI Info")
 
 
+        self.current_value_tab = CurrentValuesPlot()
+        self.bottom_tabs.addTab(self.current_value_tab, "Current Values")
+
+
+
+
         self.bottom_tabs.addTab(QWidget(), "Devices")
 
-        self.spectrum_info_tab = SpectrumInfoPane()
-        self.bottom_tabs.addTab(self.spectrum_info_tab, "Spectra")
-        
-
 
         
 
+
         
 
-        self.bottom_tabs.addTab(QWidget(), "System Log")
+        
+        self.log_tab = LogWidget()
+        self.bottom_tabs.addTab(self.log_tab, "System Log")
 
 
 
 
         layout.addWidget(self.bottom_tabs, 1)
         
-        SpectrumManager.create_spectrum( "RC103", len(imported_data),)
+        # SpectrumManager.create_spectrum( "RC103", len(imported_data),)
         CsSpectrum = SpectrumResult(imported_data, 4352, 0)
         bkgSpectrum = SpectrumResult(imported_bkg, 69714, 0)
-        SpectrumManager.set_foreground_spectrum("RC103", CsSpectrum)
-        SpectrumManager.set_background_spectrum("RC103", bkgSpectrum)
-        SpectrumManager.calibrate_spectrum("RC103", [0.0003705, 2.3694975, 4.2583089])
+        # SpectrumManager.set_foreground_spectrum("RC103", CsSpectrum)
+        # SpectrumManager.set_background_spectrum("RC103", bkgSpectrum)
+        # SpectrumManager.calibrate_spectrum("RC103", [0.0003705, 2.3694975, 4.2583089])
 
         CoSpectrum = SpectrumResult(imported_cobolt_data, 67286, 0)
         SpectrumManager.create_spectrum("RC103Co", len(imported_cobolt_data))
@@ -165,7 +169,8 @@ class MainWindow(QMainWindow):
         self.theme.apply(plot_widgets=[
             self.spectrum_plot.plot_widget, 
             self.current_value_tab.cps_plot_widget,
-            self.current_value_tab.dose_plot_widget],
+            self.current_value_tab.dose_plot_widget,
+            ],
             legends=self.current_value_tab.legends)
         
         
@@ -210,7 +215,7 @@ def main():
     RunManager.set_loop(loop)
     RunManager.set_clients({"mock": MockClient})
 
-
+    Log.info("Application Started")
 
     # run_manager.bluetoothError.connect(print)
 

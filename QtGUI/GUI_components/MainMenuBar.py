@@ -21,6 +21,13 @@ class MainMenuBar(QMenuBar):
 
         # ---------- File Menu ----------
         file_menu = self.addMenu("&File")
+        file_menu_import = file_menu.addAction("Import")
+        spectrum_export_menu = file_menu.addMenu("&Export Spectra")
+        spectrum_export__menu_csv = spectrum_export_menu.addAction("csv")
+        spectrum_export__menu_xml = spectrum_export_menu.addAction("xml")
+        file_menu_exportRoi = file_menu.addAction("Export ROIs")
+        file_menu_importRoi = file_menu.addAction("Import ROIs")
+        file_menu_reset = file_menu.addAction("Reset Accumulation")
         exit_action = file_menu.addAction("Exit")
         exit_action.triggered.connect(self.on_exit)
 
@@ -35,19 +42,16 @@ class MainMenuBar(QMenuBar):
         device_menu_connectUSB = device_menu.addAction("Disconnect")
         device_menu_info = device_menu.addAction("Device Info")
 
-        spectrum_menu = self.addMenu("&Spectrum")
-        spectrum_menu_import = spectrum_menu.addAction("Import")
-        spectrum_export_menu = spectrum_menu.addMenu("&Export Spectra")
-        spectrum_export__menu_csv = spectrum_export_menu.addAction("csv")
-        spectrum_export__menu_xml = spectrum_export_menu.addAction("xml")
-        spectrum_menu_exportRoi = spectrum_menu.addAction("Export ROIs")
-        spectrum_menu_reset = spectrum_menu.addAction("Reset Accumulation")
 
 
-        calculate_menu = self.addMenu("&Calculate")
+
+
+        calculate_menu = self.addMenu("&Gamma Tools")
         calculate_menu_photoEff = calculate_menu.addAction("Efficiency")
         calculate_menu_photoActi = calculate_menu.addAction("Activity")
         calculate_menu_photoFrac = calculate_menu.addAction("Photofraction")
+
+        calculate_menu = self.addMenu("&MRI Tools")
 
 
         # ---------- Options Menu ----------

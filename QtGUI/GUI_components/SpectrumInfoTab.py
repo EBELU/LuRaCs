@@ -21,7 +21,10 @@ def format_duration(seconds):
     days, seconds = divmod(seconds, 86400)
     hours, seconds = divmod(seconds, 3600)
     minutes, seconds = divmod(seconds, 60)
-    return f"{days:02d} {hours:02d}:{minutes:02d}:{seconds:02d}"
+    if days > 0:
+        return f"{days:02d}d {hours:02d}:{minutes:02d}:{seconds:02d}"
+    else:
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
 
 from PySide6.QtWidgets import QWidget
@@ -63,6 +66,8 @@ class ColorCellWidget(QWidget):
 class SpectrumInfoPane(QWidget):
 
     colorChanged = Signal(str, str, QColor)
+
+    
     # spectrum_name, "foreground"/"background", color
 
     def __init__(self, title="", parent=None):
@@ -88,6 +93,7 @@ class SpectrumInfoPane(QWidget):
 
         self.saved_rows = {}   # spectrum_name -> list of row indices
         self.row_counter = 0
+
 
     # ----------------- Color cell helpers -----------------
 
@@ -115,7 +121,6 @@ class SpectrumInfoPane(QWidget):
         color = QColorDialog.getColor(cell_widget.color, self, "Select color")
         if color.isValid():
             cell_widget.set_color(color)
-            print(role)
             SpectrumManager.set_color(spectrum_name, role, color)
             self.colorChanged.emit(spectrum_name, role, color)
 
