@@ -1,5 +1,7 @@
 import numpy as np
+from dataclasses import dataclass
 from .utils.gaussian_fitting import fit_gaussian, Gaussian
+from PySide6.QtGui import QColor
 
 class ROI:
     def __init__(self, tag:str,  low: int, high: int, gaussian):
@@ -15,43 +17,53 @@ class ROI:
     def __lt__(self, other):
         return self.mid < other.mid
 
-    
+@dataclass
+class SpectrumData:
+    y_axis: np.array
+    channels: int
+    total_counts: int
+    live_time:float
+    real_time:float = None
+    avg_dose_rate: float = None
+    avg_cps: float = None
     
 class Spectrum:
     """
     A class to hold and do operations on an energy spectrum. 
     """
 
-    def __init__(self, channels, name):
-        self.name = name
-        self.channels = channels
+    def __init__(self, channels: int, name: str):
+        self.name: str = name
+        self.channels: int = channels
         
-        self.y_data = np.zeros(channels)
-        self.x_axis = np.arange(channels)
-        self.bkg_y_data = None
-        self.total_counts = 0
-        self.primary_uptime = None
-        self.bkg_uptime = None
+        self.foreground: SpectrumData = None
+        self.background: SpectrumData = None
+        self.x_axis:np.array = np.arange(channels)
         
         self.ROIs = {}
+
+        self.color_foreground: QColor = QColor("white")
+        self.color_background: QColor = QColor("white")
         
-        self.calibration_coefficients = None
-        self.calibrated = False
-        self.energy_unit = None
-        self.fit_rois = True
+        self.calibration_coefficients: list = None
+        self.calibrated: bool = False
+        self.energy_unit: str = None
+        self.fit_rois: bool = True
+        self.has_device: bool = False
         
-    def set_y_data(self, spectrum, uptime = None):
-        assert len(spectrum) == self.channels
-        self.y_data = spectrum
-        self.total_counts = np.sum(spectrum)
-        self.primary_uptime = uptime
+    def set_foreground(self, spectrum: SpectrumData, color: QColor = None):
+        assert spectrum.channels == self.channels
+        self.foreground = spectrum
+        if color is not None:
+            self.color_background = color
         
-    def set_y_bkg(self, spectrum, uptime = None):
-        assert len(spectrum) == self.channels
-        self.bkg_y_data = spectrum
-        self.bkg_uptime = uptime
+    def set_background(self, spectrum: SpectrumData, color: QColor = None):
+        assert spectrum.channels == self.channels
+        self.background = spectrum
+        if color is not None:
+            self.color_background = color
         
-    def apply_calibration(self, coefficients):
+    def apply_calibration(self, coefficients: list):
         """
             coeffs = [a_n, a_{n-1}, ..., a_0]
         """
@@ -59,7 +71,7 @@ class Spectrum:
         self.calibration_coefficients = coefficients
         self.calibrated = True
         
-    def get_foreground(self, log = False, cps = False):
+    def get_foreground(self, log: bool = False, cps:bool = False):
         """
          Returns the channel counts for the primary spectrum.
         
@@ -67,59 +79,59 @@ class Spectrum:
         :param cps: Converts the channel counts to cps by dividing by uptime. If the uptime is 0 it returns None.
         """
 
-        if cps and self.primary_uptime > 0:
-            y_data = self.y_data / self.primary_uptime
-        elif cps and not self.primary_uptime > 0:
+        if cps and self.foreground.live_time > 0:
+            y_data = self.foreground.y_axis / self.foreground.live_time
+        elif cps and not self.foreground.live_time > 0:
             return
         else:
-            y_data = self.y_data
+            y_data = self.foreground.y_axis
 
         if log:
             return np.log10(np.where(y_data > 0, y_data, np.nan))
         else:
             return y_data
         
-    def get_bkg(self, log = False, cps = False):
+    def get_background(self, log: bool = False, cps: bool = False):
         """
          Returns the channel counts for the background spectrum. If the background is empty it returns None.
         
         :param log: If True applies log10 before returning spectrum. Counts of 0 is set to NaN.
         :param cps: Converts the channel counts to cps by dividing by uptime. If the uptime is 0 it returns None
         """
-        if self.bkg_y_data is None:
+        if self.background is None:
             return
 
-        if cps and self.bkg_uptime != 0:
-            bkg_y_data = self.bkg_y_data / self.bkg_uptime
-        elif cps and not self.bkg_uptime > 0:
+        if cps and self.background.live_time != 0:
+            bkg_y_data = self.background.y_axis / self.background.live_time
+        elif cps and not self.background.live_time > 0:
             return
         else:
-            bkg_y_data = self.bkg_y_data
+            bkg_y_data = self.background
 
         if log:
             return np.log10(np.where(bkg_y_data > 0, bkg_y_data, np.nan))
         else:
             return bkg_y_data
         
-    def get_bkg_sub(self, log = False):        
+    def get_bkg_sub(self, log: bool = False):        
         """
          Returns the channel cps, never counts, for a background subtracted spectrum. If the background is empty it returns the normal spectrum.
         
         :param log: If True applies log10 before returning spectrum. Counts of 0 is set to NaN.
         """
-        if self.primary_uptime is None:
+        if self.foreground.live_time is None:
             return
         
-        if self.bkg_uptime is None or self.bkg_y_data is None:
+        if self.background.live_time is None or self.background is None:
             return self.get_foreground(False, True)
 
-        data = self.get_foreground(False, True) - self.get_bkg(False, True)
+        data = self.get_foreground(False, True) - self.get_background(False, True)
         if log:
             return np.log10(np.where(data > 0, data, np.nan))
         else:
             return data
         
-    def get_ROI_plots(self, ROI_tag, log = False):
+    def get_ROI_plots(self, ROI_tag: str, log: bool = False):
         """Return the x-axis and the gaussian curve and the background fit from a ROI"""
         roi = self.ROIs[ROI_tag]
         x = self.x_axis[(roi.low < self.x_axis) & (self.x_axis < roi.high)]
@@ -137,7 +149,7 @@ class Spectrum:
             return None, None, None
 
         
-    def update_roi(self, tag, x_low, x_high, cps = None):
+    def update_roi(self, tag: str, x_low: float, x_high: float, cps: bool = None):
         """Refit a ROI"""
         try:
             y_data = self.get_foreground(False, cps)
