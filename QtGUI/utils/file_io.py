@@ -19,6 +19,10 @@ class csv_io:
             csv_writer.writerows(zip(x_axis, acc_spectrum, cps_spectrum))
         
         return True
+    
+    def load(name, x_axis_col = 0, foreground_col = 1, background_col = 2):
+        pass
+
 
 class xml_io:
     def export(spectrum, file_name):

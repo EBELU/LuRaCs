@@ -2,6 +2,7 @@ import numpy as np
 from dataclasses import dataclass
 from .utils.gaussian_fitting import fit_gaussian, Gaussian
 from PySide6.QtGui import QColor
+from datetime import datetime
 
 class ROI:
     def __init__(self, tag:str,  low: int, high: int, gaussian):
@@ -26,6 +27,10 @@ class SpectrumData:
     real_time:float = None
     avg_dose_rate: float = None
     avg_cps: float = None
+    start_date: datetime = None
+    end_date: datetime = None
+    spectrum_name:str = None
+    instrument: str = None
     
 class Spectrum:
     """
