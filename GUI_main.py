@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import logging
 
 logging.basicConfig(
-    level=logging.DEBUG
+    level=logging.INFO
 )
 
 from PySide6.QtCore import Signal
@@ -33,6 +33,7 @@ from QtGUI.GUI_components.MainMenuBar import MainMenuBar, MenuActions
 from QtGUI.SpectrumClasses import Spectrum
 from QtGUI.GUI_components.CurrentValuesTab import CurrentValuesPlot
 from QtGUI.ThemeManager import ThemeManager
+from QtGUI.utils.ArgParser import parse_cli_args
 
 from QtGUI.Globals import SpectrumManager
 
@@ -173,6 +174,8 @@ class MainWindow(QMainWindow):
             ],
             legends=self.current_value_tab.legends)
         
+        
+        parse_cli_args()
         
     def update_current(self, package):
         self.current_value_tab.receive_data_packet(package)
