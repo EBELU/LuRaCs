@@ -2,6 +2,13 @@ from ..SpectrumClasses import Spectrum, SpectrumData
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QColor
 
+from .GUILogger import gui_logger
+
+"""
+    The Spectrum manager handles the spectra in the program.
+    GUI components can request actions from the spectrum manager but should not change the state of any spectrum without going through the manager.
+"""
+
 class SpectrumColorRotator:
     def __init__(self, colors="mpl", width=2):
         if colors == "mpl":
@@ -68,6 +75,7 @@ class SpectrumManagerBase(QObject):
         if name not in self.spectra:
             self.spectra[name] = Spectrum(channels, name)
             self.Signals.spectrumCreated.emit(name)
+            gui_logger.info(f"[Spectrum added] {name}")
             return True
         else:
             return False
@@ -120,6 +128,7 @@ class SpectrumManagerBase(QObject):
         if name in self.spectra:
             self.spectra.pop(name)
             self.Signals.spectrumRemoved.emit(name)
+            gui_logger.info(f"[Spectrum removed] {name}")
             
     def calibrate_spectrum(self, name, coeff):
         if name not in self.spectra:

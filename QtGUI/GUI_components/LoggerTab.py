@@ -52,7 +52,7 @@ class LogWidget(QWidget):
 
         # Formatter
         formatter = logging.Formatter(
-            "%(asctime)s -- %(levelname)s: %(message)s", "%H:%M:%S"
+            "%(asctime)s | %(name)s -- %(levelname)s: %(message)s", "%H:%M:%S"
         )
         handler.setFormatter(formatter)
 
