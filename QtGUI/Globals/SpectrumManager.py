@@ -179,6 +179,9 @@ class SpectrumManagerBase(QObject):
     def remove_ROI(self, tag):
         for spectrum in self.spectra.values():
             spectrum.ROIs.pop(tag, None)
+
+        self.Signals.roiRemoved.emit(tag)
+        
                 
     
 # Declare ONE instance

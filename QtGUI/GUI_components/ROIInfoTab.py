@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
 
 from ..SpectrumClasses import ROI
 
+
 from ..Globals import SpectrumManager
 
 def write_row(table, row_index, values):
@@ -21,6 +22,7 @@ class ROIInfoPane(QWidget):
         super().__init__(parent)
         # --- Signals ---
         SpectrumManager.Signals.roiUpdated.connect(self.recieve_roi)
+        SpectrumManager.Signals.roiRemoved.connect(self.delete_roi)
         
         # ---- Box ----
         self.group_box = QGroupBox(title)
@@ -75,7 +77,11 @@ class ROIInfoPane(QWidget):
         write_row(self.table, row_index, row)
 
     def delete_roi(self, roi: ROI):
-        assert roi.tag in self.ROIs, f"{roi.tag} id not in self.ROIs: {self.ROIs.keys()}"
-        self.table.removeRow(self.ROIs[roi.tag])
+        assert roi in self.ROIs, f"{roi} id not in self.ROIs: {self.ROIs.keys()}"
+        roi_idx = self.ROIs[roi]
+        self.table.removeRow(roi_idx)
+        for key in self.ROIs:
+            if self.ROIs[key] > roi_idx:
+                self.ROIs[key] -= 1
 
     

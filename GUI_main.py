@@ -97,7 +97,7 @@ class MainWindow(QMainWindow):
 
         self.mock_running = True
         
-        self.theme = ThemeManager(ThemeManager.DARK)
+        self.theme = ThemeManager(ThemeManager.LIGHT)
         self.theme.apply() 
         
         self.bt_window = BluetoothListPopup()
