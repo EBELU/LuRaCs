@@ -1,0 +1,4 @@
+[submodule "Clients/RaysidClient"]
+	path = Clients/RaysidClient
+	url = git@github.com:EBELU/RaysidClient.git
+
