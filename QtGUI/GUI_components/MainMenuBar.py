@@ -4,6 +4,7 @@ import time
 from dataclasses import dataclass
 
 from .popup_windows.BluetoothListPopup import BluetoothListPopup
+from ..Globals import RunManager
 
 @dataclass
 class MenuActions:
@@ -39,7 +40,8 @@ class MainMenuBar(QMenuBar):
         
         device_menu_retryLast = device_menu.addAction("Retry Last Connection")
         device_menu_connectUSB = device_menu.addAction("Connect USB")
-        device_menu_connectUSB = device_menu.addAction("Disconnect")
+        device_menu_disconnect = device_menu.addAction("Disconnect")
+        device_menu_disconnect.triggered.connect(RunManager.remove_device)
         device_menu_info = device_menu.addAction("Device Info")
 
 

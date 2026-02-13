@@ -59,7 +59,7 @@ class Spectrum:
     def set_foreground(self, spectrum: SpectrumData, color: QColor = None):
         assert spectrum.channels == self.channels
         self.foreground = spectrum
-        if color is not None:
+        if color is not None and self.foreground:
             self.color_background = color
         
     def set_background(self, spectrum: SpectrumData, color: QColor = None):
@@ -83,6 +83,9 @@ class Spectrum:
         :param log: If True applies log10 before returning spectrum. Counts of 0 is set to NaN.
         :param cps: Converts the channel counts to cps by dividing by uptime. If the uptime is 0 it returns None.
         """
+        
+        if self.foreground is None:
+            return np.zeros(self.channels)
 
         if cps and self.foreground.live_time > 0:
             y_data = self.foreground.y_axis / self.foreground.live_time

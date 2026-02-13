@@ -69,11 +69,16 @@ class SpectrumManagerBase(QObject):
         
         self.Signals = EmittedSignals()
         
+        
+        
     # --- Spectrum manipulators ---
         
     def create_spectrum(self, name: str, channels: int):
         if name not in self.spectra:
             self.spectra[name] = Spectrum(channels, name)
+            clr = self.color_rotation.next_color()
+            self.set_color(name, "foreground", clr)
+            self.set_color(name, "background", clr)
             self.Signals.spectrumCreated.emit(name)
             gui_logger.info(f"[Spectrum added] {name}")
             return True
@@ -97,11 +102,9 @@ class SpectrumManagerBase(QObject):
                                     getattr(spectrum_data, "avg_dose_rate", None),
                                     getattr(spectrum_data, "avg_cps", None),)
 
-        clr = self.color_rotation.next_color()
+
         self.spectra[name].set_foreground(new_spectrum)
 
-        self.set_color(name, "foreground", clr)
-        self.set_color(name, "background", clr)
         self.Signals.spectrumUpdated.emit(name)
         
     def set_background_spectrum(self, name, spectrum_data):
@@ -140,7 +143,7 @@ class SpectrumManagerBase(QObject):
     def set_color(self, name, fg_bkg: str, color: QColor):
         if name not in self.spectra:
             raise ValueError(f"Spectrum {name} does not exist")
-        
+        print(name)
         if fg_bkg.lower() == "foreground":
             self.spectra[name].color_foreground = color
         else:
@@ -166,7 +169,7 @@ class SpectrumManagerBase(QObject):
         roi_tag = f"ROI_{self.roi_counter}"
         self.roi_counter += 1
         self.existing_rois.append(roi_tag)
-        
+        gui_logger.info(f"[ROI added] {roi_tag}")
         return roi_tag
     
     def update_ROI(self, tag, x_min, x_max, use_cps):
@@ -177,6 +180,7 @@ class SpectrumManagerBase(QObject):
         self.Signals.roiUpdated.emit(tag)
                 
     def remove_ROI(self, tag):
+        gui_logger.info(f"[ROI removed] {tag}")
         for spectrum in self.spectra.values():
             spectrum.ROIs.pop(tag, None)
 

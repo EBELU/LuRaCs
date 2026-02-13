@@ -3,6 +3,8 @@ from .Settings import Settings
 from .SpectrumManager import SpectrumManager
 from .GUILogger import gui_logger as Log
 
+from .spec_run_signaling import _
+
 """
 Global state classes shared by the entire program. 
 

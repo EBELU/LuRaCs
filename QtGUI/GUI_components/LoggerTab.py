@@ -1,17 +1,13 @@
 import logging
-from PySide6.QtCore import QObject, Signal
-from PySide6.QtWidgets import QTextEdit, QWidget, QVBoxLayout, QFrame
-
-from ..Globals import Log
-
+from PySide6.QtCore import QObject, Signal, Qt
+from PySide6.QtWidgets import QTextEdit, QWidget, QVBoxLayout
 
 class LogSignalEmitter(QObject):
+    """QObject that emits log messages to the GUI."""
     logSignal = Signal(str)
-
 
 class QtHandler(logging.Handler):
     """A logging.Handler that emits logs via a Qt signal."""
-
     def __init__(self, emitter: LogSignalEmitter):
         super().__init__()
         self.emitter = emitter
@@ -23,50 +19,47 @@ class QtHandler(logging.Handler):
         except Exception:
             self.handleError(record)
 
-
 class LogWidget(QWidget):
-    """A widget that contains a QTextEdit with borders and shows logs in real-time."""
+    """QTextEdit widget showing all logs in real-time."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        # --- QTextEdit inside a border ---
+        # --- Setup QTextEdit ---
         self.text_edit = QTextEdit()
         self.text_edit.setReadOnly(True)
+        self.text_edit.setLineWrapMode(QTextEdit.NoWrap)
 
-
-        # Layout
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setContentsMargins(10, 10, 10, 10)
         layout.addWidget(self.text_edit)
 
-        # --- Logger setup ---
+        # --- Setup logging ---
         self._setup_logger()
 
     def _setup_logger(self):
-        # Create a QObject emitter
+        # Create a signal emitter
         self.emitter = LogSignalEmitter()
+        self.emitter.logSignal.connect(self.append_message)
 
-        # Create handler
+        # Create the QtHandler
         handler = QtHandler(self.emitter)
 
-        # Formatter
+        # Formatter (timestamp HH:MM:SS)
         formatter = logging.Formatter(
-            "%(asctime)s | %(name)s -- %(levelname)s: %(message)s", "%H:%M:%S"
+            fmt="%(asctime)s | %(name)s -- %(levelname)s: %(message)s",
+            datefmt="%H:%M:%S"
         )
         handler.setFormatter(formatter)
 
-        # Connect signal to append
-        self.emitter.logSignal.connect(self.append_message)
+        # Attach to root logger
+        root_logger = logging.getLogger()
+        root_logger.setLevel(logging.INFO)
+        root_logger.addHandler(handler)
 
-        # Add to global logger
-        Log.addHandler(handler)
-        Log.setLevel(logging.DEBUG)
-
-    def append_message(self, msg: str, level: str = "INFO"):
-        # Just append plain text
+    def append_message(self, msg: str):
+        """Append a log message to the QTextEdit."""
         self.text_edit.append(msg)
         self.text_edit.verticalScrollBar().setValue(
             self.text_edit.verticalScrollBar().maximum()
         )
-

@@ -36,12 +36,14 @@ class BluetoothListPopup(ListPopupNonBlocking):
 
     deviceSelected = Signal(object)
     rescanRequested = Signal()
+    cancelScan = Signal()
 
     def __init__(self, scan_duration: int = 5, parent=None):
         super().__init__("Select Bluetooth Device", parent)
 
         self.deviceSelected.connect(_on_bt_device_selected)
         self.rescanRequested.connect(self._request_bt_scan)
+        self.cancelScan.connect(RunManager.cancel_scan_task)
         RunManager.bluetoothFound.connect(self.receive_BT_list)
 
         self.scan_task = None
@@ -174,12 +176,12 @@ class BluetoothListPopup(ListPopupNonBlocking):
         self.close()
 
     def _on_cancelled(self):
+        self.cancelScan.emit()
         if self.scan_task:
             self.scan_task.cancel()
 
     def closeEvent(self, event):
         self._timer.stop()
-        RunManager.bluetoothFound.disconnect(self.receive_BT_list)
         super().closeEvent(event)
 
     def _request_bt_scan(self):

@@ -134,13 +134,15 @@ class SpectrumInfoPane(QWidget):
 
             # Foreground row
             self.table.insertRow(self.row_counter)
-            rows.append(self.row_counter)
+            fg_row = self.row_counter
+            rows.append(fg_row)
             self.row_counter += 1
 
             # Background row (if exists)
             if new_spect.get_background() is not None:
                 self.table.insertRow(self.row_counter)
-                rows.append(self.row_counter)
+                bkg_row = self.row_counter
+                rows.append(bkg_row)
                 self.row_counter += 1
 
             self.saved_rows[name] = rows
@@ -148,37 +150,52 @@ class SpectrumInfoPane(QWidget):
         indicies = self.saved_rows[name]
 
         # ----------------- Foreground -----------------
-        fg = new_spect.foreground
         fg_row = indicies[0]
-        self.set_color_cell(fg_row, name, "foreground", new_spect.color_foreground)
+        fg = new_spect.foreground
+
+        # Update color widget if it already exists
+        cell_widget_wrapper = self.table.cellWidget(fg_row, 0)
+        if cell_widget_wrapper:
+            cell_widget = cell_widget_wrapper.layout().itemAt(1).widget()  # center widget
+            cell_widget.set_color(new_spect.color_foreground)
+        else:
+            self.set_color_cell(fg_row, name, "foreground", new_spect.color_foreground)
+
         write_row(self.table, fg_row, [
             "",
             new_spect.name,
             "Foreground",
-            f"{fg.total_counts:,}".replace(",", " "),
+            f"{int(fg.total_counts):,}".replace(",", " "),
             format_duration(fg.live_time),
             format_duration(fg.real_time),
         ])
 
         # ----------------- Background -----------------
         if new_spect.get_background() is not None:
+            bkg_row = indicies[1] if len(indicies) > 1 else None
             bkg = new_spect.background
-            if len(indicies) == 1:
-                # Insert row dynamically if it wasn't created yet
+
+            if bkg_row is None:
+                # Insert row dynamically if not yet created
                 self.table.insertRow(self.row_counter)
                 bkg_row = self.row_counter
                 self.row_counter += 1
                 indicies.append(bkg_row)
                 self.saved_rows[name] = indicies
-            else:
-                bkg_row = indicies[1]
 
-            self.set_color_cell(bkg_row, name, "background", new_spect.color_background)
+            # Update color widget if exists
+            cell_widget_wrapper = self.table.cellWidget(bkg_row, 0)
+            if cell_widget_wrapper:
+                cell_widget = cell_widget_wrapper.layout().itemAt(1).widget()
+                cell_widget.set_color(new_spect.color_background)
+            else:
+                self.set_color_cell(bkg_row, name, "background", new_spect.color_background)
+
             write_row(self.table, bkg_row, [
                 "",
                 new_spect.name,
                 "Background",
-                f"{bkg.total_counts:,}".replace(",", " "),
+                f"{int(bkg.total_counts):,}".replace(",", " "),
                 format_duration(bkg.live_time),
-                format_duration(fg.real_time),
+                format_duration(bkg.real_time),
             ])

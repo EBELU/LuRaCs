@@ -38,13 +38,15 @@ from QtGUI.utils.ArgParser import parse_cli_args
 from QtGUI.Globals import SpectrumManager
 
 from QtGUI.utils.MockClient import MockClient
-from QtGUI.Globals import RunManager, Log
+from QtGUI.Globals import RunManager, Log, Settings
 
 from QtGUI.GUI_components.popup_windows.BluetoothListPopup import BluetoothListPopup
 
 # from QtGUI.GUI_components.ListPopup import BluetoothListPopup
 
 from PySide6.QtWidgets import QApplication, QPushButton, QColorDialog
+
+from Clients.RaysidClient.RaysidClient import RaysidClientAsync
 
 import pandas as pd
 imported_data = pd.read_csv("Cyklotron_Cs.csv").to_numpy().T[1]
@@ -89,7 +91,7 @@ class SpectrumResult:
 
 # ===================== MAIN WINDOW =====================
 class MainWindow(QMainWindow):
-    new_current_signal = Signal(object)
+    new_current_signal = Signal(str, object)
     new_spectrum_signal = Signal(object)
     def __init__(self):
         super().__init__()
@@ -97,7 +99,7 @@ class MainWindow(QMainWindow):
 
         self.mock_running = True
         
-        self.theme = ThemeManager(ThemeManager.LIGHT)
+        self.theme = ThemeManager(Settings.Apperance.theme)
         self.theme.apply() 
         
         self.bt_window = BluetoothListPopup()
@@ -156,10 +158,10 @@ class MainWindow(QMainWindow):
         # SpectrumManager.calibrate_spectrum("RC103", [0.0003705, 2.3694975, 4.2583089])
 
         CoSpectrum = SpectrumResult(imported_cobolt_data, 67286, 0)
-        SpectrumManager.create_spectrum("RC103Co", len(imported_cobolt_data))
-        SpectrumManager.set_foreground_spectrum("RC103Co", CoSpectrum)
-        SpectrumManager.set_background_spectrum("RC103Co", bkgSpectrum)
-        SpectrumManager.calibrate_spectrum("RC103Co", [0.0003705, 2.3694975, 4.2583089])
+        # SpectrumManager.create_spectrum("RC103Co", len(imported_cobolt_data))
+        # SpectrumManager.set_foreground_spectrum("RC103Co", CoSpectrum)
+        # SpectrumManager.set_background_spectrum("RC103Co", bkgSpectrum)
+        # SpectrumManager.calibrate_spectrum("RC103Co", [0.0003705, 2.3694975, 4.2583089])
 
 
         self.new_current_signal.connect(self.update_current)
@@ -202,7 +204,7 @@ async def mock_data_task(win: MainWindow, name):
             dr  = cps/1000 + np.random.normal(0,0.01)
             timestamp = time.time()
             # Emit signal
-            win.new_current_signal.emit(CurrentValuesPackage(name, cps, dr, timestamp))
+            win.new_current_signal.emit(name, CurrentValuesPackage(name, cps, dr, timestamp))
         await asyncio.sleep(0.5)
 
 
@@ -216,28 +218,36 @@ def main():
     win.show()
 
     RunManager.set_loop(loop)
-    RunManager.set_clients({"mock": MockClient})
+    RunManager.set_clients({"mock": MockClient, "raysid":RaysidClientAsync})
 
     Log.info("Application Started")
 
     # run_manager.bluetoothError.connect(print)
 
     # # Schedule adding mock device safely after loop starts
-    QTimer.singleShot(0, lambda: asyncio.create_task(RunManager.add_device("Mock", "mock")))
+    # QTimer.singleShot(0, lambda: asyncio.create_task(RunManager.add_device("Mock", "mock")))
 
     # # Schedule first Bluetooth scan safely
     # QTimer.singleShot(0, lambda: asyncio.create_task(RunManager.find_bluetooth()))
 
     # Start mock tasks safely after loop starts
-    QTimer.singleShot(0, lambda: asyncio.create_task(mock_data_task(win, "Raysid1")))
-    QTimer.singleShot(0, lambda: asyncio.create_task(mock_data_task(win, "Raysid2")))
+    # QTimer.singleShot(0, lambda: asyncio.create_task(mock_data_task(win, "Raysid1")))
+    # QTimer.singleShot(0, lambda: asyncio.create_task(mock_data_task(win, "Raysid2")))
 
     # Cancel mock tasks on exit
-    def shutdown():
-        for t in asyncio.all_tasks(loop):
-            t.cancel()
+    async def app_shutdown():
+        
+        # Step 1: shutdown devices + poll loop
+        await RunManager.shutdown()
 
-    app.aboutToQuit.connect(shutdown)
+
+        # Step 3: stop event loop
+        loop.stop()
+
+    def on_about_to_quit():
+        asyncio.create_task(app_shutdown())
+
+    app.aboutToQuit.connect(on_about_to_quit)
 
     # Start the event loop
     with loop:

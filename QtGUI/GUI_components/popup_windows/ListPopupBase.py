@@ -3,6 +3,8 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal
 
+from ...Globals import RunManager
+
 class ListPopupBlocking(QDialog):
     """
     Generic modal popup with a list, Confirm/Cancel buttons, 
@@ -190,11 +192,63 @@ class ListPopupNonBlocking(QDialog):
             self.list_widget.addItem(item)
 
         self.list_widget.clearSelection()
+        
+    def receive_BT_list(self, devices: list):
+        """
+        Called when a Bluetooth scan completes.
+        Updates the list widget with new devices.
+        Prioritizes devices containing 'radiacode' or 'raysid'.
+        """
+        if not self.isVisible():
+            # Ignore results if the popup is closed
+            return
+
+        # Stop any scan countdown timer
+        if hasattr(self, "_timer"):
+            self._timer.stop()
+            self._scan_start_time = None
+
+        # Clear previous devices
+        self.list_widget.clear()
+        if hasattr(self, "_devices_by_name"):
+            self._devices_by_name.clear()
+
+        if not devices:
+            self.list_widget.addItem("No devices found")
+            return
+
+        priority = []
+        normal = []
+
+        for dev in devices:
+            name = dev.name or getattr(dev, "address", "Unknown")
+            if hasattr(self, "_devices_by_name"):
+                self._devices_by_name[name] = dev
+
+            display_name = name
+            if "radiacode" in name.lower() or "raysid" in name.lower():
+                display_name = f"{name} ☢️"
+                priority.append((display_name, dev))
+            else:
+                normal.append((display_name, dev))
+
+        # Show priority devices first
+        sorted_devices = priority + normal
+
+        for display_name, dev in sorted_devices:
+            item = QListWidgetItem(display_name)
+            item.setTextAlignment(Qt.AlignCenter)
+            item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+            if hasattr(self, "_devices_by_name"):
+                item.setData(Qt.UserRole, dev)
+            self.list_widget.addItem(item)
+
+        self.list_widget.clearSelection()
+
 
     # ------------------------------------------------
     # Internal handlers
     # ------------------------------------------------
-
 
 
     def _confirm(self):
@@ -211,7 +265,5 @@ class ListPopupNonBlocking(QDialog):
         self.cancelled.emit()
         self.close()
 
-    def closeEvent(self, event):
-        self.cancelled.emit()
-        super().closeEvent(event)
+
 

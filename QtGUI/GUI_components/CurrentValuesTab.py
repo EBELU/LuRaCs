@@ -16,6 +16,7 @@ def write_row(table, row_index, values):
 
 
 from ..ThemeManager import ColorRotator
+from ..Globals import RunManager
 
 
 class CurrentValuesPlot(QWidget):
@@ -86,10 +87,11 @@ class CurrentValuesPlot(QWidget):
         self.dose_lines = {}
 
         self.row_indicies = {}
+        
+        RunManager.currentUpdated.connect(self.receive_data_packet)
 
 
-    def receive_data_packet(self, packet):
-        name = packet.name
+    def receive_data_packet(self, name, packet):
         cps = packet.CPS
         dose_rate = packet.DR
 

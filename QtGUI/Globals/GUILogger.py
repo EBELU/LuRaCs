@@ -1,9 +1,7 @@
 import logging
 
-gui_logger = logging.getLogger("Program")
-
 # Create the logger
-gui_logger = logging.getLogger("Program")
+gui_logger = logging.getLogger("Application")
 gui_logger.setLevel(logging.DEBUG)  # or INFO, WARNING, etc.
 
 # Create a console handler (or QtHandler if you use a widget)

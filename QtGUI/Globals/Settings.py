@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 @dataclass
 class Appearence:
-    theme = "light"
+    theme = "dark"
     pen = True
     brush = True
 
@@ -18,6 +18,7 @@ class SettingsBase(QObject):
     def __init__(self):
         super().__init__()
         
+        self.Apperance = Appearence()
     
 
     
