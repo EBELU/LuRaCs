@@ -38,6 +38,7 @@ def parse_cli_args():
     
     if args.bluetooth:
         loop = asyncio.get_event_loop()
+        Log.info(f"Initializing BLE devices: {args.bluetooth.split(" ")}")
         loop.create_task(RunManager.connect_bluetooth_list(args.bluetooth.split(" ")))
         
             

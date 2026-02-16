@@ -2,9 +2,10 @@ from PySide6.QtWidgets import QMenuBar, QMessageBox
 from PySide6.QtCore import QObject
 import time
 from dataclasses import dataclass
+import asyncio
 
 from .popup_windows.BluetoothListPopup import BluetoothListPopup
-from ..Globals import RunManager
+from ..Globals import RunManager, Settings
 
 @dataclass
 class MenuActions:
@@ -38,7 +39,7 @@ class MainMenuBar(QMenuBar):
         device_menu_connectBT = device_menu.addAction("Connect Bluetooth")
         device_menu_connectBT.triggered.connect(parent.bt_window.start_popup)
         
-        device_menu_retryLast = device_menu.addAction("Retry Last Connection")
+        self.device_menu_retryLast = device_menu.addMenu("&Retry Last Connection")
         device_menu_connectUSB = device_menu.addAction("Connect USB")
         device_menu_disconnect = device_menu.addAction("Disconnect")
         device_menu_disconnect.triggered.connect(RunManager.remove_device)
@@ -59,7 +60,6 @@ class MainMenuBar(QMenuBar):
         # ---------- Options Menu ----------
         options_menu = self.addMenu("&Options")
         reset_action = options_menu.addAction("Reset Data")
-        reset_action.triggered.connect(self.on_reset)
 
         # ---------- Help Menu ----------
         help_menu = self.addMenu("&Help")
@@ -67,9 +67,15 @@ class MainMenuBar(QMenuBar):
         about_action.triggered.connect(self.on_about)
 
     # ---------- Action Handlers ----------
-    def on_reset(self):
-        if self.actions.reset_callback:
-            self.actions.reset_callback()
+    def update_last_connections(self, names: list):
+        self.device_menu_retryLast.clear()
+        for name in names:
+            def _connect(x):
+                loop = asyncio.get_event_loop()
+                loop.create_task(RunManager.connect_bluetooth_list(name))
+            retryDevice = self.device_menu_retryLast.addAction(name)
+            retryDevice.triggered.connect(_connect)
+
 
     def on_about(self):
         if self.actions.about_callback:

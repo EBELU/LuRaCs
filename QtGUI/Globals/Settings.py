@@ -65,6 +65,7 @@ class Paths:
 
 
 class SettingsBase(QObject):
+    latestConnectionUpdated = (list)
     def __init__(self):
         super().__init__()
         
@@ -73,7 +74,10 @@ class SettingsBase(QObject):
         self.Appearance = Appearance()
         self.Paths = Paths()
         
-    
+    def add_new_connection(self, name):
+        if name not in self.State.last_connections:
+            self.State.last_connections.put(name)
+            self.latestConnectionUpdated.emit(list(self.State.last_connections))
 
     
     def load_settings(self):

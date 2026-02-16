@@ -10,7 +10,7 @@ import usb.core
 import usb.util
 from PySide6.QtCore import QObject, Signal
 from .GUILogger import gui_logger
-from ..Globals import Settings
+from .Settings import Settings
 from ..SpectrumClasses import SpectrumData
 
 @dataclass(frozen=True)
@@ -74,6 +74,8 @@ class RunManagerBase(QObject):
     def __init__(self):
         super().__init__()
         self.event_loop = None
+
+        self.deviceConnected.connect(Settings.add_new_connection)
 
         self.devices: dict[str, DeviceWrapper] = {}
 
@@ -226,7 +228,6 @@ class RunManagerBase(QObject):
             gui_logger.debug("Bluetooth scan cancelled")
             
     async def connect_bluetooth_list(self, names):
-        gui_logger.info(f"Initializing BLE devices: {names}")
         devices = await BleakScanner.discover(timeout=Settings.Advanced.headless_scan_length)
         for device in devices:
             if device.name and any(n in device.name for n in names):
