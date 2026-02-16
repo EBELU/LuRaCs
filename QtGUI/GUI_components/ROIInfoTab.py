@@ -63,17 +63,19 @@ class ROIInfoPane(QWidget):
             self.ROIs[roi.tag] = row_index
         else:
             row_index = self.ROIs[roi.tag]
-
-        row = [roi.tag, round(roi.low), round(roi.high), 
-                round(roi.gaussian.mu, 4), 
-                round(roi.gaussian.FWHM(), 4), 
-                round(roi.gaussian.max_height(), 4),
-                round(roi.gaussian.G, 4), 
-                round(roi.gaussian.B, 4), 
-                round(roi.gaussian.N, 4), 
-                round(roi.gaussian.A, 4), 
-
-]
+            
+        if roi.gaussian is not None:
+            row = [roi.tag, round(roi.low), round(roi.high), 
+                    round(roi.gaussian.mu, 4), 
+                    round(roi.gaussian.FWHM(), 4), 
+                    round(roi.gaussian.max_height(), 4),
+                    round(roi.gaussian.G, 4), 
+                    round(roi.gaussian.B, 4), 
+                    round(roi.gaussian.N, 4), 
+                    round(roi.gaussian.A, 4), 
+                ]
+        else:
+            row = [roi.tag, round(roi.low), round(roi.high), "Fit failed"] + [None] * 6
         write_row(self.table, row_index, row)
 
     def delete_roi(self, roi: ROI):

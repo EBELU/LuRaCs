@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (
     QWidget, QGroupBox, QVBoxLayout, QTableWidget, QTableWidgetItem,
-    QSizePolicy, QColorDialog, QFrame, QHBoxLayout
+    QSizePolicy, QColorDialog, QFrame, QHBoxLayout, QToolButton, QMenu
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
@@ -28,7 +28,7 @@ def format_duration(seconds):
 
 
 from PySide6.QtWidgets import QWidget
-from PySide6.QtGui import QColor, QPainter, QBrush, QPen
+from PySide6.QtGui import QColor, QPainter, QBrush, QAction
 from PySide6.QtCore import Qt, Signal
 
 class ColorCellWidget(QWidget):
@@ -61,7 +61,38 @@ class ColorCellWidget(QWidget):
         painter.drawRoundedRect(rect, 3, 3)
 
 
+class MenuButton(QWidget):
+    # Optional: custom signals
+    actionTriggered = Signal(str)
 
+    def __init__(self, title="Menu", parent=None):
+        super().__init__(parent)
+
+        self.button = QToolButton(self)
+        self.button.setText(title)
+        self.button.setPopupMode(QToolButton.InstantPopup)
+        self.button.setToolButtonStyle(
+            self.button.toolButtonStyle()
+        )
+
+        self.menu = QMenu(self)
+        self.button.setMenu(self.menu)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.button)
+
+    def add_action(self, text):
+        action = QAction(text, self)
+        self.menu.addAction(action)
+
+        action.triggered.connect(
+            lambda: self.actionTriggered.emit(text)
+        )
+        return action
+
+    def add_separator(self):
+        self.menu.addSeparator()
 
 class SpectrumInfoPane(QWidget):
 
@@ -74,13 +105,14 @@ class SpectrumInfoPane(QWidget):
         super().__init__(parent)
 
         SpectrumManager.Signals.spectrumUpdated.connect(self.recieve_update)
+        self.colorChanged.connect(SpectrumManager.set_color)
 
         self.group_box = QGroupBox(title)
 
         titles = ["", "Spectrum", "Type", "Counts", "Live Time", "Real Time"]
         self.table = QTableWidget(0, len(titles))
         self.table.setHorizontalHeaderLabels(titles)
-        self.table.setColumnWidth(0, 40)
+        self.table.setColumnWidth(0, 60)
         self.table.setColumnWidth(3, 100)
         self.table.setColumnWidth(4, 150)
         self.table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
@@ -100,6 +132,8 @@ class SpectrumInfoPane(QWidget):
     def set_color_cell(self, row: int, spectrum_name: str, role: str, color: QColor):
         # Create the color swatch
         cell_widget = ColorCellWidget(color)
+        menu_button = MenuButton()
+        menu_button.add_action("Remove")
 
         # Wrap it in a QWidget with a layout to center it
         wrapper = QWidget()
@@ -107,8 +141,10 @@ class SpectrumInfoPane(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)  # no extra space
         layout.addStretch()
         layout.addWidget(cell_widget)
+        layout.addWidget(menu_button)
         layout.addStretch()
         wrapper.setLayout(layout)
+        
 
         # Connect click
         cell_widget.clicked.connect(
@@ -121,7 +157,6 @@ class SpectrumInfoPane(QWidget):
         color = QColorDialog.getColor(cell_widget.color, self, "Select color")
         if color.isValid():
             cell_widget.set_color(color)
-            SpectrumManager.set_color(spectrum_name, role, color)
             self.colorChanged.emit(spectrum_name, role, color)
 
     # ----------------- Table update -----------------

@@ -143,7 +143,6 @@ class SpectrumManagerBase(QObject):
     def set_color(self, name, fg_bkg: str, color: QColor):
         if name not in self.spectra:
             raise ValueError(f"Spectrum {name} does not exist")
-        print(name)
         if fg_bkg.lower() == "foreground":
             self.spectra[name].color_foreground = color
         else:

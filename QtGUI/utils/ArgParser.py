@@ -1,5 +1,6 @@
 import argparse
-from ..Globals import Log
+import asyncio
+from ..Globals import Log, RunManager
 
 def parse_cli_args():
     
@@ -11,7 +12,7 @@ def parse_cli_args():
 
     parser.add_argument(
         "-db", "--debug",
-        type=bool,
+        action="store_true",
         help="Launch in debug mode"
     )
 
@@ -26,9 +27,17 @@ def parse_cli_args():
         type=str,
         help="Load a roi json file"
     )
+    
+    parser.add_argument(
+        "-bt", "--bluetooth",
+        type=str,
+        help="Attempt bluetooth connections based on device names"
+    )
 
     args = parser.parse_args()
     
-    print(args.debug)
-    
-    Log.info("CLI args parsed, starting application")
+    if args.bluetooth:
+        loop = asyncio.get_event_loop()
+        loop.create_task(RunManager.connect_bluetooth_list(args.bluetooth.split(" ")))
+        
+            

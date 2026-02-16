@@ -4,7 +4,7 @@ import time
 import numpy as np
 from collections import deque
 from dataclasses import dataclass
-
+from textwrap import dedent
 import logging
 
 logging.basicConfig(
@@ -38,6 +38,7 @@ from QtGUI.utils.ArgParser import parse_cli_args
 from QtGUI.Globals import SpectrumManager
 
 from QtGUI.utils.MockClient import MockClient
+from QtGUI.utils.startup import startup_script
 from QtGUI.Globals import RunManager, Log, Settings
 
 from QtGUI.GUI_components.popup_windows.BluetoothListPopup import BluetoothListPopup
@@ -99,7 +100,7 @@ class MainWindow(QMainWindow):
 
         self.mock_running = True
         
-        self.theme = ThemeManager(Settings.Apperance.theme)
+        self.theme = ThemeManager(Settings.Appearance.theme)
         self.theme.apply() 
         
         self.bt_window = BluetoothListPopup()
@@ -150,12 +151,12 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(self.bottom_tabs, 1)
         
-        # SpectrumManager.create_spectrum( "RC103", len(imported_data),)
+        SpectrumManager.create_spectrum( "RC103", len(imported_data),)
         CsSpectrum = SpectrumResult(imported_data, 4352, 0)
         bkgSpectrum = SpectrumResult(imported_bkg, 69714, 0)
-        # SpectrumManager.set_foreground_spectrum("RC103", CsSpectrum)
-        # SpectrumManager.set_background_spectrum("RC103", bkgSpectrum)
-        # SpectrumManager.calibrate_spectrum("RC103", [0.0003705, 2.3694975, 4.2583089])
+        SpectrumManager.set_foreground_spectrum("RC103", CsSpectrum)
+        SpectrumManager.set_background_spectrum("RC103", bkgSpectrum)
+        SpectrumManager.calibrate_spectrum("RC103", [0.0003705, 2.3694975, 4.2583089])
 
         CoSpectrum = SpectrumResult(imported_cobolt_data, 67286, 0)
         # SpectrumManager.create_spectrum("RC103Co", len(imported_cobolt_data))
@@ -176,8 +177,8 @@ class MainWindow(QMainWindow):
             ],
             legends=self.current_value_tab.legends)
         
-        
-        parse_cli_args()
+        if len(sys.argv) > 1:
+            parse_cli_args()
         
     def update_current(self, package):
         self.current_value_tab.receive_data_packet(package)
@@ -213,6 +214,8 @@ def main():
     app = QApplication(sys.argv)
     loop = QEventLoop(app)
     asyncio.set_event_loop(loop)
+    
+    startup_script()
 
     win = MainWindow()
     win.show()
@@ -220,7 +223,19 @@ def main():
     RunManager.set_loop(loop)
     RunManager.set_clients({"mock": MockClient, "raysid":RaysidClientAsync})
 
-    Log.info("Application Started")
+    header = "[ APPLICATION STARTED ]"
+    version = "Version: Alpha"
+    platform = f"Platform: {sys.platform}"
+
+    frame_width = max(len(header), len(version), len(platform)) + 4  # extra padding
+
+    line = "=" * frame_width
+
+    Log.info(f"\n{line}\n"
+            f"| {header.center(frame_width-4)} |\n"
+            f"| {version.center(frame_width-4)} |\n"
+            f"| {platform.center(frame_width-4)} |\n"
+            f"{line}")
 
     # run_manager.bluetoothError.connect(print)
 
@@ -246,6 +261,7 @@ def main():
 
     def on_about_to_quit():
         asyncio.create_task(app_shutdown())
+        Settings.save_settings()
 
     app.aboutToQuit.connect(on_about_to_quit)
 

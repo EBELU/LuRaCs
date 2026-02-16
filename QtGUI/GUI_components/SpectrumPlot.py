@@ -4,7 +4,7 @@ from PySide6.QtGui import QColor
 import pyqtgraph as pg
 import numpy as np
 
-from ..Globals import SpectrumManager
+from ..Globals import SpectrumManager, Settings
 
 from ..SpectrumClasses import Spectrum
 
@@ -83,12 +83,13 @@ class SpectrumPlot(QWidget):
             xMin=0, xMax=3500,
             yMin=0, yMax=1e6,
             minXRange=10, maxXRange=3500,
-            minYRange=1, maxYRange=1e6
+            minYRange=1e-4, maxYRange=1e6
         )
         self.plot_widget.getPlotItem().layout.setContentsMargins(2, 13, 13, 2)
 
         self.plot_widget.getViewBox().setMouseEnabled(x=True, y=False)
         self.view = self.plot_widget.getViewBox()
+        self.plot_widget.enableAutoRange()
 
         # Buttons
         
@@ -150,9 +151,27 @@ class SpectrumPlot(QWidget):
         if x_min < 0 or x_max > 3500:
             self.plot_widget.setXRange(max(0,x_min), min(3500,x_max), padding=0)
 
+        # Calculate good y-axis
+        spectra = SpectrumManager.get_spectra_dict().values()
+        slices = []
 
-        y_max = np.max([np.max(spectrum.get_foreground(self.log, self.cps)[(spectrum.x_axis > x_min) & (spectrum.x_axis < x_max)]) for spectrum in SpectrumManager.get_spectra_dict().values()])
-        y_min = np.min([np.min(spectrum.get_foreground(self.log, self.cps)[(spectrum.x_axis > x_min) & (spectrum.x_axis < x_max)]) for spectrum in SpectrumManager.get_spectra_dict().values()])
+        for spectrum in spectra:
+            fg = spectrum.get_foreground(self.log, self.cps)
+            if fg is None or len(fg) == 0:
+                continue
+
+            mask = (spectrum.x_axis > x_min) & (spectrum.x_axis < x_max)
+            window = fg[mask]
+
+            if window.size > 0:
+                slices.append(window)
+
+        if slices:
+            y_max = max(np.max(s) for s in slices)
+            y_min = min(np.min(s) for s in slices)
+        else:
+            y_max = None
+            y_min = None
 
         if y_max and not self.log:
             padding = 1.1
@@ -169,16 +188,12 @@ class SpectrumPlot(QWidget):
             self.btn_cps.setEnabled(True)
             self._set_cps(False, self.cps, False)
 
-            self._redraw()
-
 
         elif option == 1:
             self.show_bkg = True
             self.bkg_sub = False
             self._set_cps(False, True, False)
             self.btn_cps.setEnabled(False)
-
-            self._redraw()
 
         elif option == 2:
             self.cps = True
@@ -187,7 +202,8 @@ class SpectrumPlot(QWidget):
             self._set_cps(False, True, False)
             self.btn_cps.setEnabled(False)
 
-            self._redraw()
+        # Finish by redrawing
+        self._redraw()
 
 
     def _set_cps(self,_ , cps_bool = None, recalculate = True):
@@ -272,8 +288,11 @@ class SpectrumPlot(QWidget):
         if spectrum.name not in self.primary_lines:
             pen = pg.mkPen(spectrum.color_foreground, width=2)
 
-            brush = QColor(spectrum.color_foreground)
-            brush.setAlpha(150)
+            if Settings.Appearance.brush:
+                brush = QColor(spectrum.color_foreground)
+                brush.setAlpha(150)
+            else:
+                brush = None
 
             self.primary_lines[spectrum.name] = self.plot_widget.plot(
                 [],
@@ -298,8 +317,11 @@ class SpectrumPlot(QWidget):
         if spectrum.name not in self.bkg_lines:
             pen = pg.mkPen(spectrum.color_background, width=2)
 
-            brush = QColor(spectrum.color_background)
-            brush.setAlpha(150)
+            if Settings.Appearance.brush:
+                brush = QColor(spectrum.color_background)
+                brush.setAlpha(150)
+            else:
+                brush = None
 
             line = self.plot_widget.plot(
                 [],
@@ -370,13 +392,10 @@ class SpectrumPlot(QWidget):
                 self.plot_widget.setLimits(
                 yMin=0, yMax=1e6)
 
-
-            self._redraw()
             self.btn_lin_log.setText("Lin")
 
         else:
             self.log = False
-            self._redraw()
             self.btn_lin_log.setText("Log")
             self.plot_widget.setLimits(
             yMin=0, yMax=1e6,
@@ -391,7 +410,6 @@ class SpectrumPlot(QWidget):
         """Enable interactive ROI marking with LinearRegionItem."""
         roi_tag = SpectrumManager.create_ROI()
         x_min, x_max = self.plot_widget.viewRange()[0]
-
 
 
         diff = float(x_max) - float(x_min)

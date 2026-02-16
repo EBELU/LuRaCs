@@ -10,6 +10,7 @@ import usb.core
 import usb.util
 from PySide6.QtCore import QObject, Signal
 from .GUILogger import gui_logger
+from ..Globals import Settings
 from ..SpectrumClasses import SpectrumData
 
 @dataclass(frozen=True)
@@ -88,6 +89,7 @@ class RunManagerBase(QObject):
         self._poll_task: asyncio.Task | None = None
         self._polling = False
         
+        self.channel_table = {"raysid": 1800, "radioacode": 1024}
         
         
     def set_loop(self, loop):
@@ -100,6 +102,9 @@ class RunManagerBase(QObject):
         try:
             while self._polling:
                 for name, client in list(self.devices.items()):
+                    if client._stopped:
+                        self.devices.pop(name)
+                        continue
                     realtime = getattr(client, "LatestRealTimeData", None)
                     if realtime is not None:
                         packet = CurrentValuesPackage(name, realtime.CPS, realtime.DR, realtime.timestamp)
@@ -117,9 +122,9 @@ class RunManagerBase(QObject):
                                               sum(spectrum.spectrum),
                                               spectrum.uptime)
                         self.spectrumUpdated.emit(name, packet)
+                        
 
                 await asyncio.sleep(0.5)
-
         except asyncio.CancelledError:
             raise
         except Exception as e:
@@ -164,7 +169,7 @@ class RunManagerBase(QObject):
             self.devices[name] = new_device
             
         
-        if not self._poll_task:
+        if not self._polling:
             self._polling = True
             self._poll_task = asyncio.create_task(self._poll_loop())
 
@@ -219,6 +224,28 @@ class RunManagerBase(QObject):
         if self._scan_task and not self._scan_task.done():
             self._scan_task.cancel()
             gui_logger.debug("Bluetooth scan cancelled")
+            
+    async def connect_bluetooth_list(self, names):
+        gui_logger.info(f"Initializing BLE devices: {names}")
+        devices = await BleakScanner.discover(timeout=Settings.Advanced.headless_scan_length)
+        for device in devices:
+            if device.name and any(n in device.name for n in names):
+                for device_type in self.channel_table.keys():
+                    if device_type in device.name.lower():
+                        gui_logger.info(f"Connecting device {device.name}, type: {device_type}")
+                        await self.add_device(device, device_type)
+
+                
+    async def find_bluetooth_headless(self, name: str):
+        
+        def match_name(device, advertisement_data):
+            return device.name and name in device.name
+
+        device = await BleakScanner.find_device_by_filter(match_name, timeout=5)
+        
+        await self.add_device(device)
+        
+        return True
 
 
     async def find_bluetooth(self, timeout=5):
@@ -247,14 +274,6 @@ class RunManagerBase(QObject):
                     self._scan_task = None
 
         self._scan_task = asyncio.create_task(_scan())
-
-
-
-
-
-
-
-
 
 
 RunManager = RunManagerBase()

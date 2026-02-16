@@ -133,6 +133,8 @@ def fit_gaussian(
     # ---------- FIT ----------
     try:
         estimates, covar_matrix = curve_fit(GaussFunc, x_region, y_region, p0=guesses)
+        if covar_matrix is None or not np.all(np.isfinite(covar_matrix)) or not np.all(estimates):
+            return
         return Gaussian(
             estimates[0], estimates[1], abs(estimates[2]),
             covar_matrix, x_region, const_y_region,
