@@ -151,12 +151,12 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(self.bottom_tabs, 1)
         
-        SpectrumManager.create_spectrum( "RC103", len(imported_data),)
-        CsSpectrum = SpectrumResult(imported_data, 4352, 0)
-        bkgSpectrum = SpectrumResult(imported_bkg, 69714, 0)
-        SpectrumManager.set_foreground_spectrum("RC103", CsSpectrum)
-        SpectrumManager.set_background_spectrum("RC103", bkgSpectrum)
-        SpectrumManager.calibrate_spectrum("RC103", [0.0003705, 2.3694975, 4.2583089])
+        # SpectrumManager.create_spectrum( "RC103", len(imported_data),)
+        # CsSpectrum = SpectrumResult(imported_data, 4352, 0)
+        # bkgSpectrum = SpectrumResult(imported_bkg, 69714, 0)
+        # SpectrumManager.set_foreground_spectrum("RC103", CsSpectrum)
+        # SpectrumManager.set_background_spectrum("RC103", bkgSpectrum)
+        # SpectrumManager.calibrate_spectrum("RC103", [0.0003705, 2.3694975, 4.2583089])
 
         CoSpectrum = SpectrumResult(imported_cobolt_data, 67286, 0)
         # SpectrumManager.create_spectrum("RC103Co", len(imported_cobolt_data))
