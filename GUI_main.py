@@ -11,6 +11,7 @@ logging.basicConfig(
     level=logging.INFO
 )
 
+from PySide6.QtGui import QCloseEvent
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -96,9 +97,11 @@ class MainWindow(QMainWindow):
     new_spectrum_signal = Signal(object)
     def __init__(self):
         super().__init__()
+        
         self.setWindowTitle("Gamma Spectroscopy")
 
         self.mock_running = True
+        self._closing = False
         
         self.theme = ThemeManager(Settings.Appearance.theme)
         self.theme.apply() 
@@ -179,6 +182,27 @@ class MainWindow(QMainWindow):
         
         if len(sys.argv) > 1:
             parse_cli_args()
+            
+            
+    def closeEvent(self, event: QCloseEvent):
+        if self._closing:
+            event.accept()
+            return
+
+        event.ignore()
+        self.hide()
+        asyncio.create_task(self._async_close())
+        
+    async def _async_close(self):
+        if self._closing:
+            return
+        self._closing = True
+
+        try:
+            await RunManager.shutdown()
+            Settings.save_settings()
+        finally:
+            QApplication.quit()
         
     def update_current(self, package):
         self.current_value_tab.receive_data_packet(package)
@@ -249,21 +273,7 @@ def main():
     # QTimer.singleShot(0, lambda: asyncio.create_task(mock_data_task(win, "Raysid1")))
     # QTimer.singleShot(0, lambda: asyncio.create_task(mock_data_task(win, "Raysid2")))
 
-    # Cancel mock tasks on exit
-    async def app_shutdown():
-        
-        # Step 1: shutdown devices + poll loop
-        await RunManager.shutdown()
 
-
-        # Step 3: stop event loop
-        loop.stop()
-
-    def on_about_to_quit():
-        asyncio.create_task(app_shutdown())
-        Settings.save_settings()
-
-    app.aboutToQuit.connect(on_about_to_quit)
 
     # Start the event loop
     with loop:

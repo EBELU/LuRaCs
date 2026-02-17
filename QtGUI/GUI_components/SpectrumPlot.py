@@ -178,7 +178,8 @@ class SpectrumPlot(QWidget):
             self.plot_widget.setYRange(0, y_max * padding, padding=0)
         elif self.log and y_max > y_min:
             padding = 1.1
-            self.plot_widget.setYRange(y_min / 2, y_max * padding, padding=0)
+            if y_max < 0: y_max = 0
+            self.plot_widget.setYRange(y_min - abs(y_min) * (padding - 1), y_max * padding, padding=0)
 
     def _on_bkg_option_selection(self, option):
         """Change how the background is handeled"""
@@ -277,8 +278,11 @@ class SpectrumPlot(QWidget):
     def update_plot(self, name):
         """Primary method for updating a spectrum plot"""
         spect = SpectrumManager.get_spectrum(name)
+        if not spect.show_in_plot:
+            return        
+        
         if self.bkg_sub:
-            self.plot_bkg_subtract(self)
+            self.plot_bkg_subtract(spect)
         else:
             self.plot_primary(spect)
             self.plot_bkg(spect)
@@ -380,6 +384,7 @@ class SpectrumPlot(QWidget):
 
             
     def change_lin_log(self):
+        """Change lin log at data retrieval"""
         if self.log == False:
             self.log = True
 
@@ -390,7 +395,7 @@ class SpectrumPlot(QWidget):
                 
             else:
                 self.plot_widget.setLimits(
-                yMin=0, yMax=1e6)
+                yMin=-7, yMax=1e6)
 
             self.btn_lin_log.setText("Lin")
 
@@ -409,6 +414,8 @@ class SpectrumPlot(QWidget):
     def add_roi(self, x_low = None, x_high = None):
         """Enable interactive ROI marking with LinearRegionItem."""
         roi_tag = SpectrumManager.create_ROI()
+        
+        # Pick a good position in the plit to spawn the new roi
         x_min, x_max = self.plot_widget.viewRange()[0]
 
 

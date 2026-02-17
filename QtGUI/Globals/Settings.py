@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from typing import Optional, Any
 import json
 from os.path import join
-from queue import Queue
+from collections import deque
 
 @dataclass
 class Appearance:
@@ -14,31 +14,25 @@ class Appearance:
 
 @dataclass
 class State:
-    last_connections: Queue = field(default_factory=lambda: Queue(10))
+    last_connections: deque = field(default_factory=lambda: deque(maxlen=10))
     loaded_spectra: Optional[Any] = None
     roi_regions: Optional[Any] = None
-    
+
     def to_dict(self):
         return {
-            "last_connections": list(self.last_connections.queue),
+            "last_connections": list(self.last_connections),
             "loaded_spectra": self.loaded_spectra,
             "roi_regions": self.roi_regions,
         }
-        
+
     @classmethod
     def from_dict(cls, data):
-        q = Queue(10)
-
-        for item in data.get("last_connections", []):
-            if not q.full():
-                q.put(item)
-
+        last_connections = deque(data.get("last_connections", []), maxlen=10)
         return cls(
-            last_connections=q,
+            last_connections=last_connections,
             loaded_spectra=data.get("loaded_spectra"),
             roi_regions=data.get("roi_regions"),
         )
-
 
 @dataclass
 class Advanced:
@@ -65,7 +59,7 @@ class Paths:
 
 
 class SettingsBase(QObject):
-    latestConnectionUpdated = (list)
+    latestConnectionUpdated = Signal(list)
     def __init__(self):
         super().__init__()
         
@@ -75,9 +69,9 @@ class SettingsBase(QObject):
         self.Paths = Paths()
         
     def add_new_connection(self, name):
-        if name not in self.State.last_connections:
-            self.State.last_connections.put(name)
-            self.latestConnectionUpdated.emit(list(self.State.last_connections))
+        if name not in list(self.State.last_connections):
+            self.State.last_connections.append(name)
+        self.latestConnectionUpdated.emit(list(self.State.last_connections))
 
     
     def load_settings(self):
@@ -87,7 +81,8 @@ class SettingsBase(QObject):
         self.Advanced = Advanced(**json_content["advanced"])
         self.Appearance = Appearance(**json_content["appearance"])
         self.State = State().from_dict(json_content["state"])
-
+        self.latestConnectionUpdated.emit(list(self.State.last_connections))
+        
     def save_settings(self):
         json_content = {
             "appearance": self.Appearance.__dict__,

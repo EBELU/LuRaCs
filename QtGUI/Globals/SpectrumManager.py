@@ -11,12 +11,12 @@ from .GUILogger import gui_logger
 
 class SpectrumColorRotator:
     def __init__(self, colors="mpl", width=2):
-        if colors == "mpl":
+        if colors == "mpl": # Matplotlib
             colors = [
                 "#1f77b4", "#ff7f0e", "#2ca02c",
                 "#d62728", "#9467bd", "#8c564b",
             ]
-        elif colors == "lo":
+        elif colors == "lo": # LibreOffice
             colors = [
                 "#004586", "#ff420e", "#ffd320",
                 "#579d1c", "#7e0021", "#83caff",
@@ -73,12 +73,19 @@ class SpectrumManagerBase(QObject):
         
     # --- Spectrum manipulators ---
         
-    def create_spectrum(self, name: str, channels: int):
+    def create_spectrum(self, name: str, channels: int, device: str = None):
         if name not in self.spectra:
-            self.spectra[name] = Spectrum(channels, name)
+            # Create spectrum and add a possible connection
+            new_spect = Spectrum(channels, name)
+            new_spect.connected_device = device
+            self.spectra[name] = new_spect
+            
+            # Set colors
             clr = self.color_rotation.next_color()
             self.set_color(name, "foreground", clr)
             self.set_color(name, "background", clr)
+            
+            # Emit done
             self.Signals.spectrumCreated.emit(name)
             gui_logger.info(f"[Spectrum added] {name}")
             return True
@@ -134,6 +141,7 @@ class SpectrumManagerBase(QObject):
             gui_logger.info(f"[Spectrum removed] {name}")
             
     def calibrate_spectrum(self, name, coeff):
+        """Apply a polynomial calibration of the x-axis."""
         if name not in self.spectra:
             raise ValueError(f"Spectrum {name} does not exist")
         
@@ -141,8 +149,10 @@ class SpectrumManagerBase(QObject):
         self.Signals.spectrumUpdated.emit(name)
 
     def set_color(self, name, fg_bkg: str, color: QColor):
+        
         if name not in self.spectra:
             raise ValueError(f"Spectrum {name} does not exist")
+        
         if fg_bkg.lower() == "foreground":
             self.spectra[name].color_foreground = color
         else:

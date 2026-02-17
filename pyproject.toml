@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=65", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "MySpect"
+version = "1.0.0"
+description = "Spectroscopy insterface"
+requires-python = ">=3.10"
+authors = [
+    {name = "Erik Ewald"}
+]
+license = {text = "GPL"}
+readme = "README.md"
+dependencies = [
+    "bleak>=0.21",
+    "numpy>=1.26",
+    "matplotlib>=3.8",
+    "PySide6>=6.5.0",
+    "qasync>=0.27.0",
+    "scipy>=1.11",
+    "openpyxl"
+]

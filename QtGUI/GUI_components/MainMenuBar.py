@@ -20,6 +20,9 @@ class MainMenuBar(QMenuBar):
         super().__init__(parent)
         self.parent = parent
         self.actions = actions or MenuActions()
+        
+                
+        Settings.latestConnectionUpdated.connect(self.update_last_connections)
 
         # ---------- File Menu ----------
         file_menu = self.addMenu("&File")
@@ -65,14 +68,20 @@ class MainMenuBar(QMenuBar):
         help_menu = self.addMenu("&Help")
         about_action = help_menu.addAction("About")
         about_action.triggered.connect(self.on_about)
+        
+        self.update_last_connections(list(Settings.State.last_connections))
+        
 
     # ---------- Action Handlers ----------
     def update_last_connections(self, names: list):
         self.device_menu_retryLast.clear()
+
         for name in names:
-            def _connect(x):
+            # Create the action
+            def _connect(x, n=name):  # bind current name to n
                 loop = asyncio.get_event_loop()
-                loop.create_task(RunManager.connect_bluetooth_list(name))
+                loop.create_task(RunManager.connect_bluetooth_list(n))
+
             retryDevice = self.device_menu_retryLast.addAction(name)
             retryDevice.triggered.connect(_connect)
 

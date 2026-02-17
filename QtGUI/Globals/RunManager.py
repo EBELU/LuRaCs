@@ -51,7 +51,7 @@ class RunManagerBase(QObject):
     statusUpdated = Signal(str, object)
     spectrumUpdated = Signal(str, object)
     
-    createDeviceSpectrum = Signal(str, int)
+    createDeviceSpectrum = Signal(str, int, str)
 
     # ---- lifecycle signals ----
     deviceConnecting = Signal(str)
@@ -75,7 +75,7 @@ class RunManagerBase(QObject):
         super().__init__()
         self.event_loop = None
 
-        self.deviceConnected.connect(Settings.add_new_connection)
+        self.deviceConnecting.connect(Settings.add_new_connection)
 
         self.devices: dict[str, DeviceWrapper] = {}
 
@@ -167,7 +167,7 @@ class RunManagerBase(QObject):
             
             gui_logger.info(f"[Device connected] {name}")
             self.deviceConnected.emit(name)
-            self.createDeviceSpectrum.emit(name, ch)
+            self.createDeviceSpectrum.emit(name, ch, name)
             self.devices[name] = new_device
             
         

@@ -129,11 +129,19 @@ class SpectrumInfoPane(QWidget):
 
     # ----------------- Color cell helpers -----------------
 
-    def set_color_cell(self, row: int, spectrum_name: str, role: str, color: QColor):
+    def set_options_cell(self, row: int, spectrum_name: str, role: str, color: QColor):
         # Create the color swatch
         cell_widget = ColorCellWidget(color)
         menu_button = MenuButton()
-        menu_button.add_action("Remove")
+        if role == "foreground" and SpectrumManager.get_spectrum(spectrum_name).connected_device is not None:
+            menu_button.add_action("Remove and Disconnect")
+        elif role == "foreground":
+            menu_button.add_action("Remove Spectrum")
+        else:
+            menu_button.add_action("Remove Background")
+        
+        menu_button.add_action("Hide")
+        menu_button.add_action("Export")
 
         # Wrap it in a QWidget with a layout to center it
         wrapper = QWidget()
@@ -194,7 +202,7 @@ class SpectrumInfoPane(QWidget):
             cell_widget = cell_widget_wrapper.layout().itemAt(1).widget()  # center widget
             cell_widget.set_color(new_spect.color_foreground)
         else:
-            self.set_color_cell(fg_row, name, "foreground", new_spect.color_foreground)
+            self.set_options_cell(fg_row, name, "foreground", new_spect.color_foreground)
 
         write_row(self.table, fg_row, [
             "",
@@ -224,7 +232,7 @@ class SpectrumInfoPane(QWidget):
                 cell_widget = cell_widget_wrapper.layout().itemAt(1).widget()
                 cell_widget.set_color(new_spect.color_background)
             else:
-                self.set_color_cell(bkg_row, name, "background", new_spect.color_background)
+                self.set_options_cell(bkg_row, name, "background", new_spect.color_background)
 
             write_row(self.table, bkg_row, [
                 "",

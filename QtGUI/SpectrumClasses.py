@@ -53,8 +53,11 @@ class Spectrum:
         self.calibration_coefficients: list = None
         self.calibrated: bool = False
         self.energy_unit: str = None
+        
         self.fit_rois: bool = True
-        self.has_device: bool = False
+        self.show_in_plot: bool = True
+        
+        self.connected_device: str = None
         
     def set_foreground(self, spectrum: SpectrumData, color: QColor = None):
         assert spectrum.channels == self.channels
