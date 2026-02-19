@@ -58,6 +58,9 @@ class SpectrumPlot(QWidget):
         self.Signals = EmittedSignals()
         
         SpectrumManager.Signals.spectrumUpdated.connect(self.update_plot)
+        SpectrumManager.Signals.spectrumRemoved.connect(self.remove_plot)
+        SpectrumManager.Signals.backgroundRemoved.connect(lambda *args: self._redraw())
+        SpectrumManager.Signals.visibilityChanged.connect(lambda *args: self._redraw())
         
         self.Signals.updateROI.connect(SpectrumManager.update_ROI)
         self.Signals.removeROI.connect(SpectrumManager.remove_ROI)
@@ -133,6 +136,8 @@ class SpectrumPlot(QWidget):
 
         self.y_axis_locked = True
         self.user_scaled = False
+        
+        # --- Plotting states ---
         self.log = False
         self.cps = False
         self.show_bkg = False
@@ -156,6 +161,8 @@ class SpectrumPlot(QWidget):
         slices = []
 
         for spectrum in spectra:
+            if not spectrum.show_in_plot: # Adjust only to visible spectra
+                continue
             fg = spectrum.get_foreground(self.log, self.cps)
             if fg is None or len(fg) == 0:
                 continue
@@ -257,12 +264,8 @@ class SpectrumPlot(QWidget):
         self.plot_widget.clear()
         self.primary_lines.clear()
         self.bkg_lines.clear()
-        for spect in SpectrumManager.get_spectra_dict().values():
-            if not self.bkg_sub:
-                self.plot_primary(spect)
-                self.plot_bkg(spect)
-            else:
-                self.plot_bkg_subtract(spect)
+        for spect_name in SpectrumManager.get_spectra_dict().keys():
+            self.update_plot(spect_name)
 
         self.ROI_lines_gasussian.clear()
         self.ROI_lines_linear.clear()
@@ -381,7 +384,16 @@ class SpectrumPlot(QWidget):
             spectrum.get_bkg_sub(self.log)[:-1],
         )
 
-
+    def remove_plot(self, name:str):
+        self.primary_lines.pop(name, None)
+        self.bkg_lines.pop(name, None)
+        for roi in self.ROIs:
+            tag = roi.tag
+            self.ROI_lines_linear.pop(name + tag, None)
+            self.ROI_lines_gasussian.pop(name + tag, None)
+        
+        self._redraw()
+            
             
     def change_lin_log(self):
         """Change lin log at data retrieval"""

@@ -52,6 +52,7 @@ class RunManagerBase(QObject):
     spectrumUpdated = Signal(str, object)
     
     createDeviceSpectrum = Signal(str, int, str)
+    removeDeviceSpectrum = Signal(str)
 
     # ---- lifecycle signals ----
     deviceConnecting = Signal(str)
@@ -175,10 +176,10 @@ class RunManagerBase(QObject):
             self._polling = True
             self._poll_task = asyncio.create_task(self._poll_loop())
 
-    def remove_device(self, _, device_name: str = "Raysid_1543"):
-        asyncio.create_task(self._remove_device(device_name))
+    def remove_device(self, device_name: str = "Raysid_1543", remove_spectrum: bool = False):
+        asyncio.create_task(self._remove_device(device_name, remove_spectrum))
 
-    async def _remove_device(self, device_name: str):
+    async def _remove_device(self, device_name: str, remove_spectrum: bool = False):
         client = self.devices.pop(device_name, None)
         if not client:
             return
@@ -190,6 +191,8 @@ class RunManagerBase(QObject):
         except Exception as e:
             self.deviceError.emit(device_name, str(e))
         finally:
+            if remove_spectrum:
+                self.removeDeviceSpectrum.emit(device_name)
             # --- stop polling if no devices remain ---
             if not self.devices and self._poll_task:
                 self._polling = False

@@ -43,6 +43,9 @@ class EmittedSignals(QObject):
     spectrumUpdated = Signal(str)
     spectrumRemoved = Signal(str)
     
+    backgroundRemoved = Signal(str, str)
+    visibilityChanged = Signal(bool)
+    
     roiCreated = Signal(str)
     roiUpdated = Signal(str)
     roiRemoved = Signal(str)
@@ -134,6 +137,12 @@ class SpectrumManagerBase(QObject):
         self.spectra[name].set_background(new_spectrum)
         self.Signals.spectrumUpdated.emit(name)
         
+    def clear_background(self, name):
+        if name not in self.spectra:
+            raise ValueError(f"Spectrum {name} does not exist")
+        self.spectra[name].background = None
+        self.Signals.backgroundRemoved.emit(name, "bkg")
+        
     def remove_spectrum(self, name):
         if name in self.spectra:
             self.spectra.pop(name)
@@ -159,6 +168,19 @@ class SpectrumManagerBase(QObject):
             self.spectra[name].color_background = color
 
         self.Signals.colorUpdated.emit(name)
+        
+    def update_visibility(self, name):
+        if name not in self.spectra:
+            raise ValueError(f"Spectrum {name} does not exist")
+        
+        if self.spectra[name].show_in_plot:
+            self.spectra[name].show_in_plot = False
+            self.Signals.visibilityChanged.emit(False)
+        
+        else:
+            self.spectra[name].show_in_plot = True
+            self.Signals.visibilityChanged.emit(True)
+
             
     # --- Getters ---
         

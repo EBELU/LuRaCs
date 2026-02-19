@@ -6,7 +6,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 
 from ..SpectrumClasses import ROI
-from ..Globals import SpectrumManager
+from ..Globals import SpectrumManager, RunManager
 
 
 def write_row(table, row_index, values):
@@ -25,6 +25,7 @@ def format_duration(seconds):
         return f"{days:02d}d {hours:02d}:{minutes:02d}:{seconds:02d}"
     else:
         return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    
 
 
 from PySide6.QtWidgets import QWidget
@@ -93,11 +94,17 @@ class MenuButton(QWidget):
 
     def add_separator(self):
         self.menu.addSeparator()
+        
+        
+class Signals:
+    disconnectAndRemove = Signal(str)
 
 class SpectrumInfoPane(QWidget):
 
     colorChanged = Signal(str, str, QColor)
-
+    disconnectAndRemove = Signal(str, bool)
+    removeSpectrum = Signal(str)
+    toggleVisibility = Signal(str)
     
     # spectrum_name, "foreground"/"background", color
 
@@ -105,7 +112,14 @@ class SpectrumInfoPane(QWidget):
         super().__init__(parent)
 
         SpectrumManager.Signals.spectrumUpdated.connect(self.recieve_update)
+        SpectrumManager.Signals.spectrumRemoved.connect(self.remove_spectrum)
+        SpectrumManager.Signals.backgroundRemoved.connect(self.remove_spectrum)
+
+        self.removeSpectrum.connect(SpectrumManager.remove_spectrum)
+        self.toggleVisibility.connect(SpectrumManager.update_visibility)
+        
         self.colorChanged.connect(SpectrumManager.set_color)
+        self.disconnectAndRemove.connect(RunManager.remove_device)
 
         self.group_box = QGroupBox(title)
 
@@ -125,22 +139,49 @@ class SpectrumInfoPane(QWidget):
 
         self.saved_rows = {}   # spectrum_name -> list of row indices
         self.row_counter = 0
+        
+        self.hide_show_btn = {}
+        self.hide_show_states = {}
+
 
 
     # ----------------- Color cell helpers -----------------
+    def _show_hide_action(self, name):
+        spect = SpectrumManager.get_spectrum(name)
+        if spect.show_in_plot:
+            self.hide_show_btn[name].setText("Show")
+            self.toggleVisibility.emit(name)
+        else:
+            self.hide_show_btn[name].setText("Hide")
+            self.toggleVisibility.emit(name)
 
     def set_options_cell(self, row: int, spectrum_name: str, role: str, color: QColor):
         # Create the color swatch
         cell_widget = ColorCellWidget(color)
         menu_button = MenuButton()
         if role == "foreground" and SpectrumManager.get_spectrum(spectrum_name).connected_device is not None:
-            menu_button.add_action("Remove and Disconnect")
+            disconnect = menu_button.add_action("Remove and Disconnect")
+            disconnect.triggered.connect(lambda x: self.disconnectAndRemove.emit(spectrum_name, True))
+            
+            add_bkg = menu_button.add_action("Add Background")
+            
+            self.hide_show_btn[spectrum_name] = menu_button.add_action("Hide")
+            self.hide_show_btn[spectrum_name].triggered.connect(lambda x: self._show_hide_action(spectrum_name))
+                
+            
         elif role == "foreground":
-            menu_button.add_action("Remove Spectrum")
+            remove = menu_button.add_action("Remove Spectrum")
+            remove.triggered.connect(lambda x: self.removeSpectrum.emit(spectrum_name))
+            add_bkg = menu_button.add_action("Add Background")
+            
+            self.hide_show_btn[spectrum_name] = menu_button.add_action("Hide")
+            self.hide_show_btn[spectrum_name].triggered.connect(lambda x: self._show_hide_action(spectrum_name))
+            
         else:
-            menu_button.add_action("Remove Background")
+            rm_bkg = menu_button.add_action("Remove Background")
+            rm_bkg.triggered.connect(lambda x: SpectrumManager.clear_background(spectrum_name))
         
-        menu_button.add_action("Hide")
+
         menu_button.add_action("Export")
 
         # Wrap it in a QWidget with a layout to center it
@@ -170,7 +211,6 @@ class SpectrumInfoPane(QWidget):
     # ----------------- Table update -----------------
     def recieve_update(self, name):
         new_spect = SpectrumManager.get_spectrum(name)
-
         # Determine rows to insert
         if name not in self.saved_rows:
             rows = []
@@ -242,3 +282,34 @@ class SpectrumInfoPane(QWidget):
                 format_duration(bkg.live_time),
                 format_duration(bkg.real_time),
             ])
+    
+    def remove_spectrum(self, name: str, which:str = "both"):
+        """Remove an entire spectrum or just the background from the info tab."""
+        rows = self.saved_rows[name]
+
+        if which == "both":
+            shift = len(rows)
+            for i in reversed(rows): # Remove in reverse order, otherwise the background gets shifted to the foregrounds index
+                self.table.removeRow(i)
+            
+            for key, rows_pair in self.saved_rows.items(): # Shift down the indicies of other rows
+                new_pair = [i - shift for i in rows_pair if i > rows[-1]]
+                if len(new_pair):
+                    self.saved_rows[key] = new_pair
+            
+            self.row_counter -= shift # update the counter on where the top is
+            self.saved_rows.pop(name)
+            
+        elif which == "bkg":
+            shift = 1
+            self.table.removeRow(rows[-1])
+            self.saved_rows[name] = [rows[0]]
+            
+            for key, rows_pair in self.saved_rows.items(): # Shift down the indicies of other rows
+                new_pair = [i - shift for i in rows_pair if i > rows[-1]]
+                if len(new_pair):
+                    self.saved_rows[key] = new_pair
+            
+            self.row_counter -= shift
+            
+                        

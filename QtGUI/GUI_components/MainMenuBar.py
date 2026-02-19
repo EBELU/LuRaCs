@@ -45,7 +45,7 @@ class MainMenuBar(QMenuBar):
         self.device_menu_retryLast = device_menu.addMenu("&Retry Last Connection")
         device_menu_connectUSB = device_menu.addAction("Connect USB")
         device_menu_disconnect = device_menu.addAction("Disconnect")
-        device_menu_disconnect.triggered.connect(RunManager.remove_device)
+        device_menu_disconnect.triggered.connect(lambda x: RunManager.remove_device())
         device_menu_info = device_menu.addAction("Device Info")
 
 
