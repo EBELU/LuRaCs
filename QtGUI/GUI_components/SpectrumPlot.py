@@ -81,6 +81,7 @@ class SpectrumPlot(QWidget):
         self.plot_widget.setLabel('bottom', xlabel)
         self.plot_widget.setLabel('left', ylabel)
         self.plot_widget.showGrid(x=True, y=True)
+        # self.plot_widget.getAxis('left').enableAutoSIPrefix(False)
         self.plot_widget.setXRange(0, 2500, padding=0) 
         self.plot_widget.setLimits(
             xMin=0, xMax=3500,
@@ -166,8 +167,10 @@ class SpectrumPlot(QWidget):
             fg = spectrum.get_foreground(self.log, self.cps)
             if fg is None or len(fg) == 0:
                 continue
-
+            
+            if x_max >= max(spectrum.x_axis): x_max = max(spectrum.x_axis)
             mask = (spectrum.x_axis > x_min) & (spectrum.x_axis < x_max)
+
             window = fg[mask]
 
             if window.size > 0:
@@ -292,6 +295,7 @@ class SpectrumPlot(QWidget):
 
 
     def plot_primary(self, spectrum: Spectrum):
+        """Plots the foreground spectrum"""
         if spectrum.name not in self.primary_lines:
             pen = pg.mkPen(spectrum.color_foreground, width=2)
 
@@ -311,9 +315,12 @@ class SpectrumPlot(QWidget):
                 stepMode=True,
             )
 
+        forground = spectrum.get_foreground(self.log, self.cps)
+        if forground is None:
+            return
         self.primary_lines[spectrum.name].setData(
             spectrum.x_axis,
-            spectrum.get_foreground(self.log, self.cps)[:-1],
+            forground[:-1],
         )
 
 
@@ -339,7 +346,7 @@ class SpectrumPlot(QWidget):
                 fillLevel=0,
                 stepMode=True,
             )
-            line.setZValue(1)
+            line.setZValue(1) # Place on top
 
             self.bkg_lines[spectrum.name] = line
 
@@ -388,7 +395,11 @@ class SpectrumPlot(QWidget):
         self.primary_lines.pop(name, None)
         self.bkg_lines.pop(name, None)
         for roi in self.ROIs:
-            tag = roi.tag
+            try:
+                tag = roi.tag
+            except AttributeError as e:
+                print(f"Remove plot failed for {name} with {e}")
+                raise
             self.ROI_lines_linear.pop(name + tag, None)
             self.ROI_lines_gasussian.pop(name + tag, None)
         
@@ -464,6 +475,8 @@ class SpectrumPlot(QWidget):
         self.Signals.updateROI.emit(roi_selection.tag, x_min, x_max, self.cps)
             
         for spectrum_tag, spectrum in SpectrumManager.get_spectra_dict().items():
+            if not spectrum.show_in_plot:
+                continue
             for roi_tag, roi in spectrum.ROIs.items():
                 if spectrum_tag+roi_tag not in self.ROI_lines_gasussian:
                     pen = pg.mkPen(color="w", width=1.3)
@@ -483,28 +496,34 @@ class SpectrumPlot(QWidget):
                     self.ROI_lines_linear[spectrum_tag+roi_tag].setData(x, lin)
 
                 
-
             
-    def remove_roi(self, roi):
-        reply = QMessageBox.question(
-            self,
-            "Delete ROI",
-            "Delete this ROI?",
-            QMessageBox.Yes | QMessageBox.No
-        )
+    def remove_roi(self, roi, force = False):
+        if not force:
+            reply = QMessageBox.question(
+                self,
+                "Delete ROI",
+                "Delete this ROI?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+        else:
+            reply = None
 
-        if reply == QMessageBox.Yes:
+        if force or reply == QMessageBox.Yes:
             for spect_tag, spectrum in SpectrumManager.get_spectra_dict().items():
 
-                self.plot_widget.removeItem(self.ROI_lines_gasussian[spect_tag+roi])
-                self.plot_widget.removeItem(self.ROI_lines_linear[spect_tag+roi])
+                self.plot_widget.removeItem(self.ROI_lines_gasussian.pop(spect_tag+roi, None))
+                self.plot_widget.removeItem(self.ROI_lines_linear.pop(spect_tag+roi, None))
 
-                self.ROI_lines_gasussian.pop(spect_tag+roi)
-                self.ROI_lines_linear.pop(spect_tag+roi)
+                # self.ROI_lines_gasussian.pop(spect_tag+roi)
+                # self.ROI_lines_linear.pop(spect_tag+roi)
 
-                spectrum.ROIs.pop(roi)
+                spectrum.ROIs.pop(roi, None)
 
             self.plot_widget.removeItem(self.ROIs[roi])
             self.ROIs.pop(roi)
             self.Signals.removeROI.emit(roi)
-
+            
+    def _clear_rois(self):
+        rois = SpectrumManager.existing_rois.copy()
+        for roi in rois:
+            self.remove_roi(roi, True)

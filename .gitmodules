@@ -2,3 +2,6 @@
 	path = Clients/RaysidClient
 	url = git@github.com:EBELU/RaysidClient.git
 
+[submodule "Clients/RadiacodeClient"]
+	path = Clients/RadiacodeClient
+	url = git@github.com:EBELU/RadiacodeClient.git

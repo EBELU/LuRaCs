@@ -10,6 +10,7 @@ class Appearance:
     theme: str = "dark"
     pen: bool = True
     brush: bool = False
+    font_size: int = 10
 
 
 @dataclass
@@ -37,6 +38,7 @@ class State:
 @dataclass
 class Advanced:
     update_loop_delay: float = 0.5
+    spectrum_update_delay: float = 1
     ui_scan_length: int = 5
     headless_scan_length: int = 2
 

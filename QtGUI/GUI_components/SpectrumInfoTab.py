@@ -96,8 +96,6 @@ class MenuButton(QWidget):
         self.menu.addSeparator()
         
         
-class Signals:
-    disconnectAndRemove = Signal(str)
 
 class SpectrumInfoPane(QWidget):
 
@@ -125,6 +123,7 @@ class SpectrumInfoPane(QWidget):
 
         titles = ["", "Spectrum", "Type", "Counts", "Live Time", "Real Time"]
         self.table = QTableWidget(0, len(titles))
+        self.table.setMinimumHeight(50)
         self.table.setHorizontalHeaderLabels(titles)
         self.table.setColumnWidth(0, 60)
         self.table.setColumnWidth(3, 100)
@@ -145,7 +144,7 @@ class SpectrumInfoPane(QWidget):
 
 
 
-    # ----------------- Color cell helpers -----------------
+    # ----------------- Options cell helpers -----------------
     def _show_hide_action(self, name):
         spect = SpectrumManager.get_spectrum(name)
         if spect.show_in_plot:

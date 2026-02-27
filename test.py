@@ -1,11 +1,20 @@
 import sys
 import numpy as np
 from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout
+from PySide6.QtWidgets import (
+    QDialog, QVBoxLayout, QListWidget, QListWidgetItem, QPushButton, QHBoxLayout
+)
 from PySide6.QtCore import QTimer
 import pyqtgraph as pg
+pg.setConfigOptions(antialias=True)
 
+class LoggerStartPopup(QDialog):
+    def __init__(self, parent = None):
+        super().__init__(parent)
+        
+        
 
-class WaterfallDemo(QWidget):
+class SpectrogramWidget(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Waterfall - Clean LUT (No Histogram Bars)")
@@ -22,15 +31,11 @@ class WaterfallDemo(QWidget):
         self.plot.addItem(self.img)
 
 
-
         # HistogramLUT (used only for gradient + dual slider)
         self.hist = pg.HistogramLUTItem()
         self.hist.setImageItem(self.img)
 
-        # Add to graphics layout
         self.graphics.addItem(self.hist, row=0, col=1)
-
-        # Hide histogram bars properly
         self.hist.plot.setVisible(True)
 
         # Stop auto histogram range recalculation (removes jitter)

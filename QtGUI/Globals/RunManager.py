@@ -1,7 +1,7 @@
 import asyncio
-from PySide6.QtCore import QObject, Signal  # for Qt signals and QObject base class
+from copy import deepcopy
+from PySide6.QtCore import QObject, Signal
 from qasync import QEventLoop
-
 from dataclasses import dataclass
 import numpy as np
 
@@ -12,6 +12,7 @@ from PySide6.QtCore import QObject, Signal
 from .GUILogger import gui_logger
 from .Settings import Settings
 from ..SpectrumClasses import SpectrumData
+from ..utils.DataLogging import SpectrumLogger
 
 @dataclass(frozen=True)
 class CurrentValuesPackage:
@@ -70,8 +71,6 @@ class RunManagerBase(QObject):
     bluetoothFound = Signal(list)
     bluetoothError = Signal(str)
 
-    usbFindPorts = Signal(list)
-
     def __init__(self):
         super().__init__()
         self.event_loop = None
@@ -92,7 +91,9 @@ class RunManagerBase(QObject):
         self._poll_task: asyncio.Task | None = None
         self._polling = False
         
-        self.channel_table = {"raysid": 1800, "radioacode": 1024}
+        self.channel_table = {"raysid": 1800, "radiacode": 1024}
+    
+        self.active_dataloggers: dict[str, SpectrumLogger] = {}
         
         
     def set_loop(self, loop):
@@ -102,39 +103,46 @@ class RunManagerBase(QObject):
         self.available_clients = clients
 
     async def _poll_loop(self):
+        spectrum_skip = deepcopy(Settings.Advanced.update_loop_delay)
         try:
             while self._polling:
                 for name, client in list(self.devices.items()):
                     if client._stopped:
                         self.devices.pop(name)
                         continue
+                    
+                    # --- Get spectrum ---
+                    if spectrum_skip >= Settings.Advanced.spectrum_update_delay:
+                        spectrum = getattr(client, "LatestSpectrum", None)
+                        if spectrum is not None:
+                            self.spectrumUpdated.emit(name, spectrum)
+                    
+                    # --- Get realtime CPS and DR ---
                     realtime = getattr(client, "LatestRealTimeData", None)
                     if realtime is not None:
                         packet = CurrentValuesPackage(name, realtime.CPS, realtime.DR, realtime.timestamp)
                         self.currentUpdated.emit(name, packet)
-                        
+                    
+                    # --- Get device status info ---
                     status = getattr(client, "LatestStatusData", None)
                     if status is not None:
                         self.statusUpdated.emit(name, status)
-
-
-                    spectrum = getattr(client, "LatestSpectrum", None)
-                    if spectrum is not None:
-                        packet = SpectrumData(spectrum.spectrum,
-                                              len(spectrum.spectrum),
-                                              sum(spectrum.spectrum),
-                                              spectrum.uptime)
-                        self.spectrumUpdated.emit(name, packet)
+                
+                if spectrum_skip >= Settings.Advanced.spectrum_update_delay:      
+                    spectrum_skip = deepcopy(Settings.Advanced.update_loop_delay)
+                else:
+                    spectrum_skip += Settings.Advanced.update_loop_delay
                         
 
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(Settings.Advanced.update_loop_delay)
         except asyncio.CancelledError:
             raise
         except Exception as e:
             gui_logger.critical("Polling crashed:", e)
 
+    
 
-    async def add_device(self, device_address, device_type):
+    async def add_device(self, device_address, device_type, usb = False):
         if device_type == "raysid":
             ch = 1800
         elif device_type == "radiacode":
@@ -147,6 +155,7 @@ class RunManagerBase(QObject):
             name = str(device_address)
 
         if name in self.devices:
+            gui_logger.debug(f"Device {device_address} already exists")
             return
 
         if device_type not in self.available_clients:
@@ -156,12 +165,15 @@ class RunManagerBase(QObject):
 
         self.deviceConnecting.emit(name)
         
-        new_device = self.available_clients[device_type](device_address)
-        new_device.name
+        if usb:
+            new_device = self.available_clients[device_type](device_address, usb)
+        else:
+            new_device = self.available_clients[device_type](device_address)
         
         try:
             await new_device.start()
         except asyncio.CancelledError:
+            gui_logger.error(f"Deive was cancelled {name}")
             self.deviceCancelled.emit(name)
             
         if new_device._running:
@@ -170,6 +182,9 @@ class RunManagerBase(QObject):
             self.deviceConnected.emit(name)
             self.createDeviceSpectrum.emit(name, ch, name)
             self.devices[name] = new_device
+        
+        else:
+            gui_logger.error(f"Device failed to start properly {name}")
             
         
         if not self._polling:
@@ -202,8 +217,17 @@ class RunManagerBase(QObject):
 
     async def shutdown(self):
         self.shutdownStarted.emit()
+        
+        # --- Close active loggers ---
+        for logger_key in self.active_dataloggers.copy().keys():
+            try:
+                self.close_logger(logger_key)
+            except Exception as e:
+                gui_logger.warning(f"Closing logger {logger_key} raised {e}")
 
-        for device in list(self.devices.values()):
+        # --- Stop devices ---
+        async def stop_device(device):
+            gui_logger.debug(f"Shutting down {device.name}")
             try:
                 await asyncio.wait_for(device.stop(), timeout=5)
             except asyncio.TimeoutError:
@@ -211,7 +235,14 @@ class RunManagerBase(QObject):
             except Exception as e:
                 gui_logger.error(f"{device.name} stop failed: {e}")
 
+        tasks = [
+            asyncio.create_task(stop_device(device))
+            for device in self.devices.values()
+        ]
 
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+        # --- Close the polling ---
         if self._poll_task:
             gui_logger.debug("Cancelling poll task")
             self._polling = False
@@ -231,13 +262,18 @@ class RunManagerBase(QObject):
             gui_logger.debug("Bluetooth scan cancelled")
             
     async def connect_bluetooth_list(self, names):
-        devices = await BleakScanner.discover(timeout=Settings.Advanced.headless_scan_length)
+        gui_logger.info(f"Attepting connection to {names}")
+        async with self._scan_lock:
+            devices = await BleakScanner.discover(timeout=Settings.Advanced.headless_scan_length)
+        gui_logger.debug(f"Devices found {[d for d in devices if d.name]}")
         for device in devices:
             if device.name and any(n in device.name for n in names):
+                gui_logger.debug(f"Accepted {device.name}")
                 for device_type in self.channel_table.keys():
                     if device_type in device.name.lower():
                         gui_logger.info(f"Connecting device {device.name}, type: {device_type}")
                         await self.add_device(device, device_type)
+                        await asyncio.sleep(1)
 
                 
     async def find_bluetooth_headless(self, name: str):
@@ -278,6 +314,55 @@ class RunManagerBase(QObject):
                     self._scan_task = None
 
         self._scan_task = asyncio.create_task(_scan())
+        
+    def scan_all_usb(self):
+        devices = usb.core.find(find_all=True)
+        results = []
+
+        for dev in devices or []:
+            try:
+                try:
+                    dev.set_configuration()
+                except usb.core.USBError:
+                    pass
+
+                results.append({
+                    "vendor_id": hex(dev.idVendor),
+                    "product_id": hex(dev.idProduct),
+                    "serial_number": usb.util.get_string(dev, dev.iSerialNumber),
+                    "manufacturer": usb.util.get_string(dev, dev.iManufacturer),
+                    "product": usb.util.get_string(dev, dev.iProduct),
+                    "bus": getattr(dev, "bus", None),
+                    "address": getattr(dev, "address", None),
+                })
+            except Exception:
+                # Skip devices we can't access
+                continue
+
+        return results
+    
+    
+    def start_logger(self, db_name = "test.db", device: str = "Raysid_1543", save_interval: int = 1):
+        if device not in self.devices:
+            gui_logger.warning(f"Logging could not be started as {device} does not exist")
+            return
+        
+        self.channel_table["raysid"]
+        
+        
+        new_log = SpectrumLogger(db_name, save_interval, self.channel_table["raysid"], device, [])
+        self.currentUpdated.connect(new_log.receive_current)
+        self.statusUpdated.connect(new_log.receive_status)
+        self.spectrumUpdated.connect(new_log.receive_spectrum)
+        self.active_dataloggers[device] = new_log
+        gui_logger.info(f"[Spectrum Logger started] DB_name: {db_name}, device: {device}")
+    
+    def close_logger(self, name: str):
+        logger = self.active_dataloggers.pop(name, None)
+        if logger:
+            logger.close()
+            gui_logger.info(f"[Spectrum Logger Closed] {name}")
+        
 
 
 RunManager = RunManagerBase()

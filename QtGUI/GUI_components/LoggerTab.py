@@ -3,6 +3,8 @@ from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QTextEdit, QWidget, QVBoxLayout
 
+from ..Globals import Settings
+
 class LogSignalEmitter(QObject):
     """QObject that emits log messages to the GUI."""
     logSignal = Signal(str)
@@ -33,7 +35,7 @@ class LogWidget(QWidget):
         font = QFont()
         font.setFamily("Consolas")   # Windows-friendly monospace
         font.setStyleHint(QFont.Monospace)
-        font.setPointSize(10)         # adjust as needed
+        font.setPointSize(Settings.Appearance.font_size + 1)
         self.text_edit.setFont(font)
 
         layout = QVBoxLayout(self)
@@ -60,24 +62,24 @@ class LogWidget(QWidget):
         self.text_edit.setAutoFillBackground(True)
 
     def _setup_logger(self):
-        # Create a signal emitter
         self.emitter = LogSignalEmitter()
         self.emitter.logSignal.connect(self.append_message)
 
-        # Create the QtHandler
         handler = QtHandler(self.emitter)
 
-        # Formatter (timestamp HH:MM:SS)
         formatter = logging.Formatter(
             fmt="%(asctime)s | %(name)s -- %(levelname)s: %(message)s",
             datefmt="%H:%M:%S"
         )
         handler.setFormatter(formatter)
 
-        # Attach to root logger
-        root_logger = logging.getLogger()
-        root_logger.setLevel(logging.INFO)
-        root_logger.addHandler(handler)
+        loggers = ["Application", "RaysidClient", "RadiacodeClient"]
+
+        for name in loggers:
+            logger = logging.getLogger(name)
+            logger.setLevel(logging.INFO)
+            logger.addHandler(handler)
+            logger.propagate = False
 
     def append_message(self, msg: str):
         """Append a log message to the QTextEdit."""

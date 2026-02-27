@@ -162,6 +162,9 @@ class Spectrum:
         
     def update_roi(self, tag: str, x_low: float, x_high: float, cps: bool = None):
         """Refit a ROI"""
+        if not self.fit_rois: # Dont fit
+            self.ROIs[tag] = ROI(tag, x_low, x_high, None)
+            return
         try:
             y_data = self.get_foreground(False, cps)
             gaussian = fit_gaussian(self.x_axis, y_data, x_low, x_high)

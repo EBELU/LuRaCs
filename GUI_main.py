@@ -43,12 +43,14 @@ from QtGUI.utils.startup import startup_script
 from QtGUI.Globals import RunManager, Log, Settings
 
 from QtGUI.GUI_components.popup_windows.BluetoothListPopup import BluetoothListPopup
+from QtGUI.GUI_components.popup_windows.USBListPopup import USBListPopup
 
 # from QtGUI.GUI_components.ListPopup import BluetoothListPopup
 
 from PySide6.QtWidgets import QApplication, QPushButton, QColorDialog
 
 from Clients.RaysidClient.RaysidClient import RaysidClientAsync
+from Clients.RadiacodeClient.src import RadiacodeClientAsync
 
 import pandas as pd
 imported_data = pd.read_csv("Cyklotron_Cs.csv").to_numpy().T[1]
@@ -84,7 +86,7 @@ class StatusPackage:
 
 @dataclass(frozen=True)
 class SpectrumResult:
-    y_axis: np.ndarray
+    spectrum: np.ndarray
     live_time: float
     timestamp: float
 
@@ -107,6 +109,7 @@ class MainWindow(QMainWindow):
         self.theme.apply() 
         
         self.bt_window = BluetoothListPopup()
+        self.usb_window = USBListPopup()
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -117,17 +120,23 @@ class MainWindow(QMainWindow):
 
 
         # ---------- SPECTRUM PLOT ----------
+        self.spect_tab = QTabWidget()
+        self.spect_tab.setTabPosition(QTabWidget.South)
         self.spectrum_plot = SpectrumPlot()
-        layout.addWidget(self.spectrum_plot, 4)
+        self.spect_tab.addTab(self.spectrum_plot, "Spectrum")
+        
+        self.spect_tab.addTab(QWidget(), "Spectrogram")
+        
+        layout.addWidget(self.spect_tab, 5)
 
 
         self.bottom_tabs = QTabWidget(self)
-        self.bottom_tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding, )
  
         self.spectrum_info_tab = SpectrumInfoPane()
         self.bottom_tabs.addTab(self.spectrum_info_tab, "Spectra")
 
         self.roi_info_pane = ROIInfoPane()
+        self.roi_info_pane.clearROIs.connect(self.spectrum_plot._clear_rois)
         self.bottom_tabs.addTab(self.roi_info_pane, "ROI Info")
 
 
@@ -152,16 +161,18 @@ class MainWindow(QMainWindow):
 
 
 
-        layout.addWidget(self.bottom_tabs, 1)
+        bottom_layout = QVBoxLayout()
+        bottom_layout.addWidget(self.bottom_tabs)
+        layout.addLayout(bottom_layout, stretch=3)
         
-        SpectrumManager.create_spectrum( "RC103", len(imported_data),)
-        CsSpectrum = SpectrumResult(imported_data, 4352, 0)
-        bkgSpectrum = SpectrumResult(imported_bkg, 69714, 0)
-        SpectrumManager.set_foreground_spectrum("RC103", CsSpectrum)
-        SpectrumManager.set_background_spectrum("RC103", bkgSpectrum)
-        SpectrumManager.calibrate_spectrum("RC103", [0.0003705, 2.3694975, 4.2583089])
+        # SpectrumManager.create_spectrum( "RC103", len(imported_data),)
+        # CsSpectrum = SpectrumResult(imported_data, 4352, 0)
+        # bkgSpectrum = SpectrumResult(imported_bkg, 69714, 0)
+        # SpectrumManager.set_foreground_spectrum("RC103", CsSpectrum)
+        # SpectrumManager.set_background_spectrum("RC103", bkgSpectrum)
+        # SpectrumManager.calibrate_spectrum("RC103", [0.0003705, 2.3694975, 4.2583089])
 
-        CoSpectrum = SpectrumResult(imported_cobolt_data, 67286, 0)
+        # CoSpectrum = SpectrumResult(imported_cobolt_data, 67286, 0)
         # SpectrumManager.create_spectrum("RC103Co", len(imported_cobolt_data))
         # SpectrumManager.set_foreground_spectrum("RC103Co", CoSpectrum)
         # SpectrumManager.set_background_spectrum("RC103Co", bkgSpectrum)
@@ -235,17 +246,21 @@ async def mock_data_task(win: MainWindow, name):
 
 # ===================== ENTRY =====================
 def main():
+    startup_script()
     app = QApplication(sys.argv)
+    font = app.font()
+    font.setPointSize(Settings.Appearance.font_size)  # Change the font size
+    app.setFont(font)
     loop = QEventLoop(app)
     asyncio.set_event_loop(loop)
     
-    startup_script()
+
 
     win = MainWindow()
     win.show()
 
     RunManager.set_loop(loop)
-    RunManager.set_clients({"mock": MockClient, "raysid":RaysidClientAsync})
+    RunManager.set_clients({"mock": MockClient, "raysid":RaysidClientAsync, "radiacode": RadiacodeClientAsync})
 
     header = "[ APPLICATION STARTED ]"
     version = "Version: Alpha"

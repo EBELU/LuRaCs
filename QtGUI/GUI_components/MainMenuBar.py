@@ -4,7 +4,6 @@ import time
 from dataclasses import dataclass
 import asyncio
 
-from .popup_windows.BluetoothListPopup import BluetoothListPopup
 from ..Globals import RunManager, Settings
 
 @dataclass
@@ -44,9 +43,12 @@ class MainMenuBar(QMenuBar):
         
         self.device_menu_retryLast = device_menu.addMenu("&Retry Last Connection")
         device_menu_connectUSB = device_menu.addAction("Connect USB")
+        device_menu_connectUSB.triggered.connect(parent.usb_window.start_popup)
         device_menu_disconnect = device_menu.addAction("Disconnect")
         device_menu_disconnect.triggered.connect(lambda x: RunManager.remove_device())
-        device_menu_info = device_menu.addAction("Device Info")
+        device_menu_info = device_menu.addAction("Logger Debug")
+        device_menu_info.triggered.connect(lambda x: RunManager.start_logger())
+        
 
 
 
@@ -80,7 +82,7 @@ class MainMenuBar(QMenuBar):
             # Create the action
             def _connect(x, n=name):  # bind current name to n
                 loop = asyncio.get_event_loop()
-                loop.create_task(RunManager.connect_bluetooth_list(n))
+                loop.create_task(RunManager.connect_bluetooth_list([n]))
 
             retryDevice = self.device_menu_retryLast.addAction(name)
             retryDevice.triggered.connect(_connect)

@@ -99,21 +99,24 @@ class SpectrumManagerBase(QObject):
         if name not in self.spectra:
             raise ValueError(f"Spectrum {name} does not exist")
         
-        y_axis = getattr(spectrum_data, "y_axis", None)
+        y_axis = getattr(spectrum_data, "spectrum", None)
 
         if y_axis is None:
             return
         
+        
         new_spectrum = SpectrumData(y_axis,
                                     len(y_axis),
                                     sum(y_axis),
-                                    getattr(spectrum_data, "live_time", None),
+                                    getattr(spectrum_data, "uptime", None) or getattr(spectrum_data, "live_time", None),
                                     getattr(spectrum_data, "real_time", None),
                                     getattr(spectrum_data, "avg_dose_rate", None),
                                     getattr(spectrum_data, "avg_cps", None),)
 
 
         self.spectra[name].set_foreground(new_spectrum)
+        if not self.spectra[name].calibrated and hasattr(spectrum_data, "calib_coeff"):
+            self.calibrate_spectrum(name, spectrum_data.calib_coeff)
 
         self.Signals.spectrumUpdated.emit(name)
         
@@ -121,7 +124,7 @@ class SpectrumManagerBase(QObject):
         if name not in self.spectra:
             raise ValueError(f"Spectrum {name} does not exist")
         
-        y_axis = getattr(spectrum_data, "y_axis", None)
+        y_axis = getattr(spectrum_data, "spectrum", None)
 
         if y_axis is None:
             return
@@ -142,6 +145,7 @@ class SpectrumManagerBase(QObject):
             raise ValueError(f"Spectrum {name} does not exist")
         self.spectra[name].background = None
         self.Signals.backgroundRemoved.emit(name, "bkg")
+        gui_logger.info(f"[Background removed] {name}")
         
     def remove_spectrum(self, name):
         if name in self.spectra:
@@ -175,10 +179,12 @@ class SpectrumManagerBase(QObject):
         
         if self.spectra[name].show_in_plot:
             self.spectra[name].show_in_plot = False
+            self.spectra[name].fit_rois = False
             self.Signals.visibilityChanged.emit(False)
         
         else:
             self.spectra[name].show_in_plot = True
+            self.spectra[name].fit_rois = True
             self.Signals.visibilityChanged.emit(True)
 
             
@@ -214,8 +220,19 @@ class SpectrumManagerBase(QObject):
         gui_logger.info(f"[ROI removed] {tag}")
         for spectrum in self.spectra.values():
             spectrum.ROIs.pop(tag, None)
+            
+        self.existing_rois.pop(self.existing_rois.index(tag))
 
         self.Signals.roiRemoved.emit(tag)
+        
+        
+    def get_ROIs(self, roi_tag: str = None, spectrum:str = None) -> dict:
+        assert not (roi_tag is None and spectrum is None), "Please request something"
+
+        if spectrum is not None:
+            return self.spectra[spectrum].ROIs
+        else:
+            return {spect_key: spect.ROIs[roi_tag] for spect_key, spect in self.spectra.items() if spect.fit_rois}
         
                 
     
