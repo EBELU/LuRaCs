@@ -1,16 +1,77 @@
 import sys
+import time
+from datetime import datetime
 import numpy as np
 from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QListWidget, QListWidgetItem, QPushButton, QHBoxLayout
+    QDialog, QVBoxLayout, QListWidget, QListWidgetItem, QPushButton, QHBoxLayout, QComboBox, QLabel, QLineEdit, QSpinBox, QDoubleSpinBox, QDialogButtonBox, QSizePolicy, QFormLayout
 )
 from PySide6.QtCore import QTimer
 import pyqtgraph as pg
 pg.setConfigOptions(antialias=True)
 
-class LoggerStartPopup(QDialog):
-    def __init__(self, parent = None):
+class StartLoggerDialog(QDialog):
+    def __init__(self, instruments, parent=None):
         super().__init__(parent)
+
+        self.setWindowTitle("Start Data Logger")
+        self.setMinimumWidth(300)
+        self.setMinimumHeight(170)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(8, 8, 8, 8)
+        main_layout.setSpacing(6)
+
+        form = QFormLayout()
+        form.setSpacing(6)
+
+        # Instrument selection
+        self.instrument_combo = QComboBox()
+        self.instrument_combo.addItems(instruments)
+        form.addRow("Instrument:", self.instrument_combo)
+
+        # File name (default = timestamp)
+        self.filename_edit = QLineEdit()
+        default_name = f"SpectrumLog-{datetime.now().strftime("%Y%m%d_%H%M%S")}"
+        self.filename_edit.setText(default_name)
+        form.addRow("File name:", self.filename_edit)
+
+        # Logging interval (float)
+        self.interval_spin = QDoubleSpinBox()
+        self.interval_spin.setRange(0.001, 1_000_000)
+        self.interval_spin.setDecimals(3)
+        self.interval_spin.setValue(1.0)
+        self.interval_spin.setSingleStep(0.1)
+        form.addRow("Interval (s):", self.interval_spin)
+
+        # Channel truncation (int)
+        self.trunc_spin = QSpinBox()
+        self.trunc_spin.setRange(0, 1_000_000)
+        self.trunc_spin.setValue(0)
+        form.addRow("Channel trunc:", self.trunc_spin)
+
+        main_layout.addLayout(form)
+
+        # OK / Cancel buttons
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+
+        main_layout.addWidget(buttons)
+
+
+        self.adjustSize()
+
+    def get_values(self):
+        return {
+            "instrument": self.instrument_combo.currentText(),
+            "filename": self.filename_edit.text(),
+            "interval": self.interval_spin.value(),
+            "channel_truncation": self.trunc_spin.value(),
+        }
+        
+        
         
         
 
@@ -75,34 +136,50 @@ class SpectrogramWidget(QWidget):
         self.img.setImage(self.data, autoLevels=False)
 
 
+# if __name__ == "__main__":
+
+#     app = QApplication(sys.argv)
+#     pg.setConfigOptions(imageAxisOrder="row-major")
+
+#     win = SpectrogramWidget()
+#     win.resize(1000, 600)
+#     win.show()
+
+#     sys.exit(app.exec())
+    
+    
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    pg.setConfigOptions(imageAxisOrder="row-major")
 
-    win = WaterfallDemo()
-    win.resize(1000, 600)
-    win.show()
+    connected_instruments = ["Instrument A", "Instrument B", "Instrument C"]
 
-    sys.exit(app.exec())
+    dialog = StartLoggerDialog(connected_instruments)
+    if dialog.exec():
+        print("User pressed OK")
+        print(dialog.get_values())
+    else:
+        print("User cancelled")
+
+    sys.exit()
 
 
 
 
-class DateTimeDemo(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Choose Date and Time")
+# class DateTimeDemo(QWidget):
+#     def __init__(self):
+#         super().__init__()
+#         self.setWindowTitle("Choose Date and Time")
 
-        layout = QVBoxLayout(self)
+#         layout = QVBoxLayout(self)
 
-        self.datetime_edit = QDateTimeEdit()
-        self.datetime_edit.setCalendarPopup(True)  # enables calendar dropdown
-        self.datetime_edit.setDateTime(QDateTime.currentDateTime())
+#         self.datetime_edit = QDateTimeEdit()
+#         self.datetime_edit.setCalendarPopup(True)  # enables calendar dropdown
+#         self.datetime_edit.setDateTime(QDateTime.currentDateTime())
 
-        # Optional: display format
-        self.datetime_edit.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
+#         # Optional: display format
+#         self.datetime_edit.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
 
-        layout.addWidget(self.datetime_edit)
+#         layout.addWidget(self.datetime_edit)
 
 
 # if __name__ == "__main__":
