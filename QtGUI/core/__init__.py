@@ -1,7 +1,7 @@
-from .RunManager import RunManager
-from .Settings import Settings
-from .SpectrumManager import SpectrumManager
-from .GUILogger import gui_logger as Log
+from .CoreRunManager import RunManager
+from .CoreSettings import Settings
+from .CoreSpectrumManager import SpectrumManager
+from .CoreGUILogger import gui_logger as Log
 
 from .spec_run_signaling import _
 

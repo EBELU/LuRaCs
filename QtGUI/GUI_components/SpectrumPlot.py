@@ -4,7 +4,7 @@ from PySide6.QtGui import QColor
 import pyqtgraph as pg
 import numpy as np
 
-from ..Globals import SpectrumManager, Settings
+from ..core import SpectrumManager, Settings
 
 from ..SpectrumClasses import Spectrum
 
@@ -144,52 +144,12 @@ class SpectrumPlot(QWidget):
         self.show_bkg = False
         self.bkg_sub = False
 
-        self.plot_widget.sigRangeChanged.connect(self._on_range_change)
+        self.plot_widget.enableAutoRange(axis=pg.ViewBox.YAxis)
+        self.plot_widget.setAutoVisible(y=True)
         SpectrumManager.Signals.colorUpdated.connect(self._redraw)
 
 
 
-    def _on_range_change(self, view_box, range):
-        if not self.y_axis_locked:
-            return
-        self.user_scaled = True
-        x_min, x_max = self.plot_widget.viewRange()[0]
-        if x_min < 0 or x_max > 3500:
-            self.plot_widget.setXRange(max(0,x_min), min(3500,x_max), padding=0)
-
-        # Calculate good y-axis
-        spectra = SpectrumManager.get_spectra_dict().values()
-        slices = []
-
-        for spectrum in spectra:
-            if not spectrum.show_in_plot: # Adjust only to visible spectra
-                continue
-            fg = spectrum.get_foreground(self.log, self.cps)
-            if fg is None or len(fg) == 0:
-                continue
-            
-            if x_max >= max(spectrum.x_axis): x_max = max(spectrum.x_axis)
-            mask = (spectrum.x_axis > x_min) & (spectrum.x_axis < x_max)
-
-            window = fg[mask]
-
-            if window.size > 0:
-                slices.append(window)
-
-        if slices:
-            y_max = max(np.max(s) for s in slices)
-            y_min = min(np.min(s) for s in slices)
-        else:
-            y_max = None
-            y_min = None
-
-        if y_max and not self.log:
-            padding = 1.1
-            self.plot_widget.setYRange(0, y_max * padding, padding=0)
-        elif self.log and y_max > y_min:
-            padding = 1.1
-            if y_max < 0: y_max = 0
-            self.plot_widget.setYRange(y_min - abs(y_min) * (padding - 1), y_max * padding, padding=0)
 
     def _on_bkg_option_selection(self, option):
         """Change how the background is handeled"""
@@ -248,7 +208,6 @@ class SpectrumPlot(QWidget):
         if recalculate:
             self._redraw()
         
-        self._on_range_change(True, True)
 
 
     def lock_y_axis(self):
@@ -277,8 +236,9 @@ class SpectrumPlot(QWidget):
     
     def reset_zoom(self):
         self.user_scaled = False
-        self.plot_widget.enableAutoRange()
         self.plot_widget.setXRange(0, 2500, padding=0)
+        self.plot_widget.enableAutoRange()
+
         
         
     def update_plot(self, name):
@@ -304,6 +264,11 @@ class SpectrumPlot(QWidget):
                 brush.setAlpha(150)
             else:
                 brush = None
+                
+            fill_level = 0
+            if self.log:
+                fill_level = np.floor(np.nanmin(spectrum.get_foreground(self.log, self.cps)))
+
 
             self.primary_lines[spectrum.name] = self.plot_widget.plot(
                 [],
@@ -311,16 +276,25 @@ class SpectrumPlot(QWidget):
                 name=spectrum.name,
                 pen=pen,
                 brush=brush,
-                fillLevel=0,
-                stepMode=True,
+                fillLevel=fill_level,
+                stepMode="center",
             )
 
-        forground = spectrum.get_foreground(self.log, self.cps)
-        if forground is None:
+        foreground = spectrum.get_foreground(self.log, self.cps)
+        if foreground is None:
             return
+
+        if self.log:
+            bkg = np.inf
+            if self.show_bkg and spectrum.get_background() is not None:
+                bkg = np.nanmin(spectrum.get_background(self.log, self.cps))
+                
+            self.primary_lines[spectrum.name].setFillLevel(np.floor(min(np.nanmin(foreground), bkg) * 2) / 2)
+
+        
         self.primary_lines[spectrum.name].setData(
             spectrum.x_axis,
-            forground[:-1],
+            foreground[:-1],
         )
 
 
@@ -336,6 +310,10 @@ class SpectrumPlot(QWidget):
                 brush.setAlpha(150)
             else:
                 brush = None
+                
+            fill_level = 0
+            if self.log:
+                fill_level = np.floor(np.nanmin(background) * 2) / 2
 
             line = self.plot_widget.plot(
                 [],
@@ -343,16 +321,19 @@ class SpectrumPlot(QWidget):
                 name=spectrum.name,
                 pen=pen,
                 brush=brush,
-                fillLevel=0,
-                stepMode=True,
+                fillLevel=fill_level,
+                stepMode="center",
             )
             line.setZValue(1) # Place on top
 
             self.bkg_lines[spectrum.name] = line
-
+            
+        background = spectrum.get_background(self.log, self.cps)
+        if self.log:
+            self.bkg_lines[spectrum.name].setFillLevel(np.floor(np.nanmin(background) * 2) / 2)
         self.bkg_lines[spectrum.name].setData(
             spectrum.x_axis,
-            spectrum.get_background(self.log, self.cps)[:-1],
+            background[:-1],
         )
 
         
@@ -373,6 +354,10 @@ class SpectrumPlot(QWidget):
             # Brush with semi-transparent alpha
             brush = QColor(spectrum.color_foreground)
             brush.setAlpha(150)
+            
+            fill_level = 0
+            if self.log:
+                fill_level = round(min(spectrum.get_bkg_sub(self.log)))
 
             # Create the plot line
             self.primary_lines[spectrum.name] = self.plot_widget.plot(
@@ -381,8 +366,8 @@ class SpectrumPlot(QWidget):
                 name=spectrum.name,
                 pen=pen,
                 brush=brush,
-                fillLevel=0,
-                stepMode=True,
+                fillLevel=fill_level,
+                stepMode="center",
             )
 
         # Update the data with background-subtracted spectrum

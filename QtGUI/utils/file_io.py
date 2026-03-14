@@ -1,9 +1,12 @@
 import csv
-import xml.etree.ElementTree as ET
-
 import numpy as np
 
+
+from ..core import SpectrumManager
 from ..SpectrumClasses import Spectrum
+from .xml_parser import SpectrumParser as xmlParser
+
+
 class csv_io:
     def export(spectrum: Spectrum, file_name: str) -> bool:
         acc_spectrum = spectrum.get_spectrum()
@@ -20,17 +23,36 @@ class csv_io:
         
         return True
     
-    def load(name, x_axis_col = 0, foreground_col = 1, background_col = 2):
-        pass
 
 
 class xml_io:
     def export(spectrum, file_name):
         pass
+        
+        
 
     def load(file_name):
-        pass
+        parser = xmlParser(file_name)
+
+        
+        SpectrumManager.create_spectrum(parser.kwargs["name"], parser.kwargs["foreground"].channels)
+        SpectrumManager.set_foreground_spectrum(parser.kwargs["name"], parser.kwargs["foreground"])
+        
+        if "background" in parser.kwargs:
+            SpectrumManager.set_background_spectrum(parser.kwargs["name"], parser.kwargs["background"])
+            
+        if "calibration" in parser.kwargs:
+            SpectrumManager.calibrate_spectrum(parser.kwargs["name"], parser.kwargs["calibration"])
+        
+        
+        
+        
+        
 
 class spe_io:
     def load(file_name):
         pass
+    
+    
+if __name__=="__main__":
+    write_xml_spectrum()

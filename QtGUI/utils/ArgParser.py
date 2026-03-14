@@ -1,6 +1,9 @@
 import argparse
+import os
 import asyncio
-from ..Globals import Log, RunManager
+from pathlib import Path
+from ..core import Log, RunManager
+from .file_io import xml_io
 
 def parse_cli_args():
     
@@ -15,10 +18,15 @@ def parse_cli_args():
         action="store_true",
         help="Launch in debug mode"
     )
-
+    parser.add_argument(
+        "-is", "--import_spectrum",
+        nargs="+",
+        help="Load spectrum files"
+    )
+    
     parser.add_argument(
         "-l", "--load",
-        type=list,
+        nargs="+",
         help="Load spectrum files"
     )
 
@@ -42,6 +50,10 @@ def parse_cli_args():
 
     args = parser.parse_args()
     
+    if args.debug:
+        loop = asyncio.get_event_loop()
+        loop.create_task(RunManager.add_device("None", "mock"))
+    
     if args.bluetooth:
         loop = asyncio.get_event_loop()
         Log.info(f"Initializing BLE devices: {args.bluetooth}")
@@ -56,6 +68,13 @@ def parse_cli_args():
             for target_device in args.usb:
                 if target_device.lower() in conn_device.get("product").lower():
                     loop.create_task(RunManager.add_device(conn_device.get("serial_number"), "radiacode", True))
+    
+    if args.import_spectrum:
+        for pth in args.import_spectrum:
+            path = Path(pth)
+            if path.is_file():
+                if str(path).endswith(".xml") or str(path).endswith(".n42"):
+                    xml_io.load(str(path))
     
         
             

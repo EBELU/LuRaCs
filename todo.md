@@ -1,13 +1,5 @@
 # Todo
 ## Program structure
-root/
-├── QtGUI/
-│   ├── Globals/ -- Singleton classes that share the state of the whole program, 
-│   ├── GUI_components/ -- Individual widgets and the logic for those widgets
-│   └── utils/ -- Calculation code and IO
-├── Clients/
-│   └── Code for connecting to external devices
-└── README.md
 
 ## Core
 - [ ] Restructure inclusion of tabs in a seperate file
@@ -41,3 +33,11 @@ root/
 - [ ] Waterfall diagram
 - [ ] review tools
 - [ ] Fixed length measurement
+
+
+## Known issues
+
+- Theme looks bad on windows
+- PyUSB drivers work poorly on windows
+- Current values are not removed with device
+- Spectrum and current values are not synced

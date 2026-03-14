@@ -11,6 +11,7 @@ class ROI:
         self.high = high
         self.mid = (low + high) / 2
         self.gaussian = gaussian
+        self.nuclide = None
 
     def contains(self, x):
         return self.low <= x <= self.high

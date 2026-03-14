@@ -17,7 +17,7 @@ from PySide6.QtCore import Signal
 from ..SpectrumClasses import ROI
 
 
-from ..Globals import SpectrumManager
+from ..core import SpectrumManager
 
 def write_row(table, row_index, values):
     for col_index, value in enumerate(values):

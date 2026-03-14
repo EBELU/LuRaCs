@@ -6,7 +6,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 
 from ..SpectrumClasses import ROI
-from ..Globals import SpectrumManager, RunManager
+from ..core import SpectrumManager, RunManager
 
 
 def write_row(table, row_index, values):
@@ -121,7 +121,7 @@ class SpectrumInfoPane(QWidget):
 
         self.group_box = QGroupBox(title)
 
-        titles = ["", "Spectrum", "Type", "Counts", "Live Time", "Real Time"]
+        titles = ["", "Spectrum", "Type", "Counts", "Live Time", "Real Time", "Calibrated"]
         self.table = QTableWidget(0, len(titles))
         self.table.setMinimumHeight(50)
         self.table.setHorizontalHeaderLabels(titles)
@@ -182,6 +182,8 @@ class SpectrumInfoPane(QWidget):
         
 
         menu_button.add_action("Export")
+        
+        menu_button.add_action("Info")
 
         # Wrap it in a QWidget with a layout to center it
         wrapper = QWidget()
@@ -242,7 +244,7 @@ class SpectrumInfoPane(QWidget):
             cell_widget.set_color(new_spect.color_foreground)
         else:
             self.set_options_cell(fg_row, name, "foreground", new_spect.color_foreground)
-
+        
         write_row(self.table, fg_row, [
             "",
             new_spect.name,
@@ -250,6 +252,8 @@ class SpectrumInfoPane(QWidget):
             f"{int(fg.total_counts):,}".replace(",", " "),
             format_duration(fg.live_time),
             format_duration(fg.real_time),
+            new_spect.calibrated,
+            #None if not new_spect.calibrated else ",".join([f"k{i}={coeff}" for i, coeff in enumerate(reversed(new_spect.calibration_coefficients))])
         ])
 
         # ----------------- Background -----------------

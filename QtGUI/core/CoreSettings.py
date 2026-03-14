@@ -2,11 +2,11 @@ from PySide6.QtCore import QObject, Signal
 from dataclasses import dataclass, field
 from typing import Optional, Any
 import json
-from os.path import join
+from pathlib import Path
 from collections import deque
 
 @dataclass
-class Appearance:
+class _Appearance:
     theme: str = "dark"
     pen: bool = True
     brush: bool = False
@@ -14,7 +14,7 @@ class Appearance:
 
 
 @dataclass
-class State:
+class _State:
     last_connections: deque = field(default_factory=lambda: deque(maxlen=10))
     loaded_spectra: Optional[Any] = None
     roi_regions: Optional[Any] = None
@@ -36,7 +36,7 @@ class State:
         )
 
 @dataclass
-class Advanced:
+class _Advanced:
     update_loop_delay: float = 0.5
     spectrum_update_delay: float = 1
     ui_scan_length: int = 5
@@ -44,20 +44,20 @@ class Advanced:
 
 
 @dataclass
-class Paths:
-    appdata: str = ".appdata"
-    spect_lib: str = field(init=False)
-    spect_logs: str = field(init=False)
-    roi_lib: str = field(init=False)
-    logs: str = field(init=False)
-    settings_file: str = field(init=False)
+class _Paths:
+    appdata: Path = Path(".appdata")
+    spect_lib: Path = field(init=False)
+    spect_logs: Path = field(init=False)
+    roi_lib: Path = field(init=False)
+    logs: Path = field(init=False)
+    settings_file: Path = field(init=False)
 
     def __post_init__(self):
-        self.spect_lib = join(self.appdata, "spect_lib")
-        self.spect_logs = join(self.appdata, "spect_logs")
-        self.roi_lib = join(self.appdata, "rois")
-        self.logs = join(self.appdata, "logs")
-        self.settings_file = join(self.appdata, "settings.json")
+        self.spect_lib = self.appdata / "spect_lib"
+        self.spect_logs = self.appdata / "spect_logs"
+        self.roi_lib = self.appdata / "rois"
+        self.logs = self.appdata / "logs"
+        self.settings_file = self.appdata / "settings.json"
 
 
 class SettingsBase(QObject):
@@ -65,10 +65,10 @@ class SettingsBase(QObject):
     def __init__(self):
         super().__init__()
         
-        self.Advanced = Advanced()
-        self.State = State()
-        self.Appearance = Appearance()
-        self.Paths = Paths()
+        self.Advanced = _Advanced()
+        self.State = _State()
+        self.Appearance = _Appearance()
+        self.Paths = _Paths()
         
     def add_new_connection(self, name):
         if name not in list(self.State.last_connections):
@@ -80,9 +80,9 @@ class SettingsBase(QObject):
         with open(self.Paths.settings_file, "r") as f:
             json_content = json.load(f)
 
-        self.Advanced = Advanced(**json_content["advanced"])
-        self.Appearance = Appearance(**json_content["appearance"])
-        self.State = State().from_dict(json_content["state"])
+        self.Advanced = _Advanced(**json_content["advanced"])
+        self.Appearance = _Appearance(**json_content["appearance"])
+        self.State = _State().from_dict(json_content["state"])
         self.latestConnectionUpdated.emit(list(self.State.last_connections))
         
     def save_settings(self):

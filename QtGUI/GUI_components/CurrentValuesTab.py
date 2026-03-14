@@ -16,7 +16,7 @@ def write_row(table, row_index, values):
 
 
 from ..ThemeManager import ColorRotator
-from ..Globals import RunManager
+from ..core import RunManager
 
 
 class CurrentValuesPlot(QWidget):

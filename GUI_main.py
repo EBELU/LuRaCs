@@ -27,20 +27,23 @@ from PySide6.QtCore import QTimer
 
 
 from QtGUI.GUI_components.SpectrumPlot import SpectrumPlot
+from QtGUI.GUI_components.Spectrogram import SpectrogramWidget
 from QtGUI.GUI_components.ROIInfoTab import ROIInfoPane
 from QtGUI.GUI_components.SpectrumInfoTab import SpectrumInfoPane
 from QtGUI.GUI_components.LoggerTab import LogWidget
-from QtGUI.GUI_components.MainMenuBar import MainMenuBar, MenuActions
+from QtGUI.GUI_components.DevicesTab import DevicesInfoTab
+from QtGUI.GUI_components.MainMenuBar import MainMenuBar
 from QtGUI.SpectrumClasses import Spectrum
 from QtGUI.GUI_components.CurrentValuesTab import CurrentValuesPlot
 from QtGUI.ThemeManager import ThemeManager
 from QtGUI.utils.ArgParser import parse_cli_args
 
-from QtGUI.Globals import SpectrumManager
+from QtGUI.core import SpectrumManager
 
-from QtGUI.utils.MockClient import MockClient
+from QtGUI.utils.file_io import xml_io
+
 from QtGUI.utils.startup import startup_script
-from QtGUI.Globals import RunManager, Log, Settings
+from QtGUI.core import RunManager, Log, Settings
 
 from QtGUI.GUI_components.popup_windows.BluetoothListPopup import BluetoothListPopup
 from QtGUI.GUI_components.popup_windows.USBListPopup import USBListPopup
@@ -49,13 +52,13 @@ from QtGUI.GUI_components.popup_windows.USBListPopup import USBListPopup
 
 from PySide6.QtWidgets import QApplication, QPushButton, QColorDialog
 
-from Clients.RaysidClient.RaysidClient import RaysidClientAsync
-from Clients.RadiacodeClient.src import RadiacodeClientAsync
+from QtGUI.clients.RaysidClient.RaysidClient import RaysidClientAsync
+from QtGUI.clients.RadiacodeClient.src import RadiacodeClientAsync
 
-import pandas as pd
-imported_data = pd.read_csv("Cyklotron_Cs.csv").to_numpy().T[1]
-imported_cobolt_data = pd.read_csv("Cyklotron_Co.csv").to_numpy().T[1]
-imported_bkg = pd.read_csv("Cyklotron_Bkg_69714s.csv").to_numpy().T[1]
+# import pandas as pd
+# imported_data = pd.read_csv("Cyklotron_Cs.csv").to_numpy().T[1]
+# imported_cobolt_data = pd.read_csv("Cyklotron_Co.csv").to_numpy().T[1]
+# imported_bkg = pd.read_csv("Cyklotron_Bkg_69714s.csv").to_numpy().T[1]
 
 # imported_spectrum = Spectrum(len(imported_data), "RC103")
 # imported_spectrum.set_y_data(imported_data, 4352)
@@ -95,8 +98,6 @@ class SpectrumResult:
 
 # ===================== MAIN WINDOW =====================
 class MainWindow(QMainWindow):
-    new_current_signal = Signal(str, object)
-    new_spectrum_signal = Signal(object)
     def __init__(self):
         super().__init__()
         
@@ -125,36 +126,33 @@ class MainWindow(QMainWindow):
         self.spectrum_plot = SpectrumPlot()
         self.spect_tab.addTab(self.spectrum_plot, "Spectrum")
         
-        self.spect_tab.addTab(QWidget(), "Spectrogram")
+        self.spectrogram = SpectrogramWidget()
+        self.spect_tab.addTab(self.spectrogram, "Spectrogram")
         
         layout.addWidget(self.spect_tab, 5)
 
+        # ---------- Bottom Tabs ---------- Should be moved
 
         self.bottom_tabs = QTabWidget(self)
  
+        # Spectrum Infp
         self.spectrum_info_tab = SpectrumInfoPane()
         self.bottom_tabs.addTab(self.spectrum_info_tab, "Spectra")
 
+        # ROI info
         self.roi_info_pane = ROIInfoPane()
         self.roi_info_pane.clearROIs.connect(self.spectrum_plot._clear_rois)
         self.bottom_tabs.addTab(self.roi_info_pane, "ROI Info")
 
-
+        # Current values
         self.current_value_tab = CurrentValuesPlot()
         self.bottom_tabs.addTab(self.current_value_tab, "Current Values")
 
+        # Devices
+        self.devices_tab = DevicesInfoTab()
+        self.bottom_tabs.addTab(self.devices_tab, "Devices")
 
-
-
-        self.bottom_tabs.addTab(QWidget(), "Devices")
-
-
-        
-
-
-        
-
-        
+        # System log
         self.log_tab = LogWidget()
         self.bottom_tabs.addTab(self.log_tab, "System Log")
 
@@ -177,12 +175,10 @@ class MainWindow(QMainWindow):
         # SpectrumManager.set_foreground_spectrum("RC103Co", CoSpectrum)
         # SpectrumManager.set_background_spectrum("RC103Co", bkgSpectrum)
         # SpectrumManager.calibrate_spectrum("RC103Co", [0.0003705, 2.3694975, 4.2583089])
-
-
-        self.new_current_signal.connect(self.update_current)
-
-
-
+        
+        # xml_io.load("/home/eewa/Documents/git/MySpect/debug/xml/Cyklotron_Ba.n42")
+        # xml_io.load("/home/eewa/Documents/git/MySpect/debug/xml/Raysid-GRF-Ba133.xml")
+        # xml_io.load("/home/eewa/Documents/git/MySpect/debug/xml/103-GRF-Ba133.xml")
 
         self.theme.apply(plot_widgets=[
             self.spectrum_plot.plot_widget, 
@@ -215,33 +211,6 @@ class MainWindow(QMainWindow):
         finally:
             QApplication.quit()
         
-    def update_current(self, package):
-        self.current_value_tab.receive_data_packet(package)
-    
-    def update_spectrum(self, package):
-        pass
-
-
-
-
-
-
-
-
-
-
-
-
-# ===================== MOCK DATA TASK =====================
-async def mock_data_task(win: MainWindow, name):
-    while True:
-        if win.mock_running:
-            cps = np.random.normal(500,50)
-            dr  = cps/1000 + np.random.normal(0,0.01)
-            timestamp = time.time()
-            # Emit signal
-            win.new_current_signal.emit(name, CurrentValuesPackage(name, cps, dr, timestamp))
-        await asyncio.sleep(0.5)
 
 
 # ===================== ENTRY =====================
@@ -260,7 +229,6 @@ def main():
     win.show()
 
     RunManager.set_loop(loop)
-    RunManager.set_clients({"mock": MockClient, "raysid":RaysidClientAsync, "radiacode": RadiacodeClientAsync})
 
     header = "[ APPLICATION STARTED ]"
     version = "Version: Alpha"
@@ -300,3 +268,22 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+# pyinstaller \
+#     --name MySpect \
+#     --onedir \
+#     --exclude-module PySide6.QtNetwork \
+#     --exclude-module PySide6.Qt3DCore \
+#     --exclude-module PySide6.Qt3DRender \
+#     --exclude-module PySide6.Qt3DExtras \
+#     --exclude-module PySide6.QtMultimedia \
+#     --exclude-module PySide6.QtWebEngineWidgets \
+#     --exclude-module scipy.spatial \
+#     --exclude-module scipy.linalg \
+#     --exclude-module scipy.ndimage \
+#     --exclude-module matplotlib \
+#     --hidden-import scipy.optimize \
+#     --hidden-import bleak \
+#     GUI_main.py

@@ -3,7 +3,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal
 
-from ...Globals import RunManager
+from ...core import RunManager
 
 class ListPopupBlocking(QDialog):
     """

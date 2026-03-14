@@ -1,8 +1,9 @@
 from ..SpectrumClasses import Spectrum, SpectrumData
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QColor
+from ..clients.DeviceWrappers import WrappedSpectrumPackage
 
-from .GUILogger import gui_logger
+from .CoreGUILogger import gui_logger
 
 """
     The Spectrum manager handles the spectra in the program.
@@ -63,7 +64,7 @@ class SpectrumManagerBase(QObject):
     def __init__(self):
         super().__init__()
 
-        self.color_rotation = SpectrumColorRotator("lo")
+        self.color_rotation = SpectrumColorRotator("mpl")
         
         self.spectra: dict[str, Spectrum] = {}
         self.existing_rois = []
@@ -98,24 +99,22 @@ class SpectrumManagerBase(QObject):
     def set_foreground_spectrum(self, name, spectrum_data):
         if name not in self.spectra:
             raise ValueError(f"Spectrum {name} does not exist")
-        
-        y_axis = getattr(spectrum_data, "spectrum", None)
-
-        if y_axis is None:
+        if isinstance(spectrum_data, WrappedSpectrumPackage):
+            new_spectrum = SpectrumData(spectrum_data.y_axis,
+                                        len(spectrum_data.y_axis),
+                                        sum(spectrum_data.y_axis),
+                                        spectrum_data.uptime,
+                                        None, None, None, None, None, None, None)
+            calib_coeff = WrappedSpectrumPackage.calib_coeff
+        elif isinstance(spectrum_data, SpectrumData):
+            new_spectrum = spectrum_data
+            calib_coeff = None
+        else:
+            gui_logger.warning(f"Invalid spectrum data type {type(spectrum_data)}")
             return
         
-        
-        new_spectrum = SpectrumData(y_axis,
-                                    len(y_axis),
-                                    sum(y_axis),
-                                    getattr(spectrum_data, "uptime", None) or getattr(spectrum_data, "live_time", None),
-                                    getattr(spectrum_data, "real_time", None),
-                                    getattr(spectrum_data, "avg_dose_rate", None),
-                                    getattr(spectrum_data, "avg_cps", None),)
-
-
         self.spectra[name].set_foreground(new_spectrum)
-        if not self.spectra[name].calibrated and hasattr(spectrum_data, "calib_coeff"):
+        if not self.spectra[name].calibrated and calib_coeff is not None:
             self.calibrate_spectrum(name, spectrum_data.calib_coeff)
 
         self.Signals.spectrumUpdated.emit(name)
@@ -124,7 +123,7 @@ class SpectrumManagerBase(QObject):
         if name not in self.spectra:
             raise ValueError(f"Spectrum {name} does not exist")
         
-        y_axis = getattr(spectrum_data, "spectrum", None)
+        y_axis = getattr(spectrum_data, "y_axis", None)
 
         if y_axis is None:
             return

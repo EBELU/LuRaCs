@@ -4,7 +4,7 @@ import time
 from dataclasses import dataclass
 import asyncio
 
-from ..Globals import RunManager, Settings
+from ..core import RunManager, Settings
 
 @dataclass
 class MenuActions:
@@ -25,13 +25,13 @@ class MainMenuBar(QMenuBar):
 
         # ---------- File Menu ----------
         file_menu = self.addMenu("&File")
-        file_menu_import = file_menu.addAction("Import")
-        spectrum_export_menu = file_menu.addMenu("&Export Spectra")
+        file_menu_import = file_menu.addAction("Import Spectrum")
+        file_load = file_menu.addAction("Load Spectrum From Library")
+        spectrum_export_menu = file_menu.addMenu("&Bulk Export Spectra")
         spectrum_export__menu_csv = spectrum_export_menu.addAction("csv")
         spectrum_export__menu_xml = spectrum_export_menu.addAction("xml")
         file_menu_exportRoi = file_menu.addAction("Export ROIs")
         file_menu_importRoi = file_menu.addAction("Import ROIs")
-        file_menu_reset = file_menu.addAction("Reset Accumulation")
         exit_action = file_menu.addAction("Exit")
         exit_action.triggered.connect(self.on_exit)
 
@@ -47,7 +47,7 @@ class MainMenuBar(QMenuBar):
         device_menu_disconnect = device_menu.addAction("Disconnect")
         device_menu_disconnect.triggered.connect(lambda x: RunManager.remove_device())
         device_menu_info = device_menu.addAction("Logger Debug")
-        device_menu_info.triggered.connect(lambda x: RunManager.start_logger())
+        # device_menu_info.triggered.connect(lambda x: RunManager.start_logger())
         
 
 

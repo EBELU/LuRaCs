@@ -1,9 +1,9 @@
-from ..Globals import Settings
+from ..core import Settings
 import os
 
 def startup_script():
     for path in Settings.Paths.__dict__.values():
-        if not path.endswith(".json"):
+        if not str(path).endswith(".json"):
             if not os.path.isdir(path):
                 os.makedirs(path)
     
