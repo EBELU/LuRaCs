@@ -33,6 +33,7 @@ from QtGUI.GUI_components.SpectrumInfoTab import SpectrumInfoPane
 from QtGUI.GUI_components.LoggerTab import LogWidget
 from QtGUI.GUI_components.DevicesTab import DevicesInfoTab
 from QtGUI.GUI_components.MainMenuBar import MainMenuBar
+from QtGUI.GUI_components.import_export import FileDialogs
 from QtGUI.SpectrumClasses import Spectrum
 from QtGUI.GUI_components.CurrentValuesTab import CurrentValuesPlot
 from QtGUI.ThemeManager import ThemeManager
@@ -111,6 +112,7 @@ class MainWindow(QMainWindow):
         
         self.bt_window = BluetoothListPopup()
         self.usb_window = USBListPopup()
+        self.file_import_export = FileDialogs(self)
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -136,11 +138,11 @@ class MainWindow(QMainWindow):
         self.bottom_tabs = QTabWidget(self)
  
         # Spectrum Infp
-        self.spectrum_info_tab = SpectrumInfoPane()
+        self.spectrum_info_tab = SpectrumInfoPane(parent=self)
         self.bottom_tabs.addTab(self.spectrum_info_tab, "Spectra")
 
         # ROI info
-        self.roi_info_pane = ROIInfoPane()
+        self.roi_info_pane = ROIInfoPane(parent=self)
         self.roi_info_pane.clearROIs.connect(self.spectrum_plot._clear_rois)
         self.bottom_tabs.addTab(self.roi_info_pane, "ROI Info")
 

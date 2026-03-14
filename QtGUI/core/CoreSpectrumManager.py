@@ -105,7 +105,7 @@ class SpectrumManagerBase(QObject):
                                         sum(spectrum_data.y_axis),
                                         spectrum_data.uptime,
                                         None, None, None, None, None, None, None)
-            calib_coeff = WrappedSpectrumPackage.calib_coeff
+            calib_coeff = spectrum_data.calib_coeff
         elif isinstance(spectrum_data, SpectrumData):
             new_spectrum = spectrum_data
             calib_coeff = None

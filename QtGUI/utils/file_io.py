@@ -1,4 +1,5 @@
 import csv
+from pathlib import Path
 import numpy as np
 
 
@@ -6,7 +7,17 @@ from ..core import SpectrumManager
 from ..SpectrumClasses import Spectrum
 from .xml_parser import SpectrumParser as xmlParser
 
-
+def io_dispatcher(file_name: Path | str):
+    if isinstance(file_name, Path):
+        pass
+    elif isinstance(file_name, str):
+        file_name = Path(file_name)
+    else:
+        raise ValueError(f"Unknown path type {type(file_name)}")
+    
+    if file_name.suffix in (".xml", ".n42"):
+        xml_io.load(file_name)
+    
 class csv_io:
     def export(spectrum: Spectrum, file_name: str) -> bool:
         acc_spectrum = spectrum.get_spectrum()

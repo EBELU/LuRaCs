@@ -68,6 +68,7 @@ class MenuButton(QWidget):
 
     def __init__(self, title="Menu", parent=None):
         super().__init__(parent)
+        self.parent = parent
 
         self.button = QToolButton(self)
         self.button.setText(title)
@@ -108,6 +109,7 @@ class SpectrumInfoPane(QWidget):
 
     def __init__(self, title="", parent=None):
         super().__init__(parent)
+        self.parent = parent
 
         SpectrumManager.Signals.spectrumUpdated.connect(self.recieve_update)
         SpectrumManager.Signals.spectrumRemoved.connect(self.remove_spectrum)
@@ -181,7 +183,8 @@ class SpectrumInfoPane(QWidget):
             rm_bkg.triggered.connect(lambda x: SpectrumManager.clear_background(spectrum_name))
         
 
-        menu_button.add_action("Export")
+        export_btn = menu_button.add_action("Export")
+        export_btn.triggered.connect(self.parent.file_import_export.export_file)
         
         menu_button.add_action("Info")
 
