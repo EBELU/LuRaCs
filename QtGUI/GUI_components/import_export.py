@@ -60,7 +60,6 @@ class FileDialogs(QObject):
             SpectrumManager.calibrate_spectrum(parser.kwargs["name"], parser.kwargs["calibration"])
 
     def load_spectrum_as_background(self, spectrum_name):
-        print(spectrum_name)
         parser = self.import_spectrum()
         new_bkg = parser.kwargs["foreground"]
         subject_spectrum = SpectrumManager.get_spectrum(spectrum_name)
@@ -89,7 +88,6 @@ class FileDialogs(QObject):
 
         file_path = Path(file_path)
         spectrum = SpectrumManager.get_spectrum(spectrum_name)
-        
         if "xml" in selected_filter.lower():
             xml_io.export(spectrum, str(file_path))
         elif "csv" in selected_filter.lower():

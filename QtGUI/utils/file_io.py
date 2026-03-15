@@ -31,6 +31,8 @@ class xml_io:
     def export(spectrum: Spectrum, file_name: str):
         write_xml_spectrum(spectrum, file_name)
         
+    def load_meta(file_name):
+        pass
         
     def load(file_name):
         return xmlParser(file_name)
