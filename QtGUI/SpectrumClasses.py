@@ -38,7 +38,7 @@ class Spectrum:
     A class to hold and do operations on an energy spectrum. 
     """
 
-    def __init__(self, channels: int, name: str):
+    def __init__(self, channels: int, name: str, **kwargs):
         self.name: str = name
         self.channels: int = channels
         
@@ -58,11 +58,17 @@ class Spectrum:
         self.fit_rois: bool = True
         self.show_in_plot: bool = True
         
-        self.connected_device: str = None
+        self.connection: str = kwargs.get("connection", None)
+        self.instrument_id: str = kwargs.get("instrument_id", None)
+        self.instrument_model: str = kwargs.get("instrument_model", None)
         
     def set_foreground(self, spectrum: SpectrumData, color: QColor = None):
         assert spectrum.channels == self.channels
         self.foreground = spectrum
+
+        if spectrum.instrument is None and self.connection is not None:
+            spectrum.instrument = self.connection
+
         if color is not None and self.foreground:
             self.color_background = color
         

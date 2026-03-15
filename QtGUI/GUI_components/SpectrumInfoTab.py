@@ -165,6 +165,7 @@ class SpectrumInfoPane(QWidget):
             disconnect.triggered.connect(lambda x: self.disconnectAndRemove.emit(spectrum_name, True))
             
             add_bkg = menu_button.add_action("Add Background")
+            add_bkg.triggered.connect(lambda _: self.parent.file_import_export.load_spectrum_as_background(spectrum_name))
             
             self.hide_show_btn[spectrum_name] = menu_button.add_action("Hide")
             self.hide_show_btn[spectrum_name].triggered.connect(lambda x: self._show_hide_action(spectrum_name))
@@ -174,6 +175,7 @@ class SpectrumInfoPane(QWidget):
             remove = menu_button.add_action("Remove Spectrum")
             remove.triggered.connect(lambda x: self.removeSpectrum.emit(spectrum_name))
             add_bkg = menu_button.add_action("Add Background")
+            add_bkg.triggered.connect(lambda _: self.parent.file_import_export.load_spectrum_as_background(spectrum_name))
             
             self.hide_show_btn[spectrum_name] = menu_button.add_action("Hide")
             self.hide_show_btn[spectrum_name].triggered.connect(lambda x: self._show_hide_action(spectrum_name))
@@ -184,7 +186,7 @@ class SpectrumInfoPane(QWidget):
         
 
         export_btn = menu_button.add_action("Export")
-        export_btn.triggered.connect(self.parent.file_import_export.export_file)
+        export_btn.triggered.connect(lambda _:self.parent.file_import_export.export_spectrum(spectrum_name))
         
         menu_button.add_action("Info")
 

@@ -357,7 +357,7 @@ class SpectrumPlot(QWidget):
             
             fill_level = 0
             if self.log:
-                fill_level = round(min(spectrum.get_bkg_sub(self.log)))
+                fill_level = np.floor(np.nanmin(spectrum.get_bkg_sub(self.log)) * 2) / 2
 
             # Create the plot line
             self.primary_lines[spectrum.name] = self.plot_widget.plot(
@@ -371,9 +371,13 @@ class SpectrumPlot(QWidget):
             )
 
         # Update the data with background-subtracted spectrum
+        bkg_sub_spect = spectrum.get_bkg_sub(self.log)
+        if self.log:
+            self.primary_lines[spectrum.name].setFillLevel(np.floor(np.nanmin(bkg_sub_spect) * 2) / 2)
+
         self.primary_lines[spectrum.name].setData(
             spectrum.x_axis,
-            spectrum.get_bkg_sub(self.log)[:-1],
+            bkg_sub_spect[:-1],
         )
 
     def remove_plot(self, name:str):

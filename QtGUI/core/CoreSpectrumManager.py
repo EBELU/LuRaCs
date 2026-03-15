@@ -2,6 +2,7 @@ from ..SpectrumClasses import Spectrum, SpectrumData
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QColor
 from ..clients.DeviceWrappers import WrappedSpectrumPackage
+from datetime import datetime, timedelta
 
 from .CoreGUILogger import gui_logger
 
@@ -100,11 +101,14 @@ class SpectrumManagerBase(QObject):
         if name not in self.spectra:
             raise ValueError(f"Spectrum {name} does not exist")
         if isinstance(spectrum_data, WrappedSpectrumPackage):
+            start_date = datetime.now() - timedelta(seconds=spectrum_data.uptime)
             new_spectrum = SpectrumData(spectrum_data.y_axis,
                                         len(spectrum_data.y_axis),
                                         sum(spectrum_data.y_axis),
                                         spectrum_data.uptime,
-                                        None, None, None, None, None, None, None)
+                                        None, 
+                                        sum(spectrum_data.y_axis) / max(spectrum_data.uptime, 1), 
+                                        None, start_date, None, None, None)
             calib_coeff = spectrum_data.calib_coeff
         elif isinstance(spectrum_data, SpectrumData):
             new_spectrum = spectrum_data
