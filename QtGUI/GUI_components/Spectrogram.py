@@ -1,10 +1,10 @@
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 import numpy as np
 from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QListWidget, QListWidgetItem, QPushButton, QHBoxLayout, QComboBox, QLabel, QLineEdit, QSpinBox, QDoubleSpinBox, QDialogButtonBox, QSizePolicy, QFormLayout, QFrame
+    QDialog, QVBoxLayout, QListWidget, QListWidgetItem, QPushButton, QHBoxLayout, QComboBox, QLabel, QLineEdit, QSpinBox, QDoubleSpinBox, QDialogButtonBox, QSizePolicy, QFormLayout, QFrame, QRadioButton, QButtonGroup
 )
 from PySide6.QtCore import QTimer, Signal, QCoreApplication, Qt
 import pyqtgraph as pg
@@ -24,14 +24,14 @@ from PySide6.QtWidgets import QAbstractItemView
 
 
 from ..core import RunManager, Settings
-from ..utils.DataLogging import WrappedSpectrogramData, SpectrumLogger, start_logger
+from ..utils.DataLogging import WrappedSpectrogramData, start_logger, restart_logger
 
 class StartLoggerDialog(QDialog):
     def __init__(self, instruments, parent=None):
         super().__init__(parent)
 
         self.setWindowTitle("Start Data Logger")
-        self.setMinimumWidth(350)
+        self.setMinimumWidth(450)
         self.setMinimumHeight(190)
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(8, 8, 8, 8)
@@ -54,16 +54,26 @@ class StartLoggerDialog(QDialog):
         # Logging interval (float)
         self.interval_spin = QDoubleSpinBox()
         self.interval_spin.setRange(0.001, 1_000_000)
-        self.interval_spin.setDecimals(3)
+        self.interval_spin.setDecimals(1)
         self.interval_spin.setValue(1.0)
-        self.interval_spin.setSingleStep(0.1)
+        self.interval_spin.setSingleStep(0.5)
         form.addRow("Interval (s):", self.interval_spin)
 
-        # Channel truncation (int)
-        self.trunc_spin = QSpinBox()
-        self.trunc_spin.setRange(0, 1_000_000)
-        self.trunc_spin.setValue(0)
-        form.addRow("Channel trunc:", self.trunc_spin)
+        # Channel truncation (radio buttons)
+        self.trunc_group = QButtonGroup(self)
+        trunc_layout = QHBoxLayout()
+
+        self.trunc_buttons = {}
+        for val in [1, 2, 4, 8]:
+            btn = QRadioButton(str(val))
+            self.trunc_group.addButton(btn, val)
+            trunc_layout.addWidget(btn)
+            self.trunc_buttons[val] = btn
+
+        # Default = 1
+        self.trunc_buttons[1].setChecked(True)
+
+        form.addRow("Channel trunc:", trunc_layout)
 
         main_layout.addLayout(form)
 
@@ -83,11 +93,10 @@ class StartLoggerDialog(QDialog):
             "instrument": self.instrument_combo.currentText(),
             "filename": self.filename_edit.text() + ".db",
             "interval": self.interval_spin.value(),
-            "channel_truncation": self.trunc_spin.value(),
+            "channel_truncation": int(self.trunc_group.checkedId()),
         }
         
 class SpectrogramLoadDialog(QDialog):
-
     def __init__(self, db_directory: Path, parent=None):
         super().__init__(parent)
 
@@ -149,7 +158,6 @@ class SpectrogramLoadDialog(QDialog):
         self.table.resizeColumnsToContents()
 
     def read_db_info(self, db_path: Path):
-
         try:
             conn = sql.connect(db_path)
             cursor = conn.cursor()
@@ -204,7 +212,6 @@ class SpectrogramLoadDialog(QDialog):
             )
 
     def load_selected(self):
-
         row = self.table.currentRow()
 
         if row < 0:
@@ -212,28 +219,32 @@ class SpectrogramLoadDialog(QDialog):
             return
 
         db_name = self.table.item(row, 0).text()
-        self.selected_db = self.db_directory / db_name
+        self.selected_db = db_name
 
         self.accept()
 
 class SpectrogramWidget(QWidget):
-    startLogger = Signal(str, str, int, int, bool)
+    startLogger = Signal(str, str, int, int, bool) # Signal to the start logger function
+    loadLogger = Signal(str)
     
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Waterfall")
         
         self.startLogger.connect(start_logger)
+        self.loadLogger.connect(restart_logger)
         RunManager.loggerStarted.connect(self.fill_combo_box)
         RunManager.loggerStarted.connect(self.connect_logger)
         
+        # Default values
         self.y_len = 256
         self.x_len = 1024
+        self.selected_spectrogram = None
         
-        self.selected_log = None
         
         main_layout = QHBoxLayout(self)
         
+        # Right layout contains buttons and infobox
         right_layout = QVBoxLayout()
         right_layout.setSpacing(0)
         
@@ -241,10 +252,9 @@ class SpectrogramWidget(QWidget):
         
         self.options_bar = QHBoxLayout()
         
+        # First row of buttons
         self.btn_start_log = QPushButton("Start New")
-        
         self.btn_load_log = QPushButton("Load")
-        
         self.btn_import_log = QPushButton("Import")
         
         self.options_bar.addWidget(self.btn_start_log)
@@ -254,14 +264,14 @@ class SpectrogramWidget(QWidget):
         self.btn_start_log.clicked.connect(self.start_logger)
         self.btn_load_log.clicked.connect(self.load_logger)
         
-        
-        
         left_layout.addLayout(self.options_bar)
         
+        # Combo box for selecting loaded loggers
         self.spectrogram_selection = QComboBox()
         
         left_layout.addWidget(self.spectrogram_selection)
         
+        # Second row of buttons
         self.stop_resume = QHBoxLayout()
         self.btn_stop = QPushButton("Stop")
         self.btn_stop.setEnabled(False)
@@ -271,9 +281,9 @@ class SpectrogramWidget(QWidget):
         self.stop_resume.addWidget(self.btn_stop)
         self.stop_resume.addWidget(self.btn_resume)
         
-        
         left_layout.addLayout(self.stop_resume)
         
+        # Info box with text
         self.info_label = QLabel()
         self.info_label.setText("")
 
@@ -282,13 +292,15 @@ class SpectrogramWidget(QWidget):
 
         left_layout.addWidget(self.info_label)
         
-        
+        # --- Plots ---
         self.top_spectrum_plot = pg.PlotWidget()
         self.top_spectrum_plot.getPlotItem().layout.setContentsMargins(14, 13, 13, 0)
 
+        # Defaults
         self.x = np.arange(self.x_len)
         y = np.zeros(self.x_len)
 
+        # Call bar for changes
         self.bar = pg.BarGraphItem(
             x=self.x,
             height=y,
@@ -314,18 +326,10 @@ class SpectrogramWidget(QWidget):
         self.spectrogram_plot = pg.GraphicsLayoutWidget()
         right_layout.addWidget(self.spectrogram_plot, 4)
 
-        # Plot
+        # Waterfall plot
         self.plot = self.spectrogram_plot.addPlot(row=0, col=0)
         self.img = pg.ImageItem()
         self.plot.addItem(self.img)
-        
-        self.vLine = pg.InfiniteLine(angle=90, movable=False)
-        self.hLine = pg.InfiniteLine(angle=0, movable=False)
-
-        self.plot.addItem(self.vLine, ignoreBounds=True)
-        self.plot.addItem(self.hLine, ignoreBounds=True)
-        
-        self.plot.scene().sigMouseClicked.connect(self.mouse_clicked)
 
 
         # HistogramLUT (used only for gradient + dual slider)
@@ -340,8 +344,8 @@ class SpectrogramWidget(QWidget):
             minXRange=1
         )
 
-        self.spectrogram_plot.addItem(self.hist, row=1, col=0)
-        self.top_spectrum_plot.setXLink(self.plot)
+        self.spectrogram_plot.addItem(self.hist, row=1, col=0) # Sets the slider at the bottoms
+        self.top_spectrum_plot.setXLink(self.plot) # Connects x-axis of bar with x-axis of waterfall
         self.hist.plot.setVisible(True)
 
         
@@ -349,20 +353,15 @@ class SpectrogramWidget(QWidget):
         main_layout.addLayout(right_layout)
         
 
-        # Stop auto histogram range recalculation (removes jitter)
-
         # Load colormap preset
         self.hist.gradient.loadPreset("viridis")
         
         self.plot.invertY(True)
-        # self.top_spectrum_plot.getPlotItem().layout.setContentsMargins(7, 10, 0, 0)
         self.plot.layout.setContentsMargins(0, 0, 0, 0)
         self.top_spectrum_plot.getPlotItem().getAxis('left').setWidth(30)
         self.plot.getAxis('left').setWidth(35)
         # Data buffer
 
-        self.data = np.zeros((self.y_len, self.x_len), dtype=np.float32)
-        self.data.fill(np.nan)
         self.plot.setLimits(
             xMin=0,
             xMax=self.x_len,
@@ -381,7 +380,6 @@ class SpectrogramWidget(QWidget):
 
             if dialog.get_values()["instrument"]:
                 "db_name, device, save_interval, "
-                print(dialog.get_values())
                 chosen_values = dialog.get_values()
                 print(chosen_values)
                 self.startLogger.emit(
@@ -393,20 +391,16 @@ class SpectrogramWidget(QWidget):
                 
     def load_logger(self, *_):
         dialog = SpectrogramLoadDialog(Settings.Paths.spect_logs)
-        
         if dialog.exec():
-            db_path = dialog.selected_db
-            print("Selected:", db_path)
-    
-    def fill_combo_box(self, name):
-        self.spectrogram_selection.addItem("[Running] " + name) 
+            db = dialog.selected_db
+            print("Selected:", db)
+            self.loadLogger.emit(db)
         
     def update_x_len(self, new_len: int):
         if new_len == self.x_len:
             return
         self.x_len = new_len
-        self.data = np.zeros((self.y_len, self.x_len), dtype=np.float32)
-        self.data.fill(np.nan)
+
         self.top_spectrum_plot.setLimits(xMax=self.x_len)
         self.plot.setLimits(xMax=self.x_len)
         
@@ -421,12 +415,15 @@ class SpectrogramWidget(QWidget):
         )
         self.top_spectrum_plot.addItem(self.bar)
         
-        
+    def fill_combo_box(self, name):
+        self.spectrogram_selection.addItem("[Running] " + name) 
+
     def connect_logger(self):
         last_logger = list(RunManager.dataloggers.values())[0]
         last_logger.dataUpdated.connect(self.recieve_data)
         
     def recieve_data(self, device_name: str, data_packet: WrappedSpectrogramData):
+        # Change unit for readability
         if data_packet.estimated_dose < 5e-1:
             dose = data_packet.estimated_dose * 1e3
             dose_unit = "nSv"
@@ -441,8 +438,8 @@ class SpectrogramWidget(QWidget):
             Database:
                 {data_packet.db_name}
             Instrument: {data_packet.instrument}
-            Start Date: {data_packet.start_date}
-            Duration: {data_packet.duration}
+            Start Date: {datetime.fromtimestamp(round(data_packet.start_date))}
+            Duration: {timedelta(seconds=np.floor(data_packet.duration))}
             Estimated Dose: {round(dose, 3)} {dose_unit}
             Time Interval: {data_packet.save_interval}s
             Spectrum Concat Factor: {data_packet.concat}
@@ -450,45 +447,17 @@ class SpectrogramWidget(QWidget):
         """).strip())
         
         
-        self.update_x_len(data_packet.spect_channels)
-        self.bar.setOpts(height=data_packet.latest_spectrum)
+        self.update_x_len(data_packet.spect_channels) # Update x-axis if changed
+        self.bar.setOpts(height=data_packet.latest_spectrum) # Update bar plot above the waterfall
         self.update_spectrogram_img(data_packet.spectrogram)
         
         
     def update_spectrogram_img(self, view_buf):
-        # self.data[:-1] = self.data[1:]
-        # self.data[-1] = view_buf
         
-        # self.img.setImage(self.data[::-1, :].T, autoLevels=False)
+        # Flip the view buffer so the earlist is at the top
         new_image = np.array(view_buf)[::-1]
         self.img.setImage(new_image.T, autoLevels=False)
     
-    def mouse_clicked(self, evt):
-
-        if evt.button() != Qt.LeftButton:
-            return
-
-        pos = evt.scenePos()
-
-        if self.plot.sceneBoundingRect().contains(pos):
-
-            mousePoint = self.plot.vb.mapSceneToView(pos)
-
-            x = int(mousePoint.x())
-            y = int(mousePoint.y())
-
-            image = self.img.image
-            if image is None:
-                return
-
-            if 0 <= x < image.shape[1] and 0 <= y < image.shape[0]:
-
-                value = image[y, x]
-
-                self.vLine.setPos(x)
-                self.hLine.setPos(y)
-
-                print(f"x={x}, y={y}, value={value}")
                 
 if __name__ == "__main__":
     pass
