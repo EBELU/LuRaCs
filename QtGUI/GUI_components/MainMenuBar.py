@@ -26,7 +26,7 @@ class MainMenuBar(QMenuBar):
         # ---------- File Menu ----------
         file_menu = self.addMenu("&File")
         file_menu_import = file_menu.addAction("Import Spectrum")
-        file_menu_import.triggered.connect(self.parent.file_import_export.import_spectrum)
+        file_menu_import.triggered.connect(self.parent.file_import_export.load_spectrum)
         file_load = file_menu.addAction("Load Spectrum From Library")
         spectrum_export_menu = file_menu.addMenu("&Bulk Export Spectra")
         spectrum_export__menu_csv = spectrum_export_menu.addAction("csv")
