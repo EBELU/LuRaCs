@@ -46,17 +46,21 @@ class _Advanced:
 @dataclass
 class _Paths:
     appdata: Path = Path(".appdata")
-    spect_lib: Path = field(init=False)
-    spect_logs: Path = field(init=False)
-    roi_lib: Path = field(init=False)
-    logs: Path = field(init=False)
+    spectrum_library: Path = field(init=False)
+    spectrogram_library: Path = field(init=False)
+    roi_library: Path = field(init=False)
+    datalog_library: Path = field(init=False)
+    instrument_library: Path = field(init=False)
+    
     settings_file: Path = field(init=False)
 
     def __post_init__(self):
-        self.spect_lib = self.appdata / "spect_lib"
-        self.spect_logs = self.appdata / "spect_logs"
-        self.roi_lib = self.appdata / "rois"
-        self.logs = self.appdata / "logs"
+        # Initialize all dependent paths relative to appdata
+        self.spectrum_library = self.appdata / "spectrum_library"
+        self.datalog_library = self.appdata / "datalog_library"
+        self.spectrogram_library = self.appdata / "spectrogram_library"
+        self.roi_library = self.appdata / "roi_library"
+        self.instrument_library = self.appdata / "instrument_library"
         self.settings_file = self.appdata / "settings.json"
 
 

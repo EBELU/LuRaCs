@@ -1,4 +1,4 @@
-from ..core import Settings
+from core import Settings
 import os
 
 def startup_script():

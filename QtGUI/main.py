@@ -1,10 +1,5 @@
 import sys
 import asyncio
-import time
-import numpy as np
-from collections import deque
-from dataclasses import dataclass
-from textwrap import dedent
 import logging
 
 logging.basicConfig(
@@ -12,87 +7,36 @@ logging.basicConfig(
 )
 
 from PySide6.QtGui import QCloseEvent
-from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QGroupBox, QPushButton, QLabel, QTextEdit,    QTabWidget,
-    QLabel, QSizePolicy
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QTabWidget
 )
-from PySide6.QtCore import Qt
 from qasync import QEventLoop
-
-
-
 from PySide6.QtCore import QTimer
 
 
-from QtGUI.GUI_components.SpectrumPlot import SpectrumPlot
-from QtGUI.GUI_components.Spectrogram import SpectrogramWidget
-from QtGUI.GUI_components.ROIInfoTab import ROIInfoPane
-from QtGUI.GUI_components.SpectrumInfoTab import SpectrumInfoPane
-from QtGUI.GUI_components.LoggerTab import LogWidget
-from QtGUI.GUI_components.DevicesTab import DevicesInfoTab
-from QtGUI.GUI_components.MainMenuBar import MainMenuBar
-from QtGUI.GUI_components.import_export import FileDialogs
-from QtGUI.SpectrumClasses import Spectrum
-from QtGUI.GUI_components.CurrentValuesTab import CurrentValuesPlot
-from QtGUI.ThemeManager import ThemeManager
-from QtGUI.utils.ArgParser import parse_cli_args
 
-from QtGUI.core import SpectrumManager
+from GUI_components import (MainMenuBar, 
+                            SpectrumPlot, 
+                            SpectrogramWidget)
 
-from QtGUI.utils.file_io import xml_io
-
-from QtGUI.utils.startup import startup_script
-from QtGUI.core import RunManager, Log, Settings
-
-from QtGUI.GUI_components.popup_windows.BluetoothListPopup import BluetoothListPopup
-from QtGUI.GUI_components.popup_windows.USBListPopup import USBListPopup
-
-# from QtGUI.GUI_components.ListPopup import BluetoothListPopup
-
-from PySide6.QtWidgets import QApplication, QPushButton, QColorDialog
-
-from QtGUI.clients.RaysidClient.RaysidClient import RaysidClientAsync
-from QtGUI.clients.RadiacodeClient.src import RadiacodeClientAsync
-
-# import pandas as pd
-# imported_data = pd.read_csv("Cyklotron_Cs.csv").to_numpy().T[1]
-# imported_cobolt_data = pd.read_csv("Cyklotron_Co.csv").to_numpy().T[1]
-# imported_bkg = pd.read_csv("Cyklotron_Bkg_69714s.csv").to_numpy().T[1]
-
-# imported_spectrum = Spectrum(len(imported_data), "RC103")
-# imported_spectrum.set_y_data(imported_data, 4352)
-# imported_spectrum.set_y_bkg(imported_bkg, 69714)
-# imported_spectrum.apply_calibration([0.0003705, 2.3694975, 4.2583089])
-
-# co_spect = Spectrum(len(imported_data), "RC103Co")
-# co_spect.set_y_data(imported_cobolt_data, 67286)
-# co_spect.apply_calibration([0.0003705, 2.3694975, 4.2583089])
+from GUI_components.tabs import(ROIInfoTab,
+                                SpectrumInfoTab,
+                                LogWidget,
+                                DevicesInfoTab,
+                                CurrentValuesPlot)
 
 
+from GUI_components.import_export import FileDialogs
+from ThemeManager import ThemeManager
+from utils.ArgParser import parse_cli_args
+from utils.startup import startup_script
 
+from core import RunManager, Log, Settings, GuiServices, GuiServicesKeys
 
-# -------------------- MOCK DATA PACKAGES --------------------
-@dataclass(frozen=True)
-class CurrentValuesPackage:
-    name: str
-    CPS: float
-    DR: float
-    timestamp: float
+from GUI_components.popup_windows.BluetoothListPopup import BluetoothListPopup
+from GUI_components.popup_windows.USBListPopup import USBListPopup
 
-@dataclass(frozen=True)
-class StatusPackage:
-    battery: int
-    temperature: float
-    charging: bool
-    timestamp: float
-
-@dataclass(frozen=True)
-class SpectrumResult:
-    spectrum: np.ndarray
-    live_time: float
-    timestamp: float
+from PySide6.QtWidgets import QApplication
 
 
 
@@ -111,6 +55,7 @@ class MainWindow(QMainWindow):
         self.theme.apply() 
         
         self.bt_window = BluetoothListPopup()
+        
         self.usb_window = USBListPopup()
         self.file_import_export = FileDialogs(self)
 
@@ -133,16 +78,16 @@ class MainWindow(QMainWindow):
         
         layout.addWidget(self.spect_tab, 5)
 
-        # ---------- Bottom Tabs ---------- Should be moved
+        # ---------- Bottom Tabs ----------
 
         self.bottom_tabs = QTabWidget(self)
  
         # Spectrum Infp
-        self.spectrum_info_tab = SpectrumInfoPane(parent=self)
+        self.spectrum_info_tab = SpectrumInfoTab(parent=self)
         self.bottom_tabs.addTab(self.spectrum_info_tab, "Spectra")
 
         # ROI info
-        self.roi_info_pane = ROIInfoPane(parent=self)
+        self.roi_info_pane = ROIInfoTab(parent=self)
         self.roi_info_pane.clearROIs.connect(self.spectrum_plot._clear_rois)
         self.bottom_tabs.addTab(self.roi_info_pane, "ROI Info")
 
@@ -159,28 +104,10 @@ class MainWindow(QMainWindow):
         self.bottom_tabs.addTab(self.log_tab, "System Log")
 
 
-
-
         bottom_layout = QVBoxLayout()
         bottom_layout.addWidget(self.bottom_tabs)
         layout.addLayout(bottom_layout, stretch=3)
         
-        # SpectrumManager.create_spectrum( "RC103", len(imported_data),)
-        # CsSpectrum = SpectrumResult(imported_data, 4352, 0)
-        # bkgSpectrum = SpectrumResult(imported_bkg, 69714, 0)
-        # SpectrumManager.set_foreground_spectrum("RC103", CsSpectrum)
-        # SpectrumManager.set_background_spectrum("RC103", bkgSpectrum)
-        # SpectrumManager.calibrate_spectrum("RC103", [0.0003705, 2.3694975, 4.2583089])
-
-        # CoSpectrum = SpectrumResult(imported_cobolt_data, 67286, 0)
-        # SpectrumManager.create_spectrum("RC103Co", len(imported_cobolt_data))
-        # SpectrumManager.set_foreground_spectrum("RC103Co", CoSpectrum)
-        # SpectrumManager.set_background_spectrum("RC103Co", bkgSpectrum)
-        # SpectrumManager.calibrate_spectrum("RC103Co", [0.0003705, 2.3694975, 4.2583089])
-        
-        # xml_io.load("/home/eewa/Documents/git/MySpect/debug/xml/Cyklotron_Ba.n42")
-        # xml_io.load("/home/eewa/Documents/git/MySpect/debug/xml/Raysid-GRF-Ba133.xml")
-        # xml_io.load("/home/eewa/Documents/git/MySpect/debug/xml/103-GRF-Ba133.xml")
 
         self.theme.apply(plot_widgets=[
             self.spectrum_plot.plot_widget, 
@@ -246,26 +173,9 @@ def main():
             f"| {platform.center(frame_width-4)} |\n"
             f"{line}")
 
-    # run_manager.bluetoothError.connect(print)
-
-    # # Schedule adding mock device safely after loop starts
-    # QTimer.singleShot(0, lambda: asyncio.create_task(RunManager.add_device("Mock", "mock")))
-
-    # # Schedule first Bluetooth scan safely
-    # QTimer.singleShot(0, lambda: asyncio.create_task(RunManager.find_bluetooth()))
-
-    # Start mock tasks safely after loop starts
-    # QTimer.singleShot(0, lambda: asyncio.create_task(mock_data_task(win, "Raysid1")))
-    # QTimer.singleShot(0, lambda: asyncio.create_task(mock_data_task(win, "Raysid2")))
-
-
-
     # Start the event loop
     with loop:
         loop.run_forever()
-
-
-
 
 
 if __name__ == "__main__":

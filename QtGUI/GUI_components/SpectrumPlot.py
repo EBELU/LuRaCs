@@ -4,9 +4,9 @@ from PySide6.QtGui import QColor
 import pyqtgraph as pg
 import numpy as np
 
-from ..core import SpectrumManager, Settings
+from core import SpectrumManager, Settings
 
-from ..SpectrumClasses import Spectrum
+from SpectrumClasses import Spectrum
 
 class EmittedSignals(QObject):
     updateROI = Signal(str, float, float, bool)
@@ -50,7 +50,7 @@ class SpectrumPlot(QWidget):
     
         Does not manage the spectra, can only request operations from SpectrumManager.
     """
-    def __init__(self, xlabel="Channel", ylabel="Counts", parent=None):
+    def __init__(self, xlabel="Channel", ylabel="Energy [keV]", parent=None):
         super().__init__(parent)
         
         # --- Signals ---
@@ -313,7 +313,7 @@ class SpectrumPlot(QWidget):
                 
             fill_level = 0
             if self.log:
-                fill_level = np.floor(np.nanmin(background) * 2) / 2
+                fill_level = np.floor(np.nanmin(spectrum.get_background(self.log, self.cps)) * 2) / 2
 
             line = self.plot_widget.plot(
                 [],
@@ -341,9 +341,9 @@ class SpectrumPlot(QWidget):
     def plot_bkg_subtract(self, spectrum: Spectrum):
         # Skip if background or live times invalid
         if (
-            spectrum.get_background() is None
-            or spectrum.foreground.live_time == 0
-            or spectrum.background.live_time == 0
+            spectrum.get_background() is None # No bkg
+            or spectrum.foreground.live_time == 0   # No fg live time
+            or spectrum.background.live_time == 0   # No bkg live time
         ):
             return
 
@@ -399,16 +399,8 @@ class SpectrumPlot(QWidget):
         """Change lin log at data retrieval"""
         if self.log == False:
             self.log = True
-
-            self.plot_widget.enableAutoRange(axis=pg.ViewBox.YAxis, enable=True)
-            if self.cps:
-                self.plot_widget.setLimits(
-                yMin=-10, yMax=1e6)
-                
-            else:
-                self.plot_widget.setLimits(
-                yMin=-7, yMax=1e6)
-
+            self.plot_widget.setLimits(
+            yMin=-10, yMax=1e6)
             self.btn_lin_log.setText("Lin")
 
         else:
@@ -418,7 +410,6 @@ class SpectrumPlot(QWidget):
             yMin=0, yMax=1e6,
 
         )
-            
         self._redraw()
             
     

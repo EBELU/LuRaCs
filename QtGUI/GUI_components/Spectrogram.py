@@ -23,8 +23,8 @@ from pathlib import Path
 from PySide6.QtWidgets import QAbstractItemView
 
 
-from ..core import RunManager, Settings
-from ..utils.DataLogging import WrappedSpectrogramData, start_logger, restart_logger
+from core import RunManager, Settings
+from utils.DataLogging import WrappedSpectrogramData, start_logger, restart_logger
 
 class StartLoggerDialog(QDialog):
     def __init__(self, instruments, parent=None):
@@ -390,7 +390,7 @@ class SpectrogramWidget(QWidget):
                     False)
                 
     def load_logger(self, *_):
-        dialog = SpectrogramLoadDialog(Settings.Paths.spect_logs)
+        dialog = SpectrogramLoadDialog(Settings.Paths.spectrogram_library)
         if dialog.exec():
             db = dialog.selected_db
             print("Selected:", db)

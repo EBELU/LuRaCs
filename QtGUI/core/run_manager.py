@@ -9,11 +9,11 @@ from bleak import BleakScanner
 import usb.core
 import usb.util
 from PySide6.QtCore import QObject, Signal
-from .CoreGUILogger import gui_logger
-from .CoreSettings import Settings
-from ..SpectrumClasses import SpectrumData
+from .gui_logger import gui_logger
+from .settings import Settings
+from SpectrumClasses import SpectrumData
 
-from ..clients.DeviceWrappers import DeviceWrapper
+from clients.DeviceWrappers import DeviceWrapper
 
 @dataclass(frozen=True)
 class CurrentValuesPackage:

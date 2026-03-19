@@ -2,8 +2,9 @@ import argparse
 import os
 import asyncio
 from pathlib import Path
-from ..core import Log, RunManager
+from core import Log, RunManager, SpectrumManager
 from .file_io import xml_io
+from GUI_components.import_export import io_dispatcher
 
 def parse_cli_args():
     
@@ -74,7 +75,15 @@ def parse_cli_args():
             path = Path(pth)
             if path.is_file():
                 if str(path).endswith(".xml") or str(path).endswith(".n42"):
-                    xml_io.load(str(path))
+                    parser = io_dispatcher(path)
+                    SpectrumManager.create_spectrum(parser.kwargs["name"], parser.kwargs["foreground"].channels)
+                    SpectrumManager.set_foreground_spectrum(parser.kwargs["name"], parser.kwargs["foreground"])
+                    
+                    if "background" in parser.kwargs:
+                        SpectrumManager.set_background_spectrum(parser.kwargs["name"], parser.kwargs["background"])
+                        
+                    if "calibration" in parser.kwargs:
+                        SpectrumManager.calibrate_spectrum(parser.kwargs["name"], parser.kwargs["calibration"])
     
         
             

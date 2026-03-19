@@ -1,5 +1,5 @@
-from .CoreSpectrumManager import SpectrumManager
-from .CoreRunManager import RunManager
+from .spectrum_manager import SpectrumManager
+from .run_manager import RunManager
 
 _ = None
 

@@ -3,7 +3,7 @@ from PySide6.QtCore import Signal, QTimer, Qt
 from PySide6.QtWidgets import QListWidgetItem, QPushButton
 
 from .ListPopupBase import ListPopupNonBlocking
-from ...core import RunManager
+from core import RunManager
 
 
 def _on_usb_device_selected(device: dict):

@@ -3,8 +3,8 @@ from pathlib import Path
 from PySide6.QtWidgets import QFileDialog
 from PySide6.QtCore import QObject
 
-from ..utils.file_io import xml_io, csv_io
-from ..core import SpectrumManager
+from utils.file_io import xml_io, csv_io
+from core import SpectrumManager
 
 def io_dispatcher(file_name: Path | str):
     if isinstance(file_name, Path):
@@ -13,6 +13,7 @@ def io_dispatcher(file_name: Path | str):
         file_name = Path(file_name)
     else:
         raise ValueError(f"Unknown path type {type(file_name)}")
+    
     
     if file_name.suffix in (".xml", ".n42"):
         return xml_io.load(file_name)
@@ -50,6 +51,8 @@ class FileDialogs(QObject):
 
     def load_spectrum(self, _=None):
         parser = self.import_spectrum()
+        if parser is None:
+            return
         SpectrumManager.create_spectrum(parser.kwargs["name"], parser.kwargs["foreground"].channels)
         SpectrumManager.set_foreground_spectrum(parser.kwargs["name"], parser.kwargs["foreground"])
         
@@ -74,7 +77,7 @@ class FileDialogs(QObject):
 
     # --- Export ---
     def export_spectrum(self, spectrum_name):
-        filters = "CSV (*.csv);;XML (*.xml, *.n42);;Excel (*xlsx)"
+        filters = "XML (*.xml, *.n42);;CSV (*.csv);;Excel (*xlsx)"
 
         file_path, selected_filter = QFileDialog.getSaveFileName(
             self.parent,

@@ -1,21 +1,21 @@
 from lxml import etree
 from uuid import uuid4
 from datetime import datetime, timezone
-from ..SpectrumClasses import Spectrum, SpectrumData
+from SpectrumClasses import Spectrum, SpectrumData
 
 NS = "http://physics.nist.gov/N42/2011/N42"
 MY = "https://example.com/n42/extensions"
-NSMAP = {None: NS, "LUS": MY}
+NSMAP = {None: NS, "LUSS": MY}
 samples = 1
 
 def n42(tag):
     return f"{{{NS}}}{tag}"
 
-def LUS(tag):
+def LUSS(tag):
     return f"{{{MY}}}{tag}"
 
 def write_SpectrumData(data: SpectrumData, root, kind: str):
-    assert kind in ("Foreground", "Background")
+    assert kind in ("foreground", "background")
     global samples
     rad_measurement = etree.SubElement(root, n42("RadMeasurement"), id=f"Sample{samples}")
     samples += 1
@@ -40,6 +40,50 @@ def write_SpectrumData(data: SpectrumData, root, kind: str):
 
     channel_data = etree.SubElement(spectrum, n42("ChannelData"), compressionCode="None")
     channel_data.text = " ".join(data.y_axis.astype(str))
+    
+    
+def write_ROI_data(spectrum: Spectrum, peaks_section):
+    num_peaks = etree.SubElement(peaks_section, "NumberOfPeaks")
+    num_peaks.text = str(len(spectrum.ROIs))
+    
+    for tag, roi in spectrum.ROIs.items():
+        new_peak = etree.SubElement(peaks_section, "Peak", id = tag, version = "1")
+        
+        continuum = etree.SubElement(new_peak, "PeakContinuum")
+        
+        continuum_type = etree.SubElement(continuum, "Type")
+        continuum_type.text = "Linear"
+        
+        lower_energy = etree.SubElement(continuum, "LowerEnergy")
+        lower_energy.text = str(roi.low)
+        
+        upper_energy = etree.SubElement(continuum, "UpperEnergy")
+        upper_energy.text = str(roi.high)
+        
+        peak = etree.SubElement(new_peak, "Peak")
+        
+        if roi.gaussian:
+            peak_function = etree.SubElement(peak, "Type")
+            peak_function.text = "Gaussian"
+            
+            centroid = etree.SubElement(peak, "Centroid")
+            centroid.text = str(roi.gaussian.mu)
+            
+            std_div = etree.SubElement(peak, "StandardDeviation")
+            std_div.text = str(roi.gaussian.sigma)
+            
+            amplitude = etree.SubElement(peak, "Amplitude")
+            amplitude.text = str(roi.gaussian.A)
+
+        
+    
+    
+    
+def write_extension_data(spectrum: Spectrum, root):
+    extension_section = etree.SubElement(root, LUSS("LUSS"), version = "1")
+    if len(spectrum.ROIs) > 0:
+        peaks = etree.SubElement(extension_section, "Peaks")
+        write_ROI_data(spectrum, peaks)
 
 
 
@@ -59,10 +103,12 @@ def write_xml_spectrum(spectrum: Spectrum, file_name: str):
         coeff = etree.SubElement(energy_cal, "CoefficientValues")
         coeff.text = " ".join([str(i) for i in reversed(spectrum.calibration_coefficients)])
 
-    write_SpectrumData(spectrum.foreground, root, "Foreground")
+    write_SpectrumData(spectrum.foreground, root, "foreground")
 
     if spectrum.background is not None:
-        write_SpectrumData(spectrum.background, root, "Background")
+        write_SpectrumData(spectrum.background, root, "background")
+        
+    write_extension_data(spectrum, root)
     
     tree = etree.ElementTree(root)
     tree.write(

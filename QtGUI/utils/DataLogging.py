@@ -10,9 +10,9 @@ from datetime import datetime, timedelta
 
 from PySide6.QtCore import Signal, QObject
 
-from ..clients.DeviceWrappers import WrappedRealTimePackage, WrappedSpectrumPackage, WrappedStatusPackage
+from clients.DeviceWrappers import WrappedRealTimePackage, WrappedSpectrumPackage, WrappedStatusPackage
 
-from ..core import Settings, RunManager, Log
+from core import Settings, RunManager, Log
 
 def compress_spectrum(array: np.ndarray) -> bytes:
     """Compress a spectrum to bytes with zlib"""
@@ -101,7 +101,7 @@ class SpectrumLogger(QObject):
     def __init__(self, db_name: str, resume: bool = False, **kwargs):
         super().__init__(parent = None)
         self.db_name = db_name
-        self.db_path = str(Settings.Paths.spect_logs / self.db_name)
+        self.db_path = str(Settings.Paths.spectrogram_library / self.db_name)
         self.connection = sql.connect(self.db_path)
         self.buffers = Buffers(spectrum_view_queue=deque([], 256),
                                timestamp_queue=deque([], 256),

@@ -3,9 +3,9 @@ from pathlib import Path
 import numpy as np
 
 
-from ..core import SpectrumManager
-from ..SpectrumClasses import Spectrum
-from .xml_parser import SpectrumParser as xmlParser
+from core import SpectrumManager
+from SpectrumClasses import Spectrum
+from .xml_parser import ExternalSpectrumParser
 from .xml_writer import write_xml_spectrum
 
     
@@ -33,9 +33,12 @@ class xml_io:
         
     def load_meta(file_name):
         pass
+    
+    def load_internal(file_name):
+        pass
         
     def load(file_name):
-        return xmlParser(file_name)
+        return ExternalSpectrumParser(file_name)
 
         
 

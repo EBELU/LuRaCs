@@ -4,7 +4,7 @@ import time
 from dataclasses import dataclass
 import asyncio
 
-from ..core import RunManager, Settings
+from core import RunManager, Settings
 
 @dataclass
 class MenuActions:

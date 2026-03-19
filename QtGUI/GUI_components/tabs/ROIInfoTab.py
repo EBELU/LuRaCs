@@ -14,10 +14,10 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Signal
 
-from ..SpectrumClasses import ROI
+from SpectrumClasses import ROI
 
 
-from ..core import SpectrumManager
+from core import SpectrumManager
 
 def write_row(table, row_index, values):
     for col_index, value in enumerate(values):
@@ -73,7 +73,7 @@ class StrIdxTable(QWidget):
         
     
 
-class ROIInfoPane(QWidget):
+class ROIInfoTab(QWidget):
     clearROIs = Signal()
     def __init__(self, title="", parent=None):
         super().__init__(parent)

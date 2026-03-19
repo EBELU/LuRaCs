@@ -1,5 +1,5 @@
-from ..core import RunManager
-from ..clients.DeviceWrappers import DeviceWrapper, WrappedStatusPackage
+from core import RunManager
+from clients.DeviceWrappers import DeviceWrapper, WrappedStatusPackage
 from .ROIInfoTab import StrIdxTable
 from PySide6.QtWidgets import (
     QWidget,

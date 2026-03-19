@@ -1,6 +1,6 @@
 import numpy as np
 from dataclasses import dataclass
-from .utils.gaussian_fitting import fit_gaussian, Gaussian
+from utils.gaussian_fitting import fit_gaussian, Gaussian
 from PySide6.QtGui import QColor
 from datetime import datetime
 
@@ -46,7 +46,7 @@ class Spectrum:
         self.background: SpectrumData = None
         self.x_axis:np.array = np.arange(channels)
         
-        self.ROIs = {}
+        self.ROIs: dict[str, ROI] = {}
 
         self.color_foreground: QColor = QColor("white")
         self.color_background: QColor = QColor("white")

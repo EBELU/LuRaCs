@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='UTF-8'?>
-<RadInstrumentData xmlns="http://physics.nist.gov/N42/2011/N42" n42DocUUID="b1742664-5161-48b3-ac9e-61de17db6d48" n42DocDateTime="2026-03-14T08:50:47.310043Z">
-  <RadInstrumentDataCreatorName>MySpect</RadInstrumentDataCreatorName>
-  <RadMeasurement id="Sample1">
-    <MeasurementClassCode>Background</MeasurementClassCode>
-  </RadMeasurement>
-</RadInstrumentData>
