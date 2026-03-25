@@ -10,7 +10,7 @@ def parse_cli_args():
     
     Log.info("Parsing CLI args")
     parser = argparse.ArgumentParser(
-        description="Command line interface for the ... can be used to quickly start the application in a certain state."
+        description="""LuRaCs -- Lund Radiactivity analysis Computer software"""
 
     )
 
@@ -34,7 +34,7 @@ def parse_cli_args():
     parser.add_argument(
         "-roi",
         type=str,
-        help="Load a roi json file"
+        help="Load ROI from an xml file"
     )
     
     parser.add_argument(

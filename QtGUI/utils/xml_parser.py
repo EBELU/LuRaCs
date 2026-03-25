@@ -124,7 +124,8 @@ class ExternalSpectrumParser:
         kwargs = {"name": self.file_name}
         coeffs = self.root.findall(".//EnergyCalibration/Coefficients/Coefficient")
         if coeffs:
-            kwargs["calibration"] = [float(c.text) for c in coeffs][::-1]
+            kwargs["calibration"] = [float(c.text) for c in coeffs][::-1][:3]
+            print( kwargs["calibration"])
 
         for result in self.root.findall(".//ResultData"):
             fg = result.find(".//EnergySpectrum/Spectrum")
@@ -188,16 +189,4 @@ class ExternalSpectrumParser:
                 instrument=instrument
             )
         return kwargs
-
-if __name__ == "__main__":
-    # Example usage:
-
-    parser = SpectrumParser("/home/eewa/Documents/git/MySpect/debug/xml/Cyklotron_Ba.n42")
-    # parser = SpectrumParser("/home/eewa/Documents/git/MySpect/debug/xml/103-GRF-Ba133.xml")
-    # parser = SpectrumParser("/home/eewa/Documents/git/MySpect/debug/xml/Th.n42")
-    fg_spectrum = parser.kwargs.get("foreground")
-    plt.plot(fg_spectrum.y_axis)
-    plt.show()
-    print(parser.kwargs)
-    bg_spectrum = parser.kwargs.get("background")
 

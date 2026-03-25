@@ -1,28 +1,51 @@
+import sys
 from PySide6.QtGui import QPalette, QColor
 from PySide6.QtCore import Qt
-from PySide6 import QtGui
 from PySide6.QtWidgets import QApplication
 import pyqtgraph as pg
 
 
+
+
+
 class ThemeManager:
-    """Controls the theme of the app
+    """Controls the theme of the app.
     
-        Changed with predefined calls LIGHT or DARK
+    Can switch between LIGHT and DARK modes.
+    Keeps a registry of plot widgets and legends to auto-apply styling.
     """
     DARK = "dark"
     LIGHT = "light"
+
+    _registry_plots = []
+    _registry_legends = []
 
     def __init__(self, mode=LIGHT):
         self.mode = mode
 
     # ---------- Public API ----------
 
-    def toggle(self, plot_widgets=None):
-        self.mode = self.LIGHT if self.mode == self.DARK else self.DARK
-        self.apply(plot_widgets)
+    def register_plot(self, plot):
+        """Register a plot widget or a list of plot widgets."""
+        if isinstance(plot, list):
+            self._registry_plots.extend(plot)
+        else:
+            self._registry_plots.append(plot)
 
-    def apply(self, plot_widgets=None, legends=None):
+    def register_legend(self, legend):
+        """Register a legend item or a list of legend items."""
+        if isinstance(legend, list):
+            self._registry_legends.extend(legend)
+        else:
+            self._registry_legends.append(legend)
+
+    def toggle(self):
+        """Toggle the theme and re-apply."""
+        self.mode = self.LIGHT if self.mode == self.DARK else self.DARK
+        self.apply()
+
+    def apply(self):
+        """Apply the theme to the app, registered plots, and legends."""
         app = QApplication.instance()
         if not app:
             return
@@ -30,44 +53,82 @@ class ThemeManager:
         self._apply_qt_palette(app)
         self._apply_pg_globals()
 
-        if plot_widgets:
-            for pw in plot_widgets:
-                self._style_plot_widget(pw)
-        
-        if legends:
-            for lgd in legends:
-                self._style_legend(lgd)
+        for pw in self._registry_plots:
+            self._style_plot_widget(pw)
+
+        for lgd in self._registry_legends:
+            self._style_legend(lgd)
 
     # ---------- Qt ----------
 
     def _apply_qt_palette(self, app):
-        if self.mode == self.DARK:
-            app.setPalette(self._dark_palette())
-        else:
-            app.setPalette(QPalette())
+        app.setPalette(self._dark_palette() if self.mode == self.DARK else QPalette())
+
     def _dark_palette(self):
+        """Return a platform-optimized dark palette."""
+        if sys.platform.startswith("win"):  # Windows
+            return self._dark_palette_windows()
+        else:  # Linux / macOS / fallback
+            return self._dark_palette_unix()
+
+    def _dark_palette_windows(self):
         p = QPalette()
 
-        # ---- Enabled / Normal ----
-        p.setColor(QPalette.Window, QColor(30, 30, 30))
-        p.setColor(QPalette.WindowText, Qt.white)
-        p.setColor(QPalette.Base, QColor(25, 25, 25))
-        p.setColor(QPalette.AlternateBase, QColor(35, 35, 35))
-        p.setColor(QPalette.Text, Qt.white)
-        p.setColor(QPalette.Button, QColor(45, 45, 45))
-        p.setColor(QPalette.ButtonText, Qt.white)
-        p.setColor(QPalette.Highlight, QColor(90, 140, 200))
-        p.setColor(QPalette.HighlightedText, Qt.black)
-        p.setColor(QPalette.ToolTipBase, QColor(45, 45, 45))
-        p.setColor(QPalette.ToolTipText, Qt.white)
+        base_color = QColor(45, 45, 50)
+        alt_color = QColor(35, 35, 40)
+        text_color = QColor(230, 230, 230)
 
-        # ---- Disabled ----
-        p.setColor(QPalette.Disabled, QPalette.Button, QColor(35, 35, 35))
-        p.setColor(QPalette.Disabled, QPalette.ButtonText, QColor(130, 130, 130))
-        p.setColor(QPalette.Disabled, QPalette.WindowText, QColor(130, 130, 130))
-        p.setColor(QPalette.Disabled, QPalette.Text, QColor(120, 120, 120))
-        p.setColor(QPalette.Disabled, QPalette.Highlight, QColor(60, 60, 60))
-        p.setColor(QPalette.Disabled, QPalette.HighlightedText, QColor(150, 150, 150))
+        p.setColor(QPalette.Window, base_color)
+        p.setColor(QPalette.WindowText, text_color)
+
+        p.setColor(QPalette.Base, alt_color)
+        p.setColor(QPalette.AlternateBase, QColor(55, 55, 60))
+
+        p.setColor(QPalette.Text, text_color)
+        p.setColor(QPalette.Button, QColor(60, 60, 65))
+        p.setColor(QPalette.ButtonText, text_color)
+
+        p.setColor(QPalette.Highlight, QColor(100, 160, 220))
+        p.setColor(QPalette.HighlightedText, QColor(20, 20, 20))
+
+        p.setColor(QPalette.ToolTipBase, QColor(65, 65, 70))
+        p.setColor(QPalette.ToolTipText, QColor(245, 245, 245))
+
+        p.setColor(QPalette.Light, QColor(70, 70, 75))
+        p.setColor(QPalette.Midlight, QColor(60, 60, 65))
+        p.setColor(QPalette.Dark, QColor(30, 30, 35))
+        p.setColor(QPalette.Shadow, QColor(20, 20, 25))
+
+        p.setColor(QPalette.Link, QColor(100, 160, 220))
+        p.setColor(QPalette.LinkVisited, QColor(150, 120, 200))
+
+        return p
+
+
+    def _dark_palette_unix(self):
+        p = QPalette()
+
+        # --- Active state (normal widgets) ---
+        p.setColor(QPalette.Window, QColor(40, 40, 45))
+        p.setColor(QPalette.WindowText, QColor(220, 220, 220))
+        p.setColor(QPalette.Base, QColor(30, 30, 35))
+        p.setColor(QPalette.AlternateBase, QColor(50, 50, 55))
+        p.setColor(QPalette.Text, QColor(220, 220, 220))
+        p.setColor(QPalette.Button, QColor(55, 55, 60))
+        p.setColor(QPalette.ButtonText, QColor(230, 230, 230))
+        p.setColor(QPalette.Highlight, QColor(100, 160, 220))
+        p.setColor(QPalette.HighlightedText, QColor(20, 20, 20))
+        p.setColor(QPalette.ToolTipBase, QColor(60, 60, 65))
+        p.setColor(QPalette.ToolTipText, QColor(240, 240, 240))
+
+        # --- Disabled state ---
+        p.setColor(QPalette.Disabled, QPalette.WindowText, QColor(128, 128, 128))
+        p.setColor(QPalette.Disabled, QPalette.Text, QColor(128, 128, 128))
+        p.setColor(QPalette.Disabled, QPalette.ButtonText, QColor(128, 128, 128))
+        p.setColor(QPalette.Disabled, QPalette.Button, QColor(40, 40, 45))
+        p.setColor(QPalette.Disabled, QPalette.Base, QColor(35, 35, 40))
+        p.setColor(QPalette.Disabled, QPalette.Highlight, QColor(80, 80, 80))
+        p.setColor(QPalette.Disabled, QPalette.HighlightedText, QColor(160, 160, 160))
 
         return p
 
@@ -82,10 +143,8 @@ class ThemeManager:
             pg.setConfigOption("foreground", "k")
 
     def _style_plot_widget(self, pw):
-        # Background only
         pw.setBackground((30, 30, 30) if self.mode == self.DARK else "w")
 
-        # Axes only
         axis_pen = pg.mkPen("w" if self.mode == self.DARK else "k")
         for axis in ("left", "bottom", "right", "top"):
             ax = pw.getAxis(axis)
@@ -93,17 +152,13 @@ class ThemeManager:
                 ax.setPen(axis_pen)
                 ax.setTextPen(axis_pen)
 
-        # Grid only
         pw.showGrid(x=True, y=True, alpha=0.3 if self.mode == self.DARK else 0.4)
 
     def _style_legend(self, legend: pg.LegendItem):
-        # Semi-transparent background
         bg_color = QColor(30, 30, 30) if self.mode == self.DARK else QColor(255, 255, 255)
-        bg_alpha = 180 if self.mode == self.DARK else 220
-        bg_color.setAlpha(bg_alpha)
+        bg_color.setAlpha(180 if self.mode == self.DARK else 220)
         legend.setBrush(pg.mkBrush(bg_color))
 
-        # Match foreground color
         fg_color = "w" if self.mode == self.DARK else "k"
         for label, sample in legend.items:
             label.setText(label.text(), color=fg_color)
@@ -112,7 +167,9 @@ class ThemeManager:
             if hasattr(sample, 'setBrush'):
                 sample.setBrush(pg.mkBrush(fg_color))
 
+
 class ColorRotator:
+    """Provides a cycling color pen for plotting."""
     def __init__(self, colors="mpl", width=2):
         if colors == "mpl":
             self.colors = [

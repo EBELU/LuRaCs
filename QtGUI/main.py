@@ -1,6 +1,11 @@
 import sys
 import asyncio
 import logging
+from datetime import datetime
+
+def print_progress(text, progress):
+    print("[" + "#" * progress + " " * (10 - progress) + "]", f"-- {text}")
+
 
 logging.basicConfig(
     level=logging.INFO
@@ -13,11 +18,13 @@ from PySide6.QtWidgets import (
 from qasync import QEventLoop
 from PySide6.QtCore import QTimer
 
-
+print_progress("Loading GUI", 0)
 
 from GUI_components import (MainMenuBar, 
                             SpectrumPlot, 
                             SpectrogramWidget)
+
+print_progress("Loading GUI", 2)
 
 from GUI_components.tabs import(ROIInfoTab,
                                 SpectrumInfoTab,
@@ -25,13 +32,13 @@ from GUI_components.tabs import(ROIInfoTab,
                                 DevicesInfoTab,
                                 CurrentValuesPlot)
 
-
+print_progress("Loading utils", 5)
 from GUI_components.import_export import FileDialogs
 from ThemeManager import ThemeManager
 from utils.ArgParser import parse_cli_args
 from utils.startup import startup_script
 
-from core import RunManager, Log, Settings, GuiServices, GuiServicesKeys
+from core import RunManager, Log, Settings, GuiServices, GuiServicesKeys, SpectrumManager
 
 from GUI_components.popup_windows.BluetoothListPopup import BluetoothListPopup
 from GUI_components.popup_windows.USBListPopup import USBListPopup
@@ -45,8 +52,8 @@ from PySide6.QtWidgets import QApplication
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        
-        self.setWindowTitle("Gamma Spectroscopy")
+        print_progress("Initializing main window", 7)
+        self.setWindowTitle("LuRaCs")
 
         self.mock_running = True
         self._closing = False
@@ -88,7 +95,7 @@ class MainWindow(QMainWindow):
 
         # ROI info
         self.roi_info_pane = ROIInfoTab(parent=self)
-        self.roi_info_pane.clearROIs.connect(self.spectrum_plot._clear_rois)
+        self.roi_info_pane.clearROIs.connect(SpectrumManager.ROIManager.clear_all)
         self.bottom_tabs.addTab(self.roi_info_pane, "ROI Info")
 
         # Current values
@@ -108,18 +115,20 @@ class MainWindow(QMainWindow):
         bottom_layout.addWidget(self.bottom_tabs)
         layout.addLayout(bottom_layout, stretch=3)
         
+        self.theme.register_plot(self.spectrum_plot.plot_widget)
+        self.theme.register_plot(self.current_value_tab.cps_plot_widget)
+        self.theme.register_plot(self.current_value_tab.dose_plot_widget)
+        
+        self.theme.register_legend(self.current_value_tab.legends)
 
-        self.theme.apply(plot_widgets=[
-            self.spectrum_plot.plot_widget, 
-            self.current_value_tab.cps_plot_widget,
-            self.current_value_tab.dose_plot_widget,
-            ],
-            legends=self.current_value_tab.legends)
+        self.theme.apply()
         
         if len(sys.argv) > 1:
             QTimer.singleShot(0, parse_cli_args)
+        
+        QTimer.singleShot(1000, lambda : SpectrumManager.ROIManager.add_roi())
             
-            
+        print_progress("Main window loaded", 9)
     def closeEvent(self, event: QCloseEvent):
         if self._closing:
             event.accept()
@@ -146,6 +155,7 @@ class MainWindow(QMainWindow):
 def main():
     startup_script()
     app = QApplication(sys.argv)
+    app.setStyle("Fusion") 
     font = app.font()
     font.setPointSize(Settings.Appearance.font_size)  # Change the font size
     app.setFont(font)
@@ -163,19 +173,20 @@ def main():
     version = "Version: Alpha"
     platform = f"Platform: {sys.platform}"
 
-    frame_width = max(len(header), len(version), len(platform)) + 4  # extra padding
 
-    line = "=" * frame_width
 
-    Log.info(f"\n{line}\n"
-            f"| {header.center(frame_width-4)} |\n"
-            f"| {version.center(frame_width-4)} |\n"
-            f"| {platform.center(frame_width-4)} |\n"
-            f"{line}")
-
+    Log.info(f"""
+ ======  ======  ======     
+|71    ||88    ||55    |    Version:  0.1.0          
+|  Lu  ||  Ra  ||  Cs  |    Release:  2026-03-31     
+| 177  || 226  || 137  |    Platform: {sys.platform}
+ ======  ======  ======     
+        """)
+    print_progress("Done!", 10)
     # Start the event loop
     with loop:
         loop.run_forever()
+
 
 
 if __name__ == "__main__":

@@ -1,16 +1,41 @@
 import asyncio
+from pathlib import Path
 from copy import deepcopy
 from PySide6.QtCore import QObject, Signal
 from qasync import QEventLoop
 from dataclasses import dataclass
 import numpy as np
+from .settings import Settings
 
 from bleak import BleakScanner
-import usb.core
-import usb.util
+import sys
+from pathlib import Path
+import os
+import ctypes
+
+
+# -----------------------------
+# Deal with windows usb BS!!! >:(
+# -----------------------------
+if sys.platform.startswith("win"):
+    import libusb_package # <- thank you!
+    import usb.core
+    import usb.util
+    import usb.backend.libusb1
+    backend = usb.backend.libusb1.get_backend(find_library=libusb_package.find_library)
+    if backend is None:
+        raise RuntimeError("PyUSB could not load the backend. Check DLL and Visual C++ runtime.")
+    
+else:
+    import usb.core
+    import usb.util
+    
+
+
+
 from PySide6.QtCore import QObject, Signal
 from .gui_logger import gui_logger
-from .settings import Settings
+
 from SpectrumClasses import SpectrumData
 
 from clients.DeviceWrappers import DeviceWrapper
@@ -34,7 +59,6 @@ class SpectrumResult:
     y_axis: np.ndarray
     live_time: float
     timestamp: float
-
 
 class RunManagerBase(QObject):
     # ---- data signals ----
@@ -294,6 +318,7 @@ class RunManagerBase(QObject):
                 except asyncio.CancelledError:
                     gui_logger.info("Bluetooth scan was cancelled")
                     self.bluetoothFound.emit([])
+                # Include handling for missing connector
                 except Exception as e:
                     gui_logger.error(f"Bluetooth scan error: {e}")
                     self.bluetoothError.emit(str(e))

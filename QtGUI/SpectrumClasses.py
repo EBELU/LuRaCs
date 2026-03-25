@@ -1,23 +1,11 @@
 import numpy as np
 from dataclasses import dataclass
-from utils.gaussian_fitting import fit_gaussian, Gaussian
 from PySide6.QtGui import QColor
 from datetime import datetime
 
-class ROI:
-    def __init__(self, tag:str,  low: int, high: int, gaussian):
-        self.tag = tag
-        self.low = low
-        self.high = high
-        self.mid = (low + high) / 2
-        self.gaussian = gaussian
-        self.nuclide = None
-
-    def contains(self, x):
-        return self.low <= x <= self.high
-
-    def __lt__(self, other):
-        return self.mid < other.mid
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ROIClasses import ROI
 
 @dataclass
 class SpectrumData:
@@ -149,38 +137,11 @@ class Spectrum:
         else:
             return data
         
-    def get_ROI_plots(self, ROI_tag: str, log: bool = False):
-        """Return the x-axis and the gaussian curve and the background fit from a ROI"""
-        roi = self.ROIs[ROI_tag]
-        x = self.x_axis[(roi.low < self.x_axis) & (self.x_axis < roi.high)]
-        if roi.gaussian is not None:
-            lin = roi.gaussian._corr_f(x)
-            gaussian = roi.gaussian.value(x) + lin
-
-            if log:
-                gaussian = np.log10(np.where(gaussian > 0, gaussian, np.nan))
-                lin = np.log10(np.where(lin > 0, lin, np.nan))
-                return x,gaussian, lin
-            else:
-                return x, gaussian, lin
-        else:
-            return None, None, None
-
+    def set_roi(self, roi_data):
+        self.ROIs[roi_data.tag] = roi_data   
         
-    def update_roi(self, tag: str, x_low: float, x_high: float, cps: bool = None):
-        """Refit a ROI"""
-        if not self.fit_rois: # Dont fit
-            self.ROIs[tag] = ROI(tag, x_low, x_high, None)
-            return
-        try:
-            y_data = self.get_foreground(False, cps)
-            gaussian = fit_gaussian(self.x_axis, y_data, x_low, x_high)
-        except Exception as e:
-            print(f"Gaussian fit failed on ", e)
-            gaussian = None
-        
-        self.ROIs[tag] = ROI(tag, x_low, x_high, gaussian)
-        
+    def remove_roi(self, roi_tag):
+        self.ROIs.pop(roi_tag, None)                 
     
     def _dump_state(self):
         """Export the state of the spectrum as a dict for json format"""

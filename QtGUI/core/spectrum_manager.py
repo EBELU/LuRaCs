@@ -1,10 +1,11 @@
 from SpectrumClasses import Spectrum, SpectrumData
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Signal, Qt
 from PySide6.QtGui import QColor
 from clients.DeviceWrappers import WrappedSpectrumPackage
 from datetime import datetime, timedelta
 
 from .gui_logger import gui_logger
+from .roi_manager import ROIManager
 
 """
     The Spectrum manager handles the spectra in the program.
@@ -37,8 +38,12 @@ class SpectrumColorRotator:
 
     def reset(self):
         self._i = 0
+            
+
+        
 
 
+            
 
 class EmittedSignals(QObject):
     spectrumCreated = Signal(str)
@@ -64,7 +69,6 @@ class SpectrumManagerBase(QObject):
     
     def __init__(self):
         super().__init__()
-
         self.color_rotation = SpectrumColorRotator("mpl")
         
         self.spectra: dict[str, Spectrum] = {}
@@ -74,6 +78,7 @@ class SpectrumManagerBase(QObject):
         
         self.Signals = EmittedSignals()
         
+        self.ROIManager = ROIManager(self)
         
         
     # --- Spectrum manipulators ---
@@ -200,43 +205,7 @@ class SpectrumManagerBase(QObject):
         return self.spectra[name]
     
     def get_spectra_dict(self) -> dict[str, Spectrum]:
-        return self.spectra
-    
-    
-    # --- ROIs ---
-    
-    def create_ROI(self):
-        roi_tag = f"ROI_{self.roi_counter}"
-        self.roi_counter += 1
-        self.existing_rois.append(roi_tag)
-        gui_logger.info(f"[ROI added] {roi_tag}")
-        return roi_tag
-    
-    def update_ROI(self, tag, x_min, x_max, use_cps):
-        for spect_tag, spectrum in self.spectra.items():
-            if spectrum.fit_rois:
-                spectrum.update_roi(tag, x_min, x_max, use_cps)
-        
-        self.Signals.roiUpdated.emit(tag)
-                
-    def remove_ROI(self, tag):
-        gui_logger.info(f"[ROI removed] {tag}")
-        for spectrum in self.spectra.values():
-            spectrum.ROIs.pop(tag, None)
-            
-        self.existing_rois.pop(self.existing_rois.index(tag))
-
-        self.Signals.roiRemoved.emit(tag)
-        
-        
-    def get_ROIs(self, roi_tag: str = None, spectrum:str = None) -> dict:
-        assert not (roi_tag is None and spectrum is None), "Please request something"
-
-        if spectrum is not None:
-            return self.spectra[spectrum].ROIs
-        else:
-            return {spect_key: spect.ROIs[roi_tag] for spect_key, spect in self.spectra.items() if spect.fit_rois}
-        
+        return self.spectra       
                 
     
 # Declare ONE instance

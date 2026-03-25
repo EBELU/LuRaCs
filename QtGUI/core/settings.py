@@ -1,3 +1,4 @@
+import os, sys
 from PySide6.QtCore import QObject, Signal
 from dataclasses import dataclass, field
 from typing import Optional, Any
@@ -41,6 +42,10 @@ class _Advanced:
     spectrum_update_delay: float = 1
     ui_scan_length: int = 5
     headless_scan_length: int = 2
+    
+    optimizer_max_iter: int = 250
+    optimizer_tolerance: float = 1e-6
+    optimizer_use_chi2_weight: bool = True
 
 
 @dataclass
@@ -51,8 +56,11 @@ class _Paths:
     roi_library: Path = field(init=False)
     datalog_library: Path = field(init=False)
     instrument_library: Path = field(init=False)
+    BASE: Path = field(init=False)
+    dlls: Path = field(init=False)
     
     settings_file: Path = field(init=False)
+
 
     def __post_init__(self):
         # Initialize all dependent paths relative to appdata
@@ -62,6 +70,18 @@ class _Paths:
         self.roi_library = self.appdata / "roi_library"
         self.instrument_library = self.appdata / "instrument_library"
         self.settings_file = self.appdata / "settings.json"
+        self.BASE = Path(os.path.dirname(os.path.abspath(sys.modules['__main__'].__file__)))
+        self.dlls = self.BASE / "resources" / "dlls"
+        
+        
+        self.data_stores = [
+            self.spectrum_library,
+            self.spectrogram_library,
+            self.roi_library,
+            self.datalog_library,
+            self.instrument_library,
+        ]
+        
 
 
 class SettingsBase(QObject):

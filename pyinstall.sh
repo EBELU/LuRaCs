@@ -17,8 +17,6 @@ pyinstaller \
     --exclude-module PySide6.Qt3DExtras \
     --exclude-module PySide6.QtMultimedia \
     --exclude-module PySide6.QtWebEngineWidgets \
-    --exclude-module scipy.ndimage \
-    --exclude-module scipy.signal \
     --exclude-module matplotlib \
     --exclude-module numba \
     --exclude-module setuptools \
@@ -30,7 +28,7 @@ pyinstaller \
     --hidden-import qasync \
     --hidden-import usb \
     --add-data "${PY_SIDE6_PLATFORMS}:PySide6/Qt/plugins/platforms" \
-    GUI_main.py
+    QtGUI/main.py
 
     #--add-data "${PY_SIDE6_PLUGINS}/platforms:PySide6/Qt/plugins/platforms" \
     #--add-data "${PY_SIDE6_PLUGINS}/imageformats:PySide6/Qt/plugins/imageformats" \

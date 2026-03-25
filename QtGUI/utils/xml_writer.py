@@ -14,6 +14,15 @@ def n42(tag):
 def LUSS(tag):
     return f"{{{MY}}}{tag}"
 
+def write_text_to_SubElement(branch, sub_element: str,  data: str | int | float | list):
+    if isinstance(data, list):
+        data = " ".join([str(i) for i in data])
+    else:
+        data = str(data)
+        
+    sub_branch = etree.SubElement(branch, sub_element)
+    sub_branch.text = data
+
 def write_SpectrumData(data: SpectrumData, root, kind: str):
     assert kind in ("foreground", "background")
     global samples
@@ -47,33 +56,25 @@ def write_ROI_data(spectrum: Spectrum, peaks_section):
     num_peaks.text = str(len(spectrum.ROIs))
     
     for tag, roi in spectrum.ROIs.items():
-        new_peak = etree.SubElement(peaks_section, "Peak", id = tag, version = "1")
+        new_peak = etree.SubElement(peaks_section, "Roi", id = tag, version = "1")
         
         continuum = etree.SubElement(new_peak, "PeakContinuum")
         
-        continuum_type = etree.SubElement(continuum, "Type")
-        continuum_type.text = "Linear"
-        
-        lower_energy = etree.SubElement(continuum, "LowerEnergy")
-        lower_energy.text = str(roi.low)
-        
-        upper_energy = etree.SubElement(continuum, "UpperEnergy")
-        upper_energy.text = str(roi.high)
-        
+        # Set the type of the continuum
+        write_text_to_SubElement(continuum, "Type", "Linear")
+
+        # Energy bounds
+        write_text_to_SubElement(continuum, "LowerEnergy", roi.low)
+        write_text_to_SubElement(continuum, "UpperEnergy", roi.high)
+
+        # Create the peak element
         peak = etree.SubElement(new_peak, "Peak")
-        
+
         if roi.gaussian:
-            peak_function = etree.SubElement(peak, "Type")
-            peak_function.text = "Gaussian"
-            
-            centroid = etree.SubElement(peak, "Centroid")
-            centroid.text = str(roi.gaussian.mu)
-            
-            std_div = etree.SubElement(peak, "StandardDeviation")
-            std_div.text = str(roi.gaussian.sigma)
-            
-            amplitude = etree.SubElement(peak, "Amplitude")
-            amplitude.text = str(roi.gaussian.A)
+            write_text_to_SubElement(peak, "Type", "Gaussian")
+            write_text_to_SubElement(peak, "Centroid", roi.gaussian.mu)
+            write_text_to_SubElement(peak, "StandardDeviation", roi.gaussian.sigma)
+            write_text_to_SubElement(peak, "Amplitude", roi.gaussian.A)
 
         
     

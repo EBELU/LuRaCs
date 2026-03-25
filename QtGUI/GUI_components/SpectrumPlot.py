@@ -8,12 +8,21 @@ from core import SpectrumManager, Settings
 
 from SpectrumClasses import Spectrum
 
+from .popup_windows.roi_editor import ROIEditor
+
+from utils.numerics import multi_gaussian
+
 class EmittedSignals(QObject):
-    updateROI = Signal(str, float, float, bool)
+    updateSpectumROIs = Signal(str)
     removeROI = Signal(str)
+    logLinUpdated = Signal(bool)
+    cpsUpdated = Signal(bool)
+    bkgSubUpdated = Signal(bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        
+
 
 class DeletableROI(pg.LinearRegionItem):
     """Visual ROI selector modified to have a 'tag' and can be deleted by right clicking"""
@@ -23,23 +32,35 @@ class DeletableROI(pg.LinearRegionItem):
         self,
         tag: str,
         region,
-        *,
-        orientation='vertical',
-        movable=True,
-        parent=None,
+        alias = None,
+        fit_type = "Gaussian",
+        bkg_type = "Linear",
+        merge = True,
+        poisson_weights = False,
+        movable = True,
+        
     ):
         super().__init__(
             values=region,
-            orientation=orientation,
+            orientation="vertical",
             movable=movable
         )
         self.tag = tag
+        self.merge = merge
+        self.perform_fit = True
+        self.alias = alias if alias else tag
+        self.fit_type = fit_type
+        self.bkg_type = bkg_type
+        self.poisson_weights = poisson_weights
 
         self.setToolTip(f"ROI: {self.tag}\nRight-click to delete")
 
     def mouseClickEvent(self, ev):
         if ev.button() == Qt.RightButton:
             ev.accept()
+            w = ROIEditor(self.alias, *self.getRegion(), self.fit_type, self.bkg_type, self.merge, self.poisson_weights, self.movable)
+            w.exec()
+            print(w.get_values())
             self.sigDeleteRequested.emit(self.tag)
         else:
             super().mouseClickEvent(ev)
@@ -50,7 +71,7 @@ class SpectrumPlot(QWidget):
     
         Does not manage the spectra, can only request operations from SpectrumManager.
     """
-    def __init__(self, xlabel="Channel", ylabel="Energy [keV]", parent=None):
+    def __init__(self, xlabel="Energy [keV]", ylabel="Counts", parent=None):
         super().__init__(parent)
         
         # --- Signals ---
@@ -61,9 +82,15 @@ class SpectrumPlot(QWidget):
         SpectrumManager.Signals.spectrumRemoved.connect(self.remove_plot)
         SpectrumManager.Signals.backgroundRemoved.connect(lambda *args: self._redraw())
         SpectrumManager.Signals.visibilityChanged.connect(lambda *args: self._redraw())
+        SpectrumManager.ROIManager.sigROICreated.connect(lambda r: self.create_roi_lines(r.tag))
+        SpectrumManager.ROIManager.sigROIUpdated.connect(self.draw_roi)
+        SpectrumManager.ROIManager.sigROIDeleted.connect(self.remove_roi)
         
-        self.Signals.updateROI.connect(SpectrumManager.update_ROI)
-        self.Signals.removeROI.connect(SpectrumManager.remove_ROI)
+        self.Signals.updateSpectumROIs.connect(lambda n: SpectrumManager.ROIManager.update_roi(spectrum_name=n))
+        self.Signals.removeROI.connect(SpectrumManager.ROIManager.remove_roi)
+        self.Signals.logLinUpdated.connect(SpectrumManager.ROIManager.set_log)
+        self.Signals.cpsUpdated.connect(SpectrumManager.ROIManager.set_cps)
+        self.Signals.bkgSubUpdated.connect(SpectrumManager.ROIManager.set_bkg_sub)
         
         
         # --- Layout ---
@@ -75,6 +102,7 @@ class SpectrumPlot(QWidget):
         layout.addLayout(btn_layout)
         self.plot_widget = pg.PlotWidget()
         layout.addWidget(self.plot_widget)
+        SpectrumManager.ROIManager.set_plot(self.plot_widget)
         
         
         
@@ -120,7 +148,7 @@ class SpectrumPlot(QWidget):
 
         # --- Assign button callbacks ---
         self.btn_reset_zoom.clicked.connect(self.reset_zoom)
-        self.btn_mark_roi.clicked.connect(self.add_roi)
+        self.btn_mark_roi.clicked.connect(SpectrumManager.ROIManager.add_roi)
         self.btn_lin_log.clicked.connect(self.change_lin_log)
         self.btn_cps.clicked.connect(self._set_cps)
         self.btn_y_axis_lock.clicked.connect(self.lock_y_axis)
@@ -128,12 +156,10 @@ class SpectrumPlot(QWidget):
 
         self.primary_lines = {}
         self.bkg_lines = {}
-        self.primary_spectrum = None
 
-        self.ROIs = {}  # ROI slection objects, spectra track their own rois
-        self.ROI_lines_gasussian = {}   # Gaussian cruve lines
+        self.ROIs = {}
+        self.ROI_lines_gaussian = {}   # Gaussian cruve lines
         self.ROI_lines_linear = {}  # Background correction lines
-        self.roi_counter = 0    #Increments for each added roi, ensures unique tags
 
         self.y_axis_locked = True
         self.user_scaled = False
@@ -173,6 +199,7 @@ class SpectrumPlot(QWidget):
             self._set_cps(False, True, False)
             self.btn_cps.setEnabled(False)
 
+        self.Signals.bkgSubUpdated.emit(self.bkg_sub)
         # Finish by redrawing
         self._redraw()
 
@@ -205,6 +232,8 @@ class SpectrumPlot(QWidget):
             self.cps = False
             self.plot_widget.setLabel('left', "Counts")
             self.btn_cps.setText("CPS")
+            
+        self.Signals.cpsUpdated.emit(self.cps)
         if recalculate:
             self._redraw()
         
@@ -229,7 +258,7 @@ class SpectrumPlot(QWidget):
         for spect_name in SpectrumManager.get_spectra_dict().keys():
             self.update_plot(spect_name)
 
-        self.ROI_lines_gasussian.clear()
+        self.ROI_lines_gaussian.clear()
         self.ROI_lines_linear.clear()
         self.update_all_rois()
 
@@ -252,6 +281,8 @@ class SpectrumPlot(QWidget):
         else:
             self.plot_primary(spect)
             self.plot_bkg(spect)
+            
+        self.Signals.updateSpectumROIs.emit(name)
 
 
     def plot_primary(self, spectrum: Spectrum):
@@ -380,7 +411,7 @@ class SpectrumPlot(QWidget):
             bkg_sub_spect[:-1],
         )
 
-    def remove_plot(self, name:str):
+    def remove_plot(self, name: str):
         self.primary_lines.pop(name, None)
         self.bkg_lines.pop(name, None)
         for roi in self.ROIs:
@@ -389,8 +420,10 @@ class SpectrumPlot(QWidget):
             except AttributeError as e:
                 print(f"Remove plot failed for {name} with {e}")
                 raise
-            self.ROI_lines_linear.pop(name + tag, None)
-            self.ROI_lines_gasussian.pop(name + tag, None)
+            
+            for roi_tag in SpectrumManager.ROIManager.ROIs.keys():
+                self.ROI_lines_linear[roi_tag].pop(name, None)
+                self.ROI_lines_gaussian[roi_tag].pop(name, None)
         
         self._redraw()
             
@@ -410,100 +443,71 @@ class SpectrumPlot(QWidget):
             yMin=0, yMax=1e6,
 
         )
+        self.Signals.logLinUpdated.emit(self.log)
         self._redraw()
-            
     
-
-    def add_roi(self, x_low = None, x_high = None):
-        """Enable interactive ROI marking with LinearRegionItem."""
-        roi_tag = SpectrumManager.create_ROI()
-        
-        # Pick a good position in the plit to spawn the new roi
-        x_min, x_max = self.plot_widget.viewRange()[0]
-
-
-        diff = float(x_max) - float(x_min)
-        if diff > 400: diff = 400
-        if not x_low: 
-            x_low = float(x_min) + diff * 0.15 
-        if not x_high: 
-            x_high = float(x_min) + diff * 0.45
-
-
-
-        new_roi = DeletableROI(roi_tag,[x_low, x_high], movable=True)
-        self.plot_widget.addItem(new_roi)
-        self.ROIs[roi_tag] = new_roi
-        
-        new_roi.sigDeleteRequested.connect(self.remove_roi)
-        new_roi.sigRegionChangeFinished.connect(
-            lambda: self.update_roi(new_roi)
-        )
-        
-        self.update_roi(new_roi)
+    def create_roi_lines(self, roi_tag):
+        self.ROI_lines_gaussian[roi_tag] = {}
+        self.ROI_lines_linear[roi_tag] = {}
     
     def update_all_rois(self):
-        for roi in self.ROIs.values():
+        for roi in SpectrumManager.ROIManager.ROIs.values():
             if roi not in self.plot_widget.plotItem.items:
                 self.plot_widget.addItem(roi)
-            self.update_roi(roi)
+            SpectrumManager.ROIManager.update_roi(roi_tag=roi.tag)
 
-    def update_roi(self, roi_selection):
-        x_min, x_max = roi_selection.getRegion()
-        x_min, x_max = float(x_min), float(x_max)
+    def draw_roi(self, roi_tag: str, spectrum_name):
+        spectrum = SpectrumManager.get_spectra_dict().get(spectrum_name)
 
-        self.Signals.updateROI.emit(roi_selection.tag, x_min, x_max, self.cps)
-            
-        for spectrum_tag, spectrum in SpectrumManager.get_spectra_dict().items():
-            if not spectrum.show_in_plot:
-                continue
-            for roi_tag, roi in spectrum.ROIs.items():
-                if spectrum_tag+roi_tag not in self.ROI_lines_gasussian:
-                    pen = pg.mkPen(color="w", width=1.3)
-                    line = self.plot_widget.plot([], [], pen=pen, name=roi_tag)
-                    self.ROI_lines_gasussian[spectrum_tag+roi_tag] = line
-                
-                if spectrum_tag+roi_tag not in self.ROI_lines_linear:
-                    pen = pg.mkPen(color="w", width=1, style=Qt.DashLine)
-                    line = self.plot_widget.plot([], [], pen=pen, name=roi_tag)
-                    self.ROI_lines_linear[spectrum_tag+roi_tag] = line
+        if spectrum is None or not spectrum.show_in_plot:
+            return
 
+        # Ensure dict structure exists
+        if roi_tag not in self.ROI_lines_gaussian:
+            self.ROI_lines_gaussian[roi_tag] = {}
+            self.ROI_lines_linear[roi_tag] = {}
 
+        # --- Gaussian line ---
+        if spectrum_name not in self.ROI_lines_gaussian[roi_tag]:
+            pen = pg.mkPen(color=QColor("#BAFFC9"), width=1.3)
+            line = self.plot_widget.plot([], [], pen=pen, name=roi_tag)
+            self.ROI_lines_gaussian[roi_tag][spectrum_name] = line
 
-                x, gaussian, lin = spectrum.get_ROI_plots(roi_tag, self.log)
-                if gaussian is not None:
-                    self.ROI_lines_gasussian[spectrum_tag+roi_tag].setData(x, gaussian)
-                    self.ROI_lines_linear[spectrum_tag+roi_tag].setData(x, lin)
+        # --- Linear background line ---
+        if spectrum_name not in self.ROI_lines_linear[roi_tag]:
+            pen = pg.mkPen(color="w", width=1, style=Qt.DashLine)
+            line = self.plot_widget.plot([], [], pen=pen, name=roi_tag)
+            self.ROI_lines_linear[roi_tag][spectrum_name] = line
 
-                
-            
-    def remove_roi(self, roi, force = False):
-        if not force:
-            reply = QMessageBox.question(
-                self,
-                "Delete ROI",
-                "Delete this ROI?",
-                QMessageBox.Yes | QMessageBox.No
-            )
+        # --- Get data ---        
+        roi_fit = spectrum.ROIs.get(roi_tag, None)
+        if roi_fit.fit is None:
+            self.ROI_lines_gaussian[roi_tag][spectrum_name].setData([], [])
+            self.ROI_lines_linear[roi_tag][spectrum_name].setData([], [])
+            return
+        
+        x = spectrum.x_axis[(roi_fit.fit.region_lower < spectrum.x_axis) & (spectrum.x_axis < roi_fit.fit.region_upper)]
+        lin = np.polyval(roi_fit.fit.bkg_params, x) if roi_fit.fit.bkg_type != "None" else np.zeros_like(x)
+        gaussian = multi_gaussian(x, roi_fit.fit.params) + lin
+        
+        if self.log:
+            gaussian = np.log10(np.where(gaussian > 0, gaussian, np.nan))
+            lin = np.log10(np.where(lin > 0, lin, np.nan))
+
+        # --- Update plot ---
+        if gaussian is not None:
+            self.ROI_lines_gaussian[roi_tag][spectrum_name].setData(x, gaussian)
+
+            if lin is not None:
+                self.ROI_lines_linear[roi_tag][spectrum_name].setData(x, lin)
         else:
-            reply = None
-
-        if force or reply == QMessageBox.Yes:
-            for spect_tag, spectrum in SpectrumManager.get_spectra_dict().items():
-
-                self.plot_widget.removeItem(self.ROI_lines_gasussian.pop(spect_tag+roi, None))
-                self.plot_widget.removeItem(self.ROI_lines_linear.pop(spect_tag+roi, None))
-
-                # self.ROI_lines_gasussian.pop(spect_tag+roi)
-                # self.ROI_lines_linear.pop(spect_tag+roi)
-
-                spectrum.ROIs.pop(roi, None)
-
-            self.plot_widget.removeItem(self.ROIs[roi])
-            self.ROIs.pop(roi)
-            self.Signals.removeROI.emit(roi)
+            # Clear if no data
+            self.ROI_lines_gaussian[roi_tag][spectrum_name].setData([], [])
+            self.ROI_lines_linear[roi_tag][spectrum_name].setData([], [])
+                
             
-    def _clear_rois(self):
-        rois = SpectrumManager.existing_rois.copy()
-        for roi in rois:
-            self.remove_roi(roi, True)
+    def remove_roi(self, roi):
+        self.plot_widget.removeItem(roi)
+        for gaussian_line, lin_line in zip(self.ROI_lines_gaussian[roi.tag].values(), self.ROI_lines_linear[roi.tag].values()):
+            self.plot_widget.removeItem(gaussian_line)
+            self.plot_widget.removeItem(lin_line)
