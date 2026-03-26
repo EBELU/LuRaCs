@@ -10,7 +10,7 @@ requires-python = ">=3.10"
 authors = [
     {name = "Erik Ewald"}
 ]
-license = {text = "GPL"}
+license = {text = "GPL-3.0"}
 readme = "README.md"
 dependencies = [
     "bleak>=0.21",
@@ -18,7 +18,6 @@ dependencies = [
     "pyqtgraph>=0.13.0",
     "PySide6>=6.5.0",
     "qasync>=0.27.0",
-    "scipy>=1.11",
     "openpyxl>=3.0.0",
     "pyusb>=1.0.2",
     "lxml>=4.6.0",
