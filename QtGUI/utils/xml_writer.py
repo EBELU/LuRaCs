@@ -5,22 +5,22 @@ from SpectrumClasses import Spectrum, SpectrumData
 
 NS = "http://physics.nist.gov/N42/2011/N42"
 MY = "https://example.com/n42/extensions"
-NSMAP = {None: NS, "LUSS": MY}
+NSMAP = {None: NS, "LRC": MY}
 samples = 1
 
 def n42(tag):
     return f"{{{NS}}}{tag}"
 
-def LUSS(tag):
+def LRC(tag):
     return f"{{{MY}}}{tag}"
 
-def write_text_to_SubElement(branch, sub_element: str,  data: str | int | float | list):
+def write_text_to_SubElement(branch, sub_element: str,  data: str | int | float | list, **kwargs):
     if isinstance(data, list):
         data = " ".join([str(i) for i in data])
     else:
         data = str(data)
         
-    sub_branch = etree.SubElement(branch, sub_element)
+    sub_branch = etree.SubElement(branch, sub_element, **kwargs)
     sub_branch.text = data
 
 def write_SpectrumData(data: SpectrumData, root, kind: str):
@@ -56,32 +56,34 @@ def write_ROI_data(spectrum: Spectrum, peaks_section):
     num_peaks.text = str(len(spectrum.ROIs))
     
     for tag, roi in spectrum.ROIs.items():
-        new_peak = etree.SubElement(peaks_section, "Roi", id = tag, version = "1")
-        
+        new_peak = etree.SubElement(peaks_section, "Roi", id = tag, alias = roi.alias, spectrum_ref = spectrum.name, version = "1")       
         continuum = etree.SubElement(new_peak, "PeakContinuum")
+        write_text_to_SubElement(continuum, "RegionCounts", roi.counts)
+        write_text_to_SubElement(continuum, "LiveTime", roi.live_time)
         
-        # Set the type of the continuum
-        write_text_to_SubElement(continuum, "Type", "Linear")
-
         # Energy bounds
-        write_text_to_SubElement(continuum, "LowerEnergy", roi.low)
-        write_text_to_SubElement(continuum, "UpperEnergy", roi.high)
+        write_text_to_SubElement(continuum, "LowerEnergy", roi.roi_bound[0])
+        write_text_to_SubElement(continuum, "UpperEnergy", roi.roi_bound[1])
 
         # Create the peak element
         peak = etree.SubElement(new_peak, "Peak")
+        write_text_to_SubElement(peak, "Fit", "Gaussian")
+        if roi.fit is not None:
+            write_text_to_SubElement(peak, "BackgroundType", roi.fit.bkg_type)
+            write_text_to_SubElement(peak, "BackgroundParameters", list(roi.fit.bkg_params))
+            
+            write_text_to_SubElement(peak, "Centroid", [roi.fit.mu, roi.fit.mu_err])
+            write_text_to_SubElement(peak, "StandardDeviation", [roi.fit.sigma, roi.fit.sigma_err])
+            write_text_to_SubElement(peak, "Amplitude", [roi.fit.A, roi.fit.A_err])
+            
+            write_text_to_SubElement(peak, "PeakCounts", roi.fit.peak_counts)
+            
+def write_instrument_data(instument, root):
+    instrment_section = etree.SubElement(root, "Instrument")
 
-        if roi.gaussian:
-            write_text_to_SubElement(peak, "Type", "Gaussian")
-            write_text_to_SubElement(peak, "Centroid", roi.gaussian.mu)
-            write_text_to_SubElement(peak, "StandardDeviation", roi.gaussian.sigma)
-            write_text_to_SubElement(peak, "Amplitude", roi.gaussian.A)
 
-        
-    
-    
-    
 def write_extension_data(spectrum: Spectrum, root):
-    extension_section = etree.SubElement(root, LUSS("LUSS"), version = "1")
+    extension_section = etree.SubElement(root, LRC("LuRaCs"), version = "1")
     if len(spectrum.ROIs) > 0:
         peaks = etree.SubElement(extension_section, "Peaks")
         write_ROI_data(spectrum, peaks)
@@ -97,12 +99,11 @@ def write_xml_spectrum(spectrum: Spectrum, file_name: str):
     )
     
     creator = etree.SubElement(root, n42("RadInstrumentDataCreatorName"))
-    creator.text = "MySpect"
+    creator.text = "LuRaCs"
 
     if spectrum.calibrated:
-        energy_cal = etree.Element("EnergyCalibration", id="EnergyCal0")
-        coeff = etree.SubElement(energy_cal, "CoefficientValues")
-        coeff.text = " ".join([str(i) for i in reversed(spectrum.calibration_coefficients)])
+        energy_cal = etree.SubElement(root, "EnergyCalibration", id="EnergyCal0")
+        write_text_to_SubElement(energy_cal, "CoefficientValues", spectrum.calibration_coefficients[::-1])
 
     write_SpectrumData(spectrum.foreground, root, "foreground")
 

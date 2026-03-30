@@ -383,8 +383,11 @@ class SpectrumPlot(QWidget):
             pen = pg.mkPen(spectrum.color_foreground, width=2)
 
             # Brush with semi-transparent alpha
-            brush = QColor(spectrum.color_foreground)
-            brush.setAlpha(150)
+            if Settings.Appearance.brush:
+                brush = QColor(spectrum.color_background)
+                brush.setAlpha(150)
+            else:
+                brush = None
             
             fill_level = 0
             if self.log:
@@ -414,16 +417,9 @@ class SpectrumPlot(QWidget):
     def remove_plot(self, name: str):
         self.primary_lines.pop(name, None)
         self.bkg_lines.pop(name, None)
-        for roi in self.ROIs:
-            try:
-                tag = roi.tag
-            except AttributeError as e:
-                print(f"Remove plot failed for {name} with {e}")
-                raise
-            
-            for roi_tag in SpectrumManager.ROIManager.ROIs.keys():
-                self.ROI_lines_linear[roi_tag].pop(name, None)
-                self.ROI_lines_gaussian[roi_tag].pop(name, None)
+        for roi_tag in SpectrumManager.ROIManager.ROIs.keys():
+            self.ROI_lines_linear[roi_tag].pop(name, None)
+            self.ROI_lines_gaussian[roi_tag].pop(name, None)
         
         self._redraw()
             
@@ -454,7 +450,9 @@ class SpectrumPlot(QWidget):
         for roi in SpectrumManager.ROIManager.ROIs.values():
             if roi not in self.plot_widget.plotItem.items:
                 self.plot_widget.addItem(roi)
-            SpectrumManager.ROIManager.update_roi(roi_tag=roi.tag)
+        for spectrum_name in SpectrumManager.spectra.keys():
+            for roi_tag in SpectrumManager.ROIManager.ROIs.keys():
+                self.draw_roi(roi_tag, spectrum_name)
 
     def draw_roi(self, roi_tag: str, spectrum_name):
         spectrum = SpectrumManager.get_spectra_dict().get(spectrum_name)
@@ -481,14 +479,21 @@ class SpectrumPlot(QWidget):
 
         # --- Get data ---        
         roi_fit = spectrum.ROIs.get(roi_tag, None)
+        if roi_fit is None:
+            return
         if roi_fit.fit is None:
             self.ROI_lines_gaussian[roi_tag][spectrum_name].setData([], [])
             self.ROI_lines_linear[roi_tag][spectrum_name].setData([], [])
             return
         
+        # --- Calculate values for lines ---
         x = spectrum.x_axis[(roi_fit.fit.region_lower < spectrum.x_axis) & (spectrum.x_axis < roi_fit.fit.region_upper)]
         lin = np.polyval(roi_fit.fit.bkg_params, x) if roi_fit.fit.bkg_type != "None" else np.zeros_like(x)
         gaussian = multi_gaussian(x, roi_fit.fit.params) + lin
+        
+        if self.cps and spectrum.foreground.live_time is not None:
+            lin /= spectrum.foreground.live_time
+            gaussian /= spectrum.foreground.live_time
         
         if self.log:
             gaussian = np.log10(np.where(gaussian > 0, gaussian, np.nan))
@@ -508,6 +513,10 @@ class SpectrumPlot(QWidget):
             
     def remove_roi(self, roi):
         self.plot_widget.removeItem(roi)
-        for gaussian_line, lin_line in zip(self.ROI_lines_gaussian[roi.tag].values(), self.ROI_lines_linear[roi.tag].values()):
-            self.plot_widget.removeItem(gaussian_line)
-            self.plot_widget.removeItem(lin_line)
+        gauss_lines = self.ROI_lines_gaussian.get(roi.tag)
+        lin_lines = self.ROI_lines_linear.get(roi.tag)
+        # Skip if it doesnt exist
+        if gauss_lines is not None  and lin_lines is not None:
+            for gaussian_line, lin_line in zip(gauss_lines.values(), lin_lines.values()):
+                self.plot_widget.removeItem(gaussian_line)
+                self.plot_widget.removeItem(lin_line)

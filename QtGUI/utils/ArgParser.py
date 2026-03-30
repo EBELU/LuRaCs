@@ -7,10 +7,8 @@ from .file_io import xml_io
 from GUI_components.import_export import io_dispatcher
 
 def parse_cli_args():
-    
-    Log.info("Parsing CLI args")
     parser = argparse.ArgumentParser(
-        description="""LuRaCs -- Lund Radiactivity analysis Computer software"""
+        description="""LuRaCs -- Lund Radioactivity analysis Computer software"""
 
     )
 
@@ -76,14 +74,7 @@ def parse_cli_args():
             if path.is_file():
                 if str(path).endswith(".xml") or str(path).endswith(".n42"):
                     parser = io_dispatcher(path)
-                    SpectrumManager.create_spectrum(parser.kwargs["name"], parser.kwargs["foreground"].channels)
-                    SpectrumManager.set_foreground_spectrum(parser.kwargs["name"], parser.kwargs["foreground"])
-                    
-                    if "background" in parser.kwargs:
-                        SpectrumManager.set_background_spectrum(parser.kwargs["name"], parser.kwargs["background"])
-                        
-                    if "calibration" in parser.kwargs:
-                        SpectrumManager.calibrate_spectrum(parser.kwargs["name"], parser.kwargs["calibration"])
+                    SpectrumManager.import_spectrum(parser.kwargs)
     
         
             

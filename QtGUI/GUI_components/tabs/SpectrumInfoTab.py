@@ -50,6 +50,7 @@ class ColorCellWidget(QWidget):
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
             self.clicked.emit()
+        super().mousePressEvent(event)
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -61,11 +62,13 @@ class ColorCellWidget(QWidget):
         painter.setPen(Qt.NoPen)  # no border
         painter.drawRoundedRect(rect, 3, 3)
 
+    def get_color(self):
+        color = QColorDialog.getColor(self.color, self, "Select color")
+        if color.isValid():
+            self.set_color(color)
+            return color
 
 class MenuButton(QWidget):
-    # Optional: custom signals
-    actionTriggered = Signal(str)
-
     def __init__(self, title="Menu", parent=None):
         super().__init__(parent)
         self.parent = parent
@@ -84,17 +87,11 @@ class MenuButton(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.button)
 
-    def add_action(self, text):
+    def add_action(self, text: str) -> QAction:
         action = QAction(text, self)
         self.menu.addAction(action)
-
-        action.triggered.connect(
-            lambda: self.actionTriggered.emit(text)
-        )
         return action
 
-    def add_separator(self):
-        self.menu.addSeparator()
         
         
 
@@ -257,8 +254,7 @@ class SpectrumInfoTab(QWidget):
             f"{int(fg.total_counts):,}".replace(",", " "),
             format_duration(fg.live_time),
             format_duration(fg.real_time),
-            new_spect.calibrated,
-            #None if not new_spect.calibrated else ",".join([f"k{i}={coeff}" for i, coeff in enumerate(reversed(new_spect.calibration_coefficients))])
+            new_spect.calibrated
         ])
 
         # ----------------- Background -----------------

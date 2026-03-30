@@ -14,7 +14,6 @@ def io_dispatcher(file_name: Path | str):
     else:
         raise ValueError(f"Unknown path type {type(file_name)}")
     
-    
     if file_name.suffix in (".xml", ".n42"):
         return xml_io.load(file_name)
 

@@ -66,7 +66,6 @@ class EmittedSignals(QObject):
         
 
 class SpectrumManagerBase(QObject):
-    
     def __init__(self):
         super().__init__()
         self.color_rotation = SpectrumColorRotator("mpl")
@@ -102,7 +101,7 @@ class SpectrumManagerBase(QObject):
         else:
             return False
         
-    def set_foreground_spectrum(self, name, spectrum_data):
+    def set_foreground_spectrum(self, name: str, spectrum_data: WrappedSpectrumPackage | SpectrumData):
         if name not in self.spectra:
             raise ValueError(f"Spectrum {name} does not exist")
         if isinstance(spectrum_data, WrappedSpectrumPackage):
@@ -113,8 +112,9 @@ class SpectrumManagerBase(QObject):
                                         spectrum_data.uptime,
                                         None, 
                                         sum(spectrum_data.y_axis) / max(spectrum_data.uptime, 1), 
-                                        None, start_date, None, None, None)
+                                        None, start_date, None, name, None)
             calib_coeff = spectrum_data.calib_coeff
+            
         elif isinstance(spectrum_data, SpectrumData):
             new_spectrum = spectrum_data
             calib_coeff = None
@@ -128,7 +128,7 @@ class SpectrumManagerBase(QObject):
 
         self.Signals.spectrumUpdated.emit(name)
         
-    def set_background_spectrum(self, name, spectrum_data):
+    def set_background_spectrum(self, name: str, spectrum_data: SpectrumData):
         if name not in self.spectra:
             raise ValueError(f"Spectrum {name} does not exist")
         
@@ -148,20 +148,20 @@ class SpectrumManagerBase(QObject):
         self.spectra[name].set_background(new_spectrum)
         self.Signals.spectrumUpdated.emit(name)
         
-    def clear_background(self, name):
+    def clear_background(self, name: str):
         if name not in self.spectra:
             raise ValueError(f"Spectrum {name} does not exist")
         self.spectra[name].background = None
         self.Signals.backgroundRemoved.emit(name, "bkg")
         gui_logger.info(f"[Background removed] {name}")
         
-    def remove_spectrum(self, name):
+    def remove_spectrum(self, name: str):
         if name in self.spectra:
             self.spectra.pop(name)
             self.Signals.spectrumRemoved.emit(name)
             gui_logger.info(f"[Spectrum removed] {name}")
             
-    def calibrate_spectrum(self, name, coeff):
+    def calibrate_spectrum(self, name: str, coeff: list):
         """Apply a polynomial calibration of the x-axis."""
         if name not in self.spectra:
             raise ValueError(f"Spectrum {name} does not exist")
@@ -169,7 +169,7 @@ class SpectrumManagerBase(QObject):
         self.spectra[name].apply_calibration(coeff)
         self.Signals.spectrumUpdated.emit(name)
 
-    def set_color(self, name, fg_bkg: str, color: QColor):
+    def set_color(self, name: str, fg_bkg: str, color: QColor):
         
         if name not in self.spectra:
             raise ValueError(f"Spectrum {name} does not exist")
@@ -181,7 +181,7 @@ class SpectrumManagerBase(QObject):
 
         self.Signals.colorUpdated.emit(name)
         
-    def update_visibility(self, name):
+    def update_visibility(self, name: str):
         if name not in self.spectra:
             raise ValueError(f"Spectrum {name} does not exist")
         
@@ -206,6 +206,23 @@ class SpectrumManagerBase(QObject):
     
     def get_spectra_dict(self) -> dict[str, Spectrum]:
         return self.spectra       
+    
+    # --- IO ---
+    def import_spectrum(self, data_dict: dict):
+        self.create_spectrum(data_dict["name"], data_dict["foreground"].channels)
+        self.set_foreground_spectrum(data_dict["name"], data_dict["foreground"])
+        
+        if "background" in data_dict:
+            self.set_background_spectrum(data_dict["name"], data_dict["background"])
+            
+        if "calibration" in data_dict:
+            self.calibrate_spectrum(data_dict["name"], data_dict["calibration"])
+        
+        if "rois" in data_dict:
+            for roi in data_dict["rois"]:
+                self.ROIManager.add_roi(roi["bounds"][0], roi["bounds"][1])
+    def import_spectrum_as_background(self, spectrum_name: str, data_dict: dict):
+        self.set_background_spectrum(spectrum_name, data_dict["foreground"])
                 
     
 # Declare ONE instance

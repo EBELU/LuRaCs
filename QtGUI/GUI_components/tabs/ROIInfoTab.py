@@ -1,3 +1,7 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ROIClasses import ROI, Fit
 from PySide6.QtWidgets import (
     QWidget,
     QGroupBox,
@@ -12,34 +16,54 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QDialog,
-    QTextEdit
+    QTextEdit,
+    QAbstractItemView
 )
 from PySide6.QtCore import Signal
-
-
 from core import SpectrumManager
-
-def write_row(table, row_index, values):
-    for col_index, value in enumerate(values):
-        table.setItem(row_index, col_index, QTableWidgetItem(str(value)))
-        
+       
 class StrIdxTable(QWidget):
-    def __init__(self, title = "", parent = None):
+    def __init__(self, title = "", parent = None, columns = None, has_menu_button=False):
+        """Abstraction of QTable the that uses string keys for table indexing."""
         super().__init__(parent)
         
         self.table: QTableWidget = QTableWidget()
+        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         
         self.rowkeys: dict[str, int] = {}
         self.row_counter = 0
+        self.has_been_set = False
         
-    def reset_table(self, titles):
+        self.has_menu_button = has_menu_button
+        
+        if columns is not None:
+            self.reset_table(columns)
+        
+    def reset_table(self, titles: list, widths = None):
+        assert isinstance(titles, list), f"Titles must be a list! Is {type(titles)}"
         if self.table is not None:
             self.table.clear()
             
         self.table.setRowCount(0)
-        self.table.setColumnCount(len(titles))
-        self.table.setHorizontalHeaderLabels(titles)
+
+        if self.has_menu_button:
+            titles = [""] + titles
+            self.table.setColumnCount(len(titles) + 1)
+            self.table.setHorizontalHeaderLabels(titles)
+        else:
+            self.table.setColumnCount(len(titles))
+            self.table.setHorizontalHeaderLabels(titles)
         self.table.setMinimumHeight(50)
+        
+        if widths is not None:
+            if self.has_menu_button:
+                assert len(widths) == len(titles) - 1, f"Length of widths does not match, titles {len(titles)}, widths {len(widths)}"
+                for i in range(1, len(widths)):
+                    self.table.setColumnWidth(i, widths[i])
+            else:
+                assert len(widths) == len(titles), f"Length of widths does not match, titles {len(titles)}, widths {len(widths)}"
+                for i in range(len(widths)):
+                    self.table.setColumnWidth(i, widths[i])
         
         self.table.setSizePolicy(
             QSizePolicy.Expanding,      # vertical
@@ -48,28 +72,35 @@ class StrIdxTable(QWidget):
         
         self.row_counter = 0
         self.rowkeys.clear()
-    
-    def write_row(self, row_tag, values):
+        self.has_been_set = True
+        
+    def write_row(self, row_tag: str, values: list, menu_button: QWidget = None):
+        assert isinstance(values, list), f"Titles must be a list! Is {type(values)}"
         if row_tag not in self.rowkeys:
             self.rowkeys[row_tag] = self.row_counter
             self.table.insertRow(self.row_counter)
             self.row_counter += 1
 
+        shift = 1 if self.has_menu_button else 0
 
+        
         row_index = self.rowkeys[row_tag]
+        # If we have a menu button
+        if self.has_menu_button and menu_button is not None:
+            self.table.setCellWidget(row_index, 0, QPushButton("Hello"))
+        
+        # Normal content
         for col_index, value in enumerate(values):
-            self.table.setItem(row_index, col_index, QTableWidgetItem(str(value)))
+            self.table.setItem(row_index, col_index + shift, QTableWidgetItem(str(value)))
             
-    def delete_row(self, row_tag):
+    def delete_row(self, row_tag: str):
         row_index = self.rowkeys.pop(row_tag, None) # If a spectrum is hidden it might not be here
-        print(row_index)
         if row_index is None:
             return
         self.table.removeRow(row_index)
         for key in self.rowkeys:
             if self.rowkeys[key] > row_index:
                 self.rowkeys[key] -= 1
-        
         self.row_counter -= 1
         
 class RoiInfoDialog(QDialog):
@@ -105,48 +136,71 @@ class RoiInfoDialog(QDialog):
         rois = SpectrumManager.ROIManager.get_data_from_roi(
             SpectrumManager.ROIManager.get_tag_from_alias(tag)
         )
-        if rois is None:
+
+        if not rois:
             self.text.clear()
             return
+
+        def fmt(val):
+            """Format numbers safely."""
+            if isinstance(val, float):
+                return f"{val:.5g}"
+            return str(val)
+
         lines = []
+
         for spect, roi in rois.items():
             title = f"| {spect} |"
+            sep = "=" * len(title)
+
             lines.extend([
-                "="*(len(title) - 2),
+                sep,
                 title,
-                "="*(len(title) - 2),
+                sep,
                 f"Tag: {roi.tag}",
                 f"Alias: {roi.alias}",
                 f"ROI Bound: {roi.roi_bound}",
                 f"Region Bound: {roi.region_bound}",
-                f"Counts: {roi.counts}",
-                f"Meta: {roi.meta}"
-            ]
-            )
-            # Add fit info if present
-            if roi.fit:
+                f"ROI Counts: {fmt(roi.roi_counts)}",
+                f"Live Time: {fmt(roi.live_time)}",
+                f"Meta: {roi.meta}",
+            ])
+
+            # ---- Fit info ----
+            if roi.fit is not None:
                 f = roi.fit
-                fit_lines = [
-                    "\n-- Fit Info --",
+
+                lines.extend([
+                    "",
+                    "-- Fit Info --",
                     f"Fit Type: {f.fit_type}",
-                    f"Region: [{f.region_lower}, {f.region_upper}]",
-                    f"Lower/Upper: [{f.lower}, {f.upper}]",
+                    f"Region: [{fmt(f.region_lower)}, {fmt(f.region_upper)}]",
+                    f"Bounds: [{fmt(f.lower)}, {fmt(f.upper)}]",
                     f"Params: {f.params}",
                     f"Param Errors: {f.param_errs}",
-                    f"A = {f.A} ± {f.A_err}",
-                    f"mu = {f.mu} ± {f.mu_err}",
-                    f"sigma = {f.sigma} ± {f.sigma_err}",
-                    f"FWHM = {f.fwhm} ± {f.fwhm_err}",
+                    "",
+                    f"A = {fmt(f.A)} ± {fmt(f.A_err)}",
+                    f"mu = {fmt(f.mu)} ± {fmt(f.mu_err)}",
+                    f"sigma = {fmt(f.sigma)} ± {fmt(f.sigma_err)}",
+                    f"FWHM = {fmt(f.fwhm)} ± {fmt(f.fwhm_err)}",
+                    "",
                     f"Background Type: {f.bkg_type}",
                     f"Background Params: {f.bkg_params}",
-                    f"G = {f.G}\nB = {f.B}\nN = {f.N}\nPeak Counts = {f.peak_counts}",
-                    "\n\n"
-                ]
-                lines.extend(fit_lines)
+                    "",
+                    f"G = {fmt(f.G)}",
+                    f"B = {fmt(f.B)}",
+                    f"N = {fmt(f.N)}",
+                    f"Peak Counts = {fmt(f.peak_counts)}",
+                    ""
+                ])
             else:
-                lines.append("\n-- No Fit --")
+                lines.extend([
+                    "",
+                    "-- No Fit --",
+                    ""
+                ])
 
-        self.text.setPlainText("\n".join(map(str, lines)))
+        self.text.setPlainText("\n".join(lines))
 
 class ROIInfoTab(QWidget):
     clearROIs = Signal()
@@ -160,9 +214,8 @@ class ROIInfoTab(QWidget):
         self.group_box = QGroupBox(title)
 
         # ---- Table ----
-        titles = ["ROI", "Low", "High", "Peak Center", "FWHM", "Max Height","G", "B", "N",]
         self.table = StrIdxTable()
-        self.table.reset_table(titles)
+        setattr(self.table, "mode", None) # Ugly trick <-
         
         # Layout inside the box
         box_layout = QVBoxLayout(self.group_box)
@@ -266,19 +319,20 @@ class ROIInfoTab(QWidget):
         rois = SpectrumManager.ROIManager.get_data_from_spectrum(spectrum)
         
 
-        titles = ["ROI", "Lower", "Upper", "Peak Center",
-                "FWHM", "Peak Counts"]
+        titles = ["ROI", "Lower", "Upper", "Peak Center", "FWHM", "Peak Counts", "ROI Counts"]
+        widths = [150, 75, 75, 100, 100, 150, 150]
 
-        self.table.reset_table(titles)
-        
+        if self.table.mode != 1:
+            self.table.mode = 1
+            self.table.reset_table(titles, widths)
 
 
         for tag, roi in rois.items():
             if not SpectrumManager.get_spectrum(spectrum).fit_rois:
-                self.table.write_row(roi.alias, ["Spectrum"] +["Hidden"] + [""] * (len(titles) - 1))
+                self.table.write_row(tag, ["Spectrum"] + ["Hidden"] + [""] * (len(titles) - 1))
                 return
             else:
-                self._put_roi(roi.alias, roi)
+                self._put_roi(tag, roi)
 
 
     def set_table_by_roi(self, roi_idx: int):
@@ -288,49 +342,67 @@ class ROIInfoTab(QWidget):
 
         rois = SpectrumManager.ROIManager.get_data_from_roi(roi_tag)
 
-        titles = ["Spectrum", "Lower", "Upper", "Peak Center",
-                "FWHM", "Peak Counts"]
-
-        self.table.reset_table(titles)
+        titles = ["Spectrum", "Lower", "Upper", "Peak Center", "FWHM", "Peak Counts", "ROI Counts"]
+        widths = [150, 75, 75, 100, 100, 150, 150]
+        
+        if self.table.mode != 0:
+            self.table.mode = 0
+            self.table.reset_table(titles, widths)
 
         for tag, roi in rois.items():
             self._put_roi(tag, roi)
 
 
-    def _put_roi(self, tag: str, roi, none_fallback: str = "Fit Failed"):
+    def _put_roi(self, tag: str, roi: ROI,  none_fallback: str = "Fit Failed"):
         if not roi:
             return
+        if self.combo_show_spectrum:
+            first_cell = roi.alias
+        else:
+            first_cell = roi.meta["spectrum_name"]
+        
+        cps = SpectrumManager.ROIManager.spectrum_is_cps # alias
+        if cps:
+            roi_counts = f"{round(roi.get_count_data("roi_counts", True), 4)} CPS"
+        else:
+            roi_counts = f"{int(roi.get_count_data("roi_counts", False)):,}".replace(",", " ")        
 
+        
         if roi.fit is not None:
+            peak_counts = f"{int(roi.get_count_data("peak_counts")):,}".replace(",", " ") if not cps else f"{round(roi.get_count_data("peak_counts", True), 4)} CPS"
             row = [
-                tag,
-                round(roi.fit.lower),
-                round(roi.fit.upper),
-                round(roi.fit.mu, 4),
-                round(roi.fit.fwhm, 4),
-                round(roi.fit.peak_counts, 4)
+                first_cell,
+                f"{round(roi.fit.lower)} keV",
+                f"{round(roi.fit.upper)} keV",
+                f"{round(roi.fit.mu, 2)} keV",
+                f"{round(roi.fit.fwhm, 2)} keV",
+                peak_counts,
+                roi_counts
             ]
         else:
-            row = [tag, round(roi.roi_bound[0]), round(roi.roi_bound[1]), none_fallback] + [None] * 6
+            row = [first_cell, round(roi.roi_bound[0]), round(roi.roi_bound[1]), none_fallback, None, None, roi_counts]
 
         self.table.write_row(tag, row)
         
     
-    def recieve_roi(self, roi_tag): 
-        rois = SpectrumManager.ROIManager.get_data_from_roi(roi_tag)
+    def recieve_roi(self, roi_tag, spectrum_name, roi):        
+        if self.combo_show_spectrum:
+            self._put_roi(roi_tag, roi)
         
-        for roi in rois.values():
-            self._put_roi(roi.alias, roi)
+        else:
+            self._put_roi(spectrum_name, roi)
+                
+        if not self.table.has_been_set:
+            self.update_combo()
         
-        self.update_combo()
 
     def delete_roi(self, roi):
         if self.combo_show_spectrum:
-            self.table.delete_row(roi.alias)
+            self.table.delete_row(roi.tag)
         else:
             # ROI view
             current_roi = self.combo.currentText()
-            if roi.alias == current_roi:
+            if roi.tag == current_roi:
                 self.set_table_by_roi(self.combo.currentIndex())
         
     def _clear_rois(self, _):

@@ -2,10 +2,94 @@ from PySide6.QtWidgets import QApplication, QWidget
 from PySide6.QtWidgets import (
     QWidget, QGroupBox, QVBoxLayout, QTableWidget, QTableWidgetItem,
     QSizePolicy, QColorDialog, QFrame, QHBoxLayout, QDialog, QFormLayout, QTextEdit, QComboBox, QLineEdit, QDialogButtonBox,
-    QPushButton, QCheckBox, QDoubleSpinBox, QTabWidget
+    QPushButton, QCheckBox, QDoubleSpinBox, QTabWidget, QAbstractItemView, QMessageBox, QFileDialog
 )
 from PySide6.QtCore import Qt, Signal
-import sys
+
+import sys, os
+from glob import glob
+
+from pathlib import Path
+import shutil
+
+class StrIdxTable(QWidget):
+    def __init__(self, title = "", parent = None, columns = None, has_menu_button=False):
+        """Abstraction of QTable the that uses string keys for table indexing."""
+        super().__init__(parent)
+        
+        self.table: QTableWidget = QTableWidget()
+        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        
+        self.rowkeys: dict[str, int] = {}
+        self.row_counter = 0
+        self.has_been_set = False
+        
+        self.has_menu_button = has_menu_button
+        
+        if columns is not None:
+            self.reset_table(columns)
+    
+    def get_key_from_index(self, index: int) -> str:
+        for key, table_index in self.rowkeys.items():
+            if table_index == index:
+                return key
+        
+    def reset_table(self, titles: list, widths = None):
+        "Clear the table and set new columns titles"
+        assert isinstance(titles, list), f"Titles must be a list! Is {type(titles)}"
+        if self.table is not None:
+            self.table.clear()
+            
+        self.table.setRowCount(0)
+
+        if self.has_menu_button:
+            titles = [""] + titles
+            self.table.setColumnCount(len(titles) + 1)
+            self.table.setHorizontalHeaderLabels(titles)
+        else:
+            self.table.setColumnCount(len(titles))
+            self.table.setHorizontalHeaderLabels(titles)
+        self.table.setMinimumHeight(50)
+        
+        if widths is not None:
+            if self.has_menu_button:
+                assert len(widths) == len(titles) - 1, f"Length of widths does not match, titles {len(titles)}, widths {len(widths)}"
+                for i in range(1, len(widths)):
+                    self.table.setColumnWidth(i, widths[i])
+            else:
+                assert len(widths) == len(titles), f"Length of widths does not match, titles {len(titles)}, widths {len(widths)}"
+                for i in range(len(widths)):
+                    self.table.setColumnWidth(i, widths[i])
+        
+    def write_row(self, row_tag: str, values: list, menu_button: QWidget = None):
+        "Write a row based on a str key, values must be list"
+        assert isinstance(values, list), f"Titles must be a list! Is {type(values)}"
+        if row_tag not in self.rowkeys:
+            self.rowkeys[row_tag] = self.row_counter
+            self.table.insertRow(self.row_counter)
+            self.row_counter += 1
+
+        shift = 1 if self.has_menu_button else 0
+
+        
+        row_index = self.rowkeys[row_tag]
+        # If we have a menu button
+        if self.has_menu_button and menu_button is not None:
+            self.table.setCellWidget(row_index, 0, QPushButton("Hello"))
+        
+        # Normal content
+        for col_index, value in enumerate(values):
+            self.table.setItem(row_index, col_index + shift, QTableWidgetItem(str(value)))
+            
+    def delete_row(self, row_tag: str):
+        row_index = self.rowkeys.pop(row_tag, None) # If a spectrum is hidden it might not be here
+        if row_index is None:
+            return
+        self.table.removeRow(row_index)
+        for key in self.rowkeys:
+            if self.rowkeys[key] > row_index:
+                self.rowkeys[key] -= 1
+        self.row_counter -= 1
 
 class ROIEditor(QDialog):
     DELETE = 2
@@ -110,7 +194,7 @@ class DataLibrary(QDialog):
         self.tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         # Create tab widgets as class members
-        self.spectrum_tab = QWidget()
+        self.spectrum_tab = LibraryTab(self, ["Name", "Date", "Live Time", "Background", "ROIs"])
         self.roi_tab = QWidget()
         self.spectrogram_tab = QWidget()
         self.instruments_tab = QWidget()
@@ -125,17 +209,94 @@ class DataLibrary(QDialog):
 
 
         main_layout.addWidget(self.tabs)
-        
-        self.buttons = QDialogButtonBox()
-        main_layout.addWidget(self.buttons)      
-
-        
-        main_layout.addWidget(self.buttons)
-
         # self.resize(self.tabs.sizeHint())
         self.adjustSize()
 
+class LibraryTab(QWidget):
+    def __init__(self, parent, columns):
+        super().__init__(parent=parent)
 
+        self.file_index = {}
+        self.btns = []
+        self.path = ""
+        
+        main_layout = QVBoxLayout(self)
+        
+        self.table = StrIdxTable()
+        self.table.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.table.table.setSelectionMode(QAbstractItemView.ExtendedSelection)
+
+        self.table.reset_table(columns)      
+        
+        
+        main_layout.addWidget(self.table.table)
+        
+        btn_group = QGroupBox()
+        self.btn_bar = QHBoxLayout()
+
+
+        close_btn = self.add_button("Close")
+        close_btn.clicked.connect(parent.close)
+        
+        self.add_button("Load")
+        self.btn_export = self.add_button("Export")
+        self.btn_export.clicked.connect(self.export_selected)
+        self.add_button("Info")
+
+            
+        self.include_roi_check = QCheckBox("Import ROIs")
+        
+        self.btn_delete = QPushButton("Delete")
+        
+        self.btn_bar.addWidget(self.btn_delete, alignment=Qt.AlignLeft)
+        self.btn_bar.addStretch()
+        self.btn_bar.addWidget(self.include_roi_check)
+        for btn in reversed(self.btns):
+            btn.setMaximumWidth(100)
+            self.btn_bar.addWidget(btn)
+        
+
+        
+        btn_group.setLayout(self.btn_bar)
+        btn_group.setMaximumHeight(70)
+        btn_group.setContentsMargins(1, 0, 1, 0) 
+        main_layout.addWidget(btn_group)
+        
+        
+        self.table.write_row("1", ["Co-60",2])
+        self.table.write_row("2", ["Co-60",2])
+        self.table.write_row("3", ["Co-60",2])
+        
+    def _get_selection(self) -> list:
+        rows = [index.row() for index in self.table.table.selectionModel().selectedRows()]
+
+        if len(rows) == 0:
+            QMessageBox.warning(self, "Select a row", "Please select an item.")
+            return
+        
+        return rows
+    
+    def export_selected(self):
+        selection = self._get_selection()
+        new_path = QFileDialog()
+        if not new_path:
+            return
+        
+    def delete_selected(self):
+        pass
+    
+    def run_index(self):
+        raise NotImplementedError("run_index not implemented")
+        return
+        for file in glob("**.xml", self.path):
+            pass
+        
+    def add_button(self, text, **kwargs):
+        "Helper function"
+        new_btn = QPushButton(text)
+        self.btns.append(new_btn)
+        return new_btn
+         
     
         
         

@@ -24,14 +24,15 @@ pastel_colors = [
     "#E6CCFF",  # pale violet
 ]
 
-def fit_gaussians(x_axis, y_axis, bounds, spectrum_live_time, 
+def fit_gaussians(x_axis, y_axis, bounds,
                   fit_type, use_poisson_weights, weigh_cov_chi2,
                   bkg_type, bkg_fit_extension,):
+    "Fit peaks to roi_group"
     region_min, region_max = np.min(bounds), np.max(bounds)
-    
     region = (region_min <= x_axis) & (x_axis <= region_max)
     x_region = x_axis[region].copy().astype(float)
     y_region = y_axis[region].copy().astype(float)
+    
     
     p0 = []
     for b in bounds:
@@ -55,7 +56,7 @@ def fit_gaussians(x_axis, y_axis, bounds, spectrum_live_time,
         
     p0s = np.array(p0)
         
-    
+    # --- Fit the background as a polynomial ---
     if bkg_type != "None":
         i_low = np.searchsorted(x_axis, region_min)
         i_high = np.searchsorted(x_axis, region_max)
@@ -87,22 +88,28 @@ def fit_gaussians(x_axis, y_axis, bounds, spectrum_live_time,
     
     else:
         bkg_fit = None
-            
+
+    # Vectorize!
     p0 = p0s.flatten()
     
+    # If you want to emulate PML
     weight = None
     if use_poisson_weights:
         weight = poisson_weights
     
+    # Perform fit
     fits, cov, converged = curve_fit(multi_gaussian, x_region, y_region, p0, jac=multi_gaussian_jacobian, weight_fn=weight,
                                     weight_cov_chi2=weigh_cov_chi2)
     
+    # Sanity check
     if np.any(fits > 1e12) or np.any(fits == np.nan) or np.any(np.diag(cov) < 0) or np.any(np.sqrt(np.diag(cov)) > 1e12):
         return None, False
     
+    # Turn the vectorized array back to one list per peak
     fits = fits.reshape(-1, 3)
     errs = np.sqrt(np.diag(cov)).reshape(-1, 3)
     
+    # --- Evaluation ---
     results = []
     for b, fit, err in zip(bounds, fits, errs):
         lower, upper = np.min(b), np.max(b)
@@ -112,6 +119,7 @@ def fit_gaussians(x_axis, y_axis, bounds, spectrum_live_time,
         x_peak = x_axis[peak_mask]
         y_peak = y_axis[peak_mask]
         
+        # Unnecessary?
         G = np.sum(y_peak)
         B = np.sum(np.polyval(bkg_fit, x_peak))
         N = G - B
@@ -122,8 +130,7 @@ def fit_gaussians(x_axis, y_axis, bounds, spectrum_live_time,
             lower, upper,
             fit_type, fit, err,
             bkg_type, bkg_fit,
-            G, B, N, peak_counts,
-            spectrum_live_time)
+            G, B, N, peak_counts)
         results.append(fit_data)
     
     return results, converged
@@ -132,36 +139,42 @@ def fit_gaussians(x_axis, y_axis, bounds, spectrum_live_time,
 class ROIManager(QObject):
     sigROICreated = Signal(object)
     sigROIUpdated = Signal(str, str, object)
-    sigROIUpdatedNames = Signal(str)
     sigROIDeleted = Signal(object)
     def __init__(self, spectrum_manager, title = "", parent = None):
         super().__init__(parent = parent)
-        self.spectrum_manager: SpectrumManagerBase = spectrum_manager
+        self.spectrum_manager: SpectrumManagerBase = spectrum_manager # Keep a reference
         
         self.ROIs: dict[str, DeletableROI] = {}
         self.roi_counter: int = 0
-        self.plot_widget: PlotWidget = None
+        self.plot_widget: PlotWidget = None # Keep a reference, should be changed
         
+        # Spectrum state
         self.spectrum_is_log = False
         self.spectrum_is_cps = False
         self.spectrum_is_bkg_sub = False
+        
         
         self.roi_groupings: list[set[str]] = []
         
         
     def set_plot(self, plot_widget):
+        "Communication with SpectrumPlot"
         self.plot_widget = plot_widget
         
     def set_log(self, log_bool):
+        "Communication with SpectrumPlot"
         self.spectrum_is_log = log_bool
     
     def set_bkg_sub(self, bkg_sub_bool):
+        "Communication with SpectrumPlot"
         self.spectrum_is_bkg_sub = bkg_sub_bool
         
     def set_cps(self, cps_bool):
+        "Communication with SpectrumPlot"
         self.spectrum_is_cps = cps_bool
         
-    def add_roi(self, x_low = None, x_high = None):
+    def add_roi(self, x_low = None, x_high = None, **kwargs):
+        "Add a ROI to the plot, kwargs are given to the class DeletableROI"
         assert self.plot_widget is not None, "Plot item has not been set"
         
         roi_tag = f"ROI_{self.roi_counter}"
@@ -179,7 +192,7 @@ class ROIManager(QObject):
             x_high = float(x_min) + diff * 0.45
             
 
-        new_roi = DeletableROI(roi_tag,[x_low, x_high])
+        new_roi = DeletableROI(roi_tag,[x_low, x_high], **kwargs)
         self.plot_widget.addItem(new_roi)
         self.ROIs[roi_tag] = new_roi
         
@@ -194,6 +207,7 @@ class ROIManager(QObject):
         self.on_roi_change(roi_tag = new_roi.tag)
         
     def remove_roi(self, roi_tag: str) -> None:
+        "Remove a ROI based the tag"
         popped_roi = self.ROIs.pop(roi_tag, None)
         if not popped_roi:
             return
@@ -205,6 +219,7 @@ class ROIManager(QObject):
             
     
     def clear_all(self) -> None:
+        "Remove all rois"
         for tag in self.ROIs.copy().keys():
             self.remove_roi(tag)
             
@@ -221,7 +236,7 @@ class ROIManager(QObject):
         self.update_roi(roi_tag=roi_tag)
         
     def select_roi(self, selected_roi_tag):
-        """Callback for when a roi is clicked with M1"""
+        """Callback for when a roi is clicked with M1""" # Currently only changes color and Z-value
         for tag, roi in self.ROIs.items():
             # Get the current color of the ROI
             color = roi.brush.color()
@@ -240,20 +255,22 @@ class ROIManager(QObject):
                     roi.setZValue(20)
                     
     def propagrade_roi_settings_change(self, roi):
+        "Some settings must be the same for an entire region. If they are changed it must propagate to the group"
+        # Get the group
         for g in self.roi_groupings:
             if roi.tag in g:
                 break
         
         for roi_tag in g:
-            if roi_tag == roi.tag:
+            if roi_tag == roi.tag: # Dont change the current triggering roi
                 continue
             
             self.ROIs[roi_tag].update_self(bkg_type=roi.bkg_type,
                                            poisson_weights=roi.poisson_weights,
-                                           signal_update=False)
+                                           signal_update=False) # Dont created an infinite loop
             
         for roi_tag in g:
-            self.on_roi_change(roi_tag)
+            self.on_roi_change(roi_tag) # Recalculate all to be sure
     
     def calculate_roi_groups(self) -> list[set[str]]:
         """Calculate overlapping rois and return groups of overlap"""
@@ -298,6 +315,7 @@ class ROIManager(QObject):
         return groups
     
     def set_brushes(self):
+        "Change the roi color if it overlaps"
         for g in self.roi_groupings:
             color = (0, 0, 255, 20) if len(g) == 1 else (0, 255, 0, 20)
 
@@ -332,10 +350,9 @@ class ROIManager(QObject):
             rois = [roi_tag]
 
 
-
         # --- Update each ROI in its group(s) ---
         for spect in spectra:
-            updated_rois = set()
+            updated_rois = set() # Track updated rois since groups are evaluated all at once
             for roi in rois:
                 if roi in updated_rois:
                     continue
@@ -347,38 +364,8 @@ class ROIManager(QObject):
                         updated_rois.add(roi)
                         break
 
-                
-                
-                
-                
-    def eval_roi(self, spectrum: Spectrum , roi_group):
-        roi_group = [self.ROIs[k] for k in roi_group]
-        bounds = [list(r.getRegion()) for r in roi_group]
-        
-        fit_type = roi_group[0].fit_type
-        bkg_type = roi_group[0].bkg_type
-        poission_weights = roi_group[0].poisson_weights
-
-        y_axis = spectrum.get_foreground(cps=self.spectrum_is_cps) if not self.spectrum_is_bkg_sub else spectrum.get_bkg_sub()
-        fits, converged = fit_gaussians(spectrum.x_axis, y_axis, bounds, spectrum.foreground.live_time, fit_type,
-                                        poission_weights, Settings.Advanced.optimizer_use_chi2_weight, bkg_type, 5)
-        
-        meta_data = {"background_subtracted": self.spectrum_is_bkg_sub, 
-                     "spectrum_name": spectrum.name
-                     }
-        if converged and not fit_type == "None":
-            results = [ROI(r.tag, r.alias, tuple(r.getRegion()), (np.min(bounds), np.max(bounds)),
-                           f, f.G, meta_data) for r, f in zip(roi_group, fits)]
-        else:
-            
-            results = [ROI(r.tag, r.alias, tuple(r.getRegion()), (np.min(bounds), np.max(bounds)),
-                None, np.sum(y_axis[(np.min(bounds) < spectrum.x_axis) & (spectrum.x_axis < np.max(bounds))]), meta_data) for r in roi_group]
-            
-        for roi in results:
-            spectrum.set_roi(roi)
-            self.sigROIUpdated.emit(roi.tag, spectrum.name, roi)
-    
     def get_data_from_roi(self, roi_tag: str) -> dict:
+        "Get the same ROI from all spectra that contains in instance if the ROI"
         rois = {}
         for key, spectrum in self.spectrum_manager.get_spectra_dict().items():
             spect_roi = spectrum.ROIs.get(roi_tag, None)
@@ -388,4 +375,49 @@ class ROIManager(QObject):
         return rois
     
     def get_data_from_spectrum(self, spectrum_name: str) -> dict:
+        "Get all ROIs from a specified spectrum"
         return self.spectrum_manager.get_spectrum(spectrum_name).ROIs.copy()
+                
+                
+                
+    def eval_roi(self, spectrum: Spectrum , roi_group):
+        "Perform all calculations needed for evaluating a roi"
+        roi_group = [self.ROIs[k] for k in roi_group] # Change from keys to rois
+        bounds = [list(r.getRegion()) for r in roi_group]
+        
+        # Since these settings need to be the same for the entire group this is fine
+        fit_type = roi_group[0].fit_type
+        bkg_type = roi_group[0].bkg_type
+        poission_weights = roi_group[0].poisson_weights
+
+        # Perform the fit (maybe)
+        y_axis = spectrum.get_foreground() if not self.spectrum_is_bkg_sub else spectrum.get_bkg_sub()
+        fits, converged = fit_gaussians(spectrum.x_axis, y_axis, bounds, fit_type,
+                                        poission_weights, Settings.Advanced.optimizer_use_chi2_weight, bkg_type, 5)
+        
+
+        meta_data = {"background_subtracted": self.spectrum_is_bkg_sub, 
+                     "spectrum_name": spectrum.name,
+                     "chi2_weight": Settings.Advanced.optimizer_use_chi2_weight}
+        
+        # Determine the counts in the selected region, independent of the fit
+        roi_counts = np.sum(y_axis[(np.min(bounds) < spectrum.x_axis) & (spectrum.x_axis < np.max(bounds))])
+        
+        # If the fitting converged and was requested
+        if converged and not fit_type == "None":
+            results = [ROI(r.tag, r.alias, tuple(r.getRegion()), (np.min(bounds), np.max(bounds)),
+                            f, # fit
+                            roi_counts, spectrum.foreground.live_time, # Save live time for CPS conversion
+                            {"merge": r.merge, "movable": r.movable, **meta_data}) 
+                            for r, f in zip(roi_group, fits)]
+        else:
+            results = [ROI(r.tag, r.alias, tuple(r.getRegion()), (np.min(bounds), np.max(bounds)),
+                        None, # No fit
+                        roi_counts, spectrum.foreground.live_time,  # Save live time for CPS conversion
+                        {"merge": r.merge, "movable": r.movable, **meta_data}) 
+                        for r in roi_group]
+            
+        for roi in results:
+            spectrum.set_roi(roi) # Give the calculation results to the spectrum
+            self.sigROIUpdated.emit(roi.tag, spectrum.name, roi)
+    

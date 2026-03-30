@@ -12,7 +12,8 @@ class Instrument:
     detector_shape: str = None
     detector_volume: float = None
 
-    resolution_k: float = None
+    resolution_fn: float = None
+    resolution_param: list = None
     resolution_E_points: list = None
     resolution_FWHM_points: list = None
     

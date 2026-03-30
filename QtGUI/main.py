@@ -45,7 +45,7 @@ from GUI_components.popup_windows.USBListPopup import USBListPopup
 
 from PySide6.QtWidgets import QApplication
 
-
+__version__ = "0.1.0"
 
 
 # ===================== MAIN WINDOW =====================
@@ -126,7 +126,7 @@ class MainWindow(QMainWindow):
         if len(sys.argv) > 1:
             QTimer.singleShot(0, parse_cli_args)
         
-        QTimer.singleShot(1000, lambda : SpectrumManager.ROIManager.add_roi())
+        # QTimer.singleShot(1000, lambda : SpectrumManager.ROIManager.add_roi())
             
         print_progress("Main window loaded", 9)
     def closeEvent(self, event: QCloseEvent):
@@ -169,17 +169,12 @@ def main():
 
     RunManager.set_loop(loop)
 
-    header = "[ APPLICATION STARTED ]"
-    version = "Version: Alpha"
-    platform = f"Platform: {sys.platform}"
-
-
-
     Log.info(f"""
+             
  ======  ======  ======     
-|71    ||88    ||55    |    Version:  0.1.0          
-|  Lu  ||  Ra  ||  Cs  |    Release:  2026-03-31     
-| 177  || 226  || 137  |    Platform: {sys.platform}
+|71    ||88    ||55    |    Version:  {__version__} \t [2026-03-31]
+|  Lu  ||  Ra  ||  Cs  |    Licence:  GNU General Public Licence v3.0
+| 177  || 226  || 137  |    
  ======  ======  ======     
         """)
     print_progress("Done!", 10)
@@ -192,21 +187,3 @@ def main():
 if __name__ == "__main__":
     main()
 
-
-
-# pyinstaller \
-#     --name MySpect \
-#     --onedir \
-#     --exclude-module PySide6.QtNetwork \
-#     --exclude-module PySide6.Qt3DCore \
-#     --exclude-module PySide6.Qt3DRender \
-#     --exclude-module PySide6.Qt3DExtras \
-#     --exclude-module PySide6.QtMultimedia \
-#     --exclude-module PySide6.QtWebEngineWidgets \
-#     --exclude-module scipy.spatial \
-#     --exclude-module scipy.linalg \
-#     --exclude-module scipy.ndimage \
-#     --exclude-module matplotlib \
-#     --hidden-import scipy.optimize \
-#     --hidden-import bleak \
-#     GUI_main.py

@@ -27,28 +27,35 @@ class Spectrum:
     """
 
     def __init__(self, channels: int, name: str, **kwargs):
+        # Metadata
         self.name: str = name
         self.channels: int = channels
         
+        self.connection: str = kwargs.get("connection", None)
+        self.device_id: str = kwargs.get("instrument_id", None)
+        self.device_model: str = kwargs.get("instrument_model", None)
+        
+        # Axis values
         self.foreground: SpectrumData = None
         self.background: SpectrumData = None
         self.x_axis:np.array = np.arange(channels)
         
+        # ROI information, only stored by the spectrum
         self.ROIs: dict[str, ROI] = {}
 
         self.color_foreground: QColor = QColor("white")
         self.color_background: QColor = QColor("white")
         
+        # Calibration, must be keV
         self.calibration_coefficients: list = None
         self.calibrated: bool = False
-        self.energy_unit: str = None
         
+        # State values
         self.fit_rois: bool = True
         self.show_in_plot: bool = True
         
-        self.connection: str = kwargs.get("connection", None)
-        self.instrument_id: str = kwargs.get("instrument_id", None)
-        self.instrument_model: str = kwargs.get("instrument_model", None)
+        # Reference to an instrument used for calculations
+        self.instrument = kwargs.get("instrument", None)
         
     def set_foreground(self, spectrum: SpectrumData, color: QColor = None):
         assert spectrum.channels == self.channels
@@ -70,6 +77,7 @@ class Spectrum:
         """
             coeffs = [a_n, a_{n-1}, ..., a_0]
         """
+
         self.x_axis = np.polyval(coefficients, np.arange(self.channels))
         self.calibration_coefficients = coefficients
         self.calibrated = True
@@ -128,7 +136,7 @@ class Spectrum:
         if self.foreground.live_time is None:
             return
         
-        if self.background.live_time is None or self.background is None:
+        if self.background is None or self.background.live_time is None:
             return self.get_foreground(False, True)
 
         data = self.get_foreground(False, True) - self.get_background(False, True)
@@ -141,11 +149,11 @@ class Spectrum:
         self.ROIs[roi_data.tag] = roi_data   
         
     def remove_roi(self, roi_tag):
-        self.ROIs.pop(roi_tag, None)                 
+        self.ROIs.pop(roi_tag, None)           
+        
+    def get_instrument(self):
+        return self.instrument      
     
-    def _dump_state(self):
-        """Export the state of the spectrum as a dict for json format"""
-        return {}
         
         
         
