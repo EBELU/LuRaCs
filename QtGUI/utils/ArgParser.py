@@ -3,7 +3,7 @@ import os
 import asyncio
 from pathlib import Path
 from core import Log, RunManager, SpectrumManager
-from .file_io import xml_io
+from utils.file_io import xml_parser
 from GUI_components.import_export import io_dispatcher
 
 def parse_cli_args():
@@ -74,7 +74,7 @@ def parse_cli_args():
             if path.is_file():
                 if str(path).endswith(".xml") or str(path).endswith(".n42"):
                     parser = io_dispatcher(path)
-                    SpectrumManager.import_spectrum(parser.kwargs)
+                    SpectrumManager.import_spectrum(parser)
     
         
             

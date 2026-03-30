@@ -16,7 +16,6 @@ class Fit:
     upper: float
 
     # Fit parameters
-    fit_type: str # Can be "None" or "Gaussain", possible more in the future
     params: np.array # List of parameters so that it can be fed into the function with *params
     param_errs: np.array # Uncertainties from the optimization
     
@@ -62,6 +61,7 @@ class ROI:
     alias: str # Given name
     roi_bound: tuple # Bounds of this roi
     region_bound: tuple # Bounds of the roi group
+    fit_type: str # Can be "None" or "Gaussain", possible more in the future
     fit: Fit | None # Fitted peak
     roi_counts: float # Counts in the region, just summed
     live_time: float # Saved live time for cps conversion

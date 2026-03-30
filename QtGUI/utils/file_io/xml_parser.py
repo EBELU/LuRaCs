@@ -1,12 +1,11 @@
-from dataclasses import dataclass
-from datetime import datetime, timedelta
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from pathlib import Path
+
+from datetime import datetime
 import numpy as np
 from lxml import etree
-import os
-try:
-    import matplotlib.pyplot as plt
-except:
-    pass
 
 from SpectrumClasses import SpectrumData
 
@@ -60,15 +59,16 @@ def _safe_iso(value: str):
     
 
 
-class ExternalSpectrumParser:
+class xml_parser:
     N42_NS = {'n42': 'http://physics.nist.gov/N42/2011/N42'}
     DHS_NS = {'dhs': 'DHS', **N42_NS}
     LRC_NS = {"lrc": "https://example.com/n42/extensions", **N42_NS}
     
 
-    def __init__(self, path: str):
+    def __init__(self, path: Path, meta_only: bool = False):
         self.path = path
-        self.file_name = os.path.splitext(os.path.basename(path))[0]
+        self.meta_only = meta_only
+        self.file_name = path.stem
         parser = etree.XMLParser(recover=True, remove_comments=True)
         self.tree = etree.parse(path, parser)
         self.root = self.tree.getroot()
@@ -180,17 +180,21 @@ class ExternalSpectrumParser:
             kwargs["calibration"] = [float(x) for x in coeff.split()][::-1]
 
         for meas in self.root.xpath(".//n42:RadMeasurement", namespaces=ns):
+
             code = meas.findtext("n42:MeasurementClassCode", default="", namespaces=ns).lower()
             kind = "foreground" if "foreground" in code else "background"
             spec = meas.find("n42:Spectrum", namespaces=ns)
             if spec is None: continue
+            # For library indexing
+            if self.meta_only:
+                y = np.array([])
+            else:
+                chan = spec.find("n42:ChannelData", namespaces=ns)
+                data = chan.text.strip() if chan is not None else ""
+                y = _parse_array(data)
 
-            chan = spec.find("n42:ChannelData", namespaces=ns)
-            data = chan.text.strip() if chan is not None else ""
-            y = _parse_array(data)
-
-            if chan is not None and chan.get("compressionCode") == "CountedZeroes":
-                y = decompress_counted_zeroes(y)
+                if chan is not None and chan.get("compressionCode") == "CountedZeroes":
+                    y = decompress_counted_zeroes(y)
 
             kwargs[kind] = self._build_spectrum(
                 y,
@@ -205,6 +209,7 @@ class ExternalSpectrumParser:
         lrc = self.root.find("./lrc:LuRaCs", namespaces=self.LRC_NS)
         if lrc is not None:
             kwargs["peaks"] = self.parse_roisV1(lrc)
+
         return kwargs
 
     def parse_roisV1(self, ext_root):

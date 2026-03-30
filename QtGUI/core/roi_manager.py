@@ -128,7 +128,7 @@ def fit_gaussians(x_axis, y_axis, bounds,
         fit_data = Fit(
             region_min, region_max,
             lower, upper,
-            fit_type, fit, err,
+            fit, err,
             bkg_type, bkg_fit,
             G, B, N, peak_counts)
         results.append(fit_data)
@@ -406,13 +406,13 @@ class ROIManager(QObject):
         # If the fitting converged and was requested
         if converged and not fit_type == "None":
             results = [ROI(r.tag, r.alias, tuple(r.getRegion()), (np.min(bounds), np.max(bounds)),
-                            f, # fit
+                            fit_type, f, # fit
                             roi_counts, spectrum.foreground.live_time, # Save live time for CPS conversion
                             {"merge": r.merge, "movable": r.movable, **meta_data}) 
                             for r, f in zip(roi_group, fits)]
         else:
             results = [ROI(r.tag, r.alias, tuple(r.getRegion()), (np.min(bounds), np.max(bounds)),
-                        None, # No fit
+                        fit_type, None, # No fit
                         roi_counts, spectrum.foreground.live_time,  # Save live time for CPS conversion
                         {"merge": r.merge, "movable": r.movable, **meta_data}) 
                         for r in roi_group]
