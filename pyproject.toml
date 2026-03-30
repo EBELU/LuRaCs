@@ -3,9 +3,9 @@ requires = ["setuptools>=65", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "MySpect"
+name = "LuRaCs"
 version = "1.0.0"
-description = "Spectroscopy interface"
+description = "Gamma Spectroscopy Software"
 requires-python = ">=3.10"
 authors = [
     {name = "Erik Ewald"}
@@ -27,3 +27,6 @@ dependencies = [
 [tool.setuptools.packages.find]
 where = ["."]
 exclude = ["tests*"]
+
+[project.scripts]
+LuRaCs = "QtGUI.main:main"
