@@ -2,7 +2,7 @@ from PySide6.QtWidgets import QApplication, QWidget
 from PySide6.QtWidgets import (
     QWidget, QGroupBox, QVBoxLayout, QTableWidget, QTableWidgetItem,
     QSizePolicy, QColorDialog, QFrame, QHBoxLayout, QDialog, QFormLayout, QTextEdit, QComboBox, QLineEdit, QDialogButtonBox,
-    QPushButton, QCheckBox, QDoubleSpinBox, QTabWidget, QAbstractItemView, QMessageBox, QFileDialog
+    QPushButton, QCheckBox, QDoubleSpinBox, QTabWidget, QAbstractItemView, QMessageBox, QFileDialog,
 )
 from PySide6.QtCore import Qt, Signal
 
@@ -194,11 +194,11 @@ class DataLibrary(QDialog):
         self.tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         # Create tab widgets as class members
-        self.spectrum_tab = LibraryTab(self, ["Name", "Date", "Live Time", "Background", "ROIs"])
-        self.roi_tab = QWidget()
+        self.spectrum_tab = SpectrumTab(self)
+        self.roi_tab = ROIsTab(self)
         self.spectrogram_tab = QWidget()
-        self.instruments_tab = QWidget()
-        self.generic_instruments_tab = QWidget()
+        self.instruments_tab = InstrumentsTab(self)
+        self.generic_instruments_tab = GenericInstrumentsTab(self)
 
         # Add tabs in the desired order
         self.tabs.addTab(self.spectrum_tab, "Spectrum Library")
@@ -213,11 +213,10 @@ class DataLibrary(QDialog):
         self.adjustSize()
 
 class LibraryTab(QWidget):
-    def __init__(self, parent, columns):
+    def __init__(self, parent, columns, include_checks = False):
         super().__init__(parent=parent)
 
         self.file_index = {}
-        self.btns = []
         self.path = ""
         
         main_layout = QVBoxLayout(self)
@@ -226,49 +225,66 @@ class LibraryTab(QWidget):
         self.table.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.table.setSelectionMode(QAbstractItemView.ExtendedSelection)
 
-        self.table.reset_table(columns)      
-        
-        
-        main_layout.addWidget(self.table.table)
+        self.table.reset_table(columns)    
+        table_layout = QHBoxLayout()  
+        table_box = QGroupBox()
+                
+        table_layout.addWidget(self.table.table)
+        table_box.setLayout(table_layout)
+        main_layout.addWidget(table_box)
         
         btn_group = QGroupBox()
         self.btn_bar = QHBoxLayout()
 
 
-        close_btn = self.add_button("Close")
-        close_btn.clicked.connect(parent.close)
+        self.btn_close = QPushButton("Close")
+        self.btn_close.clicked.connect(parent.close)
         
-        self.add_button("Load")
-        self.btn_export = self.add_button("Export")
-        self.btn_export.clicked.connect(self.export_selected)
-        self.add_button("Info")
+        self.btn_load = QPushButton("Load")
 
-            
-        self.include_roi_check = QCheckBox("Import ROIs")
+        self.btn_export = QPushButton("Export")
+        self.btn_export.clicked.connect(self.export_selected)
+
+
+        self.btn_info = QPushButton("Info")
+
+
+        self.include_instrument_check = QCheckBox("Load Instrument")
+        self.include_roi_check = QCheckBox("Load ROIs")
+
         
         self.btn_delete = QPushButton("Delete")
-        
-        self.btn_bar.addWidget(self.btn_delete, alignment=Qt.AlignLeft)
-        self.btn_bar.addStretch()
-        self.btn_bar.addWidget(self.include_roi_check)
-        for btn in reversed(self.btns):
-            btn.setMaximumWidth(100)
-            self.btn_bar.addWidget(btn)
-        
+        self.btn_delete.clicked.connect(self.delete_selected)
 
         
+        self.btn_bar.addWidget(self.btn_delete, alignment=Qt.AlignLeft)
+        # After this buttons will be aligned to the right
+        self.btn_bar.addStretch()
+        if include_checks:
+            self.btn_bar.addWidget(self.include_instrument_check)
+            self.btn_bar.addWidget(self.include_roi_check)
+        
+        self.btn_bar.addWidget(self.btn_info)
+        self.btn_bar.addWidget(self.btn_export)
+        self.btn_bar.addWidget(self.btn_load)
+        self.btn_bar.addWidget(self.btn_close)
+
+        # Dont preselect delete
+        self.btn_close.setDefault(True)
+        self.btn_close.setAutoDefault(True)
+
+        for btn in [self.btn_load, self.btn_export, self.btn_info, self.btn_delete]:
+            btn.setAutoDefault(False)
+                
         btn_group.setLayout(self.btn_bar)
         btn_group.setMaximumHeight(70)
         btn_group.setContentsMargins(1, 0, 1, 0) 
         main_layout.addWidget(btn_group)
         
-        
-        self.table.write_row("1", ["Co-60",2])
-        self.table.write_row("2", ["Co-60",2])
-        self.table.write_row("3", ["Co-60",2])
+        # self.run_index()
         
     def _get_selection(self) -> list:
-        rows = [index.row() for index in self.table.table.selectionModel().selectedRows()]
+        rows = [self.table.get_key_from_index(index.row()) for index in self.table.table.selectionModel().selectedRows()]
 
         if len(rows) == 0:
             QMessageBox.warning(self, "Select a row", "Please select an item.")
@@ -278,12 +294,51 @@ class LibraryTab(QWidget):
     
     def export_selected(self):
         selection = self._get_selection()
-        new_path = QFileDialog()
-        if not new_path:
+        if selection is None:
             return
         
+        if len(selection) > 1:
+            folder = QFileDialog.getExistingDirectory(
+                None,
+                "Select or Create Folder"
+            )
+            if folder is None:
+                return
+            
+            for file in selection:
+                shutil.move(file, folder)
+
+        else:
+            new_path = QFileDialog.getOpenFileName(
+                None,
+                "Export Spectrum",
+                str(Path.home()),
+                
+            )
+            if not new_path:
+                return
+            
+            shutil.move(selection[0], new_path)
+
     def delete_selected(self):
-        pass
+        selection = self._get_selection()
+        if selection is None:
+            return
+        reply = QMessageBox.question(
+            None,
+            "Question",
+            f"Do you want to delete {len(selection)} selected items?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+
+        if reply == QMessageBox.Yes:
+            for file in selection:
+                os.remove(file)
+            # self.run_index()
+    
+    def show_info(self):
+        raise NotImplementedError("Info button not implemented")
+            
     
     def run_index(self):
         raise NotImplementedError("run_index not implemented")
@@ -291,15 +346,26 @@ class LibraryTab(QWidget):
         for file in glob("**.xml", self.path):
             pass
         
-    def add_button(self, text, **kwargs):
-        "Helper function"
-        new_btn = QPushButton(text)
-        self.btns.append(new_btn)
-        return new_btn
-         
-    
+class SpectrumTab(LibraryTab):
+    def __init__(self, parent):
+        super().__init__(parent, ["Name", "Date", "Live Time", "Background", "ROIs", "Instrument"], True)
+
+class ROIsTab(LibraryTab):
+    def __init__(self, parent):
+        super().__init__(parent, ["Name", "ROIs", "Regions"])
+
+class InstrumentsTab(LibraryTab):
+    def __init__(self, parent):
+        super().__init__(parent, ["Name", "Type", "Calibration", "Resolution", "Efficiency", "Response Matrix"])
+        self.btn_load.setText("New")
+
         
-        
+
+class GenericInstrumentsTab(LibraryTab):
+    def __init__(self, parent):
+        super().__init__(parent, ["Type", "Resolution", "Efficiency", "Response Matrix"])
+        self.btn_load.setText("New")
+
 app = QApplication.instance() or QApplication(sys.argv)
 
 

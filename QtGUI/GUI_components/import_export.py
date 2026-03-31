@@ -6,24 +6,6 @@ from PySide6.QtCore import QObject, Signal
 import utils.file_io as file_io
 from core import SpectrumManager
 
-def io_dispatcher(file_name: Path | str):
-    if isinstance(file_name, Path):
-        pass
-    elif isinstance(file_name, str):
-        file_name = Path(file_name)
-    else:
-        raise ValueError(f"Unknown path type {type(file_name)}")
-    
-    if file_name.suffix in (".xml", ".n42"):
-        try: 
-            parsed = file_io.xml_parser(file_name)
-        except Exception as e:
-            print("Failed to parse XML file {file_name}, exeption raised {e}")
-            return
-        
-        return parsed.kwargs
-
-
 
 class FileDialogs(QObject):
     sigImportSpectrum = Signal(dict)
@@ -80,7 +62,7 @@ class FileDialogs(QObject):
         # --- Spectrum Import ---
         if selected_filter == self.import_filters["spectrum"]:
             for file_path in file_paths:
-                spectrum_kwargs = io_dispatcher(file_path)
+                spectrum_kwargs = file_io.io_dispatcher(file_path)
                 if spectrum_kwargs is not None:
                     self.sigImportSpectrum.emit(spectrum_kwargs)
 
@@ -100,7 +82,7 @@ class FileDialogs(QObject):
         else:
             return
         
-        spectrum_kwargs = io_dispatcher(file_path)
+        spectrum_kwargs = file_io.io_dispatcher(file_path)
         if spectrum_kwargs is not None:
             self.sigImportSpectrumAsBackground.emit(spectrum_kwargs)
         

@@ -37,7 +37,8 @@ a = Analysis(
         'setuptools',
         'Cython',
         'llvmlite',
-        'pandas'
+        'pandas',
+        'PyQt6'
     ],
     noarchive=False,
     optimize=0,

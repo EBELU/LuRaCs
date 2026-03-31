@@ -8,6 +8,7 @@ import numpy as np
 from lxml import etree
 
 from SpectrumClasses import SpectrumData
+from ROIClasses import ROI, Fit
 
 
 # --- Helper Functions ---
@@ -56,7 +57,12 @@ def _parse_array(text: str):
 
 def _safe_iso(value: str):
     return datetime.fromisoformat(value) if value else None
-    
+
+def _build_roi(general_kwargs: dict, fit_kwargs: dict):
+    if fit_kwargs is not None:
+        Fit(fit_kwargs.get("")
+
+        )
 
 
 class xml_parser:
