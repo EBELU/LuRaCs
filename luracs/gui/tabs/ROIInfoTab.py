@@ -163,6 +163,8 @@ class RoiInfoDialog(QDialog):
                 f"Region Bound: {roi.region_bound}",
                 f"ROI Counts: {fmt(roi.roi_counts)}",
                 f"Live Time: {fmt(roi.live_time)}",
+                f"Background Type: {roi.bkg_type}",
+                f"Fit Type: {roi.fit_type}",
                 f"Meta: {roi.meta}",
             ])
 
@@ -173,7 +175,6 @@ class RoiInfoDialog(QDialog):
                 lines.extend([
                     "",
                     "-- Fit Info --",
-                    f"Fit Type: {f.fit_type}",
                     f"Region: [{fmt(f.region_lower)}, {fmt(f.region_upper)}]",
                     f"Bounds: [{fmt(f.lower)}, {fmt(f.upper)}]",
                     f"Params: {f.params}",
@@ -184,7 +185,6 @@ class RoiInfoDialog(QDialog):
                     f"sigma = {fmt(f.sigma)} ± {fmt(f.sigma_err)}",
                     f"FWHM = {fmt(f.fwhm)} ± {fmt(f.fwhm_err)}",
                     "",
-                    f"Background Type: {f.bkg_type}",
                     f"Background Params: {f.bkg_params}",
                     "",
                     f"G = {fmt(f.G)}",
@@ -282,22 +282,34 @@ class ROIInfoTab(QWidget):
 
 
     def update_combo(self):
-        """Rebuild combo safely without recursive signals."""
+        """Rebuild combo safely without recursive signals and preserve selection."""
         self.combo.blockSignals(True)
-        self.combo.clear()
 
+        # Remember current text
+        current_text = self.combo.currentText()
+
+        self.combo.clear()
+        
+        items = []
         if self.combo_show_spectrum:
-            for key in SpectrumManager.get_spectra_dict().keys():
-                self.combo.addItem(key)
+            items = list(SpectrumManager.get_spectra_dict().keys())
         else:
-            for roi in SpectrumManager.ROIManager.ROIs.values():
-                self.combo.addItem(roi.alias)
+            items = [roi.alias for roi in SpectrumManager.ROIManager.ROIs.values()]
+
+        self.combo.addItems(items)
+
+        # Restore selection if it still exists
+        if current_text in items:
+            index = items.index(current_text)
+            self.combo.setCurrentIndex(index)
+        elif items:
+            self.combo.setCurrentIndex(0)  # default to first if previous missing
 
         self.combo.blockSignals(False)
 
-        # Trigger table update manually if items exist
+        # Trigger table update manually
         if self.combo.count() > 0:
-            self._on_combo_changed(self.combo.currentIndex())
+            self._on_combo_changed(self.combo.currentIndex())               
 
 
     def _on_combo_changed(self, index: int):
@@ -385,12 +397,14 @@ class ROIInfoTab(QWidget):
         self.table.write_row(tag, row)
         
     
-    def recieve_roi(self, roi_tag, spectrum_name, roi):        
+    def recieve_roi(self, roi_tag, spectrum_name, roi):
         if self.combo_show_spectrum:
-            self._put_roi(roi_tag, roi)
-        
-        else:
-            self._put_roi(spectrum_name, roi)
+            if spectrum_name not in [self.combo.itemText(i) for i in range(self.combo.count())]:
+                self.update_combo()
+                
+        if spectrum_name != self.combo.currentText() and self.combo.currentText() != "":
+            return
+        self._put_roi(roi_tag, roi)
                 
         if not self.table.has_been_set:
             self.update_combo()

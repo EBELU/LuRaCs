@@ -8,8 +8,6 @@ from core import SpectrumManager, Settings
 
 from SpectrumClasses import Spectrum
 
-from .popup_windows.roi_editor import ROIEditor
-
 from utils.numerics import multi_gaussian
 
 class EmittedSignals(QObject):
@@ -23,47 +21,6 @@ class EmittedSignals(QObject):
         super().__init__(parent)
         
 
-
-class DeletableROI(pg.LinearRegionItem):
-    """Visual ROI selector modified to have a 'tag' and can be deleted by right clicking"""
-    sigDeleteRequested = Signal(str) 
-
-    def __init__(
-        self,
-        tag: str,
-        region,
-        alias = None,
-        fit_type = "Gaussian",
-        bkg_type = "Linear",
-        merge = True,
-        poisson_weights = False,
-        movable = True,
-        
-    ):
-        super().__init__(
-            values=region,
-            orientation="vertical",
-            movable=movable
-        )
-        self.tag = tag
-        self.merge = merge
-        self.perform_fit = True
-        self.alias = alias if alias else tag
-        self.fit_type = fit_type
-        self.bkg_type = bkg_type
-        self.poisson_weights = poisson_weights
-
-        self.setToolTip(f"ROI: {self.tag}\nRight-click to delete")
-
-    def mouseClickEvent(self, ev):
-        if ev.button() == Qt.RightButton:
-            ev.accept()
-            w = ROIEditor(self.alias, *self.getRegion(), self.fit_type, self.bkg_type, self.merge, self.poisson_weights, self.movable)
-            w.exec()
-            print(w.get_values())
-            self.sigDeleteRequested.emit(self.tag)
-        else:
-            super().mouseClickEvent(ev)
 
 
 class SpectrumPlot(QWidget):
@@ -488,7 +445,7 @@ class SpectrumPlot(QWidget):
         
         # --- Calculate values for lines ---
         x = spectrum.x_axis[(roi_fit.fit.region_lower < spectrum.x_axis) & (spectrum.x_axis < roi_fit.fit.region_upper)]
-        lin = np.polyval(roi_fit.fit.bkg_params, x) if roi_fit.fit.bkg_type != "None" else np.zeros_like(x)
+        lin = np.polyval(roi_fit.fit.bkg_params, x) if roi_fit.bkg_type != "None" else np.zeros_like(x)
         gaussian = multi_gaussian(x, roi_fit.fit.params) + lin
         
         if self.cps and spectrum.foreground.live_time is not None:

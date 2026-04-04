@@ -20,28 +20,29 @@ from PySide6.QtCore import QTimer
 
 print_progress("Loading GUI", 0)
 
-from GUI_components import (MainMenuBar, 
+from gui import (MainMenuBar, 
                             SpectrumPlot, 
-                            SpectrogramWidget)
+                            SpectrogramWidget,
+                            DataLibrary)
 
 print_progress("Loading GUI", 2)
 
-from GUI_components.tabs import(ROIInfoTab,
+from gui.tabs import(ROIInfoTab,
                                 SpectrumInfoTab,
                                 LogWidget,
                                 DevicesInfoTab,
                                 CurrentValuesPlot)
 
 print_progress("Loading utils", 5)
-from GUI_components.import_export import FileDialogs
+from gui.import_export import FileDialogs
 from ThemeManager import ThemeManager
 from utils.ArgParser import parse_cli_args
 from utils.startup import startup_script
 
 from core import RunManager, Log, Settings, GuiServices, GuiServicesKeys, SpectrumManager
 
-from GUI_components.popup_windows.BluetoothListPopup import BluetoothListPopup
-from GUI_components.popup_windows.USBListPopup import USBListPopup
+from gui.popup_windows.BluetoothListPopup import BluetoothListPopup
+from gui.popup_windows.USBListPopup import USBListPopup
 
 from PySide6.QtWidgets import QApplication
 
@@ -65,6 +66,8 @@ class MainWindow(QMainWindow):
         
         self.usb_window = USBListPopup()
         self.file_import_export = FileDialogs(self)
+        print_progress("Indexing Data Store", 8)
+        self.data_store = DataLibrary("Data Store", self)
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -126,7 +129,7 @@ class MainWindow(QMainWindow):
         if len(sys.argv) > 1:
             QTimer.singleShot(0, parse_cli_args)
         
-        # QTimer.singleShot(1000, lambda : SpectrumManager.ROIManager.add_roi())
+        # QTimer.singleShot(0, lambda : self.data_store.show())
             
         print_progress("Main window loaded", 9)
     def closeEvent(self, event: QCloseEvent):

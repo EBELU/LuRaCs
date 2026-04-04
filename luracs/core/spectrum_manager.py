@@ -209,6 +209,9 @@ class SpectrumManagerBase(QObject):
     
     # --- IO ---
     def import_spectrum(self, data_dict: dict):
+        if not "foreground" in data_dict:
+            gui_logger.warning(f"File contains no spectrum")
+            return
         self.create_spectrum(data_dict["name"], data_dict["foreground"].channels)
         self.set_foreground_spectrum(data_dict["name"], data_dict["foreground"])
         
@@ -221,7 +224,20 @@ class SpectrumManagerBase(QObject):
         if "rois" in data_dict:
             for roi in data_dict["rois"]:
                 self.ROIManager.add_roi(roi["bounds"][0], roi["bounds"][1])
+        
+        if "peaks" in data_dict:
+            for peak in data_dict["peaks"]:
+                extented_kwargs = {"alias": peak.alias,
+                                   "fit_type": peak.fit_type,
+                                   "bkg_type": peak.bkg_type,
+                                   **peak.meta}
+                
+                self.ROIManager.add_roi(*peak.roi_bound, **extented_kwargs)
+                
     def import_spectrum_as_background(self, spectrum_name: str, data_dict: dict):
+        if not "foreground" in data_dict:
+            gui_logger.warning(f"File contains no spectrum")
+            return
         self.set_background_spectrum(spectrum_name, data_dict["foreground"])
                 
     

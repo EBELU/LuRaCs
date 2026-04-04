@@ -6,6 +6,8 @@ import asyncio
 
 from core import RunManager, Settings
 
+from .import_export import export_roi_references
+
 @dataclass
 class MenuActions:
     """Optional container for menu-related callbacks."""
@@ -27,12 +29,13 @@ class MainMenuBar(QMenuBar):
         file_menu = self.addMenu("&File")
         file_menu_import = file_menu.addAction("Import Spectrum")
         file_menu_import.triggered.connect(lambda :self.parent.file_import_export.import_generic())
-        file_load = file_menu.addAction("Load Spectrum From Library")
+        file_load = file_menu.addAction("Data Store")
+        file_load.triggered.connect(lambda : parent.data_store.show())
         spectrum_export_menu = file_menu.addMenu("&Bulk Export Spectra")
         spectrum_export__menu_csv = spectrum_export_menu.addAction("csv")
         spectrum_export__menu_xml = spectrum_export_menu.addAction("xml")
-        file_menu_exportRoi = file_menu.addAction("Export ROIs")
-        file_menu_importRoi = file_menu.addAction("Import ROIs")
+        file_menu_saveRoi = file_menu.addAction("Save reference ROIs")
+        file_menu_saveRoi.triggered.connect(lambda :export_roi_references())
         exit_action = file_menu.addAction("Exit")
         exit_action.triggered.connect(self.on_exit)
 

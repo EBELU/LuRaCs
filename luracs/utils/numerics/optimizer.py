@@ -43,7 +43,7 @@ def curve_fit(
     lam=1e-3
 ):
     """
-    Levenberg–Marquardt optimizer with flexible weighting.
+    Levenberg-Marquardt optimizer with flexible weighting.
 
     Parameters
     ----------

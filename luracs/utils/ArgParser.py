@@ -4,11 +4,11 @@ import asyncio
 from pathlib import Path
 from core import Log, RunManager, SpectrumManager
 from utils.file_io import xml_parser
-from GUI_components.import_export import io_dispatcher
+from utils.file_io import io_dispatcher
 
 def parse_cli_args():
     parser = argparse.ArgumentParser(
-        description="""LuRaCs -- Lund Radioactivity analysis Computer software"""
+        description="""LuRaCs -- Lund Radiation analysis Computer software"""
 
     )
 
@@ -30,9 +30,15 @@ def parse_cli_args():
     )
 
     parser.add_argument(
-        "-roi",
+        "--import_rois",
         type=str,
         help="Load ROI from an xml file"
+    )
+    
+    parser.add_argument(
+        "-roi",
+        nargs=2, type=float, 
+        action="append"
     )
     
     parser.add_argument(
@@ -74,7 +80,11 @@ def parse_cli_args():
             if path.is_file():
                 if str(path).endswith(".xml") or str(path).endswith(".n42"):
                     parser = io_dispatcher(path)
-                    SpectrumManager.import_spectrum(parser)
+                    SpectrumManager.import_spectrum(parser.data)
+                    
+    if args.roi:
+        for roi_bounds in args.roi:
+            SpectrumManager.ROIManager.add_roi(roi_bounds[0], roi_bounds[1])
     
         
             

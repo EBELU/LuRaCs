@@ -1,10 +1,13 @@
 from pathlib import Path
 
-from PySide6.QtWidgets import QFileDialog
+from PySide6.QtWidgets import QFileDialog, QMessageBox
 from PySide6.QtCore import QObject, Signal
 
 import utils.file_io as file_io
-from core import SpectrumManager
+from core import SpectrumManager, Settings
+from ROIClasses import ROI
+from SpectrumClasses import Spectrum
+from .popup_windows.save_dialog import SaveNamingDialog
 
 
 class FileDialogs(QObject):
@@ -62,9 +65,9 @@ class FileDialogs(QObject):
         # --- Spectrum Import ---
         if selected_filter == self.import_filters["spectrum"]:
             for file_path in file_paths:
-                spectrum_kwargs = file_io.io_dispatcher(file_path)
-                if spectrum_kwargs is not None:
-                    self.sigImportSpectrum.emit(spectrum_kwargs)
+                spectrum_parser = file_io.io_dispatcher(file_path)
+                if spectrum_parser is not None:
+                    self.sigImportSpectrum.emit(spectrum_parser.data)
 
     def import_spectrum(self, _=None):
         file_paths = self.import_generic(self.import_filters["spectrum"])
@@ -82,9 +85,9 @@ class FileDialogs(QObject):
         else:
             return
         
-        spectrum_kwargs = file_io.io_dispatcher(file_path)
-        if spectrum_kwargs is not None:
-            self.sigImportSpectrumAsBackground.emit(spectrum_kwargs)
+        spectrum_parser = file_io.io_dispatcher(file_path)
+        if spectrum_parser is not None:
+            self.sigImportSpectrumAsBackground.emit(spectrum_parser.data)
         
         
 
@@ -101,7 +104,7 @@ class FileDialogs(QObject):
         if not file_path:
             return None
 
-        file_path = Path(file_path)
+        file_path = Path(file_path).with_suffix("")
         if file_path is None:
             raise RuntimeWarning(f"Invalid file path {file_path}")
         spectrum = SpectrumManager.get_spectrum(spectrum_name)
@@ -112,8 +115,44 @@ class FileDialogs(QObject):
             file_io.export_csv(spectrum, str(file_path))
      
 
-
+def export_roi_references():
+    "Export reference rois for the library to be loaded on any spectrum"
+    save_diag = SaveNamingDialog()
+    res = save_diag.exec()
+    
+    if res == SaveNamingDialog.Accepted:
+        new_file = Settings.Paths.roi_library / str(save_diag.get_name())
+        
+        # Check if the file already exists
+        if new_file.exists():
+            reply = QMessageBox.question(
+                None,
+                "Overwrite File?",
+                f"The file '{new_file.name}' already exists. Do you want to overwrite it?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
             
+            if reply == QMessageBox.No:
+                return 
+    
+    else:
+        return
+    
+    # I can be bothered to change the functional writer, just hack it
+    # Create a dummy spectrum, only give it rois and the export it using the normal xml_writer
+    dummy_spectrum = Spectrum(1, "Dummy")    
+    
+    for r in SpectrumManager.ROIManager.ROIs.values():
+        # Same as for the spectrum, make a dummy ROI
+        dummy_roi = ROI(r.tag, r.alias, r.getRegion(), (None, None), r.fit_type, r.bkg_type, None, 0, 1,
+                    {"movable": r.movable, "poisson_weights": r.poisson_weights, "merge": r.merge})
+        
+        dummy_spectrum.set_roi(dummy_roi)
+        
+    file_io.xml_writer(dummy_spectrum, new_file, export_spectrum=False, export_instrument=False)
+
+        
 
 
 

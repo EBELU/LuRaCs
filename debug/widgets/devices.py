@@ -349,6 +349,10 @@ class LibraryTab(QWidget):
 class SpectrumTab(LibraryTab):
     def __init__(self, parent):
         super().__init__(parent, ["Name", "Date", "Live Time", "Background", "ROIs", "Instrument"], True)
+        
+    def run_index(self):
+        for file in glob(Path("/home/eewa/**.xml"), self.path):
+            pass
 
 class ROIsTab(LibraryTab):
     def __init__(self, parent):
@@ -358,8 +362,6 @@ class InstrumentsTab(LibraryTab):
     def __init__(self, parent):
         super().__init__(parent, ["Name", "Type", "Calibration", "Resolution", "Efficiency", "Response Matrix"])
         self.btn_load.setText("New")
-
-        
 
 class GenericInstrumentsTab(LibraryTab):
     def __init__(self, parent):

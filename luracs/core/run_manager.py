@@ -1,3 +1,9 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from SpectrumClasses import Spectrum
+    from utils.DataLogging import SpectrumLogger
+    
 import asyncio
 from pathlib import Path
 from copy import deepcopy
@@ -10,6 +16,7 @@ from .settings import Settings
 from bleak import BleakScanner
 import sys
 from pathlib import Path
+import time
 import os
 import ctypes
 
@@ -109,53 +116,64 @@ class RunManagerBase(QObject):
         
         self.channel_table = {"raysid": 1800, "radiacode": 1024}
     
-        self.dataloggers: dict[str, "SpectrumLogger"] = {}
+        self.dataloggers: dict[str, SpectrumLogger] = {}
         
         
     def set_loop(self, loop):
         self.event_loop = loop
 
     async def _poll_loop(self):
-        spectrum_skip = deepcopy(Settings.Advanced.update_loop_delay)
+        update_delay = Settings.Advanced.update_loop_delay
+        spectrum_delay = Settings.Advanced.spectrum_update_delay
+
+        next_loop_time = time.monotonic()
+        next_spectrum_time = time.monotonic()
+
         try:
             while self._polling:
+                now = time.monotonic()
+
                 for name, client in list(self.devices.items()):
-                    ## === Check the state of connected devices === ##
                     # --- Remove stopped clients ---
                     if client.is_stopped:
                         self.devices.pop(name)
                         continue
-                    
-                    # --- Check if something has crashed ---
+
+                    # --- Check crash ---
                     if not client.is_running and not client.is_stopped:
                         client.set_state(DeviceWrapper.DeviceState.ERROR)
                         continue
-                    
-                    ## === Get data === ##
-                    # --- Get spectrum ---
-                    if spectrum_skip >= Settings.Advanced.spectrum_update_delay:
+
+                    # --- Spectrum (time-based, not loop-based) ---
+                    if now >= next_spectrum_time:
                         spectrum = client.get_Spectrum()
                         if spectrum is not None:
                             self.spectrumUpdated.emit(name, spectrum)
-                    
-                    # --- Get realtime CPS and DR ---
+
+                    # --- Realtime ---
                     realtime = client.get_RealTimeData()
                     if realtime is not None:
                         self.currentUpdated.emit(name, realtime)
-                    
-                    # --- Get device status info ---
+
+                    # --- Status ---
                     status = client.get_Status()
                     if status is not None:
                         self.statusUpdated.emit(name, status)
-                
-                # Increment if spectrum is to be skipped this iteration
-                if spectrum_skip >= Settings.Advanced.spectrum_update_delay:      
-                    spectrum_skip = deepcopy(Settings.Advanced.update_loop_delay)
-                else:
-                    spectrum_skip += Settings.Advanced.update_loop_delay
-                        
 
-                await asyncio.sleep(Settings.Advanced.update_loop_delay)
+                # Schedule next spectrum update
+                if now >= next_spectrum_time:
+                    next_spectrum_time += spectrum_delay
+
+                # Schedule next loop iteration
+                next_loop_time += update_delay
+                sleep_time = next_loop_time - time.monotonic()
+
+                if sleep_time > 0:
+                    await asyncio.sleep(sleep_time)
+                else:
+                    # Were behind -> resync to avoid spiral of death
+                    next_loop_time = time.monotonic()
+
         except asyncio.CancelledError:
             raise
         except Exception as e:

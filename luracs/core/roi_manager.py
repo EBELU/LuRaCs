@@ -55,6 +55,8 @@ def fit_gaussians(x_axis, y_axis, bounds,
         p0.extend([A0, mu0, s0])
         
     p0s = np.array(p0)
+    if np.any(p0s < 1e-8):
+        return None, False
         
     # --- Fit the background as a polynomial ---
     if bkg_type != "None":
@@ -129,7 +131,7 @@ def fit_gaussians(x_axis, y_axis, bounds,
             region_min, region_max,
             lower, upper,
             fit, err,
-            bkg_type, bkg_fit,
+            bkg_fit,
             G, B, N, peak_counts)
         results.append(fit_data)
     
@@ -381,6 +383,8 @@ class ROIManager(QObject):
                 
                 
     def eval_roi(self, spectrum: Spectrum , roi_group):
+        if spectrum.foreground is None: # Sometimes a spectrum is loaded to fast
+            return
         "Perform all calculations needed for evaluating a roi"
         roi_group = [self.ROIs[k] for k in roi_group] # Change from keys to rois
         bounds = [list(r.getRegion()) for r in roi_group]
@@ -389,35 +393,42 @@ class ROIManager(QObject):
         fit_type = roi_group[0].fit_type
         bkg_type = roi_group[0].bkg_type
         poission_weights = roi_group[0].poisson_weights
-
-        # Perform the fit (maybe)
+        
+        
+        # --- Perform the fit (maybe) ---
         y_axis = spectrum.get_foreground() if not self.spectrum_is_bkg_sub else spectrum.get_bkg_sub()
-        fits, converged = fit_gaussians(spectrum.x_axis, y_axis, bounds, fit_type,
-                                        poission_weights, Settings.Advanced.optimizer_use_chi2_weight, bkg_type, 5)
+        
+         # Determine the counts in the selected region, independent of the fit
+        def get_roi_counts(lower, upper):
+            return np.sum(y_axis[(lower < spectrum.x_axis) & (spectrum.x_axis < upper)])
+        if np.sum(get_roi_counts(np.min(bounds), np.max(bounds))) > 32:
+            with np.errstate(over='ignore'):
+                fits, converged = fit_gaussians(spectrum.x_axis, y_axis, bounds, fit_type,
+                                                poission_weights, Settings.Advanced.optimizer_use_chi2_weight, bkg_type, 5)
+        else:
+            fits, converged = None, False
         
 
         meta_data = {"background_subtracted": self.spectrum_is_bkg_sub, 
                      "spectrum_name": spectrum.name,
-                     "chi2_weight": Settings.Advanced.optimizer_use_chi2_weight}
+                     "chi2_weighted_err": Settings.Advanced.optimizer_use_chi2_weight}
         
-        # Determine the counts in the selected region, independent of the fit
-        roi_counts = np.sum(y_axis[(np.min(bounds) < spectrum.x_axis) & (spectrum.x_axis < np.max(bounds))])
+
         
         # If the fitting converged and was requested
         if converged and not fit_type == "None":
             results = [ROI(r.tag, r.alias, tuple(r.getRegion()), (np.min(bounds), np.max(bounds)),
-                            fit_type, f, # fit
-                            roi_counts, spectrum.foreground.live_time, # Save live time for CPS conversion
+                            fit_type, bkg_type, f, # fit
+                            get_roi_counts(r.getRegion()[0], r.getRegion()[1]), spectrum.foreground.live_time, # Save live time for CPS conversion
                             {"merge": r.merge, "movable": r.movable, **meta_data}) 
                             for r, f in zip(roi_group, fits)]
         else:
             results = [ROI(r.tag, r.alias, tuple(r.getRegion()), (np.min(bounds), np.max(bounds)),
-                        fit_type, None, # No fit
-                        roi_counts, spectrum.foreground.live_time,  # Save live time for CPS conversion
-                        {"merge": r.merge, "movable": r.movable, **meta_data}) 
+                        fit_type, bkg_type, None, # No fit
+                        get_roi_counts(r.getRegion()[0], r.getRegion()[1]), spectrum.foreground.live_time,  # Save live time for CPS conversion
+                        {"merge": r.merge, "movable": r.movable, "poisson_weights": r.poisson_weights,**meta_data}) 
                         for r in roi_group]
             
         for roi in results:
             spectrum.set_roi(roi) # Give the calculation results to the spectrum
             self.sigROIUpdated.emit(roi.tag, spectrum.name, roi)
-    
