@@ -2,42 +2,31 @@
 ## Program structure
 
 ## Core
-- [ ] Restructure inclusion of tabs in a seperate file
-- [ ] Clean up main
-- [ ] Fix RunManager
-- [ ] Settings
-  - [ ] Load and dump json files
-  - [ ] Apperance
-  - [ ] Program state
-## Gamma tools
+- [ ] Handle instuments, a spectrum can have an instrument attached, data from this instrument is used for calculations
+- [ ] Mapping
 
+## Gamma tools
 - [ ] Radionuclides
   - [ ] Plot lines in the spectrumplot based on yield
-  - [ ] Radionuclide data should be hardcoded in a .py file, not loaded
-- [ ] Implement basic ufloat to avoid the uncertainties dependency
+  - [ ] Nuclide and photopeak is selectable in the roi editor
 - [ ] Calibration
-- [ ] Activity Calculation
 - [ ] Photopeak
 - [ ] Efficiency
 
 ## File IO
-- [ ] XML/n42
+- [ ] complete the data store
+- [ ] XML/n42, rebuild?
 - [ ] csv (export)
 - [ ] spe (read)
 - [ ] tke (read)
-- [ ] rois, use json format
+- [ ] extend xml io to handle instrument data
+- [ ] provide tools that can imported into an external file to parse files
 
 ## Time based measurements (low prio)
-- [ ] Doserate and CPS log (sqlite3)
-- [ ] Spectrum log (sqlite3)
-- [ ] Waterfall diagram
 - [ ] review tools
 - [ ] Fixed length measurement
 
 
 ## Known issues
 
-- Theme looks bad on windows
-- PyUSB drivers work poorly on windows
 - Current values are not removed with device
-- Spectrum and current values are not synced
