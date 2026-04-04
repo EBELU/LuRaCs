@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "LuRaCs"
-version = "1.0.0"
+version = "0.0.0 - alpha"
 description = "Gamma Spectroscopy Software"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.14"
 authors = [
     {name = "Erik Ewald"}
 ]
@@ -30,4 +30,4 @@ where = ["."]
 exclude = ["tests*"]
 
 [project.scripts]
-LuRaCs = "QtGUI.main:main"
+LuRaCs = "luracs.main:main"
