@@ -21,7 +21,8 @@ dependencies = [
     "openpyxl>=3.0.0",
     "pyusb>=1.0.2",
     "lxml>=4.6.0",
-    "libusb_package"
+    "libusb_package",
+    "uncertainties",
 ]
 
 [tool.setuptools.packages.find]
