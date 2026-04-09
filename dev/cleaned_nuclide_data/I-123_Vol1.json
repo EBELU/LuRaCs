@@ -1,0 +1,75 @@
+{
+    "Nuclide": "I-123",
+    "Element": "Iodine",
+    "Z": "53",
+    "Daughters": [
+        [
+            "Te-123",
+            100.0
+        ]
+    ],
+    "Parents": [
+        [
+            "Xe-123",
+            100.0
+        ]
+    ],
+    "Half-life (s)": [
+        47604.0,
+        13.0
+    ],
+    "Specific activity (Bq/g)": [
+        7.129e+16,
+        20000000000000.0
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 27.202,
+            "Energy error (keV)": -1,
+            "I (%)": 24.69,
+            "I error (%)": 0.2,
+            "Type": "x-ray",
+            "Origin": "Te-123"
+        },
+        {
+            "Energy (keV)": 27.4726,
+            "Energy error (keV)": -1,
+            "I (%)": 45.98,
+            "I error (%)": 0.29,
+            "Type": "x-ray",
+            "Origin": "Te-123"
+        },
+        {
+            "Energy (keV)": 31.1044,
+            "Energy error (keV)": -1,
+            "I (%)": 13.16,
+            "I error (%)": 0.17,
+            "Type": "x-ray",
+            "Origin": "Te-123"
+        },
+        {
+            "Energy (keV)": 31.7623,
+            "Energy error (keV)": -1,
+            "I (%)": 2.86,
+            "I error (%)": 0.08,
+            "Type": "x-ray",
+            "Origin": "Te-123"
+        },
+        {
+            "Energy (keV)": 158.97,
+            "Energy error (keV)": 0.05,
+            "I (%)": 83.25,
+            "I error (%)": 0.21,
+            "Type": "g",
+            "Origin": "Te-123"
+        },
+        {
+            "Energy (keV)": 528.96,
+            "Energy error (keV)": 0.05,
+            "I (%)": 1.28,
+            "I error (%)": 0.12,
+            "Type": "g",
+            "Origin": "Te-123"
+        }
+    ]
+}

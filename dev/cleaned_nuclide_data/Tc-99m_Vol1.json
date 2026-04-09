@@ -1,0 +1,41 @@
+{
+    "Nuclide": "Tc-99m",
+    "Element": "Technetium",
+    "Z": "43",
+    "Daughters": [
+        [
+            "Tc-99",
+            100.0
+        ],
+        [
+            "Ru-99",
+            0.004
+        ]
+    ],
+    "Half-life (s)": [
+        21624.1,
+        3.6
+    ],
+    "Specific activity (Bq/g)": [
+        1.94986e+17,
+        32000000000000.0
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 20.669,
+            "Energy error (keV)": -1,
+            "I (%)": 1.12,
+            "I error (%)": 0.04,
+            "Type": "x-ray",
+            "Origin": "Tc-99"
+        },
+        {
+            "Energy (keV)": 140.511,
+            "Energy error (keV)": 0.001,
+            "I (%)": 88.5,
+            "I error (%)": 0.2,
+            "Type": "g",
+            "Origin": "Tc-99"
+        }
+    ]
+}

@@ -1,0 +1,95 @@
+{
+    "Nuclide": "Cs-134",
+    "Element": "Cesium",
+    "Z": "55",
+    "Daughters": [
+        [
+            "Xe-134",
+            0.0003
+        ],
+        [
+            "Ba-134",
+            99.9997
+        ]
+    ],
+    "Parents": [
+        [
+            "Cs-134m",
+            100.0
+        ]
+    ],
+    "Half-life (s)": [
+        65146000.0,
+        44000.0
+    ],
+    "Specific activity (Bq/g)": [
+        47817000000000.0,
+        32000000000.0
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 475.365,
+            "Energy error (keV)": 0.002,
+            "I (%)": 1.479,
+            "I error (%)": 0.007,
+            "Type": "g",
+            "Origin": "Ba-134"
+        },
+        {
+            "Energy (keV)": 563.246,
+            "Energy error (keV)": 0.003,
+            "I (%)": 8.342,
+            "I error (%)": 0.015,
+            "Type": "g",
+            "Origin": "Ba-134"
+        },
+        {
+            "Energy (keV)": 569.33,
+            "Energy error (keV)": 0.002,
+            "I (%)": 15.368,
+            "I error (%)": 0.021,
+            "Type": "g",
+            "Origin": "Ba-134"
+        },
+        {
+            "Energy (keV)": 604.72,
+            "Energy error (keV)": 0.003,
+            "I (%)": 97.63,
+            "I error (%)": 0.08,
+            "Type": "g",
+            "Origin": "Ba-134"
+        },
+        {
+            "Energy (keV)": 795.86,
+            "Energy error (keV)": 0.01,
+            "I (%)": 85.47,
+            "I error (%)": 0.09,
+            "Type": "g",
+            "Origin": "Ba-134"
+        },
+        {
+            "Energy (keV)": 801.95,
+            "Energy error (keV)": 0.006,
+            "I (%)": 8.694,
+            "I error (%)": 0.016,
+            "Type": "g",
+            "Origin": "Ba-134"
+        },
+        {
+            "Energy (keV)": 1167.967,
+            "Energy error (keV)": 0.004,
+            "I (%)": 1.791,
+            "I error (%)": 0.005,
+            "Type": "g",
+            "Origin": "Ba-134"
+        },
+        {
+            "Energy (keV)": 1365.194,
+            "Energy error (keV)": 0.004,
+            "I (%)": 3.019,
+            "I error (%)": 0.008,
+            "Type": "g",
+            "Origin": "Ba-134"
+        }
+    ]
+}

@@ -1,0 +1,43 @@
+{
+    "Nuclide": "Co-57",
+    "Element": "Cobalt",
+    "Z": "27",
+    "Daughters": [
+        [
+            "Fe-57",
+            100.0
+        ]
+    ],
+    "Parents": [
+        [
+            "Ni-57",
+            100.0
+        ]
+    ],
+    "Half-life (s)": [
+        23484400.0,
+        3500.0
+    ],
+    "Specific activity (Bq/g)": [
+        311833000000000.0,
+        46000000000.0
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 122.06065,
+            "Energy error (keV)": 0.00012,
+            "I (%)": 85.49,
+            "I error (%)": 0.14,
+            "Type": "g",
+            "Origin": "Fe-57"
+        },
+        {
+            "Energy (keV)": 136.47356,
+            "Energy error (keV)": 0.00029,
+            "I (%)": 10.71,
+            "I error (%)": 0.15,
+            "Type": "g",
+            "Origin": "Fe-57"
+        }
+    ]
+}

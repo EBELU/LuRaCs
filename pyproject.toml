@@ -25,6 +25,13 @@ dependencies = [
     "uncertainties",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pandas",
+    "pyinstaller",
+    "odfpy",
+]
+
 [tool.setuptools.packages.find]
 where = ["."]
 exclude = ["tests*"]
