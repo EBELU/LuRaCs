@@ -15,7 +15,9 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QMessageBox,
     QFileDialog,
-    QAbstractItemView
+    QAbstractItemView,
+    QToolButton, 
+    QMenu
 )
 
 from PySide6.QtCore import Qt
@@ -23,12 +25,14 @@ from PySide6.QtCore import Qt
 from ..misc.idx_table import StrIdxTable
 from utils.file_io import io_dispatcher
 from core import Settings, SpectrumManager
+from utils.DataLogging import restart_logger
 
 import os
 import shutil
 from pathlib import Path
 from glob import glob
 from datetime import timedelta, datetime
+import utils.file_io as file_io
 
 class DataLibrary(QDialog):
     def __init__(self, title="", parent=None):
@@ -36,7 +40,8 @@ class DataLibrary(QDialog):
         self.setWindowTitle(title)
         self.setMinimumWidth(700)
         self.setMinimumHeight(500)
-
+          
+        
         # Main layout for the dialog
         main_layout = QVBoxLayout(self)
 
@@ -98,12 +103,21 @@ class LibraryTab(QWidget):
         self.btn_close.clicked.connect(parent.close)
         
         self.btn_load = QPushButton("Load")
+        
+        self.export_menu = QMenu()
 
-        self.btn_export = QPushButton("Export")
-        self.btn_export.clicked.connect(self.export_selected)
+        self.btn_export = QPushButton()
+        self.btn_export.setText("Export")
+        self.btn_export.setMenu(self.export_menu)
+        
+        # self.btn_export.setStyleSheet("""
+        #     QToolButton {
+        #         padding: 1px 12px;
+        #     }
+        # """)
 
 
-        self.btn_info = QPushButton("Info")
+        self.btn_info = QPushButton("Edit")
 
 
         self.include_instrument_check = QCheckBox("Load Instrument")
@@ -140,8 +154,8 @@ class LibraryTab(QWidget):
         
         # self.run_index()
         
-    def _get_selection(self) -> list:
-        rows = [self.table.get_key_from_index(index.row()) for index in self.table.table.selectionModel().selectedRows()]
+    def _get_selection(self) -> list[Path]:
+        rows = [Path(self.table.get_key_from_index(index.row())) for index in self.table.table.selectionModel().selectedRows()]
 
         if len(rows) == 0:
             QMessageBox.warning(self, "Select a row", "Please select an item.")
@@ -149,7 +163,7 @@ class LibraryTab(QWidget):
         
         return rows
     
-    def export_selected(self):
+    def export_same(self, filter: str):
         selection = self._get_selection()
         if selection is None:
             return
@@ -159,24 +173,27 @@ class LibraryTab(QWidget):
                 None,
                 "Select or Create Folder"
             )
-            if folder is None:
+            if not folder:
                 return
             
+            folder = Path(folder)
             for file in selection:
-                shutil.move(file, folder)
+                shutil.copy(file, str(folder / file.name))
 
         else:
-            new_path = QFileDialog.getOpenFileName(
+            default_name = (Path.home() / selection[0].name)
+            new_path, _ = QFileDialog.getSaveFileName(
                 None,
                 "Export Spectrum",
-                str(Path.home()),
-                
-                
+                str(default_name),
+                filter
             )
+
             if not new_path:
                 return
-            
-            shutil.move(selection[0], new_path)
+            new_path = Path(new_path)
+
+            shutil.copy(selection[0], new_path.with_suffix(selection[0].suffix))
 
     def delete_selected(self):
         selection = self._get_selection()
@@ -208,6 +225,13 @@ class SpectrumTab(LibraryTab):
                          [150, 140, 75, 95, 50, 100],True)
         self.run_index()
         self.btn_load.clicked.connect(self.load)
+        self.table.table.cellDoubleClicked.connect(self.load)
+        
+        export_xml = self.export_menu.addAction("LuRaCs XML (*.xml)")
+        export_xml.triggered.connect(lambda : self.export_same("LuRaCs spectrum file, n42 compatible (*.xml)"))
+        export_csv = self.export_menu.addAction("CSV (*.csv)")
+        export_xlsx = self.export_menu.addAction("Exel Workbook (*.xlsx)")
+        
         
     def run_index(self):
         for file in glob(str(Path("/home/eewa/**.xml"))):
@@ -244,11 +268,24 @@ class SpectrumTab(LibraryTab):
             
             SpectrumManager.import_spectrum(parser.data)
             
+            
 class SpectrogramTab(LibraryTab):
     def __init__(self, parent):
-        super().__init__(parent, ["Name", "Start Date", "End Date", "Duration", "Instrument"])
+        super().__init__(parent, ["Name", "Start Date", "End Date", "Duration", "Instrument"], (230, 150, 150, 65, 130), True)
         self.file_index: dict[str, db_parser] = {}
         self.run_index()
+        self.btn_load.clicked.connect(self.load)
+        self.table.table.cellDoubleClicked.connect(self.load)
+        
+        self.include_roi_check.setText("Export Spectrum Data")
+        
+        self.btn_bar.removeWidget(self.include_instrument_check)
+        
+        export_db = self.export_menu.addAction("LuRaCs Sqlite Database (*.db)")
+        export_db.triggered.connect(lambda :self.export_same("LuRaCs Sqlite Database (*.db)"))
+        
+        export_xlsx = self.export_menu.addAction("Exel Workbook (*.xlsx)")
+        export_xlsx.triggered.connect(self.export_xlsx)
 
         
     def run_index(self):
@@ -257,28 +294,66 @@ class SpectrogramTab(LibraryTab):
             if file not in self.file_index:
                 self.file_index[file] = io_dispatcher(file, True)
 
-        
         self.set_table()
         
+    def load(self):
+        selection = self._get_selection()
+        if selection is None:
+            return
+        
+        for file in selection:
+            restart_logger(Path(file).name)
+            
     def set_table(self):
         for key, parser in self.file_index.items():
             header, summary = parser.get_header(), parser.get_summary()
             
-            start_date = datetime.fromtimestamp(round(header.get("created")))
-            end_date = datetime.fromtimestamp(round(summary.get("last_update")))
+            start_date = header.get("created")
+            end_date = summary.get("last_update")
             duration = timedelta(seconds=round(summary.get("total_duration")))
             instrument = header.get("device_id")
             
-            self.table.write_row(key, [key.name, start_date, end_date, duration, instrument])
+            self.table.write_row(key, [key.stem, start_date, end_date, duration, instrument])
             
+    def export_xlsx(self):
+        selection = self._get_selection()
+        if selection is None:
+            return
+        
+        if len(selection) > 1:
+            folder = QFileDialog.getExistingDirectory(
+                None,
+                "Select or Create Folder"
+            )
+            if not folder:
+                return
+            
+            folder = Path(folder)
+            for file in selection:
+                parser = file_io.db_parser(file)
+                file_io.spectrogram_exporter(parser, "xlsx", (folder / Path(file).stem).with_suffix(".xlsx"))
 
-            
+        else:
+            default_name = (Path.home() / selection[0]).with_suffix(".xlsx")
+            new_path, _ = QFileDialog.getSaveFileName(
+                None,
+                "Export Spectrogram",
+                str(default_name),
+                "Excel Workbook (*.xlsx)"
+            )
+
+            if not new_path:
+                return
+
+            parser = file_io.db_parser(selection[0])
+            file_io.spectrogram_exporter(parser, "xlsx", Path(new_path).with_suffix(".xlsx"), include_spectrogram_data=self.include_roi_check.isChecked())
 
 class ROIsTab(LibraryTab):
     def __init__(self, parent):
         super().__init__(parent, ["Name", "ROIs", "Regions"], [150, 50, 400])
         self.run_index()
         self.btn_load.clicked.connect(self.load)
+        self.table.table.cellDoubleClicked.connect(self.load)
         
     def run_index(self):
         for file in glob(str(Settings.Paths.roi_library / "**.xml")):

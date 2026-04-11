@@ -87,13 +87,14 @@ class FileDialogs(QObject):
         
         spectrum_parser = file_io.io_dispatcher(file_path)
         if spectrum_parser is not None:
-            self.sigImportSpectrumAsBackground.emit(spectrum_parser.data)
+            self.sigImportSpectrumAsBackground.emit(spectrum_name, spectrum_parser.data)
         
         
 
 
     # --- Export ---
     def export_spectrum(self, spectrum_name: str):
+        "Export a single spectrum from outside the data store"
         file_path, selected_filter = QFileDialog.getSaveFileName(
             self.parent,
             "Export File",
@@ -139,7 +140,7 @@ def export_roi_references():
     else:
         return
     
-    # I can be bothered to change the functional writer, just hack it
+    # I cant be bothered to change the functional writer, just hack it
     # Create a dummy spectrum, only give it rois and the export it using the normal xml_writer
     dummy_spectrum = Spectrum(1, "Dummy")    
     

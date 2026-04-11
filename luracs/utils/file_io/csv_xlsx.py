@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from SpectrumClasses import Spectrum
     from pathlib import Path
     
-def export_csv(spectrum: Spectrum, file_name: str) -> bool:
+def export_csv(spectrum: Spectrum, file_name: str):
     acc_spectrum = spectrum.get_foreground()
     cps_spectrum = spectrum.get_foreground(cps=True)
     if cps_spectrum is None:
@@ -21,9 +21,8 @@ def export_csv(spectrum: Spectrum, file_name: str) -> bool:
         csv_writer.writerow(["Energy/Channel", "Counts", "CPS"])
         csv_writer.writerows(zip(x_axis, acc_spectrum, cps_spectrum))
     
-    return True
 
-class xlsx_exporter:
+class xlsx_writer:
     def __init__(self, file_name: str | Path, spectrum: Spectrum, export_spectra = True, export_rois = True, export_instrument = True):
         self.wb = pyxl.open(f"{str(file_name)}.xlsx")
         

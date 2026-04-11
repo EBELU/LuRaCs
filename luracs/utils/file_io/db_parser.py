@@ -38,7 +38,8 @@ class db_parser:
 
         data = {}
         if header:
-            data["created"], data["device_id"], data["channels"], calibration, data["concat"], data["save_interval"] = header
+            created, data["device_id"], data["channels"], calibration, data["concat"], data["save_interval"] = header
+            data["created"] = datetime.fromtimestamp(round(created))
             data["calibration"] = eval(calibration) if calibration else []
         
         if self._channels is None:
@@ -63,8 +64,9 @@ class db_parser:
 
         data = {}
         if summary:
-            acc_blob, data["total_duration"], data["total_dose"], data["last_update"] = summary
-
+            acc_blob,  data["total_duration"], data["total_dose"], last_update = summary
+           
+            data["last_update"] = datetime.fromtimestamp(round(last_update))
             if acc_blob is not None:
                 data["total_spectrum"] = decompress_spectrum(acc_blob, self._channels).copy().astype(np.float64)
             else:
@@ -124,8 +126,8 @@ class db_parser:
         for ts, avg_cps, avg_dr, temp, spec_blob in rows:
             data["timestamp"].append(ts)
             data["datetime"].append(datetime.fromtimestamp(ts))  # convert back
-            data["avg_cps"].append(avg_cps)
-            data["avg_dr"].append(avg_dr)
+            data["avg_cps"].append(avg_cps / 1000)
+            data["avg_dr"].append(avg_dr / 1000)
             data["temperature"].append(temp)
             data["spectrum"].append(
                 decompress_spectrum(spec_blob, self._channels)

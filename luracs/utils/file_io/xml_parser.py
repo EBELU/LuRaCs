@@ -59,9 +59,10 @@ def _safe_iso(value: str):
 
 def _build_roi(general_kwargs: dict, fit_kwargs: dict):
     if fit_kwargs is not None:
-        fit = Fit(region_lower = None, region_upper = None,
-                  G = 0, B = 0, N = 0, 
-            **fit_kwargs)
+        fit = Fit(
+                region_lower = None, region_upper = None,
+                G = 0, B = 0, N = 0, 
+                **fit_kwargs)
     else:
         fit = None
     

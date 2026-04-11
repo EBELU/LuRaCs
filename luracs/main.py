@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 
 def print_progress(text, progress):
-    print("[" + "#" * progress + " " * (10 - progress) + "]", f"-- {text}")
+    print("\r[" + "#" * progress + " " * (10 - progress) + "]", f"-- {text} {" " * 15}", end="", flush=True)
 
 
 logging.basicConfig(
@@ -83,7 +83,8 @@ class MainWindow(QMainWindow):
         self.spectrum_plot = SpectrumPlot()
         self.spect_tab.addTab(self.spectrum_plot, "Spectrum")
         
-        self.spectrogram = SpectrogramWidget()
+        self.spectrogram = SpectrogramWidget(self)
+        self.spectrogram.sigShowDataStore.connect(self.show_data_store)
         self.spect_tab.addTab(self.spectrogram, "Spectrogram")
         
         layout.addWidget(self.spect_tab, 5)
@@ -132,6 +133,12 @@ class MainWindow(QMainWindow):
         # QTimer.singleShot(0, lambda : self.data_store.show())
             
         print_progress("Main window loaded", 9)
+        
+    def show_data_store(self, tab_idx = None):
+        if tab_idx is not None:
+            self.data_store.tabs.setCurrentIndex(tab_idx)
+            
+        self.data_store.show()
     def closeEvent(self, event: QCloseEvent):
         if self._closing:
             event.accept()

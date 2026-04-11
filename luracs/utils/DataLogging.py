@@ -33,6 +33,7 @@ def restart_logger(db_name: str):
 
     RunManager.add_logger(db_name, new_log)
 
+
     new_log.request_data()
 
 def start_logger(db_name, device: str, save_interval: int = 1, truncation: int = 0):
@@ -57,7 +58,7 @@ def start_logger(db_name, device: str, save_interval: int = 1, truncation: int =
     RunManager.statusUpdated.connect(new_log.receive_status)
     RunManager.spectrumUpdated.connect(new_log.receive_spectrum)
     
-    RunManager.add_logger(device, new_log)
+    RunManager.add_logger(db_name, new_log)
 
 @dataclass
 class WrappedSpectrogramData:
@@ -72,6 +73,7 @@ class WrappedSpectrogramData:
     spectrogram: deque
     time_delta: float
     estimated_dose: float
+    status: object
 
 @dataclass
 class Buffers:
@@ -108,7 +110,7 @@ class SpectrumLogger(QObject):
                                timedelta_queue=deque([], 256))  
         
         self.paused = True if resume else False
-        self.state = None
+        self.state = self.State.LOADED
 
         if resume:
             self.load_from_db()
@@ -139,7 +141,8 @@ class SpectrumLogger(QObject):
                                 None,
                                 self.buffers.spectrum_view_queue,
                                 0,
-                                0)
+                                0,
+                                self.State.ACTIVE)
 
             self.state = self.State.ACTIVE
 
@@ -205,9 +208,12 @@ class SpectrumLogger(QObject):
         if self.paused:
             self.paused = False
             self.state = self.State.ACTIVE
+            self.data_wrapper.status = self.state
+            self.buffers.latest_spectrum = None
         else:
             self.paused = True
             self.state = self.State.PAUSED
+            self.data_wrapper.status = self.state
 
     def request_data(self):
         self.dataUpdated.emit(self.db_name, self.data_wrapper)
@@ -281,7 +287,8 @@ class SpectrumLogger(QObject):
                                                    self.buffers.accumulated_spectrum,
                                                    self.buffers.spectrum_view_queue,
                                                    1,
-                                                   self.buffers.accumulated_dose_estimate)
+                                                   self.buffers.accumulated_dose_estimate,
+                                                   self.State.LOADED)
 
 
         
@@ -345,6 +352,7 @@ class SpectrumLogger(QObject):
         self.data_wrapper.duration = self.buffers.duration
         self.data_wrapper.estimated_dose = self.buffers.accumulated_dose_estimate
         self.data_wrapper.time_delta = dt
+        self.data_wrapper.status = self.state
 
         # Emit wrapper
         self.dataUpdated.emit(self.db_name, self.data_wrapper)
@@ -356,7 +364,7 @@ class SpectrumLogger(QObject):
                                 self.buffers.dose_rate/max(self.buffers.recieved_values, 1), 
                                 self.buffers.temperature, 
                                 spectrum_bytes)
-        self.update_summary(new_ts, dt)
+        self.update_summary(new_ts)
         
         # Reset buffers
         self.buffers.recieved_values = 0
@@ -377,7 +385,7 @@ class SpectrumLogger(QObject):
         self.connection.commit()
 
         
-    def update_summary(self, ts, time_delta):
+    def update_summary(self, ts):
         cursor = self.connection.cursor()
         cursor.execute("""
             UPDATE summary
@@ -386,7 +394,7 @@ class SpectrumLogger(QObject):
                 accumulated_spectrum = ?,
                 last_update = ?
                 WHERE id = 1
-        """, (time_delta, self.buffers.accumulated_dose_estimate, compress_spectrum(self.buffers.accumulated_spectrum), ts))
+        """, (self.buffers.duration, self.buffers.accumulated_dose_estimate, compress_spectrum(self.buffers.accumulated_spectrum), ts))
         
         
     def clean_db(self):

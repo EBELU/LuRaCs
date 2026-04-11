@@ -26,6 +26,18 @@ from PySide6.QtWidgets import QAbstractItemView
 from core import RunManager, Settings
 from utils.DataLogging import WrappedSpectrogramData, start_logger, restart_logger
 
+def combobox_has_data(combobox, target):
+    return any(
+        combobox.itemData(i) == target
+        for i in range(combobox.count())
+    )
+    
+def find_index_by_data(combobox, target):
+    for i in range(combobox.count()):
+        if combobox.itemData(i) == target:
+            return i
+    return -1
+
 class StartLoggerDialog(QDialog):
     def __init__(self, instruments, parent=None):
         super().__init__(parent)
@@ -96,144 +108,17 @@ class StartLoggerDialog(QDialog):
             "channel_truncation": int(self.trunc_group.checkedId()),
         }
         
-class SpectrogramLoadDialog(QDialog):
-    def __init__(self, db_directory: Path, parent=None):
-        super().__init__(parent)
-
-        self.setWindowTitle("Load Spectrogram")
-        self.resize(700, 400)
-
-        self.db_directory = db_directory
-        self.selected_db = None
-
-        layout = QVBoxLayout(self)
-
-        self.table = QTableWidget()
-        self.table.setColumnCount(5)
-        self.table.setHorizontalHeaderLabels([
-            "Database",
-            "Device",
-            "Start Date",
-            "Last Update",
-            "Duration"
-        ])
-
-        self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-
-        layout.addWidget(self.table)
-
-        btn_layout = QHBoxLayout()
-
-        self.load_btn = QPushButton("Load")
-        self.cancel_btn = QPushButton("Cancel")
-
-        btn_layout.addStretch()
-        btn_layout.addWidget(self.load_btn)
-        btn_layout.addWidget(self.cancel_btn)
-
-        layout.addLayout(btn_layout)
-
-        self.load_btn.clicked.connect(self.load_selected)
-        self.cancel_btn.clicked.connect(self.reject)
-
-        self.populate_table()
-
-    def populate_table(self):
-        db_files = sorted(self.db_directory.glob("*.db"))
-
-        self.table.setRowCount(len(db_files))
-
-        for row, db_file in enumerate(db_files):
-
-            info = self.read_db_info(db_file)
-
-            self.table.setItem(row, 0, QTableWidgetItem(db_file.name))
-            self.table.setItem(row, 1, QTableWidgetItem(info["device"]))
-            self.table.setItem(row, 2, QTableWidgetItem(info["start"]))
-            self.table.setItem(row, 3, QTableWidgetItem(info["last_update"]))
-            self.table.setItem(row, 4, QTableWidgetItem(info["duration"]))
-
-        self.table.resizeColumnsToContents()
-
-    def read_db_info(self, db_path: Path):
-        try:
-            conn = sql.connect(db_path)
-            cursor = conn.cursor()
-
-            cursor.execute("""
-                SELECT created, device_id
-                FROM header
-                WHERE id = 1
-            """)
-            header = cursor.fetchone()
-
-            cursor.execute("""
-                SELECT total_duration, last_update
-                FROM summary
-                WHERE id = 1
-            """)
-            summary = cursor.fetchone()
-
-            conn.close()
-
-            created, device = header if header else (None, "Unknown")
-            duration, last_update = summary if summary else (0, None)
-
-            start_str = "-"
-            last_str = "-"
-            duration_str = "-"
-
-            if created:
-                start = datetime.fromtimestamp(created)
-                start_str = start.strftime("%Y-%m-%d %H:%M:%S")
-
-            if last_update:
-                last = datetime.fromtimestamp(last_update)
-                last_str = last.strftime("%Y-%m-%d %H:%M:%S")
-
-            if duration:
-                duration_str = str(timedelta(seconds=int(duration)))
-
-            return dict(
-                device=device,
-                start=start_str,
-                last_update=last_str,
-                duration=duration_str
-            )
-
-        except Exception:
-            return dict(
-                device="Invalid DB",
-                start="-",
-                last_update="-",
-                duration="-"
-            )
-
-    def load_selected(self):
-        row = self.table.currentRow()
-
-        if row < 0:
-            QMessageBox.warning(self, "Select database", "Please select a database to load.")
-            return
-
-        db_name = self.table.item(row, 0).text()
-        self.selected_db = db_name
-
-        self.accept()
 
 class SpectrogramWidget(QWidget):
     startLogger = Signal(str, str, int, int, bool) # Signal to the start logger function
     loadLogger = Signal(str)
-    
-    def __init__(self):
-        super().__init__()
+    sigShowDataStore = Signal(int)
+    def __init__(self, parent):
+        super().__init__(parent=parent)
         self.setWindowTitle("Waterfall")
         
         self.startLogger.connect(start_logger)
         self.loadLogger.connect(restart_logger)
-        RunManager.loggerStarted.connect(self.fill_combo_box)
         RunManager.loggerStarted.connect(self.connect_logger)
         
         # Default values
@@ -255,28 +140,31 @@ class SpectrogramWidget(QWidget):
         # First row of buttons
         self.btn_start_log = QPushButton("Start New")
         self.btn_load_log = QPushButton("Load")
-        self.btn_import_log = QPushButton("Import")
+        self.btn_load_log.clicked.connect(self.show_data_store)
+        self.btn_unload_log = QPushButton("Unload")
+        self.btn_unload_log.clicked.connect(self.unload_logger)
         
         self.options_bar.addWidget(self.btn_start_log)
         self.options_bar.addWidget(self.btn_load_log)
-        self.options_bar.addWidget(self.btn_import_log)
+        self.options_bar.addWidget(self.btn_unload_log)
         
         self.btn_start_log.clicked.connect(self.start_logger)
-        self.btn_load_log.clicked.connect(self.load_logger)
         
         left_layout.addLayout(self.options_bar)
         
         # Combo box for selecting loaded loggers
         self.spectrogram_selection = QComboBox()
+        self.spectrogram_selection.currentIndexChanged.connect(self.update_on_spectrogram_selection)
         
         left_layout.addWidget(self.spectrogram_selection)
         
         # Second row of buttons
         self.stop_resume = QHBoxLayout()
         self.btn_stop = QPushButton("Stop")
+        self.btn_stop.clicked.connect(self.pause_logger)
         self.btn_stop.setEnabled(False)
         self.btn_resume = QPushButton("Resume")
-        self.btn_resume.setEnabled(False)
+        self.btn_resume.clicked.connect(self.restart_logger)
         
         self.stop_resume.addWidget(self.btn_stop)
         self.stop_resume.addWidget(self.btn_resume)
@@ -374,14 +262,13 @@ class SpectrogramWidget(QWidget):
 
         
     def start_logger(self, *_):
-        devices = list(RunManager.devices.keys())
+        devices = list(RunManager.devices.keys())        
         dialog = StartLoggerDialog(devices)
         if dialog.exec():
 
             if dialog.get_values()["instrument"]:
                 "db_name, device, save_interval, "
                 chosen_values = dialog.get_values()
-                print(chosen_values)
                 self.startLogger.emit(
                     chosen_values["filename"],
                     chosen_values["instrument"],
@@ -389,12 +276,43 @@ class SpectrogramWidget(QWidget):
                     chosen_values["channel_truncation"],
                     False)
                 
-    def load_logger(self, *_):
-        dialog = SpectrogramLoadDialog(Settings.Paths.spectrogram_library)
-        if dialog.exec():
-            db = dialog.selected_db
-            print("Selected:", db)
-            self.loadLogger.emit(db)
+                self.btn_stop.setEnabled(True)
+                self.btn_resume.setEnabled(False)
+                
+    def restart_logger(self):
+        current_logger_name = self.spectrogram_selection.currentData()
+        
+        current_logger = RunManager.dataloggers.get(current_logger_name)
+        if current_logger is not None and current_logger.device_id not in RunManager.devices:
+            print("Device not connected")
+            return
+        
+        if current_logger is not None:
+            current_logger.pause_unpause()
+            self.btn_resume.setEnabled(False)
+            self.btn_stop.setEnabled(True)
+            current_logger.request_data()
+            
+    def pause_logger(self):
+        current_logger_name = self.spectrogram_selection.currentData()
+        current_logger = RunManager.dataloggers.get(current_logger_name)
+
+        if current_logger is not None:
+            current_logger.pause_unpause()
+            self.btn_resume.setEnabled(True)
+            self.btn_stop.setEnabled(False)
+            current_logger.request_data()
+            
+                
+    # def load_logger(self, *_):
+    #     dialog = SpectrogramLoadDialog(Settings.Paths.spectrogram_library)
+    #     if dialog.exec():
+    #         db = dialog.selected_db
+    #         print("Selected:", db)
+    #         self.loadLogger.emit(db)
+    
+    def show_data_store(self):
+        self.sigShowDataStore.emit(1)
         
     def update_x_len(self, new_len: int):
         if new_len == self.x_len:
@@ -415,14 +333,53 @@ class SpectrogramWidget(QWidget):
         )
         self.top_spectrum_plot.addItem(self.bar)
         
-    def fill_combo_box(self, name):
-        self.spectrogram_selection.addItem("[Running] " + name) 
+    def update_on_spectrogram_selection(self):
+        db_name = self.spectrogram_selection.currentData()
+        logger = RunManager.dataloggers.get(db_name)
+        if logger:
+            if logger.paused:
+                self.btn_resume.setEnabled(True)
+                self.btn_stop.setEnabled(False)
+            else:
+                self.btn_resume.setEnabled(False)
+                self.btn_stop.setEnabled(True)
+            logger.request_data()
 
     def connect_logger(self):
-        last_logger = list(RunManager.dataloggers.values())[0]
-        last_logger.dataUpdated.connect(self.recieve_data)
+        for logger in list(RunManager.dataloggers.values()):
+            logger.dataUpdated.connect(self.recieve_data)
         
-    def recieve_data(self, device_name: str, data_packet: WrappedSpectrogramData):
+    def unload_logger(self):
+        index = self.spectrogram_selection.currentIndex()
+        if index != -1:
+            self.spectrogram_selection.removeItem(index)
+            
+            if self.spectrogram_selection.count() == 0:
+                self.img.clear()
+                self.bar.setOpts(height=np.zeros(self.x_len))
+                self.info_label.setText("")
+        
+        
+    def recieve_data(self, logger_name: str, data_packet: WrappedSpectrogramData):
+        index = find_index_by_data(self.spectrogram_selection, logger_name)
+
+        state_text = data_packet.status.name
+
+        if index == -1:
+            # Add new item
+            self.spectrogram_selection.addItem(
+                f"[{state_text}] {logger_name}",
+                logger_name
+            )
+        else:
+            # Update existing item text
+            self.spectrogram_selection.setItemText(
+                index,
+                f"[{state_text}] {logger_name}"
+            )
+        if data_packet.db_name != self.spectrogram_selection.currentData():
+            return
+        
         # Change unit for readability
         if data_packet.estimated_dose < 5e-1:
             dose = data_packet.estimated_dose * 1e3

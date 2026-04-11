@@ -101,7 +101,7 @@ def write_SpectrumData(data: SpectrumData, root, kind: str, spectrum_id: str):
     write_text_to_SubElement(spectrum, n42("LiveTimeDuration"), f"PT{round(data.live_time, 2)}S")
 
     channel_data = etree.SubElement(spectrum, n42("ChannelData"), compressionCode="None")
-    channel_data.text = " ".join(data.y_axis.astype(str))
+    channel_data.text = " ".join(data.y_axis.round().astype(str))
     
     
 def write_ROI_data(ROIs: dict, peaks_section):
@@ -136,7 +136,7 @@ def write_ROI_data(ROIs: dict, peaks_section):
             write_text_to_SubElement(peak, "PeakCounts", roi.fit.peak_counts)
             
 def write_instrument_data(instument, root):
-    instrment_section = etree.SubElement(root, "Instrument")
+    instrument_section = etree.SubElement(root, "Instrument")
 
     
 if __name__ == "__main__":

@@ -31,11 +31,8 @@ class MainMenuBar(QMenuBar):
         file_menu_import.triggered.connect(lambda :self.parent.file_import_export.import_generic())
         file_load = file_menu.addAction("Data Store")
         file_load.triggered.connect(lambda : parent.data_store.show())
-        spectrum_export_menu = file_menu.addMenu("&Bulk Export Spectra")
-        spectrum_export__menu_csv = spectrum_export_menu.addAction("csv")
-        spectrum_export__menu_xml = spectrum_export_menu.addAction("xml")
         file_menu_saveRoi = file_menu.addAction("Save reference ROIs")
-        file_menu_saveRoi.triggered.connect(lambda :export_roi_references())
+        file_menu_saveRoi.triggered.connect(export_roi_references)
         exit_action = file_menu.addAction("Exit")
         exit_action.triggered.connect(self.on_exit)
 

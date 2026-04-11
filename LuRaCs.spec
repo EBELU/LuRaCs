@@ -9,7 +9,7 @@ is_linux = sys.platform.startswith("linux")
 exe_name = "Win" if is_windows else "Linux"
 
 # Cross-platform path
-main_script = os.path.join('QtGUI', 'main.py')
+main_script = os.path.join('luracs', 'main.py')
 
 a = Analysis(
     [main_script],
