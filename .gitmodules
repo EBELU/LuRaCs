@@ -1,7 +1,7 @@
 [submodule "Clients/RaysidClient"]
 	path = luracs/clients/RaysidClient
-	url = git@github.com:EBELU/RaysidClient.git
+	url = https://github.com:EBELU/RaysidClient.git
 
 [submodule "Clients/RadiacodeClient"]
 	path = luracs/clients/RadiacodeClient
-	url = git@github.com:EBELU/RadiacodeClient.git
+	url = https://github.com:EBELU/RadiacodeClient.git
