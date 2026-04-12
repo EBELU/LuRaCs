@@ -521,32 +521,7 @@ class InstrumentDialog(QDialog):
         self.load_matrix.setText("Import")
         response_matrix_row.addWidget(self.load_matrix)
         form_layout.addRow("Response Matrix: ", response_matrix_row)
-        
-        if HAS_OPENGL:
-            # 3D view widget
-            self.view = gl.GLViewWidget()
-            self.view.setMinimumHeight(300)  # important for visibility
-            form_layout.addRow("Surface:", self.view)
-
-            # Camera position
-            self.view.opts['distance'] = 20
-
-            # Grid (optional but helpful)
-            grid = gl.GLGridItem()
-            self.view.addItem(grid)
-
-            # Create surface data
-            x = np.linspace(-5, 5, 50)
-            y = np.linspace(-5, 5, 50)
-            x, y = np.meshgrid(x, y)
-            z = np.sin(np.sqrt(x**2 + y**2))
-
-            # Surface plot
-            surface = gl.GLSurfacePlotItem(x=x, y=y, z=z)
-            self.view.addItem(surface)
-        
-
-
+    
         # Buttons
         bottom_box = QGroupBox()
         

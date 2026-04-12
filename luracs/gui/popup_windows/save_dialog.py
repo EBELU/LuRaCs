@@ -23,6 +23,9 @@ class SaveNamingDialog(QDialog):
         self.name_edit.setText(name)
         form.addRow("Name:", self.name_edit)
 
+        self.remark_edit = QLineEdit()
+        form.addRow("Remark:", self.remark_edit)
+
         main_layout.addLayout(form)
 
         # --- Buttons ---

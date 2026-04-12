@@ -6,7 +6,7 @@ import asyncio
 
 from core import RunManager, Settings
 
-from .import_export import export_roi_references
+from .import_export import save_roi_references
 
 @dataclass
 class MenuActions:
@@ -32,7 +32,7 @@ class MainMenuBar(QMenuBar):
         file_load = file_menu.addAction("Data Store")
         file_load.triggered.connect(lambda : parent.data_store.show())
         file_menu_saveRoi = file_menu.addAction("Save reference ROIs")
-        file_menu_saveRoi.triggered.connect(export_roi_references)
+        file_menu_saveRoi.triggered.connect(save_roi_references)
         exit_action = file_menu.addAction("Exit")
         exit_action.triggered.connect(self.on_exit)
 
@@ -45,9 +45,8 @@ class MainMenuBar(QMenuBar):
         self.device_menu_retryLast = device_menu.addMenu("&Retry Last Connection")
         device_menu_connectUSB = device_menu.addAction("Connect USB")
         device_menu_connectUSB.triggered.connect(parent.usb_window.start_popup)
-        device_menu_disconnect = device_menu.addAction("Disconnect")
-        device_menu_disconnect.triggered.connect(lambda x: RunManager.remove_device())
-        device_menu_info = device_menu.addAction("Logger Debug")
+        device_menu_disconnect = device_menu.addAction("Disconnect All")
+        device_menu_disconnect.triggered.connect(lambda x: RunManager.remove_all_devices())
         # device_menu_info.triggered.connect(lambda x: RunManager.start_logger())
         
 

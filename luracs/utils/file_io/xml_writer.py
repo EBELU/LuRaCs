@@ -3,10 +3,11 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from SpectrumClasses import Spectrum, SpectrumData
 
-
+from InstrumentClasses import GenericInstrument, UniqueInstrument
 from lxml import etree
 from uuid import uuid4
 from datetime import datetime, timezone
+from utils.numerics.compression import compress_spectrum, encode_base64
 
 NS = "http://physics.nist.gov/N42/2011/N42"
 MY = "https://example.com/n42/extensions"
@@ -67,7 +68,7 @@ class xml_writer:
         if export_instrument and spectrum.instrument is not None:
             self.extension_section = etree.SubElement(self.root, LRC("LuRaCs"), version = "1") if self.extension_section is None else self.extension_section
             peaks = etree.SubElement(self.extension_section, "Instrument")
-            pass
+            write_instrument_data(spectrum.instrument, self.extension_section)
 
 
         # --- Write out ---
@@ -135,9 +136,77 @@ def write_ROI_data(ROIs: dict, peaks_section):
             
             write_text_to_SubElement(peak, "PeakCounts", roi.fit.peak_counts)
             
-def write_instrument_data(instument, root):
-    instrument_section = etree.SubElement(root, "Instrument")
+def write_instrument_data(instrument: GenericInstrument | UniqueInstrument, root):
+    instrument_section = etree.SubElement(
+        root,
+        "Instrument",
+        generic_instrument=str(not isinstance(instrument, UniqueInstrument)).lower()
+    )
 
-    
+    print("got here")
+    # --- Basic info ---
+    write_text_to_SubElement(instrument_section, "Name", getattr(instrument, "name", "Generic"))
+    write_text_to_SubElement(instrument_section, "Model", instrument.model)
+    write_text_to_SubElement(instrument_section, "Manufacturer", instrument.manufacturer)
+    write_text_to_SubElement(instrument_section, "DetectorMaterial", instrument.detector_material)
+    write_text_to_SubElement(instrument_section, "DetectorShape", instrument.detector_shape)
+
+    if instrument.detector_dimensions_cm:
+        write_text_to_SubElement(
+            instrument_section,
+            "DetectorDimensions",
+            instrument.detector_dimensions_cm,
+            unit="cm"
+        )
+
+    # --- Resolution ---
+    if instrument.resolution_fn:
+        resolution_section = etree.SubElement(instrument_section, "Resolution", type="energy")
+
+        write_text_to_SubElement(resolution_section, "Function", instrument.resolution_fn)
+        write_text_to_SubElement(resolution_section, "Parameters", instrument.resolution_param)
+
+        points_section = etree.SubElement(resolution_section, "DataPoints")
+        for E, fwhm in zip(instrument.resolution_E_points, instrument.resolution_FWHM_points):
+            pt = etree.SubElement(points_section, "Point")
+            write_text_to_SubElement(pt, "Energy", E, unit="keV")
+            write_text_to_SubElement(pt, "FWHM", fwhm, unit="keV")
+
+        
+    # --- Efficiency ---
+    if instrument.int_efficiency_fn:
+        efficiency_section = etree.SubElement(instrument_section, "Efficiency", type="intrinsic")
+
+        write_text_to_SubElement(efficiency_section, "Function", instrument.int_efficiency_fn)
+        write_text_to_SubElement(efficiency_section, "Parameters", instrument.int_efficiency_params)
+        write_text_to_SubElement(efficiency_section, "Created", instrument.int_efficiency_created.isoformat())
+        write_text_to_SubElement(efficiency_section, "Description", instrument.int_efficiency_description)
+
+    # --- Response Matrix ---
+    if instrument.response_matrix is not None:
+        comp_matrix = encode_base64(compress_spectrum(instrument.response_matrix))
+        shape_as_str = " ".join([str(i) for i in instrument.response_matrix_shape])
+        write_text_to_SubElement(instrument_section, "ResponseMatix", str(comp_matrix), matrix_shape=shape_as_str, compression="Base64-zLib")
+
+    # --- Calibration (UniqueInstrument only) ---
+    if isinstance(instrument, UniqueInstrument) and instrument.calibration_coefficients:
+        calibration = etree.SubElement(instrument_section, "Calibration")
+
+        write_text_to_SubElement(calibration, "PolynomialOrder", instrument.calibration_poly_order)
+        write_text_to_SubElement(calibration, "Coefficients", instrument.calibration_coefficients)
+
+        points_section = etree.SubElement(calibration, "CalibrationPoints")
+        for E, ch in zip(instrument.calibration_energy_points, instrument.calibration_channel_points):
+            pt = etree.SubElement(points_section, "Point")
+            write_text_to_SubElement(pt, "Energy", E, unit="keV")
+            write_text_to_SubElement(pt, "Channel", ch)
+
+        if instrument.calibration_date:
+            write_text_to_SubElement(calibration, "Date", instrument.calibration_date.isoformat())
+
+        if instrument.remark:
+            write_text_to_SubElement(calibration, "Remark", instrument.remark)
+
+
 if __name__ == "__main__":
     pass

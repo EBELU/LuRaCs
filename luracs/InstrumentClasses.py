@@ -14,7 +14,7 @@ class GenericInstrument:
     detector_dimensions_cm: list = None # cm
 
     # --- Resolution ---
-    resolution_fn: float = None
+    resolution_fn: str = None
     resolution_param: list = None
     resolution_E_points: list = None
     resolution_FWHM_points: list = None
@@ -32,10 +32,10 @@ class GenericInstrument:
     def get_copy(self):
         return copy.deepcopy(self)
 
-@dataclass
+@dataclass(kw_only=True)
 class UniqueInstrument(GenericInstrument):
     "Stores the data for a unique instrument, should be created from a generic instrument UniqueInstrument('Name', **template.get_copy().__dict__())"
-    name: str # Important
+    name: str = "" # Important
     
     calibration_poly_order: int = None
     calibration_coefficients: list = None

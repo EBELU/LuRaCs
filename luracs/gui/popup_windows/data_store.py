@@ -26,6 +26,7 @@ from ..misc.idx_table import StrIdxTable
 from utils.file_io import io_dispatcher
 from core import Settings, SpectrumManager
 from utils.DataLogging import restart_logger
+from .data_store_edit_dialogs import InstrumentDialog
 
 import os
 import shutil
@@ -389,8 +390,22 @@ class InstrumentsTab(LibraryTab):
     def __init__(self, parent):
         super().__init__(parent, ["Name", "Type", "Calibration", "Resolution", "Efficiency", "Response Matrix"])
         self.btn_load.setText("New")
+        self.btn_load.clicked.connect(self.new)
+
+    def new(self):
+        edit_dialog = InstrumentDialog()
+
+        res = edit_dialog.exec()
+
 
 class GenericInstrumentsTab(LibraryTab):
     def __init__(self, parent):
         super().__init__(parent, ["Type", "Resolution", "Efficiency", "Response Matrix"])
         self.btn_load.setText("New")
+        self.btn_load.clicked.connect(self.new)
+
+    def new(self):
+        edit_dialog = InstrumentDialog()
+        edit_dialog.name_input.setEnabled(False)
+
+        res = edit_dialog.exec()

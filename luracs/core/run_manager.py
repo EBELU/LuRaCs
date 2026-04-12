@@ -226,7 +226,11 @@ class RunManagerBase(QObject):
             self._polling = True
             self._poll_task = asyncio.create_task(self._poll_loop())
 
-    def remove_device(self, device_name: str = "Raysid_1543", remove_spectrum: bool = False):
+    def remove_all_devices(self):
+        for device_name in list(self.devices.keys()):
+            self.remove_device(device_name)
+
+    def remove_device(self, device_name: str, remove_spectrum: bool = False):
         asyncio.create_task(self._remove_device(device_name, remove_spectrum))
 
     async def _remove_device(self, device_name: str, remove_spectrum: bool = False):

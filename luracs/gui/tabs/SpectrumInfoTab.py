@@ -7,6 +7,7 @@ from PySide6.QtGui import QColor
 
 
 from core import SpectrumManager, RunManager
+from gui.misc.idx_table import StrIdxTable
 
 
 def write_row(table, row_index, values):

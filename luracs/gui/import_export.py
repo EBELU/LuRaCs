@@ -116,7 +116,7 @@ class FileDialogs(QObject):
             file_io.export_csv(spectrum, str(file_path))
      
 
-def export_roi_references():
+def save_roi_references():
     "Export reference rois for the library to be loaded on any spectrum"
     save_diag = SaveNamingDialog()
     res = save_diag.exec()
