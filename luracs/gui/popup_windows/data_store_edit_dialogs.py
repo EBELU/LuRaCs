@@ -188,3 +188,46 @@ class InstrumentDialog(QDialog):
             "remark": self.remarks.toPlainText()
         }
         return data
+    
+class SpectrumEditDialog(QDialog):
+    def __init__(self, parent=None, spectrum=None, **kwargs):
+        super().__init__(parent)
+        self.setWindowTitle("Spectrum Edit Dialog")
+        self.resize(400, 300)
+
+        main_layout = QVBoxLayout(self)
+
+        # Form layout
+        form_layout = QFormLayout()
+        main_layout.addLayout(form_layout)
+
+        # Name
+        self.name_input = QLineEdit()
+        self.name_input.setText(spectrum.name if spectrum else "")
+        form_layout.addRow("Spectrum Name:", self.name_input)
+
+        # Remark
+        self.remark_input = QTextEdit()
+        self.remark_input.setPlainText(spectrum.remark if spectrum else "")
+        form_layout.addRow("Remark:", self.remark_input)
+
+        # Buttons
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        main_layout.addWidget(buttons)
+
+    def get_data(self):
+        """Collect data from the dialog and return as a dictionary."""
+        data = {
+            "name": self.name_input.text(),
+            "remark": self.remark_input.toPlainText()
+        }
+        return data
+    
+if __name__ == "__main__":
+    import sys
+    app = QApplication(sys.argv)
+    dialog = SpectrumEditDialog()
+    dialog.show()
+    sys.exit(app.exec())

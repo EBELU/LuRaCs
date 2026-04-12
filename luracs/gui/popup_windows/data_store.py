@@ -280,7 +280,7 @@ class SpectrogramTab(LibraryTab):
         
         self.include_roi_check.setText("Export Spectrum Data")
         
-        self.btn_bar.removeWidget(self.include_instrument_check)
+        self.include_instrument_check.setVisible(False)
         
         export_db = self.export_menu.addAction("LuRaCs Sqlite Database (*.db)")
         export_db.triggered.connect(lambda :self.export_same("LuRaCs Sqlite Database (*.db)"))

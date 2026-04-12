@@ -1,11 +1,14 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ROIClasses import ROI
+
 import numpy as np
 from dataclasses import dataclass
 from PySide6.QtGui import QColor
 from datetime import datetime
+from InstrumentClasses import UniqueInstrument
 
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from ROIClasses import ROI
 
 @dataclass
 class SpectrumData:
@@ -18,7 +21,7 @@ class SpectrumData:
     avg_cps: float = None
     start_date: datetime = None
     end_date: datetime = None
-    spectrum_name:str = None
+    spectrum_name: str = None
     instrument: str = None
     
 class Spectrum:
@@ -30,6 +33,7 @@ class Spectrum:
         # Metadata
         self.name: str = name
         self.channels: int = channels
+        self.remark: str = ""
         
         self.connection: str = kwargs.get("connection", None)
         self.device_id: str = kwargs.get("instrument_id", None)
@@ -109,7 +113,7 @@ class Spectrum:
         """
          Returns the channel counts for the background spectrum. If the background is empty it returns None.
         
-        :param log: If True applies log10 before returning spectrum. Counts of 0 is set to NaN.
+        :param log: If True applies log10 before returning spectrum. Counts of 0 are set to NaN.
         :param cps: Converts the channel counts to cps by dividing by uptime. If the uptime is 0 it returns None
         """
         if self.background is None:
@@ -144,13 +148,19 @@ class Spectrum:
             return np.log10(np.where(data > 0, data, np.nan))
         else:
             return data
-        
+    
+    # --- ROI management ---
     def set_roi(self, roi_data):
         self.ROIs[roi_data.tag] = roi_data   
         
     def remove_roi(self, roi_tag):
         self.ROIs.pop(roi_tag, None)           
-        
+    
+    #-- Instrument management ---
+    def set_instrument(self, instrument):
+        assert isinstance(instrument, UniqueInstrument), f"Instrument must be of type UniqueInstrument, not {type(instrument)}"
+        self.instrument = instrument
+
     def get_instrument(self):
         return self.instrument      
     

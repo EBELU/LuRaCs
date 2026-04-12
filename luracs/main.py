@@ -182,12 +182,13 @@ def main():
     Log.info(f"""
              
  ======  ======  ======     
-|71    ||88    ||55    |    Version:  {__version__} \t [2026-03-31]
+|71    ||88    ||55    |    Version:  {__version__} \t [2026-04-14]
 |  Lu  ||  Ra  ||  Cs  |    Licence:  GNU General Public Licence v3.0
 | 177  || 226  || 137  |    
  ======  ======  ======     
         """)
     print_progress("Done!", 10)
+    print()
     # Start the event loop
     with loop:
         loop.run_forever()

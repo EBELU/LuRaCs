@@ -1,3 +1,10 @@
+from __future__ import annotations
+from curses import wrapper
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from SpectrumClasses import Spectrum, SpectrumData
+
+from datetime import timedelta
 from PySide6.QtWidgets import (
     QWidget, QGroupBox, QVBoxLayout, QTableWidget, QTableWidgetItem,
     QSizePolicy, QColorDialog, QFrame, QHBoxLayout, QToolButton, QMenu
@@ -7,26 +14,7 @@ from PySide6.QtGui import QColor
 
 
 from core import SpectrumManager, RunManager
-from gui.misc.idx_table import StrIdxTable
-
-
-def write_row(table, row_index, values):
-    for col_index, value in enumerate(values):
-        table.setItem(row_index, col_index, QTableWidgetItem(str(value)))
-
-
-def format_duration(seconds):
-    if seconds is None:
-        return
-    seconds = int(seconds)
-    days, seconds = divmod(seconds, 86400)
-    hours, seconds = divmod(seconds, 3600)
-    minutes, seconds = divmod(seconds, 60)
-    if days > 0:
-        return f"{days:02d}d {hours:02d}:{minutes:02d}:{seconds:02d}"
-    else:
-        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-    
+from gui.misc.idx_table import StrIdxTable   
 
 
 from PySide6.QtWidgets import QWidget
@@ -94,14 +82,13 @@ class MenuButton(QWidget):
         return action
 
         
-        
+
 
 class SpectrumInfoTab(QWidget):
-
-    colorChanged = Signal(str, str, QColor)
-    disconnectAndRemove = Signal(str, bool)
-    removeSpectrum = Signal(str)
-    toggleVisibility = Signal(str)
+    sigColorChanged = Signal(str, str, QColor)
+    sigDisconnectAndRemove = Signal(str, bool)
+    sigRemoveSpectrum = Signal(str)
+    sigToggleVisibility = Signal(str)
     
     # spectrum_name, "foreground"/"background", color
 
@@ -109,41 +96,79 @@ class SpectrumInfoTab(QWidget):
         super().__init__(parent)
         self.parent = parent
 
+        # Incoming signals from SpectrumManager
         SpectrumManager.Signals.spectrumUpdated.connect(self.recieve_update)
         SpectrumManager.Signals.spectrumRemoved.connect(self.remove_spectrum)
         SpectrumManager.Signals.backgroundRemoved.connect(self.remove_spectrum)
 
-        self.removeSpectrum.connect(SpectrumManager.remove_spectrum)
-        self.toggleVisibility.connect(SpectrumManager.update_visibility)
-        
-        self.colorChanged.connect(SpectrumManager.set_color)
-        self.disconnectAndRemove.connect(RunManager.remove_device)
+        # Outgoing signals to SpectrumManager and RunManager
+        self.sigRemoveSpectrum.connect(SpectrumManager.remove_spectrum)
+        self.sigToggleVisibility.connect(SpectrumManager.update_visibility)
+        self.sigColorChanged.connect(SpectrumManager.set_color)
+        self.sigDisconnectAndRemove.connect(RunManager.remove_device)
 
         self.group_box = QGroupBox(title)
 
-        titles = ["", "Spectrum", "Type", "Counts", "Live Time", "Real Time", "Calibrated"]
-        self.table = QTableWidget(0, len(titles))
-        self.table.setMinimumHeight(50)
-        self.table.setHorizontalHeaderLabels(titles)
-        self.table.setColumnWidth(0, 60)
-        self.table.setColumnWidth(3, 100)
-        self.table.setColumnWidth(4, 150)
-        self.table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
+        titles = ["Spectrum", "Type", "Counts", "Live Time", "Real Time", "Calibrated", "Instrument"]
+        self.table = StrIdxTable(columns=titles, column_widths= [65, 150, 150, 150, 100, 100, 100, 200], has_menu_button=True)
 
         box_layout = QVBoxLayout(self.group_box)
-        box_layout.addWidget(self.table)
+        box_layout.addWidget(self.table.table)
 
         main_layout = QVBoxLayout(self)
         main_layout.addWidget(self.group_box)
-
-        self.saved_rows = {}   # spectrum_name -> list of row indices
-        self.row_counter = 0
         
         self.hide_show_btn = {}
         self.hide_show_states = {}
 
 
+    def build_menu_button(self, spectrum: Spectrum, role:str, color: QColor, parent=None) -> MenuButton:
+        menu_button = MenuButton(parent=parent, title="...")
+        color_widget = ColorCellWidget(color)
+        if role == "foreground" and spectrum.connected_device is not None: # Has connected device
+            disconnect = menu_button.add_action("Remove and Disconnect")
+            disconnect.triggered.connect(lambda x: RunManager.remove_device(spectrum.name, True))
+            
+            add_bkg = menu_button.add_action("Add Background")
+            add_bkg.triggered.connect(lambda _: parent.file_import_export.load_spectrum_as_background(spectrum.name))
 
+            self.hide_show_btn[spectrum.name] = menu_button.add_action("Hide")
+            self.hide_show_btn[spectrum.name].triggered.connect(lambda x: self._show_hide_action(spectrum.name))
+            
+        elif role == "foreground":
+            remove = menu_button.add_action("Remove Spectrum")
+            remove.triggered.connect(lambda x: SpectrumManager.remove_spectrum(spectrum.name))
+            add_bkg = menu_button.add_action("Add Background")
+            add_bkg.triggered.connect(lambda _: parent.file_import_export.load_spectrum_as_background(spectrum.name))
+
+            self.hide_show_btn[spectrum.name] = menu_button.add_action("Hide")
+            self.hide_show_btn[spectrum.name].triggered.connect(lambda x: self._show_hide_action(spectrum.name))
+            
+        else: # Background
+            rm_bkg = menu_button.add_action("Remove Background")
+            rm_bkg.triggered.connect(lambda x: SpectrumManager.clear_background(spectrum.name))
+        
+
+        # export_btn = menu_button.add_action("Export")
+        # export_btn.triggered.connect(lambda _:parent.file_import_export.export_spectrum(spectrum.name))
+        
+        menu_button.add_action("Edit")
+
+        wrapper = QWidget()
+        layout = QHBoxLayout(wrapper)
+        layout.setContentsMargins(0, 0, 0, 0)  # no extra space
+        layout.addWidget(color_widget)
+        layout.addWidget(menu_button)
+        layout.addStretch()
+        wrapper.setLayout(layout)
+        
+
+        # Connect click
+        color_widget.clicked.connect(
+            lambda cw=color_widget: self.open_color_dialog(cw, spectrum.name, role)
+            )
+
+        return wrapper
     # ----------------- Options cell helpers -----------------
     def _show_hide_action(self, name):
         spect = SpectrumManager.get_spectrum(name)
@@ -154,167 +179,55 @@ class SpectrumInfoTab(QWidget):
             self.hide_show_btn[name].setText("Hide")
             self.toggleVisibility.emit(name)
 
-    def set_options_cell(self, row: int, spectrum_name: str, role: str, color: QColor):
-        # Create the color swatch
-        cell_widget = ColorCellWidget(color)
-        menu_button = MenuButton()
-        if role == "foreground" and SpectrumManager.get_spectrum(spectrum_name).connected_device is not None:
-            disconnect = menu_button.add_action("Remove and Disconnect")
-            disconnect.triggered.connect(lambda x: self.disconnectAndRemove.emit(spectrum_name, True))
-            
-            add_bkg = menu_button.add_action("Add Background")
-            add_bkg.triggered.connect(lambda _: self.parent.file_import_export.load_spectrum_as_background(spectrum_name))
-            
-            self.hide_show_btn[spectrum_name] = menu_button.add_action("Hide")
-            self.hide_show_btn[spectrum_name].triggered.connect(lambda x: self._show_hide_action(spectrum_name))
-                
-            
-        elif role == "foreground":
-            remove = menu_button.add_action("Remove Spectrum")
-            remove.triggered.connect(lambda x: self.removeSpectrum.emit(spectrum_name))
-            add_bkg = menu_button.add_action("Add Background")
-            add_bkg.triggered.connect(lambda _: self.parent.file_import_export.load_spectrum_as_background(spectrum_name))
-            
-            self.hide_show_btn[spectrum_name] = menu_button.add_action("Hide")
-            self.hide_show_btn[spectrum_name].triggered.connect(lambda x: self._show_hide_action(spectrum_name))
-            
-        else:
-            rm_bkg = menu_button.add_action("Remove Background")
-            rm_bkg.triggered.connect(lambda x: SpectrumManager.clear_background(spectrum_name))
-        
-
-        export_btn = menu_button.add_action("Export")
-        export_btn.triggered.connect(lambda _:self.parent.file_import_export.export_spectrum(spectrum_name))
-        
-        menu_button.add_action("Info")
-
-        # Wrap it in a QWidget with a layout to center it
-        wrapper = QWidget()
-        layout = QHBoxLayout(wrapper)
-        layout.setContentsMargins(0, 0, 0, 0)  # no extra space
-        layout.addStretch()
-        layout.addWidget(cell_widget)
-        layout.addWidget(menu_button)
-        layout.addStretch()
-        wrapper.setLayout(layout)
-        
-
-        # Connect click
-        cell_widget.clicked.connect(
-            lambda cw=cell_widget: self.open_color_dialog(cw, spectrum_name, role)
-        )
-
-        self.table.setCellWidget(row, 0, wrapper)
-
     def open_color_dialog(self, cell_widget: ColorCellWidget, spectrum_name: str, role: str):
         color = QColorDialog.getColor(cell_widget.color, self, "Select color")
         if color.isValid():
             cell_widget.set_color(color)
-            self.colorChanged.emit(spectrum_name, role, color)
+            self.sigColorChanged.emit(spectrum_name, role, color)
 
     # ----------------- Table update -----------------
+    def format_large_int(self, value: int) -> str:
+        return f"{int(value):,}".replace(",", " ")
+    
     def recieve_update(self, name):
         new_spect = SpectrumManager.get_spectrum(name)
-        # Determine rows to insert
-        if name not in self.saved_rows:
-            rows = []
-
-            # Foreground row
-            self.table.insertRow(self.row_counter)
-            fg_row = self.row_counter
-            rows.append(fg_row)
-            self.row_counter += 1
-
-            # Background row (if exists)
-            if new_spect.get_background() is not None:
-                self.table.insertRow(self.row_counter)
-                bkg_row = self.row_counter
-                rows.append(bkg_row)
-                self.row_counter += 1
-
-            self.saved_rows[name] = rows
-
-        indicies = self.saved_rows[name]
-
-        # ----------------- Foreground -----------------
-        fg_row = indicies[0]
-        fg = new_spect.foreground
-
-        # Update color widget if it already exists
-        cell_widget_wrapper = self.table.cellWidget(fg_row, 0)
-        if cell_widget_wrapper:
-            cell_widget = cell_widget_wrapper.layout().itemAt(1).widget()  # center widget
-            cell_widget.set_color(new_spect.color_foreground)
-        else:
-            self.set_options_cell(fg_row, name, "foreground", new_spect.color_foreground)
         
-        write_row(self.table, fg_row, [
-            "",
-            new_spect.name,
-            "Foreground",
-            f"{int(fg.total_counts):,}".replace(",", " "),
-            format_duration(fg.live_time),
-            format_duration(fg.real_time),
-            new_spect.calibrated
-        ])
+        # --- Foreground ---
+        foreground_menu_button = self.build_menu_button(new_spect, "foreground", new_spect.color_foreground, parent=self.parent)
+        live_time = timedelta(seconds=round(new_spect.foreground.live_time)) if new_spect.foreground.live_time is not None else "None"
+        real_time = timedelta(seconds=round(new_spect.foreground.real_time)) if new_spect.foreground.real_time is not None else "None"
+        self.table.write_row(name+"f", 
+                             [name, "Foreground", 
+                              self.format_large_int(new_spect.foreground.total_counts), 
+                              live_time, 
+                              real_time,
+                              str(new_spect.calibrated)],
+                            menu_button=foreground_menu_button
+        )
 
-        # ----------------- Background -----------------
-        if new_spect.get_background() is not None:
-            bkg_row = indicies[1] if len(indicies) > 1 else None
-            bkg = new_spect.background
+        # --- Background ---
+        background_menu_button = self.build_menu_button(new_spect, "background", new_spect.color_background, parent=self.parent)
+        if new_spect.background is not None:
+            live_time = timedelta(seconds=round(new_spect.background.live_time)) if new_spect.background.live_time is not None else "None"
+            real_time = timedelta(seconds=round(new_spect.background.real_time)) if new_spect.background.real_time is not None else "None"
 
-            if bkg_row is None:
-                # Insert row dynamically if not yet created
-                self.table.insertRow(self.row_counter)
-                bkg_row = self.row_counter
-                self.row_counter += 1
-                indicies.append(bkg_row)
-                self.saved_rows[name] = indicies
-
-            # Update color widget if exists
-            cell_widget_wrapper = self.table.cellWidget(bkg_row, 0)
-            if cell_widget_wrapper:
-                cell_widget = cell_widget_wrapper.layout().itemAt(1).widget()
-                cell_widget.set_color(new_spect.color_background)
-            else:
-                self.set_options_cell(bkg_row, name, "background", new_spect.color_background)
-
-            write_row(self.table, bkg_row, [
-                "",
-                new_spect.name,
-                "Background",
-                f"{int(bkg.total_counts):,}".replace(",", " "),
-                format_duration(bkg.live_time),
-                format_duration(bkg.real_time),
-            ])
+            self.table.write_row(name+"b", 
+                                [name, "Background", 
+                                 self.format_large_int(new_spect.background.total_counts), 
+                                 live_time, 
+                                 real_time, 
+                                 str(new_spect.calibrated),
+                                 ""],
+                                menu_button=background_menu_button
+            )
     
-    def remove_spectrum(self, name: str, which:str = "both"):
-        """Remove an entire spectrum or just the background from the info tab."""
-        rows = self.saved_rows[name]
-
-        if which == "both":
-            shift = len(rows)
-            for i in reversed(rows): # Remove in reverse order, otherwise the background gets shifted to the foregrounds index
-                self.table.removeRow(i)
-            
-            for key, rows_pair in self.saved_rows.items(): # Shift down the indicies of other rows
-                new_pair = [i - shift for i in rows_pair if i > rows[-1]]
-                if len(new_pair):
-                    self.saved_rows[key] = new_pair
-            
-            self.row_counter -= shift # update the counter on where the top is
-            self.saved_rows.pop(name)
-            
-        elif which == "bkg":
-            shift = 1
-            self.table.removeRow(rows[-1])
-            self.saved_rows[name] = [rows[0]]
-            
-            for key, rows_pair in self.saved_rows.items(): # Shift down the indicies of other rows
-                new_pair = [i - shift for i in rows_pair if i > rows[-1]]
-                if len(new_pair):
-                    self.saved_rows[key] = new_pair
-            
-            self.row_counter -= shift
-            
-                        
+    def remove_spectrum(self, name, background=False):
+        if background:
+            self.table.delete_row(name+"b")
+            self.hide_show_btn.pop(name+"b", None)
+        else:
+            self.table.delete_row(name+"f")
+            self.hide_show_btn.pop(name+"f", None)
+            if self.table.get_index_from_key(name+"b") is not None:
+                self.table.delete_row(name+"b")
+                self.hide_show_btn.pop(name+"b", None)

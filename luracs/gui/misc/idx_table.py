@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QPushButton
 )
 class StrIdxTable(QWidget):
-    def __init__(self, title = "", parent = None, columns = None, has_menu_button=False):
+    def __init__(self, title = "", parent = None, columns = None, column_widths = None, has_menu_button=False):
         """Abstraction of QTable the that uses string keys for table indexing."""
         super().__init__(parent)
         
@@ -20,7 +20,7 @@ class StrIdxTable(QWidget):
         self.has_menu_button = has_menu_button
         
         if columns is not None:
-            self.reset_table(columns)
+            self.reset_table(columns, column_widths)
     
     def get_key_from_index(self, index: int) -> str:
         item = self.table.item(index, 0)
@@ -53,7 +53,7 @@ class StrIdxTable(QWidget):
         
         if self.has_menu_button:
             titles = [""] + titles
-            self.table.setColumnCount(len(titles) + 1)
+            self.table.setColumnCount(len(titles))
             self.table.setHorizontalHeaderLabels(titles)
         else:
             self.table.setColumnCount(len(titles))
@@ -62,9 +62,9 @@ class StrIdxTable(QWidget):
         
         if widths is not None:
             if self.has_menu_button:
-                assert len(widths) == len(titles) - 2, f"Length of widths does not match, titles {len(titles)}, widths {len(widths)}"
+                assert len(widths) == len(titles) - 1, f"Length of widths does not match, titles {len(titles)}, widths {len(widths)}"
                 for i in range(len(widths)):
-                    self.table.setColumnWidth(i + 2, widths[i])
+                    self.table.setColumnWidth(i + 1, widths[i])
             else:
                 assert len(widths) == len(titles) - 1, f"Length of widths does not match, titles {len(titles)}, widths {len(widths)}"
                 for i in range(len(widths)):
@@ -72,7 +72,7 @@ class StrIdxTable(QWidget):
         
         self.table.setColumnHidden(0, True)
         
-    def write_row(self, row_tag: str, values: list, menu_button: QWidget = None):
+    def write_row(self, row_tag: str, values: list, menu_button: QWidget = None, force__button_overwrite = False):
         assert isinstance(values, list), f"Values must be a list! Is {type(values)}"
 
         self.table.setSortingEnabled(False)
@@ -86,8 +86,15 @@ class StrIdxTable(QWidget):
             # Column layout
             data_start_col = 2 if self.has_menu_button else 1
 
-            # Menu button
-            if self.has_menu_button and menu_button is not None:
+            # Check if button already exists
+            existing_button = None
+            if self.has_menu_button:
+                existing_button = self.table.cellWidget(row_index, 1)
+
+            # Only set button if none exists or is forced to overwrite
+            if ((self.has_menu_button and menu_button is not None and existing_button is None) 
+                or 
+                (force__button_overwrite and menu_button is not None)):
                 self.table.setCellWidget(row_index, 1, menu_button)
 
             # Data cells
