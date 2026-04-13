@@ -4,3 +4,4 @@ build/
 dist/
 *egg*
 venv
+dev/cleaned_nuclide_data/*

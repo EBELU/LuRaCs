@@ -17,8 +17,6 @@ from bleak import BleakScanner
 import sys
 from pathlib import Path
 import time
-import os
-import ctypes
 
 
 # -----------------------------
@@ -42,8 +40,6 @@ else:
 
 from PySide6.QtCore import QObject, Signal
 from .gui_logger import gui_logger
-
-from SpectrumClasses import SpectrumData
 
 from clients.DeviceWrappers import DeviceWrapper
 
