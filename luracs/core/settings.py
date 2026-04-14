@@ -5,6 +5,7 @@ from typing import Optional, Any
 import json
 from pathlib import Path
 from collections import deque
+import sys
 
 @dataclass
 class _Appearance:
@@ -47,6 +48,10 @@ class _Advanced:
     optimizer_tolerance: float = 1e-6
     optimizer_use_chi2_weight: bool = True
 
+def get_runtime_base() -> Path:
+    if hasattr(sys, "_MEIPASS"):
+        return Path(sys._MEIPASS)
+    return Path(__file__).parent.parent
 
 @dataclass
 class _Paths:
@@ -57,12 +62,16 @@ class _Paths:
     datalog_library: Path = field(init=False)
     instrument_library: Path = field(init=False)
     BASE: Path = field(init=False)
-    dlls: Path = field(init=False)
     
     settings_file: Path = field(init=False)
 
 
     def __post_init__(self):
+        # runtime base (where bundled resources live)
+        self.BASE = get_runtime_base()
+
+        self.nuclide_data = self.BASE / "resources" / "nuclide_data"
+
         # Initialize all dependent paths relative to appdata
         self.spectrum_library = self.appdata / "spectrum_library"
         self.datalog_library = self.appdata / "datalog_library"
@@ -70,17 +79,7 @@ class _Paths:
         self.roi_library = self.appdata / "roi_library"
         self.instrument_library = self.appdata / "instrument_library"
         self.settings_file = self.appdata / "settings.json"
-        self.BASE = Path(os.path.dirname(os.path.abspath(sys.modules['__main__'].__file__)))
-        self.dlls = self.BASE / "resources" / "dlls"
         
-        
-        self.data_stores = [
-            self.spectrum_library,
-            self.spectrogram_library,
-            self.roi_library,
-            self.datalog_library,
-            self.instrument_library,
-        ]
         
 
 

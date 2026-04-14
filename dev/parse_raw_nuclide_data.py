@@ -12,13 +12,13 @@ def is_float(x):
         return False
 
 for file in glob(pth+"/*"):
-    json_dict = {}
+    volume = int(Path(file).stem.split("_")[-1].removeprefix("Vol"))
+    json_dict = {"lnhb_volume": volume}
     emissions = []
     with open(file) as f:
 
         for line in f.readlines():
             line_parts = [part.strip() for part in line.split(";")]
-
 
             match line_parts[0]:
                 case "Nuclide":
@@ -62,5 +62,5 @@ for file in glob(pth+"/*"):
 
     json_dict["Emissions"] = emissions
 
-    with open((Path("dev/cleaned_nuclide_data") / Path(file).stem).with_suffix(".json"), "w") as f:
+    with open((Path("dev/cleaned_nuclide_data") / Path(file).stem.split("_")[0]).with_suffix(".json"), "w") as f:
         json.dump(json_dict, f, indent=4, ensure_ascii=False)

@@ -4,8 +4,13 @@ from PySide6.QtGui import QColor
 from clients.DeviceWrappers import WrappedSpectrumPackage
 from datetime import datetime, timedelta
 
+from InstrumentClasses import GenericInstrument, UniqueInstrument
+
 from .gui_logger import gui_logger
 from .roi_manager import ROIManager
+from .instument_library import InstrumentLibrary
+from .nuclide_library import NuclideLibrary
+from NuclideClasses import Nuclide, Emission
 
 """
     The Spectrum manager handles the spectra in the program.
@@ -78,6 +83,11 @@ class SpectrumManagerBase(QObject):
         self.Signals = EmittedSignals()
         
         self.ROIManager = ROIManager(self)
+
+        self.UniqueInstrumentLibrary = InstrumentLibrary(self, UniqueInstrument)
+        self.GenericInstrumentLibrary = InstrumentLibrary(self, GenericInstrument)
+
+        self.NuclideLibrary = NuclideLibrary(self)
         
         
     # --- Spectrum manipulators ---
