@@ -1,9 +1,10 @@
 import numpy as np
 
+
 def numerical_jacobian(f, x, eps=1e-8):
     """
     Compute the Jacobian of f at x numerically using finite differences.
-    
+
     Parameters
     ----------
     f : function
@@ -12,7 +13,7 @@ def numerical_jacobian(f, x, eps=1e-8):
         Current parameter vector (length n)
     eps : float
         Step size for finite differences
-    
+
     Returns
     -------
     J : ndarray, shape (m, n)
@@ -22,13 +23,14 @@ def numerical_jacobian(f, x, eps=1e-8):
     m = len(f0)
     n = len(x)
     J = np.zeros((m, n))
-    
+
     for j in range(n):
         dx = np.zeros_like(x)
         dx[j] = eps
         f1 = f(x + dx)
         J[:, j] = (f1 - f0) / eps
     return J
+
 
 def curve_fit(
     f,
@@ -40,7 +42,7 @@ def curve_fit(
     weight_cov_chi2=True,
     max_iter=100,
     tol=1e-8,
-    lam=1e-3
+    lam=1e-3,
 ):
     """
     Levenberg-Marquardt optimizer with flexible weighting.

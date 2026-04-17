@@ -5,12 +5,16 @@ from PySide6.QtWidgets import QTextEdit, QWidget, QVBoxLayout
 
 from core import Settings
 
+
 class LogSignalEmitter(QObject):
     """QObject that emits log messages to the GUI."""
+
     logSignal = Signal(str)
+
 
 class QtHandler(logging.Handler):
     """A logging.Handler that emits logs via a Qt signal."""
+
     def __init__(self, emitter: LogSignalEmitter):
         super().__init__()
         self.emitter = emitter
@@ -21,6 +25,7 @@ class QtHandler(logging.Handler):
             self.emitter.logSignal.emit(msg)
         except Exception:
             self.handleError(record)
+
 
 class LogWidget(QWidget):
     """QTextEdit widget showing all logs in real-time."""
@@ -33,7 +38,7 @@ class LogWidget(QWidget):
         self.text_edit.setReadOnly(True)
         self.text_edit.setLineWrapMode(QTextEdit.NoWrap)
         font = QFont()
-        font.setFamily("Consolas")   # Windows-friendly monospace
+        font.setFamily("Consolas")  # Windows-friendly monospace
         font.setStyleHint(QFont.Monospace)
         font.setPointSize(Settings.Appearance.font_size + 1)
         self.text_edit.setFont(font)
@@ -44,8 +49,7 @@ class LogWidget(QWidget):
 
         # --- Setup logging ---
         self._setup_logger()
-        
-        
+
         self.setStyleSheet("""
             QWidget#LogWidget {
                 border: 3px solid #444444;
@@ -69,7 +73,7 @@ class LogWidget(QWidget):
 
         formatter = logging.Formatter(
             fmt="%(asctime)s | %(name)s -- %(levelname)s: %(message)s",
-            datefmt="%H:%M:%S"
+            datefmt="%H:%M:%S",
         )
         handler.setFormatter(formatter)
 

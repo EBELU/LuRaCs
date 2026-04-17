@@ -25,9 +25,7 @@ def _on_usb_device_selected(device: dict):
         return
 
     # Adjust if your RunManager function name differs
-    asyncio.create_task(
-        RunManager.add_device(serial, device_type, True)
-    )
+    asyncio.create_task(RunManager.add_device(serial, device_type, True))
 
 
 class USBListPopup(ListPopupNonBlocking):

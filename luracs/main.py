@@ -1,38 +1,44 @@
 import sys
 import asyncio
 import logging
-from datetime import datetime
+
 
 def print_progress(text, progress):
-    print("\r[" + "#" * progress + " " * (10 - progress) + "]", f"-- {text} {" " * 15}", end="", flush=True)
+    print(
+        "\r[" + "#" * progress + " " * (10 - progress) + "]",
+        f"-- {text} {' ' * 15}",
+        end="",
+        flush=True,
+    )
 
 
-logging.basicConfig(
-    level=logging.INFO
-)
+logging.basicConfig(level=logging.INFO)
 
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QTabWidget
+    QApplication,
+    QMainWindow,
+    QWidget,
+    QVBoxLayout,
+    QTabWidget,
 )
 from qasync import QEventLoop
 from PySide6.QtCore import QTimer
 
 print_progress("Loading GUI", 0)
 
-from gui import (MainMenuBar, 
-                            SpectrumPlot, 
-                            SpectrogramWidget,
-                            DataLibrary)
+from gui import MainMenuBar, SpectrumPlot, SpectrogramWidget, DataLibrary
 
 print_progress("Loading GUI", 2)
 
-from gui.tabs import(ROIInfoTab,
-                                SpectrumInfoTab,
-                                LogWidget,
-                                DevicesInfoTab,
-                                CurrentValuesPlot,
-                                IsotopicsTab)
+from gui.tabs import (
+    ROIInfoTab,
+    SpectrumInfoTab,
+    LogWidget,
+    DevicesInfoTab,
+    CurrentValuesPlot,
+    IsotopicsTab,
+)
 
 print_progress("Loading utils", 5)
 from gui.import_export import FileDialogs
@@ -40,13 +46,12 @@ from ThemeManager import ThemeManager
 from utils.ArgParser import parse_cli_args
 from utils.startup import startup_script
 
-from core import RunManager, Log, Settings, GuiServices, GuiServicesKeys, SpectrumManager
+from core import RunManager, Log, Settings, SpectrumManager
 from utils.file_io.nuclide_dataloader import load_nuclide_data
 
 from gui.popup_windows.BluetoothListPopup import BluetoothListPopup
 from gui.popup_windows.USBListPopup import USBListPopup
 
-from PySide6.QtWidgets import QApplication
 
 __version__ = "0.1.0"
 
@@ -60,12 +65,12 @@ class MainWindow(QMainWindow):
 
         self.mock_running = True
         self._closing = False
-        
+
         self.theme = ThemeManager(Settings.Appearance.theme)
-        self.theme.apply() 
-        
+        self.theme.apply()
+
         self.bt_window = BluetoothListPopup()
-        
+
         self.usb_window = USBListPopup()
         self.file_import_export = FileDialogs(self)
         print_progress("Indexing Data Store", 8)
@@ -79,23 +84,22 @@ class MainWindow(QMainWindow):
         self.menu_bar = MainMenuBar(self)
         self.setMenuBar(self.menu_bar)
 
-
         # ---------- SPECTRUM PLOT ----------
         self.spect_tab = QTabWidget()
         self.spect_tab.setTabPosition(QTabWidget.South)
         self.spectrum_plot = SpectrumPlot()
         self.spect_tab.addTab(self.spectrum_plot, "Spectrum")
-        
+
         self.spectrogram = SpectrogramWidget(self)
         self.spectrogram.sigShowDataStore.connect(self.show_data_store)
         self.spect_tab.addTab(self.spectrogram, "Spectrogram")
-        
+
         layout.addWidget(self.spect_tab, 5)
 
         # ---------- Bottom Tabs ----------
 
         self.bottom_tabs = QTabWidget(self)
- 
+
         # Spectrum Infp
         self.spectrum_info_tab = SpectrumInfoTab(parent=self)
         self.bottom_tabs.addTab(self.spectrum_info_tab, "Spectra")
@@ -112,39 +116,41 @@ class MainWindow(QMainWindow):
         # Devices
         self.devices_tab = DevicesInfoTab()
         self.bottom_tabs.addTab(self.devices_tab, "Devices")
-        
-        self.isotopics_tab = IsotopicsTab(list(SpectrumManager.NuclideLibrary.nuclides.keys()))
+
+        self.isotopics_tab = IsotopicsTab(
+            list(SpectrumManager.NuclideLibrary.nuclides.keys())
+        )
         self.bottom_tabs.addTab(self.isotopics_tab, "Isotopics")
 
         # System log
         self.log_tab = LogWidget()
         self.bottom_tabs.addTab(self.log_tab, "System Log")
 
-
         bottom_layout = QVBoxLayout()
         bottom_layout.addWidget(self.bottom_tabs)
         layout.addLayout(bottom_layout, stretch=3)
-        
+
         self.theme.register_plot(self.spectrum_plot.plot_widget)
         self.theme.register_plot(self.current_value_tab.cps_plot_widget)
         self.theme.register_plot(self.current_value_tab.dose_plot_widget)
-        
+
         self.theme.register_legend(self.current_value_tab.legends)
 
         self.theme.apply()
-        
+
         if len(sys.argv) > 1:
             QTimer.singleShot(0, parse_cli_args)
-        
+
         # QTimer.singleShot(0, lambda : self.data_store.show())
-            
+
         print_progress("Main window loaded", 9)
-        
-    def show_data_store(self, tab_idx = None):
+
+    def show_data_store(self, tab_idx=None):
         if tab_idx is not None:
             self.data_store.tabs.setCurrentIndex(tab_idx)
-            
+
         self.data_store.show()
+
     def closeEvent(self, event: QCloseEvent):
         if self._closing:
             event.accept()
@@ -153,7 +159,7 @@ class MainWindow(QMainWindow):
         event.ignore()
         self.hide()
         asyncio.create_task(self._async_close())
-        
+
     async def _async_close(self):
         if self._closing:
             return
@@ -164,21 +170,18 @@ class MainWindow(QMainWindow):
             Settings.save_settings()
         finally:
             QApplication.quit()
-        
 
 
 # ===================== ENTRY =====================
 def main():
     startup_script()
     app = QApplication(sys.argv)
-    app.setStyle("Fusion") 
+    app.setStyle("Fusion")
     font = app.font()
     font.setPointSize(Settings.Appearance.font_size)  # Change the font size
     app.setFont(font)
     loop = QEventLoop(app)
     asyncio.set_event_loop(loop)
-    
-
 
     win = MainWindow()
     win.show()
@@ -200,7 +203,5 @@ def main():
         loop.run_forever()
 
 
-
 if __name__ == "__main__":
     main()
-

@@ -13,4 +13,12 @@ Global state classes shared by the entire program.
 Global objects outside of other globals should only be included through this __init__ file.
 """
 
-__all__ = ["RunManager", "Settings", "SpectrumManager", "Log", "Calculator", "GuiServices", "GuiServicesKeys"]
+__all__ = [
+    "RunManager",
+    "Settings",
+    "SpectrumManager",
+    "Log",
+    "Calculator",
+    "GuiServices",
+    "GuiServicesKeys",
+]

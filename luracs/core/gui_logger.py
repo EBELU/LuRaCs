@@ -9,7 +9,8 @@ console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.INFO)
 
 # Formatter: HH:MM:SS LEVEL MESSAGE
-formatter = logging.Formatter(fmt="%(asctime)s %(levelname)s %(message)s",
-                              datefmt="%H:%M:%S")
+formatter = logging.Formatter(
+    fmt="%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S"
+)
 
 console_handler.setFormatter(formatter)

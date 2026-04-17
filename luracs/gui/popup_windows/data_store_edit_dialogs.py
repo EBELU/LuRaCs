@@ -1,11 +1,29 @@
 from PySide6.QtWidgets import QApplication, QWidget
 from PySide6.QtWidgets import (
-    QWidget, QGroupBox, QVBoxLayout,
-    QSizePolicy, QHBoxLayout, QDialog, QFormLayout, QTextEdit, QComboBox, QLineEdit, QDialogButtonBox,
-    QPushButton, QCheckBox, QDoubleSpinBox, QTabWidget, QAbstractItemView, QMessageBox, QFileDialog, QLabel,QDoubleSpinBox
+    QWidget,
+    QGroupBox,
+    QVBoxLayout,
+    QSizePolicy,
+    QHBoxLayout,
+    QDialog,
+    QFormLayout,
+    QTextEdit,
+    QComboBox,
+    QLineEdit,
+    QDialogButtonBox,
+    QPushButton,
+    QCheckBox,
+    QDoubleSpinBox,
+    QTabWidget,
+    QAbstractItemView,
+    QMessageBox,
+    QFileDialog,
+    QLabel,
+    QDoubleSpinBox,
 )
 from PySide6.QtCore import Qt, Signal
 import pyqtgraph as pg
+
 
 class InstrumentDialog(QDialog):
     def __init__(self, parent=None, **kwargs):
@@ -19,27 +37,27 @@ class InstrumentDialog(QDialog):
         # Form layout
         form_layout = QFormLayout()
         main_layout.addLayout(form_layout)
-        
+
         # Generic instruments as a base
         self.generic_list = QComboBox()
         form_layout.addRow("Generic Instruments:", self.generic_list)
 
         # Name and model
         model_name_row = QHBoxLayout()
-        
+
         self.name_input = QLineEdit()
         self.name_input.setText(kwargs.get("name"))
-        
+
         model_name_row.addWidget(self.name_input)
         model_name_row.addWidget(QLabel("Instrument Model:"))
 
         self.model_input = QLineEdit()
         self.model_input.setText(kwargs.get("model"))
         model_name_row.addWidget(self.model_input)
-        
+
         form_layout.addRow("Instrument Name:", model_name_row)
-        
-        # Manufacturer and material 
+
+        # Manufacturer and material
         manufacturer_material_row = QHBoxLayout()
 
         self.manufacturer = QLineEdit()
@@ -116,12 +134,12 @@ class InstrumentDialog(QDialog):
         dim_layout.addWidget(d_widget)
 
         form_layout.addRow("Dimensions:", dim_layout)
-        
+
         # Resolution
         self.resolution = QLineEdit()
         self.resolution.setEnabled(False)
-        form_layout.addRow("Resolution: ",self.resolution)
-        
+        form_layout.addRow("Resolution: ", self.resolution)
+
         # Resolution Plot
         self.res_plot_widget = pg.PlotWidget()
         self.res_plot_widget.setMouseEnabled(x=False, y=False)
@@ -129,12 +147,12 @@ class InstrumentDialog(QDialog):
 
         # Example data
         self.res_plot_widget.plot([1, 2, 3, 4], [10, 20, 15, 30])
-        
+
         # Efficiency
         self.efficiency = QLineEdit()
         self.efficiency.setEnabled(False)
-        form_layout.addRow("Efficiency: ",self.efficiency)
-        
+        form_layout.addRow("Efficiency: ", self.efficiency)
+
         # Efficiency plot
         self.eff_plot_widget = pg.PlotWidget()
         self.eff_plot_widget.setMouseEnabled(x=False, y=False)
@@ -142,21 +160,21 @@ class InstrumentDialog(QDialog):
 
         # Example data
         self.eff_plot_widget.plot([1, 2, 3, 4], [10, 20, 15, 30])
-        
+
         # Response Matrix
         response_matrix_row = QHBoxLayout()
         self.response_matrix = QLineEdit()
         self.response_matrix.setEnabled(False)
         response_matrix_row.addWidget(self.response_matrix)
-        
+
         self.load_matrix = QPushButton()
         self.load_matrix.setText("Import")
         response_matrix_row.addWidget(self.load_matrix)
         form_layout.addRow("Response Matrix: ", response_matrix_row)
-    
+
         # Buttons
         bottom_box = QGroupBox()
-        
+
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
@@ -164,8 +182,6 @@ class InstrumentDialog(QDialog):
 
         # Initialize spinboxes
         self.update_spinboxes(self.shape.currentText())
-        
-        
 
     def update_spinboxes(self, shape_text):
         """Disable depth spinbox for Cylinder, enable otherwise."""
@@ -184,11 +200,16 @@ class InstrumentDialog(QDialog):
             "manufacturer": self.manufacturer.text(),
             "detector_material": self.detector_material.text(),
             "detector_shape": self.shape.currentText(),
-            "detector_dimensions": [self.height_spin.value(), self.width_spin.value(), self.depth_spin.value()],
-            "remark": self.remarks.toPlainText()
+            "detector_dimensions": [
+                self.height_spin.value(),
+                self.width_spin.value(),
+                self.depth_spin.value(),
+            ],
+            "remark": self.remarks.toPlainText(),
         }
         return data
-    
+
+
 class SpectrumEditDialog(QDialog):
     def __init__(self, parent=None, spectrum=None, **kwargs):
         super().__init__(parent)
@@ -221,12 +242,14 @@ class SpectrumEditDialog(QDialog):
         """Collect data from the dialog and return as a dictionary."""
         data = {
             "name": self.name_input.text(),
-            "remark": self.remark_input.toPlainText()
+            "remark": self.remark_input.toPlainText(),
         }
         return data
-    
+
+
 if __name__ == "__main__":
     import sys
+
     app = QApplication(sys.argv)
     dialog = SpectrumEditDialog()
     dialog.show()

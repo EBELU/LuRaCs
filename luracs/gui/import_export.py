@@ -18,13 +18,13 @@ class FileDialogs(QObject):
         "spectrum": "Spectrum Files (*.xml *.n42 *.tke *.spe)",
         "spectrogram": "LuRaCs Spectrogram Database File (*.db)",
         "rois": "LuRaCs ROIs File (*.xml)",
-        "instrument": "LuRaCs Instrument File (*xml)"
+        "instrument": "LuRaCs Instrument File (*xml)",
     }
     export_filters = {
         "spectrum": "XML/n42 (*xml);; CSV (*.csv);; Excel Workbook (*.xlsx)",
         "spectrogram": "Spectrogram Sqlite (.db);; Excel Workbook (*.xlsx)",
         "rois": "XML (*xml);; Excel Workbook (*.xlsx)",
-        "instrument": "XML (*xml)"
+        "instrument": "XML (*xml)",
     }
 
     def __init__(self, parent=None):
@@ -33,8 +33,9 @@ class FileDialogs(QObject):
         self.last_spect_dir = Path.home()
 
         self.sigImportSpectrum.connect(SpectrumManager.import_spectrum)
-        self.sigImportSpectrumAsBackground.connect(SpectrumManager.import_spectrum_as_background)
-
+        self.sigImportSpectrumAsBackground.connect(
+            SpectrumManager.import_spectrum_as_background
+        )
 
     # --- Import ---
     def import_files(self, filter=None):
@@ -42,25 +43,21 @@ class FileDialogs(QObject):
         if filter is None:
             filter = ";;".join(self.import_filters.values())
         file_paths, selected_filter = QFileDialog.getOpenFileNames(
-            self.parent,
-            "Import File",
-            str(self.last_spect_dir),
-            filter
+            self.parent, "Import File", str(self.last_spect_dir), filter
         )
-        
+
         if file_paths is not None and len(file_paths) > 0:
-            file_paths = [Path(fp) for fp in  file_paths]
+            file_paths = [Path(fp) for fp in file_paths]
             self.last_spect_dir = file_paths[0].parent
             return file_paths, selected_filter
-        
+
         else:
-           return None, None
-        
-    def import_generic(self, filter = None):
+            return None, None
+
+    def import_generic(self, filter=None):
         file_paths, selected_filter = self.import_files(filter)
         if file_paths is None:
             return
-        
 
         # --- Spectrum Import ---
         if selected_filter == self.import_filters["spectrum"]:
@@ -77,20 +74,17 @@ class FileDialogs(QObject):
             self.parent,
             "Import File",
             str(self.last_spect_dir),
-            self.import_filters["spectrum"]
+            self.import_filters["spectrum"],
         )
         if file_path is not None:
             file_path = Path(file_path)
             self.last_spect_dir = file_path.parent
         else:
             return
-        
+
         spectrum_parser = file_io.io_dispatcher(file_path)
         if spectrum_parser is not None:
             self.sigImportSpectrumAsBackground.emit(spectrum_name, spectrum_parser.data)
-        
-        
-
 
     # --- Export ---
     def export_spectrum(self, spectrum_name: str):
@@ -99,7 +93,7 @@ class FileDialogs(QObject):
             self.parent,
             "Export File",
             str(self.last_spect_dir),
-            self.export_filters["spectrum"]
+            self.export_filters["spectrum"],
         )
 
         if not file_path:
@@ -114,16 +108,16 @@ class FileDialogs(QObject):
             file_io.xml_writer(spectrum, str(file_path))
         elif "csv" in selected_filter.lower():
             file_io.export_csv(spectrum, str(file_path))
-     
+
 
 def save_roi_references():
     "Export reference rois for the library to be loaded on any spectrum"
     save_diag = SaveNamingDialog()
     res = save_diag.exec()
-    
+
     if res == SaveNamingDialog.Accepted:
         new_file = Settings.Paths.roi_library / str(save_diag.get_name())
-        
+
         # Check if the file already exists
         if new_file.exists():
             reply = QMessageBox.question(
@@ -131,30 +125,40 @@ def save_roi_references():
                 "Overwrite File?",
                 f"The file '{new_file.name}' already exists. Do you want to overwrite it?",
                 QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No
+                QMessageBox.No,
             )
-            
+
             if reply == QMessageBox.No:
-                return 
-    
+                return
+
     else:
         return
-    
+
     # I cant be bothered to change the functional writer, just hack it
     # Create a dummy spectrum, only give it rois and the export it using the normal xml_writer
-    dummy_spectrum = Spectrum(1, "Dummy")    
-    
+    dummy_spectrum = Spectrum(1, "Dummy")
+
     for r in SpectrumManager.ROIManager.ROIs.values():
         # Same as for the spectrum, make a dummy ROI
-        dummy_roi = ROI(r.tag, r.alias, r.getRegion(), (None, None), r.fit_type, r.bkg_type, None, 0, 1,
-                    {"movable": r.movable, "poisson_weights": r.poisson_weights, "merge": r.merge})
-        
+        dummy_roi = ROI(
+            r.tag,
+            r.alias,
+            r.getRegion(),
+            (None, None),
+            r.fit_type,
+            r.bkg_type,
+            None,
+            0,
+            1,
+            {
+                "movable": r.movable,
+                "poisson_weights": r.poisson_weights,
+                "merge": r.merge,
+            },
+        )
+
         dummy_spectrum.set_roi(dummy_roi)
-        
-    file_io.xml_writer(dummy_spectrum, new_file, export_spectrum=False, export_instrument=False)
 
-        
-
-
-
-
+    file_io.xml_writer(
+        dummy_spectrum, new_file, export_spectrum=False, export_instrument=False
+    )

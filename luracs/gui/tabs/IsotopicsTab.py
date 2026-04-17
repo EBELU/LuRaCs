@@ -10,17 +10,18 @@ from PySide6.QtWidgets import (
     QComboBox,
     QCheckBox,
     QLabel,
-    QColorDialog
+    QColorDialog,
 )
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtGui import QColor, QPainter, QBrush, QAction, QFont
 
 from core import SpectrumManager
 
+
 def format_emissions(emissions):
     lines = [
         f"{'Energy (keV)':>12} | {'Intensity (%)':>14} | {'Type':>6} | Origin",
-        "-" * 60
+        "-" * 60,
     ]
 
     lines += [
@@ -29,6 +30,7 @@ def format_emissions(emissions):
     ]
 
     return "\n".join(lines)
+
 
 def format_duration(seconds: float) -> str:
     if seconds == 0:
@@ -49,9 +51,9 @@ def format_duration(seconds: float) -> str:
     if abs_s >= year:
         y = seconds / year
         if abs(y) >= 1e9:
-            return f"{y/1e9:.2f} Gyr"
+            return f"{y / 1e9:.2f} Gyr"
         if abs(y) >= 1e6:
-            return f"{y/1e6:.2f} Myr"
+            return f"{y / 1e6:.2f} Myr"
         return f"{y:.2f} yr"
 
     # Days
@@ -77,6 +79,7 @@ def format_duration(seconds: float) -> str:
 
 class ColorCellWidget(QWidget):
     """Clean color swatch for QTableWidget cells."""
+
     clicked = Signal()
     sigColorChanged = Signal(object)
 
@@ -111,14 +114,16 @@ class ColorCellWidget(QWidget):
         color = QColorDialog.getColor(self.color, self, "Select color")
         if color.isValid():
             self.set_color(color)
-            return color     
-          
+            return color
+
+
 class NuclideListItem(QWidget):
     sigViewCheckChanged = Signal(str, bool)  # (name, checked)
-    sigColorChanged = Signal(str, object) # (name, QColor)
+    sigColorChanged = Signal(str, object)  # (name, QColor)
+
     def __init__(self, text, color):
         super().__init__()
-        
+
         self.name = text
 
         layout = QHBoxLayout(self)
@@ -127,13 +132,13 @@ class NuclideListItem(QWidget):
 
         self.checkbox = QCheckBox()
 
-#         self.checkbox.setStyleSheet("""
-# QCheckBox::indicator:unchecked {
-#     border: 2px solid #888;
-#     background-color: #222;
-# }
-# """)    
-        
+        #         self.checkbox.setStyleSheet("""
+        # QCheckBox::indicator:unchecked {
+        #     border: 2px solid #888;
+        #     background-color: #222;
+        # }
+        # """)
+
         self.label = QLabel(text)
 
         self.color_widget = ColorCellWidget(color)
@@ -142,30 +147,31 @@ class NuclideListItem(QWidget):
         layout.addWidget(self.label)
         layout.addStretch()
         layout.addWidget(self.color_widget)
-        
+
         # connect checkbox
         self.checkbox.stateChanged.connect(self._on_state_changed)
 
         # connect color picker
-        self.color_widget.clicked.connect(self.color_widget.get_color) 
+        self.color_widget.clicked.connect(self.color_widget.get_color)
         self.color_widget.sigColorChanged.connect(self._on_color_changed)
-        
+
     def _on_state_changed(self, state):
-        self.sigViewCheckChanged.emit(self.name, Qt.CheckState(state) == Qt.CheckState.Checked)
-        
+        self.sigViewCheckChanged.emit(
+            self.name, Qt.CheckState(state) == Qt.CheckState.Checked
+        )
+
     def _on_color_changed(self, color):
         self.sigColorChanged.emit(self.name, color)
-        
 
-            
+
 class IsotopicsTab(QWidget):
     sigViewCheckChanged = Signal(str, bool)  # (name, checked)
     sigListItemClicked = Signal(str)
-    sigColorChanged = Signal(str, object) # (name, QColor)
-    
+    sigColorChanged = Signal(str, object)  # (name, QColor)
+
     def __init__(self, all_nuclides: list, parent=None, title=""):
         super().__init__(parent=parent)
-        
+
         self.sigListItemClicked.connect(self.change_nuclide_info)
 
         main_layout = QHBoxLayout(self)
@@ -175,34 +181,35 @@ class IsotopicsTab(QWidget):
         self.nuclide_search_bar = QLineEdit()
         self.nuclide_search_bar.setPlaceholderText("Search nuclide...")
         self.nuclide_search_bar.textChanged.connect(self.filter_nuclides)
-    
 
         self.nuclide_list_widget = QListWidget()
-        
+
         self.nuclide_list_widget.currentItemChanged.connect(self._on_item_selected)
 
         nuclides_list_layout.addWidget(self.nuclide_search_bar)
         nuclides_list_layout.addWidget(self.nuclide_list_widget)
-        
-        self.all_nuclides = sorted(all_nuclides, key = lambda n: int(n.split("-")[-1].removesuffix("m")))
-        
+
+        self.all_nuclides = sorted(
+            all_nuclides, key=lambda n: int(n.split("-")[-1].removesuffix("m"))
+        )
+
         for nuclide in self.all_nuclides:
             self.add_nuclide(nuclide, "blue")
 
         self.nuclides_info_textbox = QTextEdit()
         self.nuclides_info_textbox.setReadOnly(True)
-        
+
         font = QFont()
-        font.setFamily("Consolas")   # Windows-friendly monospace
+        font.setFamily("Consolas")  # Windows-friendly monospace
         font.setStyleHint(QFont.Monospace)
         self.nuclides_info_textbox.setFont(font)
-        
+
         peak_search_layout = QVBoxLayout()
-        
+
         btn_search_peaks = QPushButton("Search peaks")
-        
+
         self.search_spect_combo = QComboBox()
-        
+
         peak_search_layout.addWidget(btn_search_peaks)
         peak_search_layout.addWidget(self.search_spect_combo)
 
@@ -213,7 +220,7 @@ class IsotopicsTab(QWidget):
         peak_search_layout.setSpacing(6)
 
         main_layout.addLayout(nuclides_list_layout, 2)
-        main_layout.addWidget(self.nuclides_info_textbox,4)
+        main_layout.addWidget(self.nuclides_info_textbox, 4)
         main_layout.addLayout(peak_search_layout, 2)
 
     def add_nuclide(self, name, color):
@@ -224,11 +231,11 @@ class IsotopicsTab(QWidget):
 
         self.nuclide_list_widget.addItem(item)
         self.nuclide_list_widget.setItemWidget(item, widget)
-        
+
         # Propagate signals from lines
         widget.sigViewCheckChanged.connect(self.sigViewCheckChanged)
         widget.sigColorChanged.connect(self.sigColorChanged)
-        
+
     def filter_nuclides(self, text):
         text = text.lower()
 
@@ -242,7 +249,7 @@ class IsotopicsTab(QWidget):
             name = widget.name.lower()
 
             item.setHidden(text not in name)
-            
+
     def _on_item_selected(self, current, previous):
         if current is None:
             return
@@ -255,17 +262,17 @@ class IsotopicsTab(QWidget):
 
         # Example: reuse your existing signal
         self.sigListItemClicked.emit(name)
-        
+
     def change_nuclide_info(self, name):
         nuc = SpectrumManager.NuclideLibrary.get_nuclide(name)
-        
+
         title_str = f"| {nuc.element} | {nuc.nuclide}"
-        separator = "="*len(title_str)
-        
+        separator = "=" * len(title_str)
+
         daughters = "\n".join([f"{n} {p}%" for n, p in nuc.daughters])
-        
+
         self.nuclides_info_textbox.setText(
-        f"""{separator}
+            f"""{separator}
 {title_str}
 {separator}
 Half-Life = {format_duration(nuc.half_life_s[0])}
@@ -277,5 +284,3 @@ Daughter Products:
 {daughters}
         """
         )
-        
-        

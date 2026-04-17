@@ -1,15 +1,22 @@
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QListWidget, QListWidgetItem, QPushButton, QHBoxLayout
+    QDialog,
+    QVBoxLayout,
+    QListWidget,
+    QListWidgetItem,
+    QPushButton,
+    QHBoxLayout,
 )
 from PySide6.QtCore import Qt, Signal
 
 from core import RunManager
 
+
 class ListPopupBlocking(QDialog):
     """
-    Generic modal popup with a list, Confirm/Cancel buttons, 
+    Generic modal popup with a list, Confirm/Cancel buttons,
     and double-click to confirm selection.
     """
+
     def __init__(self, title: str, items: list[str], parent=None):
         super().__init__(parent)
         self.setWindowTitle(title)
@@ -107,6 +114,7 @@ class ListPopupBlocking(QDialog):
             return dialog.selected_item
         return None
 
+
 class ListPopupNonBlocking(QDialog):
     """
     Non-blocking list popup.
@@ -192,7 +200,7 @@ class ListPopupNonBlocking(QDialog):
             self.list_widget.addItem(item)
 
         self.list_widget.clearSelection()
-        
+
     def receive_BT_list(self, devices: list):
         """
         Called when a Bluetooth scan completes.
@@ -245,11 +253,9 @@ class ListPopupNonBlocking(QDialog):
 
         self.list_widget.clearSelection()
 
-
     # ------------------------------------------------
     # Internal handlers
     # ------------------------------------------------
-
 
     def _confirm(self):
         item = self.list_widget.currentItem()
@@ -264,6 +270,3 @@ class ListPopupNonBlocking(QDialog):
     def _cancel(self):
         self.cancelled.emit()
         self.close()
-
-
-

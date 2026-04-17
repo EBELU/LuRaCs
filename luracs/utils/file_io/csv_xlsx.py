@@ -4,10 +4,12 @@ import numpy as np
 import openpyxl as pyxl
 
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from SpectrumClasses import Spectrum
     from pathlib import Path
-    
+
+
 def export_csv(spectrum: Spectrum, file_name: str):
     acc_spectrum = spectrum.get_foreground()
     cps_spectrum = spectrum.get_foreground(cps=True)
@@ -20,15 +22,23 @@ def export_csv(spectrum: Spectrum, file_name: str):
         csv_writer = csv.writer(csv_file, dialect=csv.excel)
         csv_writer.writerow(["Energy/Channel", "Counts", "CPS"])
         csv_writer.writerows(zip(x_axis, acc_spectrum, cps_spectrum))
-    
+
 
 class xlsx_writer:
-    def __init__(self, file_name: str | Path, spectrum: Spectrum, export_spectra = True, export_rois = True, export_instrument = True):
+    def __init__(
+        self,
+        file_name: str | Path,
+        spectrum: Spectrum,
+        export_spectra=True,
+        export_rois=True,
+        export_instrument=True,
+    ):
         self.wb = pyxl.open(f"{str(file_name)}.xlsx")
-        
+
 
 def export_roi_as_xlsx(spectrum: Spectrum, file_name: str) -> None:
     pass
+
 
 def export_spectrum_as_xlsx(spectrum: Spectrum, file_name: str) -> None:
     pass

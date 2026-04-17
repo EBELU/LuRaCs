@@ -1,8 +1,10 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from InstrumentClasses import UniqueInstrument, GenericInstrument
 from PySide6.QtCore import QObject, Signal
+
 
 class InstrumentLibrary(QObject):
     def __init__(self, parent, instument_class):
@@ -11,13 +13,19 @@ class InstrumentLibrary(QObject):
         self._instrument_class = instument_class
 
     def add_instrument(self, instrument: UniqueInstrument | GenericInstrument):
-        assert instrument.name not in self.instruments, f"Instrument with name {instrument.name} already exists in library"
-        assert isinstance(instrument, self._instrument_class), f"Instrument must be of type {self._instrument_class.__name__}, got {type(instrument)}"
+        assert instrument.name not in self.instruments, (
+            f"Instrument with name {instrument.name} already exists in library"
+        )
+        assert isinstance(instrument, self._instrument_class), (
+            f"Instrument must be of type {self._instrument_class.__name__}, got {type(instrument)}"
+        )
         instrument_name = getattr(instrument, "name", None)
         if instrument_name is None:
             instrument_name = instrument.model
-            
-        assert instrument_name is not None, "Instrument must have a name or model attribute"
+
+        assert instrument_name is not None, (
+            "Instrument must have a name or model attribute"
+        )
         self.instruments[instrument_name] = instrument
 
     def remove_instrument(self, name: str):
@@ -26,6 +34,6 @@ class InstrumentLibrary(QObject):
 
     def get_instrument(self, name: str) -> UniqueInstrument | GenericInstrument | None:
         return self.instruments.get(name, None)
-    
+
     def get_instrument_names(self) -> list[str]:
         return list(self.instruments.keys())
