@@ -1,0 +1,192 @@
+{
+    "lnhb_volume": 6,
+    "Nuclide": "Ac-228",
+    "Element": "Actinium",
+    "Z": "89",
+    "Daughters": [
+        [
+            "Th-228",
+            100.0
+        ],
+        [
+            "Fr-224",
+            5.5e-06
+        ]
+    ],
+    "Parents": [
+        [
+            "Ra-228",
+            100.0
+        ]
+    ],
+    "Half-life (s)": [
+        22140.0,
+        110.0
+    ],
+    "Specific activity (Bq/g)": [
+        8.269e+16,
+        400000000000000.0
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 89.954,
+            "Energy error (keV)": -1,
+            "I (%)": 2.5,
+            "I error (%)": 0.7,
+            "Type": "x-ray",
+            "Origin": "Th-228"
+        },
+        {
+            "Energy (keV)": 93.351,
+            "Energy error (keV)": -1,
+            "I (%)": 4.1,
+            "I error (%)": 1.1,
+            "Type": "x-ray",
+            "Origin": "Th-228"
+        },
+        {
+            "Energy (keV)": 99.505,
+            "Energy error (keV)": 0.012,
+            "I (%)": 1.26,
+            "I error (%)": 0.04,
+            "Type": "g",
+            "Origin": "Th-228"
+        },
+        {
+            "Energy (keV)": 105.554,
+            "Energy error (keV)": -1,
+            "I (%)": 1.5,
+            "I error (%)": 0.4,
+            "Type": "x-ray",
+            "Origin": "Th-228"
+        },
+        {
+            "Energy (keV)": 129.065,
+            "Energy error (keV)": 0.003,
+            "I (%)": 2.5,
+            "I error (%)": 0.07,
+            "Type": "g",
+            "Origin": "Th-228"
+        },
+        {
+            "Energy (keV)": 209.248,
+            "Energy error (keV)": 0.007,
+            "I (%)": 3.97,
+            "I error (%)": 0.13,
+            "Type": "g",
+            "Origin": "Th-228"
+        },
+        {
+            "Energy (keV)": 270.245,
+            "Energy error (keV)": 0.007,
+            "I (%)": 3.55,
+            "I error (%)": 0.1,
+            "Type": "g",
+            "Origin": "Th-228"
+        },
+        {
+            "Energy (keV)": 328.004,
+            "Energy error (keV)": 0.007,
+            "I (%)": 3.04,
+            "I error (%)": 0.11,
+            "Type": "g",
+            "Origin": "Th-228"
+        },
+        {
+            "Energy (keV)": 338.32,
+            "Energy error (keV)": 0.005,
+            "I (%)": 11.4,
+            "I error (%)": 0.4,
+            "Type": "g",
+            "Origin": "Th-228"
+        },
+        {
+            "Energy (keV)": 409.46,
+            "Energy error (keV)": 0.013,
+            "I (%)": 2.02,
+            "I error (%)": 0.06,
+            "Type": "g",
+            "Origin": "Th-228"
+        },
+        {
+            "Energy (keV)": 463.002,
+            "Energy error (keV)": 0.006,
+            "I (%)": 4.45,
+            "I error (%)": 0.24,
+            "Type": "g",
+            "Origin": "Th-228"
+        },
+        {
+            "Energy (keV)": 755.313,
+            "Energy error (keV)": 0.009,
+            "I (%)": 1.03,
+            "I error (%)": 0.04,
+            "Type": "g",
+            "Origin": "Th-228"
+        },
+        {
+            "Energy (keV)": 772.291,
+            "Energy error (keV)": 0.007,
+            "I (%)": 1.52,
+            "I error (%)": 0.06,
+            "Type": "g",
+            "Origin": "Th-228"
+        },
+        {
+            "Energy (keV)": 794.942,
+            "Energy error (keV)": 0.014,
+            "I (%)": 4.31,
+            "I error (%)": 0.14,
+            "Type": "g",
+            "Origin": "Th-228"
+        },
+        {
+            "Energy (keV)": 835.704,
+            "Energy error (keV)": 0.008,
+            "I (%)": 1.7,
+            "I error (%)": 0.07,
+            "Type": "g",
+            "Origin": "Th-228"
+        },
+        {
+            "Energy (keV)": 911.196,
+            "Energy error (keV)": 0.006,
+            "I (%)": 26.2,
+            "I error (%)": 0.8,
+            "Type": "g",
+            "Origin": "Th-228"
+        },
+        {
+            "Energy (keV)": 964.786,
+            "Energy error (keV)": 0.008,
+            "I (%)": 4.99,
+            "I error (%)": 0.17,
+            "Type": "g",
+            "Origin": "Th-228"
+        },
+        {
+            "Energy (keV)": 968.96,
+            "Energy error (keV)": 0.009,
+            "I (%)": 15.9,
+            "I error (%)": 0.5,
+            "Type": "g",
+            "Origin": "Th-228"
+        },
+        {
+            "Energy (keV)": 1588.2,
+            "Energy error (keV)": 0.025,
+            "I (%)": 3.06,
+            "I error (%)": 0.12,
+            "Type": "g",
+            "Origin": "Th-228"
+        },
+        {
+            "Energy (keV)": 1630.618,
+            "Energy error (keV)": 0.02,
+            "I (%)": 1.52,
+            "I error (%)": 0.06,
+            "Type": "g",
+            "Origin": "Th-228"
+        }
+    ]
+}

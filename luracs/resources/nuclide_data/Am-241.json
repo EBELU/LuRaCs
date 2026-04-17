@@ -1,0 +1,76 @@
+{
+    "lnhb_volume": 5,
+    "Nuclide": "Am-241",
+    "Element": "Americium",
+    "Z": "95",
+    "Daughters": [
+        [
+            "Np-237",
+            100.0
+        ]
+    ],
+    "Parents": [
+        [
+            "Pu-241",
+            99.99756
+        ]
+    ],
+    "Half-life (s)": [
+        13652000000.0,
+        19000000.0
+    ],
+    "Specific activity (Bq/g)": [
+        126880000000.0,
+        180000000.0
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 21.16,
+            "Energy error (keV)": -1,
+            "I (%)": 4.83,
+            "I error (%)": 0.03,
+            "Type": "x-ray",
+            "Origin": "Np-237"
+        },
+        {
+            "Energy (keV)": 26.3446,
+            "Energy error (keV)": 0.0002,
+            "I (%)": 2.31,
+            "I error (%)": 0.08,
+            "Type": "g",
+            "Origin": "Np-237"
+        },
+        {
+            "Energy (keV)": 59.5409,
+            "Energy error (keV)": 0.0001,
+            "I (%)": 35.92,
+            "I error (%)": 0.17,
+            "Type": "g",
+            "Origin": "Np-237"
+        },
+        {
+            "Energy (keV)": 5388.25,
+            "Energy error (keV)": 0.13,
+            "I (%)": 1.66,
+            "I error (%)": 0.03,
+            "Type": "x-ray",
+            "Origin": "Am-241"
+        },
+        {
+            "Energy (keV)": 5442.86,
+            "Energy error (keV)": 0.12,
+            "I (%)": 13.23,
+            "I error (%)": 0.1,
+            "Type": "x-ray",
+            "Origin": "Am-241"
+        },
+        {
+            "Energy (keV)": 5485.56,
+            "Energy error (keV)": 0.12,
+            "I (%)": 84.45,
+            "I error (%)": 0.1,
+            "Type": "x-ray",
+            "Origin": "Am-241"
+        }
+    ]
+}

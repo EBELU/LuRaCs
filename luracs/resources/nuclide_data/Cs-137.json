@@ -1,0 +1,60 @@
+{
+    "lnhb_volume": 23,
+    "Nuclide": "Cs-137",
+    "Element": "Cesium",
+    "Z": "55",
+    "Daughters": [
+        [
+            "Ba-137",
+            100.0
+        ]
+    ],
+    "Parents": [
+        [
+            "Xe-137",
+            100.0
+        ]
+    ],
+    "Half-life (s)": [
+        947300000.0,
+        700000.0
+    ],
+    "Specific activity (Bq/g)": [
+        3216500000000.0,
+        2400000000.0
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 31.8174,
+            "Energy error (keV)": -1,
+            "I (%)": 1.99,
+            "I error (%)": 0.04,
+            "Type": "x-ray",
+            "Origin": "Ba"
+        },
+        {
+            "Energy (keV)": 32.1939,
+            "Energy error (keV)": -1,
+            "I (%)": 3.66,
+            "I error (%)": 0.06,
+            "Type": "x-ray",
+            "Origin": "Ba"
+        },
+        {
+            "Energy (keV)": 36.4457,
+            "Energy error (keV)": -1,
+            "I (%)": 1.078,
+            "I error (%)": 0.02,
+            "Type": "x-ray",
+            "Origin": "Ba"
+        },
+        {
+            "Energy (keV)": 661.6553,
+            "Energy error (keV)": 0.003,
+            "I (%)": 85.01,
+            "I error (%)": 0.2,
+            "Type": "g",
+            "Origin": "Ba-137"
+        }
+    ]
+}

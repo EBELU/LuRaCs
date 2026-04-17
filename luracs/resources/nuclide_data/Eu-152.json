@@ -1,0 +1,170 @@
+{
+    "lnhb_volume": 2,
+    "Nuclide": "Eu-152",
+    "Element": "Europium",
+    "Z": "63",
+    "Daughters": [
+        [
+            "Sm-152",
+            72.1
+        ],
+        [
+            "Gd-152",
+            27.9
+        ]
+    ],
+    "Half-life (s)": [
+        426700000.0,
+        500000.0
+    ],
+    "Specific activity (Bq/g)": [
+        6436000000000.0,
+        8000000000.0
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 39.5229,
+            "Energy error (keV)": -1,
+            "I (%)": 20.8,
+            "I error (%)": 0.3,
+            "Type": "x-ray",
+            "Origin": "Sm-152"
+        },
+        {
+            "Energy (keV)": 40.1186,
+            "Energy error (keV)": -1,
+            "I (%)": 37.7,
+            "I error (%)": 0.5,
+            "Type": "x-ray",
+            "Origin": "Sm-152"
+        },
+        {
+            "Energy (keV)": 45.4777,
+            "Energy error (keV)": -1,
+            "I (%)": 11.78,
+            "I error (%)": 0.19,
+            "Type": "x-ray",
+            "Origin": "Sm-152"
+        },
+        {
+            "Energy (keV)": 46.6977,
+            "Energy error (keV)": -1,
+            "I (%)": 3.04,
+            "I error (%)": 0.08,
+            "Type": "x-ray",
+            "Origin": "Sm-152"
+        },
+        {
+            "Energy (keV)": 121.7817,
+            "Energy error (keV)": 0.0003,
+            "I (%)": 28.41,
+            "I error (%)": 0.13,
+            "Type": "g",
+            "Origin": "Sm-152"
+        },
+        {
+            "Energy (keV)": 244.6974,
+            "Energy error (keV)": 0.0008,
+            "I (%)": 7.55,
+            "I error (%)": 0.04,
+            "Type": "g",
+            "Origin": "Sm-152"
+        },
+        {
+            "Energy (keV)": 344.2785,
+            "Energy error (keV)": 0.0012,
+            "I (%)": 26.59,
+            "I error (%)": 0.12,
+            "Type": "g",
+            "Origin": "Gd-152"
+        },
+        {
+            "Energy (keV)": 411.1165,
+            "Energy error (keV)": 0.0012,
+            "I (%)": 2.238,
+            "I error (%)": 0.01,
+            "Type": "g",
+            "Origin": "Gd-152"
+        },
+        {
+            "Energy (keV)": 443.965,
+            "Energy error (keV)": 0.003,
+            "I (%)": 3.12,
+            "I error (%)": 0.028,
+            "Type": "g",
+            "Origin": "Sm-152"
+        },
+        {
+            "Energy (keV)": 778.9045,
+            "Energy error (keV)": 0.0024,
+            "I (%)": 12.97,
+            "I error (%)": 0.06,
+            "Type": "g",
+            "Origin": "Gd-152"
+        },
+        {
+            "Energy (keV)": 867.38,
+            "Energy error (keV)": 0.003,
+            "I (%)": 4.243,
+            "I error (%)": 0.023,
+            "Type": "g",
+            "Origin": "Sm-152"
+        },
+        {
+            "Energy (keV)": 964.079,
+            "Energy error (keV)": 0.018,
+            "I (%)": 14.5,
+            "I error (%)": 0.06,
+            "Type": "g",
+            "Origin": "Sm-152"
+        },
+        {
+            "Energy (keV)": 1085.837,
+            "Energy error (keV)": 0.01,
+            "I (%)": 10.13,
+            "I error (%)": 0.06,
+            "Type": "g",
+            "Origin": "Sm-152"
+        },
+        {
+            "Energy (keV)": 1089.737,
+            "Energy error (keV)": 0.005,
+            "I (%)": 1.73,
+            "I error (%)": 0.01,
+            "Type": "g",
+            "Origin": "Gd-152"
+        },
+        {
+            "Energy (keV)": 1112.076,
+            "Energy error (keV)": 0.003,
+            "I (%)": 13.41,
+            "I error (%)": 0.06,
+            "Type": "g",
+            "Origin": "Sm-152"
+        },
+        {
+            "Energy (keV)": 1212.948,
+            "Energy error (keV)": 0.011,
+            "I (%)": 1.416,
+            "I error (%)": 0.009,
+            "Type": "g",
+            "Origin": "Sm-152"
+        },
+        {
+            "Energy (keV)": 1299.142,
+            "Energy error (keV)": 0.008,
+            "I (%)": 1.633,
+            "I error (%)": 0.009,
+            "Type": "g",
+            "Origin": "Gd-152"
+        },
+        {
+            "Energy (keV)": 1408.013,
+            "Energy error (keV)": 0.003,
+            "I (%)": 20.85,
+            "I error (%)": 0.08,
+            "Type": "g",
+            "Origin": "Sm-152"
+        }
+    ]
+}

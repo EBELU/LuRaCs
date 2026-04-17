@@ -3,7 +3,7 @@ from PySide6.QtWidgets import (
     QWidget, QGroupBox, QVBoxLayout, QTableWidget, QTableWidgetItem,
     QSizePolicy, QColorDialog, QFrame, QHBoxLayout, QDialog, QFormLayout, QTextEdit, QComboBox, QLineEdit, QDialogButtonBox,
     QPushButton, QCheckBox, QDoubleSpinBox, QTabWidget, QAbstractItemView, QMessageBox, QFileDialog, QLabel,
-    QSpinBox, QDoubleSpinBox
+    QSpinBox, QDoubleSpinBox, QListWidget, QListWidgetItem
 )
 from PySide6.QtCore import Qt, Signal
 import pyqtgraph as pg
@@ -543,13 +543,195 @@ class InstrumentDialog(QDialog):
         else:
             self.depth_spin.setEnabled(True)
             self.W_label.setText("Width: ")
+     
+from PySide6.QtGui import QColor, QPainter, QBrush, QAction
+class ColorCellWidget(QWidget):
+    """Clean color swatch for QTableWidget cells."""
+    clicked = Signal()
+    sigColorChanged = Signal(object)
+
+    def __init__(self, color: QColor, parent=None):
+        super().__init__(parent)
+        self.color = color
+        self.setFixedWidth(30)
+        self.setFixedHeight(20)
+        self.setToolTip("Click to change color")
+
+    def set_color(self, color: QColor):
+        self.color = color
+        self.update()  # repaint
+        self.sigColorChanged.emit(self.color)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        rect = self.rect().adjusted(1, 1, -1, -1)
+
+        # Fill with color
+        painter.setBrush(QBrush(self.color))
+        painter.setPen(Qt.NoPen)  # no border
+        painter.drawRoundedRect(rect, 3, 3)
+
+    def get_color(self):
+        color = QColorDialog.getColor(self.color, self, "Select color")
+        if color.isValid():
+            self.set_color(color)
+            return color     
+          
+class NuclideListItem(QWidget):
+    sigViewCheckChanged = Signal(str, bool)  # (name, checked)
+    sigColorChanged = Signal(str, object) # (name, QColor)
+    def __init__(self, text, color):
+        super().__init__()
+        
+        self.name = text
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(6, 2, 6, 2)
+        layout.setSpacing(8)
+
+        self.checkbox = QCheckBox()
+        self.label = QLabel(text)
+
+        self.color_widget = ColorCellWidget(color)
+
+        layout.addWidget(self.checkbox)
+        layout.addWidget(self.label)
+        layout.addStretch()
+        layout.addWidget(self.color_widget)
+        
+        # connect checkbox
+        self.checkbox.stateChanged.connect(self._on_state_changed)
+
+        # connect color picker
+        self.color_widget.clicked.connect(self.color_widget.get_color) 
+        self.color_widget.sigColorChanged.connect(self._on_color_changed)
+        
+    def _on_state_changed(self, state):
+        self.sigViewCheckChanged.emit(self.name, Qt.CheckState(state) == Qt.CheckState.Checked)
+        
+    def _on_color_changed(self, color):
+        self.sigColorChanged.emit(self.name, color)
+        
+
+            
+class IsotopicsTab(QWidget):
+    sigViewCheckChanged = Signal(str, bool)  # (name, checked)
+    sigListItemClicked = Signal(str)
+    sigColorChanged = Signal(str, object) # (name, QColor)
+    
+    def __init__(self, all_nuclides: list, parent=None, title=""):
+        super().__init__(parent=parent)
+
+        main_layout = QHBoxLayout(self)
+
+        nuclides_list_layout = QVBoxLayout()
+
+        self.nuclide_search_bar = QLineEdit()
+        self.nuclide_search_bar.setPlaceholderText("Search nuclide...")
+        self.nuclide_search_bar.textChanged.connect(self.filter_nuclides)
+
+        self.nuclide_list_widget = QListWidget()
+        
+        self.nuclide_list_widget.currentItemChanged.connect(self._on_item_selected)
+
+        nuclides_list_layout.addWidget(self.nuclide_search_bar)
+        nuclides_list_layout.addWidget(self.nuclide_list_widget)
+        
+        self.all_nuclides = sorted(all_nuclides, key = lambda n: int(n.split("-")[-1]))
+        
+        for nuclide in self.all_nuclides:
+            self.add_nuclide(nuclide, "blue")
+
+        self.nuclides_info_textbox = QTextEdit()
+        peak_search_layout = QVBoxLayout()
+        
+        btn_search_peaks = QPushButton("Search peaks")
+        
+        self.search_spect_combo = QComboBox()
+        
+        peak_search_layout.addWidget(btn_search_peaks)
+        peak_search_layout.addWidget(self.search_spect_combo)
+
+        nuclides_list_layout.setContentsMargins(0, 0, 0, 0)
+        nuclides_list_layout.setSpacing(6)
+
+        peak_search_layout.setContentsMargins(0, 0, 0, 0)
+        peak_search_layout.setSpacing(6)
+
+        main_layout.addLayout(nuclides_list_layout)
+        main_layout.addWidget(self.nuclides_info_textbox)
+        main_layout.addLayout(peak_search_layout)
+
+    def add_nuclide(self, name, color):
+        item = QListWidgetItem()
+        widget = NuclideListItem(name, color)
+
+        item.setSizeHint(widget.sizeHint())
+
+        self.nuclide_list_widget.addItem(item)
+        self.nuclide_list_widget.setItemWidget(item, widget)
+        
+        # Propagate signals from lines
+        widget.sigViewCheckChanged.connect(self.sigViewCheckChanged)
+        widget.sigColorChanged.connect(self.sigColorChanged)
+        
+    def filter_nuclides(self, text):
+        text = text.lower()
+
+        for i in range(self.nuclide_list_widget.count()):
+            item = self.nuclide_list_widget.item(i)
+            widget = self.nuclide_list_widget.itemWidget(item)
+
+            if widget is None:
+                continue
+
+            name = widget.name.lower()
+
+            item.setHidden(text not in name)
+            
+    def _on_item_selected(self, current, previous):
+        if current is None:
+            return
+
+        widget = self.nuclide_list_widget.itemWidget(current)
+        if widget is None:
+            return
+
+        name = widget.name
+
+        # Emit whatever you want here
+        print("Selected:", name)
+
+        # Example: reuse your existing signal
+        self.sigListItemClicked.emit(name)
+        
+
 
 app = QApplication.instance() or QApplication(sys.argv)
 
 
 w = ROIEditor("ROI_0", 124, 452.425, "Gaussian", "Linear", True, False)
 
-l = InstrumentDialog(model = "Rc-103G", detector_dimensions = [7.31, 7.31, 1])
-res = l.exec()
 
-print(res)
+# l = InstrumentDialog(model = "Rc-103G", detector_dimensions = [7.31, 7.31, 1])
+# res = l.exec()
+
+# print(res)
+
+
+
+window = IsotopicsTab(["Cs-137", "Co-60", "Ba-133"])
+window.sigColorChanged.connect(print)
+window.sigViewCheckChanged.connect(print)
+window.resize(800, 500)
+window.show()
+
+
+
+sys.exit(app.exec())

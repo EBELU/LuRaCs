@@ -1,0 +1,36 @@
+{
+    "lnhb_volume": 2,
+    "Nuclide": "Rn-220",
+    "Element": "Radon (Thoron)",
+    "Z": "86",
+    "Daughters": [
+        [
+            "Po-216",
+            100.0
+        ]
+    ],
+    "Parents": [
+        [
+            "Ra-224",
+            100.0
+        ]
+    ],
+    "Half-life (s)": [
+        55.8,
+        0.3
+    ],
+    "Specific activity (Bq/g)": [
+        3.4e+19,
+        1.8e+17
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 6288.22,
+            "Energy error (keV)": 0.1,
+            "I (%)": 99.882,
+            "I error (%)": 0.015,
+            "Type": "x-ray",
+            "Origin": "Rn-220"
+        }
+    ]
+}

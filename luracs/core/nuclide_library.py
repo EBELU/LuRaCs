@@ -12,8 +12,8 @@ class NuclideLibrary(QObject):
         self.nuclides: dict[str, Nuclide] = {}
 
     def add_nuclide(self, nuclide: Nuclide):
-        assert nuclide.name not in self.nuclides, f"Nuclide with name {nuclide.name} already exists in library"
-        self.nuclides[nuclide.name] = nuclide
+        assert nuclide.nuclide not in self.nuclides, f"Nuclide with name {nuclide.nuclide} already exists in library"
+        self.nuclides[nuclide.nuclide] = nuclide
 
     def get_nuclide(self, name: str) -> Nuclide | None:
         return self.nuclides.get(name, None)

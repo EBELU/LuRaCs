@@ -1,0 +1,204 @@
+{
+    "lnhb_volume": 25,
+    "Nuclide": "Pb-212",
+    "Element": "Lead",
+    "Z": "82",
+    "Daughters": [
+        [
+            "Bi-212",
+            100.0
+        ]
+    ],
+    "Parents": [
+        [
+            "Po-216",
+            100.0
+        ]
+    ],
+    "Half-life (s)": [
+        38268.0,
+        25.0
+    ],
+    "Specific activity (Bq/g)": [
+        5.1452e+16,
+        34000000000000.0
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 74.8157,
+            "Energy error (keV)": -1,
+            "I (%)": 9.94,
+            "I error (%)": 0.17,
+            "Type": "x-ray",
+            "Origin": "Bi"
+        },
+        {
+            "Energy (keV)": 77.1088,
+            "Energy error (keV)": -1,
+            "I (%)": 16.63,
+            "I error (%)": 0.27,
+            "Type": "x-ray",
+            "Origin": "Bi"
+        },
+        {
+            "Energy (keV)": 87.347,
+            "Energy error (keV)": -1,
+            "I (%)": 5.69,
+            "I error (%)": 0.13,
+            "Type": "x-ray",
+            "Origin": "Bi"
+        },
+        {
+            "Energy (keV)": 90.0757,
+            "Energy error (keV)": -1,
+            "I (%)": 1.74,
+            "I error (%)": 0.05,
+            "Type": "x-ray",
+            "Origin": "Bi"
+        },
+        {
+            "Energy (keV)": 238.632,
+            "Energy error (keV)": 0.002,
+            "I (%)": 43.26,
+            "I error (%)": 0.42,
+            "Type": "g",
+            "Origin": "Bi-212"
+        },
+        {
+            "Energy (keV)": 300.089,
+            "Energy error (keV)": 0.01,
+            "I (%)": 3.238,
+            "I error (%)": 0.031,
+            "Type": "g",
+            "Origin": "Bi-212"
+        },
+        {
+            "Energy (keV)": 39.858,
+            "Energy error (keV)": 0.004,
+            "I (%)": 1.07,
+            "I error (%)": 0.01,
+            "Type": "g",
+            "Origin": "Tl-208"
+        },
+        {
+            "Energy (keV)": 727.33,
+            "Energy error (keV)": 0.009,
+            "I (%)": 6.65,
+            "I error (%)": 0.04,
+            "Type": "g",
+            "Origin": "Po-212"
+        },
+        {
+            "Energy (keV)": 785.37,
+            "Energy error (keV)": 0.09,
+            "I (%)": 1.11,
+            "I error (%)": 0.01,
+            "Type": "g",
+            "Origin": "Po-212"
+        },
+        {
+            "Energy (keV)": 1620.738,
+            "Energy error (keV)": 0.01,
+            "I (%)": 1.51,
+            "I error (%)": 0.03,
+            "Type": "g",
+            "Origin": "Po-212"
+        },
+        {
+            "Energy (keV)": 6051.04,
+            "Energy error (keV)": 0.03,
+            "I (%)": 25.1,
+            "I error (%)": 0.1,
+            "Type": "x-ray",
+            "Origin": "Bi-212"
+        },
+        {
+            "Energy (keV)": 6090.14,
+            "Energy error (keV)": 0.03,
+            "I (%)": 9.7,
+            "I error (%)": 0.1,
+            "Type": "x-ray",
+            "Origin": "Bi-212"
+        },
+        {
+            "Energy (keV)": 8785.17,
+            "Energy error (keV)": 0.11,
+            "I (%)": 100.0,
+            "I error (%)": -1,
+            "Type": "x-ray",
+            "Origin": "Po-212"
+        },
+        {
+            "Energy (keV)": 72.8049,
+            "Energy error (keV)": -1,
+            "I (%)": 2.03,
+            "I error (%)": 0.05,
+            "Type": "x-ray",
+            "Origin": "Pb"
+        },
+        {
+            "Energy (keV)": 74.97,
+            "Energy error (keV)": -1,
+            "I (%)": 3.42,
+            "I error (%)": 0.07,
+            "Type": "x-ray",
+            "Origin": "Pb"
+        },
+        {
+            "Energy (keV)": 84.9527,
+            "Energy error (keV)": -1,
+            "I (%)": 1.17,
+            "I error (%)": 0.03,
+            "Type": "x-ray",
+            "Origin": "Pb"
+        },
+        {
+            "Energy (keV)": 277.37,
+            "Energy error (keV)": 0.02,
+            "I (%)": 6.6,
+            "I error (%)": 0.3,
+            "Type": "g",
+            "Origin": "Pb-208"
+        },
+        {
+            "Energy (keV)": 510.74,
+            "Energy error (keV)": 0.02,
+            "I (%)": 22.5,
+            "I error (%)": 0.2,
+            "Type": "g",
+            "Origin": "Pb-208"
+        },
+        {
+            "Energy (keV)": 583.187,
+            "Energy error (keV)": 0.002,
+            "I (%)": 85.0,
+            "I error (%)": 0.3,
+            "Type": "g",
+            "Origin": "Pb-208"
+        },
+        {
+            "Energy (keV)": 763.45,
+            "Energy error (keV)": 0.02,
+            "I (%)": 1.8,
+            "I error (%)": 0.02,
+            "Type": "g",
+            "Origin": "Pb-208"
+        },
+        {
+            "Energy (keV)": 860.53,
+            "Energy error (keV)": 0.02,
+            "I (%)": 12.4,
+            "I error (%)": 0.1,
+            "Type": "g",
+            "Origin": "Pb-208"
+        },
+        {
+            "Energy (keV)": 2614.511,
+            "Energy error (keV)": 0.01,
+            "I (%)": 99.755,
+            "I error (%)": 0.004,
+            "Type": "g",
+            "Origin": "Pb-208"
+        }
+    ]
+}

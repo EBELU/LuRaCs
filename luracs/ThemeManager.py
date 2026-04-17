@@ -58,6 +58,8 @@ class ThemeManager:
 
         for lgd in self._registry_legends:
             self._style_legend(lgd)
+            
+        self._apply_stylesheet(app)
 
     # ---------- Qt ----------
 
@@ -131,6 +133,32 @@ class ThemeManager:
         p.setColor(QPalette.Disabled, QPalette.HighlightedText, QColor(160, 160, 160))
 
         return p
+    
+    def _apply_stylesheet(self, app):
+        if self.mode == self.DARK:
+            app.setStyleSheet("""
+            QCheckBox::indicator {
+                width: 10px;
+                height: 10px;
+                border: 1px solid #888;
+                background: #222;
+            }
+
+            QCheckBox::indicator:checked {
+                background: solid #888;
+            }
+            
+            QLineEdit {
+                color: white;
+                border: 1px solid #555;
+            }
+
+            QLineEdit::placeholder {
+                color: #dddddd;
+            }
+            """)
+        else:
+            app.setStyleSheet("")
 
     # ---------- pyqtgraph ----------
 

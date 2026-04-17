@@ -1,0 +1,44 @@
+{
+    "lnhb_volume": 3,
+    "Nuclide": "Co-60",
+    "Element": "Cobalt",
+    "Z": "27",
+    "Daughters": [
+        [
+            "Ni-60",
+            100.0
+        ]
+    ],
+    "Parents": [
+        [
+            "Co-60m",
+            99.75
+        ]
+    ],
+    "Half-life (s)": [
+        166340000.0,
+        25000.0
+    ],
+    "Specific activity (Bq/g)": [
+        41824000000000.0,
+        6000000000.0
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 1173.228,
+            "Energy error (keV)": 0.003,
+            "I (%)": 99.85,
+            "I error (%)": 0.03,
+            "Type": "g",
+            "Origin": "Ni-60"
+        },
+        {
+            "Energy (keV)": 1332.492,
+            "Energy error (keV)": 0.004,
+            "I (%)": 99.9826,
+            "I error (%)": 0.0006,
+            "Type": "g",
+            "Origin": "Ni-60"
+        }
+    ]
+}

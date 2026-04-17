@@ -1,0 +1,100 @@
+{
+    "lnhb_volume": 7,
+    "Nuclide": "Tl-208",
+    "Element": "Thallium",
+    "Z": "81",
+    "Daughters": [
+        [
+            "Pb-208",
+            100.0
+        ]
+    ],
+    "Parents": [
+        [
+            "Bi-212",
+            35.93
+        ]
+    ],
+    "Half-life (s)": [
+        183.48,
+        0.36
+    ],
+    "Specific activity (Bq/g)": [
+        1.0938e+19,
+        2.1e+16
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 72.8049,
+            "Energy error (keV)": -1,
+            "I (%)": 2.03,
+            "I error (%)": 0.05,
+            "Type": "x-ray",
+            "Origin": "Pb-208"
+        },
+        {
+            "Energy (keV)": 74.97,
+            "Energy error (keV)": -1,
+            "I (%)": 3.42,
+            "I error (%)": 0.07,
+            "Type": "x-ray",
+            "Origin": "Pb-208"
+        },
+        {
+            "Energy (keV)": 84.9527,
+            "Energy error (keV)": -1,
+            "I (%)": 1.17,
+            "I error (%)": 0.03,
+            "Type": "x-ray",
+            "Origin": "Pb-208"
+        },
+        {
+            "Energy (keV)": 277.37,
+            "Energy error (keV)": 0.02,
+            "I (%)": 6.6,
+            "I error (%)": 0.3,
+            "Type": "g",
+            "Origin": "Pb-208"
+        },
+        {
+            "Energy (keV)": 510.74,
+            "Energy error (keV)": 0.02,
+            "I (%)": 22.5,
+            "I error (%)": 0.2,
+            "Type": "g",
+            "Origin": "Pb-208"
+        },
+        {
+            "Energy (keV)": 583.187,
+            "Energy error (keV)": 0.002,
+            "I (%)": 85.0,
+            "I error (%)": 0.3,
+            "Type": "g",
+            "Origin": "Pb-208"
+        },
+        {
+            "Energy (keV)": 763.45,
+            "Energy error (keV)": 0.02,
+            "I (%)": 1.8,
+            "I error (%)": 0.02,
+            "Type": "g",
+            "Origin": "Pb-208"
+        },
+        {
+            "Energy (keV)": 860.53,
+            "Energy error (keV)": 0.02,
+            "I (%)": 12.4,
+            "I error (%)": 0.1,
+            "Type": "g",
+            "Origin": "Pb-208"
+        },
+        {
+            "Energy (keV)": 2614.511,
+            "Energy error (keV)": 0.01,
+            "I (%)": 99.755,
+            "I error (%)": 0.004,
+            "Type": "g",
+            "Origin": "Pb-208"
+        }
+    ]
+}

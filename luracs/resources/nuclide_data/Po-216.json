@@ -1,0 +1,36 @@
+{
+    "lnhb_volume": 2,
+    "Nuclide": "Po-216",
+    "Element": "Polonium",
+    "Z": "84",
+    "Daughters": [
+        [
+            "Pb-212",
+            100.0
+        ]
+    ],
+    "Parents": [
+        [
+            "Rn-220",
+            100.0
+        ]
+    ],
+    "Half-life (s)": [
+        0.148,
+        0.004
+    ],
+    "Specific activity (Bq/g)": [
+        1.306e+22,
+        3.5e+20
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 6778.4,
+            "Energy error (keV)": 0.5,
+            "I (%)": 99.9981,
+            "I error (%)": 0.0003,
+            "Type": "x-ray",
+            "Origin": "Po-216"
+        }
+    ]
+}

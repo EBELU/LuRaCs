@@ -31,7 +31,8 @@ from gui.tabs import(ROIInfoTab,
                                 SpectrumInfoTab,
                                 LogWidget,
                                 DevicesInfoTab,
-                                CurrentValuesPlot)
+                                CurrentValuesPlot,
+                                IsotopicsTab)
 
 print_progress("Loading utils", 5)
 from gui.import_export import FileDialogs
@@ -40,6 +41,7 @@ from utils.ArgParser import parse_cli_args
 from utils.startup import startup_script
 
 from core import RunManager, Log, Settings, GuiServices, GuiServicesKeys, SpectrumManager
+from utils.file_io.nuclide_dataloader import load_nuclide_data
 
 from gui.popup_windows.BluetoothListPopup import BluetoothListPopup
 from gui.popup_windows.USBListPopup import USBListPopup
@@ -67,6 +69,7 @@ class MainWindow(QMainWindow):
         self.usb_window = USBListPopup()
         self.file_import_export = FileDialogs(self)
         print_progress("Indexing Data Store", 8)
+        load_nuclide_data()
         self.data_store = DataLibrary("Data Store", self)
 
         central = QWidget()
@@ -109,6 +112,9 @@ class MainWindow(QMainWindow):
         # Devices
         self.devices_tab = DevicesInfoTab()
         self.bottom_tabs.addTab(self.devices_tab, "Devices")
+        
+        self.isotopics_tab = IsotopicsTab(list(SpectrumManager.NuclideLibrary.nuclides.keys()))
+        self.bottom_tabs.addTab(self.isotopics_tab, "Isotopics")
 
         # System log
         self.log_tab = LogWidget()

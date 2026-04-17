@@ -1,0 +1,60 @@
+{
+    "lnhb_volume": 25,
+    "Nuclide": "Lu-177",
+    "Element": "Lutetium",
+    "Z": "71",
+    "Daughters": [
+        [
+            "Hf-177",
+            100.0
+        ]
+    ],
+    "Parents": [
+        [
+            "Lu-177m",
+            21.7
+        ]
+    ],
+    "Half-life (s)": [
+        574070.0,
+        80.0
+    ],
+    "Specific activity (Bq/g)": [
+        4108100000000000.0,
+        600000000000.0
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 54.612,
+            "Energy error (keV)": -1,
+            "I (%)": 1.555,
+            "I error (%)": 0.027,
+            "Type": "x-ray",
+            "Origin": "Hf"
+        },
+        {
+            "Energy (keV)": 55.7909,
+            "Energy error (keV)": -1,
+            "I (%)": 2.72,
+            "I error (%)": 0.05,
+            "Type": "x-ray",
+            "Origin": "Hf"
+        },
+        {
+            "Energy (keV)": 112.95005,
+            "Energy error (keV)": 0.00036,
+            "I (%)": 6.223,
+            "I error (%)": 0.032,
+            "Type": "g",
+            "Origin": "Hf-177"
+        },
+        {
+            "Energy (keV)": 208.3661,
+            "Energy error (keV)": 0.0002,
+            "I (%)": 10.425,
+            "I error (%)": 0.035,
+            "Type": "g",
+            "Origin": "Hf-177"
+        }
+    ]
+}

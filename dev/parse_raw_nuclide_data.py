@@ -1,6 +1,7 @@
 import json
 from glob import glob
 from pathlib import Path
+import os
 
 pth = "dev/raw_nuclide_data"
 
@@ -10,6 +11,8 @@ def is_float(x):
         return True
     except ValueError:
         return False
+
+os.makedirs("dev/cleaned_nuclide_data", exist_ok=True)
 
 for file in glob(pth+"/*"):
     volume = int(Path(file).stem.split("_")[-1].removeprefix("Vol"))

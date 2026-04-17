@@ -1,0 +1,80 @@
+{
+    "lnhb_volume": 2,
+    "Nuclide": "Bi-212",
+    "Element": "Bismuth",
+    "Z": "83",
+    "Daughters": [
+        [
+            "Po-212",
+            64.07
+        ],
+        [
+            "Tl-208",
+            35.93
+        ]
+    ],
+    "Parents": [
+        [
+            "Pb-212",
+            100.0
+        ]
+    ],
+    "Half-life (s)": [
+        3632.4,
+        3.6
+    ],
+    "Specific activity (Bq/g)": [
+        5.421e+17,
+        500000000000000.0
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 39.858,
+            "Energy error (keV)": 0.004,
+            "I (%)": 1.07,
+            "I error (%)": 0.01,
+            "Type": "g",
+            "Origin": "Tl-208"
+        },
+        {
+            "Energy (keV)": 727.33,
+            "Energy error (keV)": 0.009,
+            "I (%)": 6.65,
+            "I error (%)": 0.04,
+            "Type": "g",
+            "Origin": "Po-212"
+        },
+        {
+            "Energy (keV)": 785.37,
+            "Energy error (keV)": 0.09,
+            "I (%)": 1.11,
+            "I error (%)": 0.01,
+            "Type": "g",
+            "Origin": "Po-212"
+        },
+        {
+            "Energy (keV)": 1620.738,
+            "Energy error (keV)": 0.01,
+            "I (%)": 1.51,
+            "I error (%)": 0.03,
+            "Type": "g",
+            "Origin": "Po-212"
+        },
+        {
+            "Energy (keV)": 6051.04,
+            "Energy error (keV)": 0.03,
+            "I (%)": 25.1,
+            "I error (%)": 0.1,
+            "Type": "x-ray",
+            "Origin": "Bi-212"
+        },
+        {
+            "Energy (keV)": 6090.14,
+            "Energy error (keV)": 0.03,
+            "I (%)": 9.7,
+            "I error (%)": 0.1,
+            "Type": "x-ray",
+            "Origin": "Bi-212"
+        }
+    ]
+}

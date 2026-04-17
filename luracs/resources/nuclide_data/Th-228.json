@@ -1,0 +1,60 @@
+{
+    "lnhb_volume": 7,
+    "Nuclide": "Th-228",
+    "Element": "Thorium",
+    "Z": "90",
+    "Daughters": [
+        [
+            "Ra-224",
+            100.0
+        ]
+    ],
+    "Parents": [
+        [
+            "Pa-228",
+            98.0
+        ],
+        [
+            "Ac-228",
+            100.0
+        ],
+        [
+            "U-232",
+            100.0
+        ]
+    ],
+    "Half-life (s)": [
+        60356000.0,
+        28000.0
+    ],
+    "Specific activity (Bq/g)": [
+        30334000000000.0,
+        14000000000.0
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 84.373,
+            "Energy error (keV)": 0.003,
+            "I (%)": 1.19,
+            "I error (%)": 0.03,
+            "Type": "g",
+            "Origin": "Ra-224"
+        },
+        {
+            "Energy (keV)": 5340.35,
+            "Energy error (keV)": 0.22,
+            "I (%)": 26.0,
+            "I error (%)": 0.5,
+            "Type": "x-ray",
+            "Origin": "Th-228"
+        },
+        {
+            "Energy (keV)": 5423.24,
+            "Energy error (keV)": 0.22,
+            "I (%)": 73.4,
+            "I error (%)": 0.5,
+            "Type": "x-ray",
+            "Origin": "Th-228"
+        }
+    ]
+}

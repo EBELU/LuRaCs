@@ -1,0 +1,52 @@
+{
+    "lnhb_volume": 2,
+    "Nuclide": "Ra-224",
+    "Element": "Radium",
+    "Z": "88",
+    "Daughters": [
+        [
+            "Rn-220",
+            100.0
+        ]
+    ],
+    "Parents": [
+        [
+            "Th-228",
+            100.0
+        ]
+    ],
+    "Half-life (s)": [
+        313720.0,
+        170.0
+    ],
+    "Specific activity (Bq/g)": [
+        5940000000000000.0,
+        3300000000000.0
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 240.986,
+            "Energy error (keV)": 0.006,
+            "I (%)": 4.12,
+            "I error (%)": 0.04,
+            "Type": "g",
+            "Origin": "Rn-220"
+        },
+        {
+            "Energy (keV)": 5448.8,
+            "Energy error (keV)": 0.15,
+            "I (%)": 5.25,
+            "I error (%)": 0.05,
+            "Type": "x-ray",
+            "Origin": "Ra-224"
+        },
+        {
+            "Energy (keV)": 5685.48,
+            "Energy error (keV)": 0.15,
+            "I (%)": 94.73,
+            "I error (%)": 0.05,
+            "Type": "x-ray",
+            "Origin": "Ra-224"
+        }
+    ]
+}
