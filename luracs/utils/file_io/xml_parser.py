@@ -74,8 +74,14 @@ def _build_roi(general_kwargs: dict, fit_kwargs: dict):
         fit = Fit(region_lower=None, region_upper=None, G=0, B=0, N=0, **fit_kwargs)
     else:
         fit = None
+    
+    emission_data = general_kwargs.pop("emission_data")
+    if len(emission_data):
+        emission = Emission(**emission_data)
+    else:
+        emission = None
 
-    return ROI(fit=fit, **general_kwargs)
+    return ROI(fit=fit, emission=emission, **general_kwargs)
 
 
 def _build_spectrum(y_axis, live_time, real_time, **meta):
@@ -372,14 +378,21 @@ class xml_parser:
                 
             # --- Nuclide ---
             nuclide = roi.xpath("./n42:Nuclide", namespaces=ns)
+            emission_data = {}
             if nuclide:
-                nuclide_name = nuclide.xpath("./Name", "None")
-                emission_energy = nuclide.xpath("./Energy", "None")
-            else:
-                nuclide_name = emission_energy = None
+                nuclide = nuclide[0]
+
                 
-            meta_data["nuclide"] = nuclide_name
-            meta_data["emission_energy"] = emission_energy
+                emission_data["parent_nuclide"] = nuclide.xpath("./n42:Name", namespaces=ns)[0].text
+
+                emission_data["energy_keV"], emission_data["energy_error_keV"] = _parse_pair(nuclide, "./n42:Energy", ns=ns)
+                
+                emission_data["intensity_percent"], emission_data["intensity_error_percent"] = _parse_pair(nuclide, "./n42:Intensity", ns=ns)
+                
+                emission_data["type"] = nuclide.xpath("./n42:Type", namespaces=ns)[0].text
+                
+                emission_data["origin"] = nuclide.xpath("./n42:EmissionOrigin", namespaces=ns)[0].text
+
 
             general_kwargs = {
                 "tag": roi_id,
@@ -391,7 +404,7 @@ class xml_parser:
                 "roi_counts": region_counts,
                 "live_time": live_time,
                 "meta": meta_data,
-                "emission": None,
+                "emission_data": emission_data,
             }
 
             peaks.append(_build_roi(general_kwargs, peak_kwargs))

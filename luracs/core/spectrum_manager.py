@@ -238,16 +238,13 @@ class SpectrumManagerBase(QObject):
         if "calibration" in data_dict:
             self.calibrate_spectrum(data_dict["name"], data_dict["calibration"])
 
-        if "rois" in data_dict:
-            for roi in data_dict["rois"]:
-                self.ROIManager.add_roi(roi["bounds"][0], roi["bounds"][1])
-
         if "peaks" in data_dict:
             for peak in data_dict["peaks"]:
                 extented_kwargs = {
                     "alias": peak.alias,
                     "fit_type": peak.fit_type,
                     "bkg_type": peak.bkg_type,
+                    "emission": peak.emission,
                     **peak.meta,
                 }
 

@@ -231,7 +231,7 @@ class SpectrumTab(LibraryTab):
         export_xlsx = self.export_menu.addAction("Exel Workbook (*.xlsx)")
 
     def run_index(self):
-        for file in glob(str(Path("/home/eewa/**.xml"))):
+        for file in glob(str(Settings.Paths.spectrum_library / "*.xml")):
             if file not in self.file_index:
                 self.file_index[str(file)] = io_dispatcher(file, True)
 
@@ -265,7 +265,7 @@ class SpectrumTab(LibraryTab):
         for file in selection:
             parser = io_dispatcher(file)
             if not self.include_roi_check.isChecked():
-                parser.data.pop("peaks")
+                parser.data.pop("peaks", None)
 
             SpectrumManager.import_spectrum(parser.data)
 

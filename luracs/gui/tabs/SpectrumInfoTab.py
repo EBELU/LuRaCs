@@ -30,6 +30,8 @@ from PySide6.QtWidgets import QWidget
 from PySide6.QtGui import QColor, QPainter, QBrush, QAction
 from PySide6.QtCore import Qt, Signal
 
+from gui.import_export import save_spectrum_to_library
+
 
 class ColorCellWidget(QWidget):
     """Clean color swatch for QTableWidget cells."""
@@ -153,6 +155,9 @@ class SpectrumInfoTab(QWidget):
             disconnect.triggered.connect(
                 lambda x: RunManager.remove_device(spectrum.name, True)
             )
+            
+            save = menu_button.add_action("Save")
+            save.triggered.connect(lambda : save_spectrum_to_library(spectrum))
 
             add_bkg = menu_button.add_action("Add Background")
             add_bkg.triggered.connect(
@@ -171,6 +176,10 @@ class SpectrumInfoTab(QWidget):
             remove.triggered.connect(
                 lambda x: SpectrumManager.remove_spectrum(spectrum.name)
             )
+            
+            save = menu_button.add_action("Save")
+            save.triggered.connect(lambda : save_spectrum_to_library(spectrum))
+                        
             add_bkg = menu_button.add_action("Add Background")
             add_bkg.triggered.connect(
                 lambda _: parent.file_import_export.load_spectrum_as_background(
@@ -193,6 +202,8 @@ class SpectrumInfoTab(QWidget):
         # export_btn.triggered.connect(lambda _:parent.file_import_export.export_spectrum(spectrum.name))
 
         menu_button.add_action("Edit")
+        
+        
 
         wrapper = QWidget()
         layout = QHBoxLayout(wrapper)
@@ -214,10 +225,10 @@ class SpectrumInfoTab(QWidget):
         spect = SpectrumManager.get_spectrum(name)
         if spect.show_in_plot:
             self.hide_show_btn[name].setText("Show")
-            self.toggleVisibility.emit(name)
+            self.sigToggleVisibility.emit(name)
         else:
             self.hide_show_btn[name].setText("Hide")
-            self.toggleVisibility.emit(name)
+            self.sigToggleVisibility.emit(name)
 
     def open_color_dialog(
         self, cell_widget: ColorCellWidget, spectrum_name: str, role: str
@@ -235,14 +246,19 @@ class SpectrumInfoTab(QWidget):
         new_spect = SpectrumManager.get_spectrum(name)
 
         # --- Foreground ---
-        foreground_menu_button = self.build_menu_button(
-            new_spect, "foreground", new_spect.color_foreground, parent=self.parent
-        )
+        if name + "f" not in self.table.get_all_keys():
+            foreground_menu_button = self.build_menu_button(
+                new_spect, "foreground", new_spect.color_foreground, parent=self.parent
+            )
+        else:
+            foreground_menu_button = None
+            
         live_time = (
             timedelta(seconds=round(new_spect.foreground.live_time))
             if new_spect.foreground.live_time is not None
             else "None"
         )
+        
         real_time = (
             timedelta(seconds=round(new_spect.foreground.real_time))
             if new_spect.foreground.real_time is not None
@@ -262,9 +278,12 @@ class SpectrumInfoTab(QWidget):
         )
 
         # --- Background ---
-        background_menu_button = self.build_menu_button(
-            new_spect, "background", new_spect.color_background, parent=self.parent
-        )
+        if name + "b" not in self.table.get_all_keys():
+            background_menu_button = self.build_menu_button(
+                new_spect, "background", new_spect.color_background, parent=self.parent
+            )
+        else:
+            background_menu_button = None
         if new_spect.background is not None:
             live_time = (
                 timedelta(seconds=round(new_spect.background.live_time))

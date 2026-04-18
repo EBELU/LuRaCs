@@ -162,3 +162,34 @@ def save_roi_references():
     file_io.xml_writer(
         dummy_spectrum, new_file, export_spectrum=False, export_instrument=False
     )
+
+
+def save_spectrum_to_library(spectrum: Spectrum):
+    save_diag = SaveNamingDialog(spectrum.name)
+    res = save_diag.exec()
+    
+    spectrum.name = save_diag.get_name()
+
+    if res == SaveNamingDialog.Accepted:
+        new_file = (Settings.Paths.spectrum_library / save_diag.get_name()).with_suffix(".xml")
+
+        # Check if the file already exists
+        if new_file.exists():
+            reply = QMessageBox.question(
+                None,
+                "Overwrite File?",
+                f"The file '{new_file.name}' already exists. Do you want to overwrite it?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+
+            if reply == QMessageBox.No:
+                return
+
+    else:
+        return
+    
+    
+    file_io.xml_writer(
+        spectrum, new_file
+    )

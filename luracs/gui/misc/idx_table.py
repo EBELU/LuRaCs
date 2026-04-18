@@ -90,7 +90,7 @@ class StrIdxTable(QWidget):
         row_tag: str,
         values: list,
         menu_button: QWidget = None,
-        force__button_overwrite=False,
+        force_button_overwrite=False,
     ):
         assert isinstance(values, list), f"Values must be a list! Is {type(values)}"
 
@@ -115,7 +115,7 @@ class StrIdxTable(QWidget):
                 self.has_menu_button
                 and menu_button is not None
                 and existing_button is None
-            ) or (force__button_overwrite and menu_button is not None):
+            ) or (force_button_overwrite and menu_button is not None):
                 self.table.setCellWidget(row_index, 1, menu_button)
 
             # Data cells

@@ -82,7 +82,7 @@ class xml_writer:
                 write_text_to_SubElement(
                     energy_cal,
                     "CoefficientValues",
-                    spectrum.calibration_coefficients[::-1],
+                    list(spectrum.calibration_coefficients[::-1]),
                 )
 
             write_SpectrumData(
@@ -116,7 +116,7 @@ class xml_writer:
         # --- Write out ---
         tree = etree.ElementTree(self.root)
         tree.write(
-            f"{file_name}.xml",
+            file_name,
             pretty_print=True,
             xml_declaration=True,
             encoding="utf-8",
@@ -207,8 +207,9 @@ def write_ROI_data(ROIs: dict[str, ROI], peaks_section):
             write_text_to_SubElement(peak, "Amplitude", [roi.fit.A, roi.fit.A_err])
 
             write_text_to_SubElement(peak, "PeakCounts", roi.fit.peak_counts)
-        nuclide_section = etree.SubElement(new_peak, "Nuclide")
+            
         if roi.emission is not None:
+            nuclide_section = etree.SubElement(new_peak, "Nuclide")
             write_text_to_SubElement(nuclide_section, "Name", roi.emission.parent_nuclide)
             write_text_to_SubElement(nuclide_section, "Energy", [roi.emission.energy_keV, roi.emission.energy_error_keV], unit="keV")
             write_text_to_SubElement(nuclide_section, "Intensity", [roi.emission.intensity_percent, roi.emission.intensity_error_percent], unit = "%")

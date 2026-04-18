@@ -24,11 +24,11 @@ class Fit:
 
     # Fit parameters
     params: (
-        np.array
+        np.ndarray
     )  # List of parameters so that it can be fed into the function with *params
-    param_errs: np.array  # Uncertainties from the optimization
+    param_errs: np.ndarray  # Uncertainties from the optimization
 
-    bkg_params: np.array
+    bkg_params: np.ndarray
 
     # --- Assumed Gaussian ---
     G: float
@@ -108,13 +108,24 @@ class ROI:
 
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QFormLayout, 
     QLineEdit, QDoubleSpinBox, QComboBox, QCheckBox, 
-    QDialogButtonBox, QPushButton, QListView)
+    QDialogButtonBox, QPushButton)
 
 class ROIEditor(QDialog):
     DELETE = 2
-    def __init__(self, roi_tag, roi_name, low, high, fit_type, bkg_type,
-                 merge, poisson_weights, movable, emission, nuclide_lib_ref: NuclideLibrary,
-                 title="", parent=None):
+    def __init__(
+                self, roi_tag: str,
+                roi_name:str,
+                low: float, 
+                high: float, 
+                fit_type: str,
+                bkg_type: str,
+                merge: bool, 
+                poisson_weights: bool, 
+                movable: bool, 
+                emission: Emission,
+                nuclide_lib_ref: NuclideLibrary,
+                title="", parent=None
+                ):
         super().__init__(parent=parent)
 
         self.setWindowTitle("ROI Editor")
@@ -222,7 +233,7 @@ class ROIEditor(QDialog):
                     self.photo_peak.setCurrentIndex(i)
                     return
         
-    def _update_emissions(self, nuclide):
+    def _update_emissions(self, nuclide: str):
         emissions = self.nuclide_lib_ref.get_nuclide(nuclide)
         
         self.photo_peak.clear()
@@ -236,7 +247,7 @@ class ROIEditor(QDialog):
             text = f"{e.energy_keV} keV   {e.intensity_percent}%"
             self.photo_peak.addItem(text, e)
     
-    def _auto_match_nuclide(self, match = None):
+    def _auto_match_nuclide(self, match: Emission = None):
         match = self.nuclide_lib_ref.match_roi_to_nuclide(self.roi_tag)
         if match is None:
             return
@@ -263,7 +274,6 @@ class ROIEditor(QDialog):
             "merge": self.merge.isChecked(),
             "movable": self.movable.isChecked(),
             "poisson_weights": self.poisson_weights.isChecked(),
-            "nuclide": self.nuclide.currentText(),
             "emission": self.photo_peak.currentData() if self.nuclide != "None" else None
         }
 
@@ -286,7 +296,6 @@ class DeletableROI(LinearRegionItem):
         merge = True,
         poisson_weights = False,
         movable = True,
-        nuclide = "None",
         emission = None,
         **kwargs
         
@@ -300,7 +309,6 @@ class DeletableROI(LinearRegionItem):
         self.fit_type = fit_type
         self.bkg_type = bkg_type
         self.poisson_weights = poisson_weights
-        self.nuclide = nuclide
         self.emission = emission
         self.nuclide_lib_ref = nuclide_lib_ref
         
@@ -331,7 +339,7 @@ class DeletableROI(LinearRegionItem):
             super().mouseClickEvent(ev)
 
     def update_self(
-        self, roi_name=None, lower_bound=None, upper_bound=None, fit_type=None, bkg_type=None, merge=None, poisson_weights=None, movable=None, signal_update=True, nuclide=None, emission=None):
+        self, roi_name=None, lower_bound=None, upper_bound=None, fit_type=None, bkg_type=None, merge=None, poisson_weights=None, movable=None, signal_update=True, emission=None):
         if roi_name is not None:
             self.alias = roi_name
 
@@ -349,9 +357,6 @@ class DeletableROI(LinearRegionItem):
 
         if poisson_weights is not None:
             self.poisson_weights = poisson_weights
-            
-        if nuclide is not None:
-            self.nuclide = nuclide
         
         self.emission = emission
 
