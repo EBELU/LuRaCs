@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from core.spectrum_manager import SpectrumManagerBase
 from PySide6.QtCore import QObject, Signal
@@ -15,7 +16,9 @@ class NuclideLibrary(QObject):
         self.decay_chains = {}
         
     def add_nuclide(self, nuclide: Nuclide):
-        assert nuclide.nuclide not in self.nuclides, f"Nuclide with name {nuclide.nuclide} already exists in library"
+        assert nuclide.nuclide not in self.nuclides, (
+            f"Nuclide with name {nuclide.nuclide} already exists in library"
+        )
         self.nuclides[nuclide.nuclide] = nuclide
 
     def get_nuclide(self, name: str) -> Nuclide | None:

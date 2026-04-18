@@ -3,12 +3,14 @@ from core import SpectrumManager, Settings
 import json
 import glob
 
+
 def load_nuclide_data():
     for file in glob.glob(str(Settings.Paths.nuclide_data / "*.json")):
         with open(file) as f:
             data = json.load(f)
             nuclide = nuclide_from_json(data)
             SpectrumManager.NuclideLibrary.add_nuclide(nuclide)
+
 
 def nuclide_from_json(data: dict) -> Nuclide:
     emissions = [

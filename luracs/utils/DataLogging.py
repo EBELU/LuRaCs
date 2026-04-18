@@ -10,19 +10,26 @@ from datetime import datetime, timedelta
 
 from PySide6.QtCore import Signal, QObject
 
-from clients.DeviceWrappers import WrappedRealTimePackage, WrappedSpectrumPackage, WrappedStatusPackage
+from clients.DeviceWrappers import (
+    WrappedRealTimePackage,
+    WrappedSpectrumPackage,
+    WrappedStatusPackage,
+)
 
 from core import Settings, RunManager, Log
+
 
 def compress_spectrum(array: np.ndarray) -> bytes:
     """Compress a spectrum to bytes with zlib"""
     raw = array.astype(np.uint32).tobytes()
     return zlib.compress(raw, level=6)
 
+
 def decompress_spectrum(blob: bytes, channel_count: int) -> np.ndarray:
     """Uncompress spectrum from bytes to array of uint32"""
     raw = zlib.decompress(blob)
     return np.frombuffer(raw, dtype=np.uint32, count=channel_count)
+
 
 def restart_logger(db_name: str):
     new_log = SpectrumLogger(db_name, resume=True)
@@ -33,32 +40,34 @@ def restart_logger(db_name: str):
 
     RunManager.add_logger(db_name, new_log)
 
-
     new_log.request_data()
+
 
 def start_logger(db_name, device: str, save_interval: int = 1, truncation: int = 0):
     device_wrapper = RunManager.devices.get(device, None)
     if not device_wrapper:
         Log.warning(f"Logging could not be started as {device} does not exist")
         return
-    
+
     if device_wrapper.name in RunManager.dataloggers:
         Log.warning(f"Logger already running for device {device_wrapper.name}")
         return
-    
-    new_log = SpectrumLogger(db_name, 
-                                save_interval=save_interval, 
-                                spect_channels=device_wrapper.channels, 
-                                device_id=device_wrapper.name,
-                                calibration_coeff=device_wrapper.calibration,
-                                channel_concat_factor=truncation
-                                )
-    
+
+    new_log = SpectrumLogger(
+        db_name,
+        save_interval=save_interval,
+        spect_channels=device_wrapper.channels,
+        device_id=device_wrapper.name,
+        calibration_coeff=device_wrapper.calibration,
+        channel_concat_factor=truncation,
+    )
+
     RunManager.currentUpdated.connect(new_log.receive_current)
     RunManager.statusUpdated.connect(new_log.receive_status)
     RunManager.spectrumUpdated.connect(new_log.receive_spectrum)
-    
+
     RunManager.add_logger(db_name, new_log)
+
 
 @dataclass
 class WrappedSpectrogramData:
@@ -74,6 +83,7 @@ class WrappedSpectrogramData:
     time_delta: float
     estimated_dose: float
     status: object
+
 
 @dataclass
 class Buffers:
@@ -101,14 +111,16 @@ class SpectrumLogger(QObject):
         LOADED = auto()
 
     def __init__(self, db_name: str, resume: bool = False, **kwargs):
-        super().__init__(parent = None)
+        super().__init__(parent=None)
         self.db_name = db_name
         self.db_path = str(Settings.Paths.spectrogram_library / self.db_name)
         self.connection = sql.connect(self.db_path)
-        self.buffers = Buffers(spectrum_view_queue=deque([], 256),
-                               timestamp_queue=deque([], 256),
-                               timedelta_queue=deque([], 256))  
-        
+        self.buffers = Buffers(
+            spectrum_view_queue=deque([], 256),
+            timestamp_queue=deque([], 256),
+            timedelta_queue=deque([], 256),
+        )
+
         self.paused = True if resume else False
         self.state = self.State.LOADED
 
@@ -117,38 +129,44 @@ class SpectrumLogger(QObject):
             self.state = self.State.LOADED
         else:
             # --- Initialize new logger ---
-            self.save_interval = kwargs["save_interval"] # Interval between steps in s
-            self.concat_factor = kwargs["channel_concat_factor"] # How much the spectrum should be concatinated
-            assert self.concat_factor in (1, 2, 4, 8) 
+            self.save_interval = kwargs["save_interval"]  # Interval between steps in s
+            self.concat_factor = kwargs[
+                "channel_concat_factor"
+            ]  # How much the spectrum should be concatinated
+            assert self.concat_factor in (1, 2, 4, 8)
 
-            self.spect_channels = round(kwargs["spect_channels"] / self.concat_factor) # Number of channels after concat
-            self.device_id = kwargs["device_id"] # What device is the spectrogram from
+            self.spect_channels = round(
+                kwargs["spect_channels"] / self.concat_factor
+            )  # Number of channels after concat
+            self.device_id = kwargs["device_id"]  # What device is the spectrogram from
             self.calibration_coeff = kwargs["calibration_coeff"]
             self.start_date = time.time()
 
             if not resume and os.path.exists(self.db_path):
-                self.clean_db() 
-            
+                self.clean_db()
+
             else:
                 self.init_database()
-            self.data_wrapper = WrappedSpectrogramData(db_name,
-                                self.device_id,
-                                self.start_date,
-                                0,
-                                self.concat_factor,
-                                self.spect_channels,
-                                self.save_interval,
-                                None,
-                                self.buffers.spectrum_view_queue,
-                                0,
-                                0,
-                                self.State.ACTIVE)
+            self.data_wrapper = WrappedSpectrogramData(
+                db_name,
+                self.device_id,
+                self.start_date,
+                0,
+                self.concat_factor,
+                self.spect_channels,
+                self.save_interval,
+                None,
+                self.buffers.spectrum_view_queue,
+                0,
+                0,
+                self.State.ACTIVE,
+            )
 
             self.state = self.State.ACTIVE
 
     def init_database(self):
         cursor = self.connection.cursor()
-        
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS header (
                 id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -160,7 +178,7 @@ class SpectrumLogger(QObject):
                 save_interval REAL NOT NULL
             )
         """)
-        
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS summary (
                 id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -170,13 +188,16 @@ class SpectrumLogger(QObject):
                 last_update INTEGER
             )
         """)
-        
-        cursor.execute("""
+
+        cursor.execute(
+            """
             INSERT OR IGNORE INTO summary
             (id, accumulated_spectrum, total_duration, total_dose, last_update)
             VALUES (1, NULL, 0, 0, ?)
-        """, (time.time(),))
-        
+        """,
+            (time.time(),),
+        )
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS spectrogram (
                 id INTEGER PRIMARY KEY,
@@ -187,17 +208,27 @@ class SpectrumLogger(QObject):
                 spectrum BLOB NOT NULL
             )
         """)
-        
+
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_spectrogram_timestamp
             ON spectrogram(timestamp)
         """)
-        
-        cursor.execute("""
+
+        cursor.execute(
+            """
             INSERT OR IGNORE INTO header
             (id, created, device_id, channels, calibration, concat, save_interval)
             VALUES (1, ?, ?, ?, ?, ?, ?)
-        """, (time.time(), self.device_id, self.spect_channels, str(self.calibration_coeff), self.concat_factor, self.save_interval))
+        """,
+            (
+                time.time(),
+                self.device_id,
+                self.spect_channels,
+                str(self.calibration_coeff),
+                self.concat_factor,
+                self.save_interval,
+            ),
+        )
 
         self.connection.commit()
 
@@ -217,7 +248,7 @@ class SpectrumLogger(QObject):
 
     def request_data(self):
         self.dataUpdated.emit(self.db_name, self.data_wrapper)
-        
+
     def load_from_db(self):
         cursor = self.connection.cursor()
 
@@ -241,7 +272,6 @@ class SpectrumLogger(QObject):
             # restore acquisition start time
             self.start_date = created
 
-
         # --- Load summary ---
         cursor.execute("""
             SELECT accumulated_spectrum, total_duration, total_dose, last_update
@@ -255,19 +285,24 @@ class SpectrumLogger(QObject):
             acc_blob, total_duration, total_dose, last_update = summary
 
             if acc_blob is not None:
-                self.buffers.accumulated_spectrum = decompress_spectrum(acc_blob, channels).copy().astype(np.float64)
+                self.buffers.accumulated_spectrum = (
+                    decompress_spectrum(acc_blob, channels).copy().astype(np.float64)
+                )
 
             self.buffers.accumulated_dose_estimate = total_dose
             self.buffers.duration = total_duration
             self.buffers.latest_timestamp = last_update
 
         # --- Load recent spectrogram entries for view buffer ---
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT timestamp, spectrum
             FROM spectrogram
             ORDER BY timestamp DESC
             LIMIT ?
-        """, (self.buffers.spectrum_view_queue.maxlen,))
+        """,
+            (self.buffers.spectrum_view_queue.maxlen,),
+        )
 
         rows = cursor.fetchall()
 
@@ -276,76 +311,75 @@ class SpectrumLogger(QObject):
             self.buffers.spectrum_view_queue.append(spectrum)
             self.buffers.timestamp_queue.append(ts)
 
+        self.data_wrapper = WrappedSpectrogramData(
+            self.db_name,
+            self.device_id,
+            self.start_date,
+            self.buffers.duration,
+            self.concat_factor,
+            self.spect_channels,
+            self.save_interval,
+            self.buffers.accumulated_spectrum,
+            self.buffers.spectrum_view_queue,
+            1,
+            self.buffers.accumulated_dose_estimate,
+            self.State.LOADED,
+        )
 
-        self.data_wrapper = WrappedSpectrogramData(self.db_name,
-                                                   self.device_id,
-                                                   self.start_date,
-                                                   self.buffers.duration,
-                                                   self.concat_factor,
-                                                   self.spect_channels,
-                                                   self.save_interval,
-                                                   self.buffers.accumulated_spectrum,
-                                                   self.buffers.spectrum_view_queue,
-                                                   1,
-                                                   self.buffers.accumulated_dose_estimate,
-                                                   self.State.LOADED)
-
-
-        
     def receive_current(self, name: str, current: WrappedRealTimePackage):
         if name != self.device_id or self.paused:
             return
-        
+
         self.buffers.cps += current.CPS
         self.buffers.dose_rate += current.DR
         self.buffers.recieved_values += 1
-        
+
     def receive_status(self, name: str, status: WrappedStatusPackage):
         if name != self.device_id or self.paused:
             return
-        
+
         self.buffers.temperature = status.temperature
-        
+
     def receive_spectrum(self, name: str, spectrum: WrappedSpectrumPackage):
         if name != self.device_id or self.paused:
             return
-        
+
         # Extract y_axis
         spectrum = spectrum.y_axis
-    
-
 
         if self.buffers.latest_spectrum is None:
             # Fill the buffer with the first data recieved
             self.buffers.latest_spectrum = spectrum
             self.buffers.latest_timestamp = time.time()
             return
-        
-        new_ts = int(time.time())
-        
 
-        if not round(new_ts) >= round(self.buffers.latest_timestamp + self.save_interval):
+        new_ts = int(time.time())
+
+        if not round(new_ts) >= round(
+            self.buffers.latest_timestamp + self.save_interval
+        ):
             return
-        
+
         dt = new_ts - self.buffers.latest_timestamp
         self.buffers.latest_timestamp = new_ts
 
         processed_spectrum = self.process_spectrum(spectrum)
 
-        
         if self.buffers.accumulated_spectrum is None:
             # Fill the accumulation buffer
             self.buffers.accumulated_spectrum = processed_spectrum.copy()
         else:
             self.buffers.accumulated_spectrum += processed_spectrum
-        
+
         # Put in latest spectrum
         self.buffers.spectrum_view_queue.append(processed_spectrum)
-        
+
         # Update buffers
         self.buffers.timedelta_queue.append(dt)
         self.buffers.duration += dt
-        self.buffers.accumulated_dose_estimate += (self.buffers.dose_rate/max(self.buffers.recieved_values, 1)) / 3600 * dt
+        self.buffers.accumulated_dose_estimate += (
+            (self.buffers.dose_rate / max(self.buffers.recieved_values, 1)) / 3600 * dt
+        )
 
         # Update wrapped data package
         self.data_wrapper.latest_spectrum = processed_spectrum
@@ -356,61 +390,77 @@ class SpectrumLogger(QObject):
 
         # Emit wrapper
         self.dataUpdated.emit(self.db_name, self.data_wrapper)
-        
+
         # Compress spectrum and insert it into the database
-        spectrum_bytes = compress_spectrum(processed_spectrum)        
-        self.insert_spectrogram(new_ts, 
-                                self.buffers.cps/max(self.buffers.recieved_values, 1), 
-                                self.buffers.dose_rate/max(self.buffers.recieved_values, 1), 
-                                self.buffers.temperature, 
-                                spectrum_bytes)
+        spectrum_bytes = compress_spectrum(processed_spectrum)
+        self.insert_spectrogram(
+            new_ts,
+            self.buffers.cps / max(self.buffers.recieved_values, 1),
+            self.buffers.dose_rate / max(self.buffers.recieved_values, 1),
+            self.buffers.temperature,
+            spectrum_bytes,
+        )
         self.update_summary(new_ts)
-        
+
         # Reset buffers
         self.buffers.recieved_values = 0
         self.buffers.cps = 0
         self.buffers.dose_rate = 0
-        
-        
-        
-    def insert_spectrogram(self, timestamp, avg_cps, avg_dr, temperature, spectrum_bytes):
+
+    def insert_spectrogram(
+        self, timestamp, avg_cps, avg_dr, temperature, spectrum_bytes
+    ):
         cursor = self.connection.cursor()
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO spectrogram
             (timestamp, avg_cps, avg_dr, temperature, spectrum)
             VALUES (?, ?, ?, ?, ?)
-        """, (timestamp, round(avg_cps * 1000), round(avg_dr * 1000), temperature, spectrum_bytes))
-       
-            
+        """,
+            (
+                timestamp,
+                round(avg_cps * 1000),
+                round(avg_dr * 1000),
+                temperature,
+                spectrum_bytes,
+            ),
+        )
+
         self.connection.commit()
 
-        
     def update_summary(self, ts):
         cursor = self.connection.cursor()
-        cursor.execute("""
+        cursor.execute(
+            """
             UPDATE summary
             SET total_duration = ?,
                 total_dose = ?,
                 accumulated_spectrum = ?,
                 last_update = ?
                 WHERE id = 1
-        """, (self.buffers.duration, self.buffers.accumulated_dose_estimate, compress_spectrum(self.buffers.accumulated_spectrum), ts))
-        
-        
+        """,
+            (
+                self.buffers.duration,
+                self.buffers.accumulated_dose_estimate,
+                compress_spectrum(self.buffers.accumulated_spectrum),
+                ts,
+            ),
+        )
+
     def clean_db(self):
         cursor = self.connection.cursor()
 
         # Get a list of all tables
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
         tables = cursor.fetchall()
-        
+
         # Drop each table
         for table_name in tables:
             cursor.execute(f"DROP TABLE IF EXISTS {table_name[0]}")
         self.connection.commit()
 
         self.init_database()
-        
+
     def process_spectrum(self, spectrum):
         """Process a recieved spectrum. Subtract last recieved spectrum and concat"""
 
@@ -425,8 +475,7 @@ class SpectrumLogger(QObject):
             arr = np.pad(spectrum_diff, (0, pad_size))
         else:
             arr = spectrum_diff
-    
+
         new = arr.reshape(-1, self.concat_factor).sum(axis=1)
-        
+
         return new
-    

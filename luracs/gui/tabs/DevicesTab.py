@@ -13,15 +13,25 @@ from PySide6.QtWidgets import (
     QRadioButton,
     QButtonGroup,
     QMessageBox,
-    QPushButton
+    QPushButton,
 )
 from PySide6.QtCore import Signal
+
 
 class DevicesInfoTab(QWidget):
     def __init__(self, title="", parent=None):
         super().__init__(parent)
 
-        titles = ["", "Device", "Temperature", "Battery", "Charging", "Status", "Type", "Connection"]
+        titles = [
+            "",
+            "Device",
+            "Temperature",
+            "Battery",
+            "Charging",
+            "Status",
+            "Type",
+            "Connection",
+        ]
 
         self.table = StrIdxTable()
         self.table.reset_table(titles)
@@ -40,15 +50,24 @@ class DevicesInfoTab(QWidget):
         main_layout.addWidget(self.group_box)
 
         self.setLayout(main_layout)
-        
+
         self.status_ts_buff = {}
-        
+
         RunManager.newDeviceWrapped.connect(self.add_device)
         RunManager.statusUpdated.connect(self.update_status)
-        
+
     def add_device(self, name, wrapper: DeviceWrapper):
         wrapper.stateUpdated.connect(self.update_state)
-        self.row_regestry[name] = [None, name, None, None, None, str(wrapper.state.name), str(wrapper.type), str(wrapper.connection)]
+        self.row_regestry[name] = [
+            None,
+            name,
+            None,
+            None,
+            None,
+            str(wrapper.state.name),
+            str(wrapper.type),
+            str(wrapper.connection),
+        ]
         self.table.write_row(name, self.row_regestry[name])
         self.status_ts_buff[name] = 0
 
@@ -58,6 +77,10 @@ class DevicesInfoTab(QWidget):
 
     def update_status(self, name, new_status: WrappedStatusPackage):
         if self.status_ts_buff[name] != new_status.timestamp:
-            self.row_regestry[name][2:5] = [f"{str(round(new_status.temperature, 1))}°C", f"{new_status.battery}%", str(new_status.charging)]
+            self.row_regestry[name][2:5] = [
+                f"{str(round(new_status.temperature, 1))}°C",
+                f"{new_status.battery}%",
+                str(new_status.charging),
+            ]
             self.table.write_row(name, self.row_regestry[name])
             self.status_ts_buff[name] = new_status.timestamp

@@ -1,6 +1,10 @@
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QFormLayout,
-    QLineEdit, QDialogButtonBox, QPushButton
+    QDialog,
+    QVBoxLayout,
+    QFormLayout,
+    QLineEdit,
+    QDialogButtonBox,
+    QPushButton,
 )
 
 
@@ -29,9 +33,7 @@ class SaveNamingDialog(QDialog):
         main_layout.addLayout(form)
 
         # --- Buttons ---
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.Ok | QDialogButtonBox.Cancel
-        )
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
 
         self.ok_button = buttons.button(QDialogButtonBox.Ok)
         self.ok_button.setEnabled(bool(name))  # disable if empty initially

@@ -3,22 +3,24 @@ from datetime import datetime
 import numpy as np
 import copy
 
+
 @dataclass
 class GenericInstrument:
     "Stores the data associated with a detector type"
+
     model: str
     manufacturer: str
     detector_type: str
     detector_material: str = None
     detector_shape: str = None
-    detector_dimensions_cm: list = None # cm
+    detector_dimensions_cm: list = None  # cm
 
     # --- Resolution ---
     resolution_fn: str = None
     resolution_param: list = None
     resolution_E_points: list = None
     resolution_FWHM_points: list = None
-    
+
     # --- Efficiency ---
     int_efficiency_fn: str = None
     int_efficiency_params: list = None
@@ -28,20 +30,21 @@ class GenericInstrument:
     # --- Response Matrix ---
     response_matrix: np.ndarray = None
     response_matrix_shape: list = None
-    
+
     def get_copy(self):
         return copy.deepcopy(self)
+
 
 @dataclass(kw_only=True)
 class UniqueInstrument(GenericInstrument):
     "Stores the data for a unique instrument, should be created from a generic instrument UniqueInstrument('Name', **template.get_copy().__dict__())"
-    name: str = "" # Important
-    
+
+    name: str = ""  # Important
+
     calibration_poly_order: int = None
     calibration_coefficients: list = None
-    calibration_energy_points: list = None   # known energies (keV)
+    calibration_energy_points: list = None  # known energies (keV)
     calibration_channel_points: list = None  # corresponding channels
     calibration_date: datetime = None
-    
+
     remark: str = ""
-    

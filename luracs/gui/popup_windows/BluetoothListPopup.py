@@ -7,9 +7,10 @@ from .ListPopupBase import ListPopupNonBlocking
 
 from core import RunManager
 
+
 def _on_bt_device_selected(device):
     print("Selected device:", device)
-    
+
     if not device.name:
         return
 
@@ -20,10 +21,8 @@ def _on_bt_device_selected(device):
     else:
         print(f"Invalid device type {device.name}")
         return
-    asyncio.create_task(
-        RunManager.add_device(device, device_type)
-    )
-    
+    asyncio.create_task(RunManager.add_device(device, device_type))
+
 
 class BluetoothListPopup(ListPopupNonBlocking):
     """
@@ -47,7 +46,7 @@ class BluetoothListPopup(ListPopupNonBlocking):
         RunManager.bluetoothFound.connect(self.receive_BT_list)
 
         self.scan_task = None
-        
+
         self._scan_duration = scan_duration
         self._scan_start_time = None
         self._devices_by_name: dict[str, object] = {}
@@ -73,16 +72,15 @@ class BluetoothListPopup(ListPopupNonBlocking):
     # Public Bluetooth API
     # ------------------------------------------------
 
-
     def start_popup(self):
         QTimer.singleShot(0, lambda: self._start_popup())
-        
+
     def _start_popup(self):
         self.start_scan_ui()
         if not self.isVisible():
             self.show()
         self._request_bt_scan()
-    
+
     def start_scan_ui(self):
         """Call when scan begins"""
         self.rescan_btn.setEnabled(False)
@@ -114,7 +112,10 @@ class BluetoothListPopup(ListPopupNonBlocking):
             self._devices_by_name[name] = dev
 
             # Check if name contains radiacode or raysid (case-insensitive)
-            if name.lower().find("radiacode") != -1 or name.lower().find("raysid") != -1:
+            if (
+                name.lower().find("radiacode") != -1
+                or name.lower().find("raysid") != -1
+            ):
                 display_name = f"{name} ☢️"
                 priority.append((display_name, dev))
             else:
@@ -187,6 +188,6 @@ class BluetoothListPopup(ListPopupNonBlocking):
     def _request_bt_scan(self):
         self.start_scan_ui()
         self.scan_task = asyncio.create_task(RunManager.find_bluetooth())
-        
+
     def receive_BT_list(self, device_list):
         self.set_devices(device_list)

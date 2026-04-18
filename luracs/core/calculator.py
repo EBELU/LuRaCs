@@ -33,10 +33,18 @@ class Calculator:
     - Suitable for short, repeated tasks (e.g., function optimization with ~250 iterations).
     - No progress reporting; each task simply emits the final result when done.
     """
+
     _pool = QThreadPool.globalInstance()
 
     @classmethod
-    def run(cls, fn: Callable, *args, on_result: Callable = None, on_error: Callable =None, **kwargs):
+    def run(
+        cls,
+        fn: Callable,
+        *args,
+        on_result: Callable = None,
+        on_error: Callable = None,
+        **kwargs,
+    ):
         """Run a function in a background thread and signal back the result."""
         worker = Worker(fn, *args, **kwargs)
 

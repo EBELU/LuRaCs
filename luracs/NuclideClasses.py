@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 from typing import List, Tuple, Optional
+
+
 @dataclass(frozen=True, kw_only=True)
 class Emission:
     parent_nuclide: str

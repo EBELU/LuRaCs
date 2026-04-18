@@ -1,19 +1,16 @@
 import sys
 from PySide6.QtGui import QPalette, QColor
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 import pyqtgraph as pg
 
 
-
-
-
 class ThemeManager:
     """Controls the theme of the app.
-    
+
     Can switch between LIGHT and DARK modes.
     Keeps a registry of plot widgets and legends to auto-apply styling.
     """
+
     DARK = "dark"
     LIGHT = "light"
 
@@ -58,7 +55,7 @@ class ThemeManager:
 
         for lgd in self._registry_legends:
             self._style_legend(lgd)
-            
+
         self._apply_stylesheet(app)
 
     # ---------- Qt ----------
@@ -106,7 +103,6 @@ class ThemeManager:
 
         return p
 
-
     def _dark_palette_unix(self):
         p = QPalette()
 
@@ -133,7 +129,7 @@ class ThemeManager:
         p.setColor(QPalette.Disabled, QPalette.HighlightedText, QColor(160, 160, 160))
 
         return p
-    
+
     def _apply_stylesheet(self, app):
         if self.mode == self.DARK:
             app.setStyleSheet("""
@@ -183,31 +179,42 @@ class ThemeManager:
         pw.showGrid(x=True, y=True, alpha=0.3 if self.mode == self.DARK else 0.4)
 
     def _style_legend(self, legend: pg.LegendItem):
-        bg_color = QColor(30, 30, 30) if self.mode == self.DARK else QColor(255, 255, 255)
+        bg_color = (
+            QColor(30, 30, 30) if self.mode == self.DARK else QColor(255, 255, 255)
+        )
         bg_color.setAlpha(180 if self.mode == self.DARK else 220)
         legend.setBrush(pg.mkBrush(bg_color))
 
         fg_color = "w" if self.mode == self.DARK else "k"
         for label, sample in legend.items:
             label.setText(label.text(), color=fg_color)
-            if hasattr(sample, 'setPen'):
+            if hasattr(sample, "setPen"):
                 sample.setPen(pg.mkPen(fg_color))
-            if hasattr(sample, 'setBrush'):
+            if hasattr(sample, "setBrush"):
                 sample.setBrush(pg.mkBrush(fg_color))
 
 
 class ColorRotator:
     """Provides a cycling color pen for plotting."""
+
     def __init__(self, colors="mpl", width=2):
         if colors == "mpl":
             self.colors = [
-                '#1f77b4', '#ff7f0e', '#2ca02c',
-                '#d62728', '#9467bd', '#8c564b',
+                "#1f77b4",
+                "#ff7f0e",
+                "#2ca02c",
+                "#d62728",
+                "#9467bd",
+                "#8c564b",
             ]
         elif colors == "lo":
             self.colors = [
-                '#004586', '#ff420e', '#ffd320',
-                '#579d1c', '#7e0021', '#83caff',
+                "#004586",
+                "#ff420e",
+                "#ffd320",
+                "#579d1c",
+                "#7e0021",
+                "#83caff",
             ]
         else:
             self.colors = colors
