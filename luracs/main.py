@@ -113,7 +113,7 @@ class MainWindow(QMainWindow):
         self.devices_tab = DevicesInfoTab()
         self.bottom_tabs.addTab(self.devices_tab, "Devices")
         
-        self.isotopics_tab = IsotopicsTab(list(SpectrumManager.NuclideLibrary.nuclides.keys()))
+        self.isotopics_tab = IsotopicsTab(list(SpectrumManager.NuclideLibrary.get_sorted_nuclide_names()))
         self.bottom_tabs.addTab(self.isotopics_tab, "Isotopics")
 
         # System log

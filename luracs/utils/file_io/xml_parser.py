@@ -8,6 +8,7 @@ import numpy as np
 from lxml import etree
 
 from SpectrumClasses import SpectrumData
+from NuclideClasses import Emission
 from ROIClasses import ROI, Fit
 
 
@@ -297,7 +298,7 @@ class xml_parser:
                                 "params": fit_params,
                                 "param_errs": fit_params_err,
                                 "peak_counts": counts,
-                                "bkg_params": bkg_params
+                                "bkg_params": bkg_params,
                 }
                 misc_peak_kwargs = {
                     "centroid": centroid,
@@ -310,6 +311,17 @@ class xml_parser:
                 }
             else:
                 peak_kwargs = misc_peak_kwargs = None
+                
+            # --- Nuclide ---
+            nuclide = roi.xpath("./n42:Nuclide", namespaces=ns)
+            if nuclide:
+                nuclide_name = nuclide.xpath("./Name", "None")
+                emission_energy = nuclide.xpath("./Energy", "None")
+            else:
+                nuclide_name = emission_energy = None
+                
+            meta_data["nuclide"] = nuclide_name
+            meta_data["emission_energy"] = emission_energy
 
             general_kwargs = {
                 "tag": roi_id,
@@ -320,7 +332,8 @@ class xml_parser:
                 "bkg_type": bkg_type,
                 "roi_counts": region_counts,
                 "live_time": live_time,
-                "meta": meta_data
+                "meta": meta_data,
+                "emission": None,
             }
             
             peaks.append(_build_roi(general_kwargs, peak_kwargs))

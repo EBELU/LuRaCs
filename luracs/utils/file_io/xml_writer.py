@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from SpectrumClasses import Spectrum, SpectrumData
+    from ROIClasses import ROI, Fit
 
 from InstrumentClasses import GenericInstrument, UniqueInstrument
 from lxml import etree
@@ -105,7 +106,7 @@ def write_SpectrumData(data: SpectrumData, root, kind: str, spectrum_id: str):
     channel_data.text = " ".join(data.y_axis.round().astype(str))
     
     
-def write_ROI_data(ROIs: dict, peaks_section):
+def write_ROI_data(ROIs: dict[str, ROI], peaks_section):
     num_peaks = etree.SubElement(peaks_section, "NumberOfPeaks")
     num_peaks.text = str(len(ROIs))
     
@@ -135,6 +136,13 @@ def write_ROI_data(ROIs: dict, peaks_section):
             write_text_to_SubElement(peak, "Amplitude", [roi.fit.A, roi.fit.A_err])
             
             write_text_to_SubElement(peak, "PeakCounts", roi.fit.peak_counts)
+        nuclide_section = etree.SubElement(new_peak, "Nuclide")
+        if roi.emission is not None:
+            write_text_to_SubElement(nuclide_section, "Name", roi.emission.parent_nuclide)
+            write_text_to_SubElement(nuclide_section, "Energy", [roi.emission.energy_keV, roi.emission.energy_error_keV], unit="keV")
+            write_text_to_SubElement(nuclide_section, "Intensity", [roi.emission.intensity_percent, roi.emission.intensity_error_percent], unit = "%")
+            write_text_to_SubElement(nuclide_section, "Type", roi.emission.type)
+            write_text_to_SubElement(nuclide_section, "EmissionOrigin", roi.emission.origin)
             
 def write_instrument_data(instrument: GenericInstrument | UniqueInstrument, root):
     instrument_section = etree.SubElement(

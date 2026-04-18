@@ -194,7 +194,9 @@ class ROIManager(QObject):
             x_high = float(x_min) + diff * 0.45
             
 
-        new_roi = DeletableROI(roi_tag,[x_low, x_high], **kwargs)
+        new_roi = DeletableROI(roi_tag,[x_low, x_high], 
+                               nuclide_lib_ref=self.spectrum_manager.NuclideLibrary,
+                               **kwargs)
         self.plot_widget.addItem(new_roi)
         self.ROIs[roi_tag] = new_roi
         
@@ -366,7 +368,7 @@ class ROIManager(QObject):
                         updated_rois.add(roi)
                         break
 
-    def get_data_from_roi(self, roi_tag: str) -> dict:
+    def get_data_from_roi(self, roi_tag: str) -> dict[str, ROI]:
         "Get the same ROI from all spectra that contains in instance if the ROI"
         rois = {}
         for key, spectrum in self.spectrum_manager.get_spectra_dict().items():
@@ -376,7 +378,7 @@ class ROIManager(QObject):
         
         return rois
     
-    def get_data_from_spectrum(self, spectrum_name: str) -> dict:
+    def get_data_from_spectrum(self, spectrum_name: str) -> dict[str, ROI]:
         "Get all ROIs from a specified spectrum"
         return self.spectrum_manager.get_spectrum(spectrum_name).ROIs.copy()
                 
@@ -420,12 +422,14 @@ class ROIManager(QObject):
             results = [ROI(r.tag, r.alias, tuple(r.getRegion()), (np.min(bounds), np.max(bounds)),
                             fit_type, bkg_type, f, # fit
                             get_roi_counts(r.getRegion()[0], r.getRegion()[1]), spectrum.foreground.live_time, # Save live time for CPS conversion
+                            r.emission,
                             {"merge": r.merge, "movable": r.movable, **meta_data}) 
                             for r, f in zip(roi_group, fits)]
         else:
             results = [ROI(r.tag, r.alias, tuple(r.getRegion()), (np.min(bounds), np.max(bounds)),
                         fit_type, bkg_type, None, # No fit
                         get_roi_counts(r.getRegion()[0], r.getRegion()[1]), spectrum.foreground.live_time,  # Save live time for CPS conversion
+                        r.emission,
                         {"merge": r.merge, "movable": r.movable, "poisson_weights": r.poisson_weights,**meta_data}) 
                         for r in roi_group]
             

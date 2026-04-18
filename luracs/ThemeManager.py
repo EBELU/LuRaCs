@@ -145,7 +145,7 @@ class ThemeManager:
             }
 
             QCheckBox::indicator:checked {
-                background: solid #888;
+                background: solid #b3b3b3;
             }
             
             QLineEdit {

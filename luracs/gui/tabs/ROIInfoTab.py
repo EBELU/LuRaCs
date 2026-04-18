@@ -251,8 +251,8 @@ class ROIInfoTab(QWidget):
         rois = SpectrumManager.ROIManager.get_data_from_spectrum(spectrum)
         
 
-        titles = ["ROI", "Lower", "Upper", "Peak Center", "FWHM", "Peak Counts", "ROI Counts"]
-        widths = [150, 75, 75, 100, 100, 150, 150]
+        titles = ["ROI", "Lower", "Upper", "Peak Center", "FWHM", "Peak Counts", "ROI Counts", "Nuclide", "Photo Peak", "Peak Difference"]
+        widths = [150, 75, 75, 100, 100, 150, 150, 75, 100, 100]
 
         if self.table.mode != 1:
             self.table.mode = 1
@@ -274,8 +274,8 @@ class ROIInfoTab(QWidget):
 
         rois = SpectrumManager.ROIManager.get_data_from_roi(roi_tag)
 
-        titles = ["Spectrum", "Lower", "Upper", "Peak Center", "FWHM", "Peak Counts", "ROI Counts"]
-        widths = [150, 75, 75, 100, 100, 150, 150]
+        titles = ["Spectrum", "Lower", "Upper", "Peak Center", "FWHM", "Peak Counts", "ROI Counts", "Nuclide", "Photo Peak", "Peak Difference"]
+        widths = [150, 75, 75, 100, 100, 150, 150, 75, 100, 100]
         
         if self.table.mode != 0:
             self.table.mode = 0
@@ -309,7 +309,10 @@ class ROIInfoTab(QWidget):
                 f"{round(roi.fit.mu, 2)} keV",
                 f"{round(roi.fit.fwhm, 2)} keV",
                 peak_counts,
-                roi_counts
+                roi_counts,
+                roi.emission.parent_nuclide if roi.emission is not None else "None",
+                f"{roi.emission.energy_keV} keV" if roi.emission is not None else "None",
+                f"{round(roi.fit.mu - roi.emission.energy_keV,3)} keV" if roi.emission is not None and roi.fit is not None else "None",
             ]
         else:
             row = [first_cell, round(roi.roi_bound[0]), round(roi.roi_bound[1]), none_fallback, None, None, roi_counts]

@@ -184,7 +184,7 @@ class IsotopicsTab(QWidget):
         nuclides_list_layout.addWidget(self.nuclide_search_bar)
         nuclides_list_layout.addWidget(self.nuclide_list_widget)
         
-        self.all_nuclides = sorted(all_nuclides, key = lambda n: int(n.split("-")[-1].removesuffix("m")))
+        self.all_nuclides = all_nuclides
         
         for nuclide in self.all_nuclides:
             self.add_nuclide(nuclide, "blue")
@@ -259,7 +259,7 @@ class IsotopicsTab(QWidget):
     def change_nuclide_info(self, name):
         nuc = SpectrumManager.NuclideLibrary.get_nuclide(name)
         
-        title_str = f"| {nuc.element} | {nuc.nuclide}"
+        title_str = f"| {nuc.element} | {nuc.nuclide} |"
         separator = "="*len(title_str)
         
         daughters = "\n".join([f"{n} {p}%" for n, p in nuc.daughters])
@@ -269,12 +269,17 @@ class IsotopicsTab(QWidget):
 {title_str}
 {separator}
 Half-Life = {format_duration(nuc.half_life_s[0])}
+Z = {nuc.Z}
+
 
 Emissions:
 {format_emissions(nuc.emissions)}
 
 Daughter Products:
 {daughters}
+
+LNHB citation volume: {nuc.lnhb_volume}
+(see bibliography)
         """
         )
         
