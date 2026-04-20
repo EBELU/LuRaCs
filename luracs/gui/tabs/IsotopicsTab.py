@@ -17,6 +17,8 @@ from PySide6.QtGui import QColor, QPainter, QBrush, QAction, QFont
 
 from core import SpectrumManager
 
+from textwrap import dedent
+
 
 def format_emissions(emissions):
     lines = [
@@ -118,7 +120,7 @@ class ColorCellWidget(QWidget):
 
 
 class NuclideListItem(QWidget):
-    sigViewCheckChanged = Signal(str, bool)  # (name, checked)
+    sigViewCheckChanged = Signal(str, bool, object)  # (name, checked, QColor)
     sigColorChanged = Signal(str, object)  # (name, QColor)
 
     def __init__(self, text, color):
@@ -157,15 +159,23 @@ class NuclideListItem(QWidget):
 
     def _on_state_changed(self, state):
         self.sigViewCheckChanged.emit(
-            self.name, Qt.CheckState(state) == Qt.CheckState.Checked
+            self.name, Qt.CheckState(state) == Qt.CheckState.Checked,
+            self.color_widget.color
         )
+        
+    def emit_info(self):
+        self.sigViewCheckChanged.emit(
+            self.name, True,
+            self.color_widget.color
+        )
+        
 
     def _on_color_changed(self, color):
         self.sigColorChanged.emit(self.name, color)
 
 
 class IsotopicsTab(QWidget):
-    sigViewCheckChanged = Signal(str, bool)  # (name, checked)
+    sigViewCheckChanged = Signal(str, bool, object)  # (name, checked)
     sigListItemClicked = Signal(str)
     sigColorChanged = Signal(str, object)  # (name, QColor)
 
@@ -173,6 +183,7 @@ class IsotopicsTab(QWidget):
         super().__init__(parent=parent)
 
         self.sigListItemClicked.connect(self.change_nuclide_info)
+        self.sigViewCheckChanged.connect(SpectrumManager.NuclideLibrary._track_selected_nuclies)
 
         main_layout = QHBoxLayout(self)
 
@@ -260,6 +271,22 @@ class IsotopicsTab(QWidget):
 
         # Example: reuse your existing signal
         self.sigListItemClicked.emit(name)
+        
+    def request_line_data(self):
+        for i in range(self.nuclide_list_widget.count()):
+            item = self.nuclide_list_widget.item(i)
+            item_widget = self.nuclide_list_widget.itemWidget(item)
+
+            if item_widget.checkbox.isChecked():
+                item_widget.emit_info()
+                
+    def set_nuclide_check(self, nuclide: str, state: bool):
+        for i in range(self.nuclide_list_widget.count()):
+            item = self.nuclide_list_widget.item(i)
+            item_widget = self.nuclide_list_widget.itemWidget(item)
+
+            if item_widget.name.lower() == nuclide.lower():
+                item_widget.checkbox.setChecked(state)
 
     def change_nuclide_info(self, name):
         nuc = SpectrumManager.NuclideLibrary.get_nuclide(name)
@@ -269,8 +296,8 @@ class IsotopicsTab(QWidget):
         
         daughters = "\n".join([f"{n} {p}%" for n, p in nuc.daughters])
 
-        self.nuclides_info_textbox.setText(
-            f"""{separator}
+        self.nuclides_info_textbox.setText(dedent(
+f"""{separator}
 {title_str}
 {separator}
 Half-Life = {format_duration(nuc.half_life_s[0])}
@@ -286,4 +313,4 @@ Daughter Products:
 LNHB citation volume: {nuc.lnhb_volume}
 (see bibliography)
         """
-        )
+).strip())

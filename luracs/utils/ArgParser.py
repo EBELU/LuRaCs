@@ -1,3 +1,7 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from main import MainWindow
 import argparse
 import os
 import asyncio
@@ -7,7 +11,7 @@ from utils.file_io import xml_parser
 from utils.file_io import io_dispatcher
 
 
-def parse_cli_args():
+def parse_cli_args(main_window: MainWindow):
     parser = argparse.ArgumentParser(
         description="""LuRaCs -- Lund Radiation analysis Computer software"""
     )
@@ -19,6 +23,9 @@ def parse_cli_args():
         "-is", "--import_spectrum", nargs="+", help="Load spectrum files"
     )
 
+    parser.add_argument(
+        "--nuclides", nargs="+", help="Preset nuclides shown"
+    )
     parser.add_argument("-l", "--load", nargs="+", help="Load spectrum files")
 
     parser.add_argument("--import_rois", type=str, help="Load ROI from an xml file")
@@ -72,3 +79,7 @@ def parse_cli_args():
     if args.roi:
         for roi_bounds in args.roi:
             SpectrumManager.ROIManager.add_roi(roi_bounds[0], roi_bounds[1])
+    
+    if args.nuclides:
+        for nuclide in args.nuclides:
+            main_window.isotopics_tab.set_nuclide_check(nuclide, True)

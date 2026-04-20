@@ -24,6 +24,7 @@ class EmittedSignals(QObject):
     logLinUpdated = Signal(bool)
     cpsUpdated = Signal(bool)
     bkgSubUpdated = Signal(bool)
+    redrawRequested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -42,6 +43,7 @@ class SpectrumPlot(QWidget):
 
         self.Signals = EmittedSignals()
 
+        # Spectrum manager
         SpectrumManager.Signals.spectrumUpdated.connect(self.update_plot)
         SpectrumManager.Signals.spectrumRemoved.connect(self.remove_plot)
         SpectrumManager.Signals.backgroundRemoved.connect(lambda *args: self._redraw())
@@ -49,16 +51,25 @@ class SpectrumPlot(QWidget):
         SpectrumManager.ROIManager.sigROICreated.connect(
             lambda r: self.create_roi_lines(r.tag)
         )
+        
+        # ROI manager
         SpectrumManager.ROIManager.sigROIUpdated.connect(self.draw_roi)
         SpectrumManager.ROIManager.sigROIDeleted.connect(self.remove_roi)
 
         self.Signals.updateSpectumROIs.connect(
             lambda n: SpectrumManager.ROIManager.update_roi(spectrum_name=n)
         )
+        
+        # Nuclide library
+        SpectrumManager.NuclideLibrary.sigViewCheckChanged.connect(self.draw_nuclide_lines)
+
+        
+        # Emitted
         self.Signals.removeROI.connect(SpectrumManager.ROIManager.remove_roi)
         self.Signals.logLinUpdated.connect(SpectrumManager.ROIManager.set_log)
         self.Signals.cpsUpdated.connect(SpectrumManager.ROIManager.set_cps)
         self.Signals.bkgSubUpdated.connect(SpectrumManager.ROIManager.set_bkg_sub)
+        
 
         # --- Layout ---
 
@@ -128,6 +139,7 @@ class SpectrumPlot(QWidget):
         self.ROIs = {}
         self.ROI_lines_gaussian = {}  # Gaussian cruve lines
         self.ROI_lines_linear = {}  # Background correction lines
+        self.nuclide_lines = {}
 
         self.y_axis_locked = True
         self.user_scaled = False
@@ -141,6 +153,7 @@ class SpectrumPlot(QWidget):
         self.plot_widget.enableAutoRange(axis=pg.ViewBox.YAxis)
         self.plot_widget.setAutoVisible(y=True)
         SpectrumManager.Signals.colorUpdated.connect(self._redraw)
+        self.plot_widget.getViewBox().sigRangeChanged.connect(self.update_nuclide_lines)
 
     def _on_bkg_option_selection(self, option):
         """Change how the background is handeled"""
@@ -219,6 +232,7 @@ class SpectrumPlot(QWidget):
         self.ROI_lines_gaussian.clear()
         self.ROI_lines_linear.clear()
         self.update_all_rois()
+        self.Signals.redrawRequested.emit()
 
     def reset_zoom(self):
         self.user_scaled = False
@@ -486,3 +500,50 @@ class SpectrumPlot(QWidget):
             ):
                 self.plot_widget.removeItem(gaussian_line)
                 self.plot_widget.removeItem(lin_line)
+                
+    def draw_nuclide_lines(self, nuclide: str, show_state: bool, color: QColor):
+        if show_state:
+            # Create the line
+            maximum = -1e12
+            vb = self.plot_widget.getViewBox()
+            x_min, x_max = vb.viewRange()[0]
+            for spectrum in SpectrumManager.get_spectra_dict().values():
+                if not spectrum.show_in_plot:
+                    continue
+                if not self.bkg_sub:
+                    maximum = max(maximum, np.nanmax(spectrum.get_foreground(self.log, self.cps)[(spectrum.x_axis >= x_min) & (spectrum.x_axis <= x_max)]))
+                else:
+                    maximum = max(maximum, np.nanmax(spectrum.get_bkg_sub(self.log)[(spectrum.x_axis >= x_min) & (spectrum.x_axis <= x_max)]))
+                    
+            self.nuclide_lines[nuclide] = []
+            for emission in SpectrumManager.NuclideLibrary.get_nuclide(nuclide).emissions:
+                self.nuclide_lines[nuclide].append(
+                    self.plot_widget.plot(
+                        [emission.energy_keV, emission.energy_keV], 
+                        [0, min(emission.intensity_percent * 0.01 * maximum, maximum)],
+                        pen = pg.mkPen(color=color, width=3),
+                        ignoreBounds=True)
+                        )
+        else:
+            # Remove the line
+            lines = self.nuclide_lines.pop(nuclide)
+            for line in lines:
+                self.plot_widget.removeItem(line)
+    
+    def update_nuclide_lines(self):
+        maximum = -1e12
+        vb = self.plot_widget.getViewBox()
+        x_min, x_max = vb.viewRange()[0]
+        for spectrum in SpectrumManager.get_spectra_dict().values():
+            if not spectrum.show_in_plot:
+                continue
+            if not self.bkg_sub:
+                maximum = max(maximum, np.nanmax(spectrum.get_foreground(self.log, self.cps)[(spectrum.x_axis >= x_min) & (spectrum.x_axis <= x_max)]))
+            else:
+                maximum = max(maximum, np.nanmax(spectrum.get_bkg_sub(self.log)[(spectrum.x_axis >= x_min) & (spectrum.x_axis <= x_max)]))
+                
+        for key, line_list in self.nuclide_lines.items():
+            for line, emission in zip(line_list, SpectrumManager.NuclideLibrary.get_nuclide(key).emissions):
+                
+                line.setData(x = [emission.energy_keV, emission.energy_keV],
+                             y = [0, min(emission.intensity_percent * 0.01 * maximum, maximum)])

@@ -2,7 +2,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from core.nuclide_library import NuclideLibrary
-    from NuclideClasses import Emission
+
+from NuclideClasses import Emission
 
 from PySide6.QtCore import Signal, Qt
 from pyqtgraph import LinearRegionItem
@@ -274,7 +275,13 @@ class ROIEditor(QDialog):
             "merge": self.merge.isChecked(),
             "movable": self.movable.isChecked(),
             "poisson_weights": self.poisson_weights.isChecked(),
-            "emission": self.photo_peak.currentData() if self.nuclide != "None" else None
+            "emission": self.photo_peak.currentData() if self.nuclide.currentText() != "None" else Emission(parent_nuclide="None", 
+                                                                       energy_keV=None, 
+                                                                       energy_error_keV=None, 
+                                                                       intensity_percent=None,
+                                                                       intensity_error_percent=None,
+                                                                       origin="",
+                                                                       type="")
         }
 
 
@@ -339,7 +346,7 @@ class DeletableROI(LinearRegionItem):
             super().mouseClickEvent(ev)
 
     def update_self(
-        self, roi_name=None, lower_bound=None, upper_bound=None, fit_type=None, bkg_type=None, merge=None, poisson_weights=None, movable=None, signal_update=True, emission=None):
+        self, roi_name=None, lower_bound=None, upper_bound=None, fit_type=None, bkg_type=None, merge=None, poisson_weights=None, movable=None, emission=None, signal_update=True):
         if roi_name is not None:
             self.alias = roi_name
 
@@ -357,8 +364,9 @@ class DeletableROI(LinearRegionItem):
 
         if poisson_weights is not None:
             self.poisson_weights = poisson_weights
-        
-        self.emission = emission
+
+        if emission is not None:
+            self.emission = emission
 
         if movable is not None:
             self.setMovable(movable)

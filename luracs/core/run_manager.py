@@ -116,8 +116,6 @@ class RunManagerBase(QObject):
         self._poll_task: asyncio.Task | None = None
         self._polling = False
 
-        self.channel_table = {"raysid": 1800, "radiacode": 1024}
-
         self.dataloggers: dict[str, SpectrumLogger] = {}
 
     def set_loop(self, loop):

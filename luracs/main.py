@@ -119,6 +119,8 @@ class MainWindow(QMainWindow):
         
         self.isotopics_tab = IsotopicsTab(list(SpectrumManager.NuclideLibrary.get_sorted_nuclide_names()))
         self.bottom_tabs.addTab(self.isotopics_tab, "Isotopics")
+        self.spectrum_plot.Signals.redrawRequested.connect(self.isotopics_tab.request_line_data)
+        self.isotopics_tab.sigColorChanged.connect(lambda x, y: self.spectrum_plot._redraw())
 
         # System log
         self.log_tab = LogWidget()
@@ -137,9 +139,8 @@ class MainWindow(QMainWindow):
         self.theme.apply()
 
         if len(sys.argv) > 1:
-            QTimer.singleShot(0, parse_cli_args)
+            QTimer.singleShot(0, lambda: parse_cli_args(self))
 
-        # QTimer.singleShot(0, lambda : self.data_store.show())
 
         print_progress("Main window loaded", 9)
 
@@ -186,7 +187,8 @@ def main():
 
     RunManager.set_loop(loop)
 
-    Log.info(f"""
+    Log.info(
+f"""
 
  ======  ======  ======     
 |71    ||88    ||55    |    Version:  {__version__} \t [2026-04-14]
@@ -199,7 +201,6 @@ def main():
     # Start the event loop
     with loop:
         loop.run_forever()
-
 
 if __name__ == "__main__":
     main()

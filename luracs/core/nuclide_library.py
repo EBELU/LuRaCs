@@ -3,17 +3,20 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from core.spectrum_manager import SpectrumManagerBase
+    from PySide6.QtGui import QColor
 from PySide6.QtCore import QObject, Signal
 from NuclideClasses import Nuclide, Emission
 import numpy as np
 from collections import Counter
 
 class NuclideLibrary(QObject):
+    sigViewCheckChanged = Signal(str, bool, object) # Propagated from the ui tab
     def __init__(self, spectrum_manager: SpectrumManagerBase):
         super().__init__(parent=spectrum_manager)
         self.nuclides: dict[str, Nuclide] = {}
-        self.spectrum_manager = spectrum_manager
-        self.decay_chains = {}
+        self.spectrum_manager = spectrum_manager # Reference
+        self.decay_chains: dict[str, list[str]] = {}
+        self.selected_nuclides: set[str] = set()
         
     def add_nuclide(self, nuclide: Nuclide):
         assert nuclide.nuclide not in self.nuclides, (
@@ -57,6 +60,14 @@ class NuclideLibrary(QObject):
             result = None
             
         return result
+    
+    def _track_selected_nuclies(self, nuclide: str, show_status: bool, color: QColor):
+        if show_status:
+            self.selected_nuclides.add(nuclide)
+        else:
+            self.selected_nuclides.remove(nuclide)
+
+        self.sigViewCheckChanged.emit(nuclide, show_status, color)
     
     
     def get_all_emissions(self) -> list[Emission]:

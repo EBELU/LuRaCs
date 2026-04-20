@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QTextEdit,
     QAbstractItemView,
 )
+import numpy as np
 from PySide6.QtCore import Signal
 from core import SpectrumManager
 from ..misc.idx_table import StrIdxTable
@@ -311,8 +312,8 @@ class ROIInfoTab(QWidget):
                 peak_counts,
                 roi_counts,
                 roi.emission.parent_nuclide if roi.emission is not None else "None",
-                f"{roi.emission.energy_keV} keV" if roi.emission is not None else "None",
-                f"{round(roi.fit.mu - roi.emission.energy_keV,3)} keV" if roi.emission is not None and roi.fit is not None else "None",
+                f"{roi.emission.energy_keV} keV" if roi.emission is not None and roi.emission.energy_keV is not None else "None",
+                f"{round(roi.fit.mu - roi.emission.energy_keV,3)} keV" if roi.emission is not None and roi.emission.energy_keV is not None and roi.fit is not None else "None",
             ]
         else:
             row = [

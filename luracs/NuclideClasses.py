@@ -23,3 +23,12 @@ class Nuclide:
     specific_activity_Bq_per_g: Tuple[float, float]
     lnhb_volume: int
     emissions: List[Emission]
+    
+EmptyEmission = Emission(
+    parent_nuclide="None", 
+    energy_keV=None, 
+    energy_error_keV=None, 
+    intensity_percent=None,
+    intensity_error_percent=None,
+    origin="",
+    type="")
