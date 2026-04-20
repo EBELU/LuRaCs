@@ -4,3 +4,4 @@ from .LoggerTab import LogWidget
 from .ROIInfoTab import ROIInfoTab
 from .SpectrumInfoTab import SpectrumInfoTab
 from .IsotopicsTab import IsotopicsTab
+from .ConsoleTab import ConsoleTab

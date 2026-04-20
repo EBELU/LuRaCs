@@ -26,6 +26,9 @@ def parse_cli_args(main_window: MainWindow):
     parser.add_argument(
         "--nuclides", nargs="+", help="Preset nuclides shown"
     )
+
+    parser.add_argument("--headless", action="store_true", help="Run without GUI (terminal mode)")
+
     parser.add_argument("-l", "--load", nargs="+", help="Load spectrum files")
 
     parser.add_argument("--import_rois", type=str, help="Load ROI from an xml file")

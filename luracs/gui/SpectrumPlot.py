@@ -242,7 +242,7 @@ class SpectrumPlot(QWidget):
     def update_plot(self, name):
         """Primary method for updating a spectrum plot"""
         spect = SpectrumManager.get_spectrum(name)
-        if not spect.show_in_plot:
+        if not spect.show_in_plot or Settings.headless: # Skip plotting overhead in headless mode
             return
 
         if self.bkg_sub:

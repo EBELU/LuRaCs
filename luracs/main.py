@@ -38,6 +38,7 @@ from gui.tabs import (
     DevicesInfoTab,
     CurrentValuesPlot,
     IsotopicsTab,
+    ConsoleTab
 )
 
 print_progress("Loading utils", 5)
@@ -54,7 +55,7 @@ from gui.popup_windows.USBListPopup import USBListPopup
 
 
 __version__ = "0.1.0"
-
+from core.script_engine import ScriptEngine
 
 # ===================== MAIN WINDOW =====================
 class MainWindow(QMainWindow):
@@ -122,6 +123,10 @@ class MainWindow(QMainWindow):
         self.spectrum_plot.Signals.redrawRequested.connect(self.isotopics_tab.request_line_data)
         self.isotopics_tab.sigColorChanged.connect(lambda x, y: self.spectrum_plot._redraw())
 
+        # Console
+        self.console_tab = ConsoleTab()
+        self.bottom_tabs.addTab(self.console_tab, "Console")
+
         # System log
         self.log_tab = LogWidget()
         self.bottom_tabs.addTab(self.log_tab, "System Log")
@@ -183,9 +188,26 @@ def main():
     asyncio.set_event_loop(loop)
 
     win = MainWindow()
-    win.show()
+    
+    # Check if headless
+    if "--headless" in sys.argv:
+        Settings.headless = True
+    else:
+        # If not headless, show the GUI
+        win.show()
 
     RunManager.set_loop(loop)
+
+    # Script engine
+    script_engine = ScriptEngine(program_version = __version__, headless=Settings.headless)
+    def on_quit():
+        script_engine.submit_from_sync("__exit__")
+    app.aboutToQuit.connect(on_quit)
+
+    win.console_tab.sigCommandEntered.connect(script_engine.submit_from_sync)
+    script_engine.sigCommandAppendOutput.connect(win.console_tab.append_output)
+    script_engine.sigCommandOutput.connect(win.console_tab.set_output)
+    script_engine.sigShutdown.connect(app.quit)
 
     Log.info(
 f"""
@@ -200,6 +222,7 @@ f"""
     print()
     # Start the event loop
     with loop:
+        loop.create_task(script_engine.start())
         loop.run_forever()
 
 if __name__ == "__main__":

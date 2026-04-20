@@ -50,6 +50,7 @@ class _Advanced:
     optimizer_tolerance: float = 1e-6
     optimizer_use_chi2_weight: bool = True
 
+    headless_deque_length: int = 1024
 
 def get_runtime_base() -> Path:
     if hasattr(sys, "_MEIPASS"):
@@ -90,6 +91,7 @@ class SettingsBase(QObject):
     def __init__(self):
         super().__init__()
 
+        self.headless = False
         self.Advanced = _Advanced()
         self.State = _State()
         self.Appearance = _Appearance()

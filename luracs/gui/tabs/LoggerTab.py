@@ -4,7 +4,7 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QTextEdit, QWidget, QVBoxLayout
 
 from core import Settings
-
+from collections import deque
 
 class LogSignalEmitter(QObject):
     """QObject that emits log messages to the GUI."""
@@ -29,9 +29,12 @@ class QtHandler(logging.Handler):
 
 class LogWidget(QWidget):
     """QTextEdit widget showing all logs in real-time."""
-
+    sigMessageLogged = Signal(str)
+    sigBufferSent = Signal(list)
     def __init__(self, parent=None):
         super().__init__(parent)
+
+        self.buffer = deque(maxlen=Settings.Advanced.headless_deque_length)  # Buffer for log messages in headless mode
 
         # --- Setup QTextEdit ---
         self.text_edit = QTextEdit()
@@ -91,3 +94,12 @@ class LogWidget(QWidget):
         self.text_edit.verticalScrollBar().setValue(
             self.text_edit.verticalScrollBar().maximum()
         )
+        self.buffer.append(msg)
+    
+    def get_buffered_logs(self, tail: int = 50):
+        """Return the current buffer of log messages."""
+        return list(self.buffer)[-tail:]
+    
+    def emit_buffer(self, tail: int = 50):
+        """Emit the current buffer of log messages."""
+        self.sigBufferSent.emit(self.get_buffered_logs(tail))
