@@ -215,11 +215,8 @@ class SpectrumManagerBase(QObject):
 
     # --- Getters ---
 
-    def get_spectrum(self, name: str) -> Spectrum:
-        if name not in self.spectra:
-            raise ValueError(f"Spectrum {name} does not exist")
-
-        return self.spectra[name]
+    def get_spectrum(self, name: str) -> Spectrum | None:
+        return self.spectra.get(name)
 
     def get_spectra_dict(self) -> dict[str, Spectrum]:
         return self.spectra

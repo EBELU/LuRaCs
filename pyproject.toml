@@ -23,6 +23,8 @@ dependencies = [
     "lxml>=4.6.0",
     "libusb_package",
     "uncertainties",
+    "plotext",
+    "prompt_toolkit"
 ]
 
 [project.optional-dependencies]
@@ -30,6 +32,7 @@ dev = [
     "pandas",
     "pyinstaller",
     "odfpy",
+    "markdown
 ]
 
 [tool.setuptools.packages.find]

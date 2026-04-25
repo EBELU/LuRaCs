@@ -9,6 +9,7 @@ from pathlib import Path
 from core import Log, RunManager, SpectrumManager
 from utils.file_io import xml_parser
 from utils.file_io import io_dispatcher
+from PySide6.QtCore import QTimer
 
 
 def parse_cli_args(main_window: MainWindow):
@@ -19,6 +20,7 @@ def parse_cli_args(main_window: MainWindow):
     parser.add_argument(
         "-db", "--debug", action="store_true", help="Launch in debug mode"
     )
+    
     parser.add_argument(
         "-is", "--import_spectrum", nargs="+", help="Load spectrum files"
     )

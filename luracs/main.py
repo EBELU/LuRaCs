@@ -148,6 +148,8 @@ class MainWindow(QMainWindow):
 
 
         print_progress("Main window loaded", 9)
+        
+        
 
     def show_data_store(self, tab_idx=None):
         if tab_idx is not None:
@@ -208,6 +210,7 @@ def main():
     script_engine.sigCommandAppendOutput.connect(win.console_tab.append_output)
     script_engine.sigCommandOutput.connect(win.console_tab.set_output)
     script_engine.sigShutdown.connect(app.quit)
+    script_engine.connect_log_buffer(win.log_tab.get_buffered_logs)
 
     Log.info(
 f"""

@@ -476,7 +476,7 @@ class ROIManager(QObject):
                         r.emission,
                         {"merge": r.merge, "movable": r.movable, "poisson_weights": r.poisson_weights,**meta_data}) 
                         for r in roi_group]
-            
+
         for roi in results:
             spectrum.set_roi(roi)  # Give the calculation results to the spectrum
             self.sigROIUpdated.emit(roi.tag, spectrum.name, roi)
