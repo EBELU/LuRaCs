@@ -1,3 +1,8 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from main import MainWindow
+
 from PySide6.QtWidgets import QMenuBar, QMessageBox
 from dataclasses import dataclass
 import asyncio
@@ -8,20 +13,10 @@ from gui.popup_windows.efficiency_window import EfficiencyWindow
 from .import_export import save_roi_references
 
 
-@dataclass
-class MenuActions:
-    """Optional container for menu-related callbacks."""
-
-    reset_callback: callable = None
-    about_callback: callable = None
-    exit_callback: callable = None
-
-
 class MainMenuBar(QMenuBar):
-    def __init__(self, parent=None, actions: MenuActions = None):
+    def __init__(self, parent: MainWindow =None):
         super().__init__(parent)
         self.parent = parent
-        self.actions = actions or MenuActions()
 
         Settings.latestConnectionUpdated.connect(self.update_last_connections)
 
@@ -67,6 +62,10 @@ class MainMenuBar(QMenuBar):
 
         # ---------- Help Menu ----------
         help_menu = self.addMenu("&Help")
+        documentation_action = help_menu.addAction("Documentation")
+        documentation_action.triggered.connect(parent.documentation_dialog.show)
+        bibliography_action = help_menu.addAction("Bibliography")
+        bibliography_action.triggered.connect(parent.bibliography_dialog.show)
         about_action = help_menu.addAction("About")
         about_action.triggered.connect(self.on_about)
 
@@ -86,14 +85,11 @@ class MainMenuBar(QMenuBar):
             retryDevice.triggered.connect(_connect)
 
     def on_about(self):
-        if self.actions.about_callback:
-            self.actions.about_callback()
-        else:
-            QMessageBox.information(
-                self.parent,
-                "About",
-                "Gamma Spectroscopy GUI\nMock Data Version\nAuthor: Your Name",
-            )
+        QMessageBox.information(
+            self.parent,
+            "About",
+            "LuRaCs\nAuthor: Your Name",
+        )
 
     def on_exit(self):
         if self.actions.exit_callback:

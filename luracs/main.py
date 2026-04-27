@@ -52,6 +52,7 @@ from utils.file_io.nuclide_dataloader import load_nuclide_data
 
 from gui.popup_windows.BluetoothListPopup import BluetoothListPopup
 from gui.popup_windows.USBListPopup import USBListPopup
+from gui.popup_windows.documentation_dialogs import SmallDocumentationDialog, DocumentationDialog
 
 
 __version__ = "0.1.0"
@@ -76,7 +77,10 @@ class MainWindow(QMainWindow):
         self.file_import_export = FileDialogs(self)
         print_progress("Indexing Data Store", 8)
         load_nuclide_data()
-        self.data_store = DataLibrary("Data Store", self)
+        self.data_store = DataLibrary("Data Store", None)
+        
+        self.bibliography_dialog = SmallDocumentationDialog("luracs/resources/docs/bibliography.md")
+        self.documentation_dialog = DocumentationDialog("luracs/resources/docs/documentation", None)
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -88,6 +92,7 @@ class MainWindow(QMainWindow):
         # ---------- SPECTRUM PLOT ----------
         self.spect_tab = QTabWidget()
         self.spect_tab.setTabPosition(QTabWidget.South)
+        
         self.spectrum_plot = SpectrumPlot()
         self.spect_tab.addTab(self.spectrum_plot, "Spectrum")
 

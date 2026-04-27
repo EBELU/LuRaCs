@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QAbstractItemView,
     QToolButton,
-    QMenu,
+    QMenu
 )
 
 from PySide6.QtCore import Qt
@@ -37,7 +37,7 @@ from datetime import timedelta, datetime
 import utils.file_io as file_io
 
 
-class DataLibrary(QDialog):
+class DataLibrary(QWidget):
     def __init__(self, title="", parent=None):
         super().__init__(parent)
         self.setWindowTitle(title)
