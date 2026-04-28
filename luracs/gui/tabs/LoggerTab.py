@@ -34,7 +34,7 @@ class LogWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self.buffer = deque(maxlen=Settings.Advanced.headless_deque_length)  # Buffer for log messages in headless mode
+        self.buffer = deque(maxlen=Settings.Advanced.log_buffer_length)  # Buffer for log messages in headless mode
 
         # --- Setup QTextEdit ---
         self.text_edit = QTextEdit()

@@ -12,6 +12,8 @@ from gui.popup_windows.efficiency_window import EfficiencyWindow
 
 from .import_export import save_roi_references
 
+from gui.popup_windows.settings_dialog import edit_settings, edit_advanced_settings
+
 
 class MainMenuBar(QMenuBar):
     def __init__(self, parent: MainWindow =None):
@@ -58,8 +60,10 @@ class MainMenuBar(QMenuBar):
 
         # ---------- Options Menu ----------
         options_menu = self.addMenu("&Options")
-        reset_action = options_menu.addAction("Reset Data")
-
+        settings_action = options_menu.addAction("Settings")
+        settings_action.triggered.connect(lambda : edit_settings(parent))
+        advanced_settings_action = options_menu.addAction("Advanced Settings")
+        advanced_settings_action.triggered.connect(lambda : edit_advanced_settings(parent))
         # ---------- Help Menu ----------
         help_menu = self.addMenu("&Help")
         documentation_action = help_menu.addAction("Documentation")

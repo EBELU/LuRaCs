@@ -167,7 +167,13 @@ class ThemeManager:
             pg.setConfigOption("foreground", "k")
 
     def _style_plot_widget(self, pw):
-        pw.setBackground((30, 30, 30) if self.mode == self.DARK else "w")
+        try:
+            pw.setBackground((30, 30, 30) if self.mode == self.DARK else "w")
+        except AttributeError:
+            pw.getViewBox().setBackgroundColor((30, 30, 30) if self.mode == self.DARK else "w")
+            pw.getViewWidget().setBackgroundBrush(
+                pg.mkBrush((30, 30, 30) if self.mode == self.DARK else "w")
+            )
 
         axis_pen = pg.mkPen("w" if self.mode == self.DARK else "k")
         for axis in ("left", "bottom", "right", "top"):
@@ -193,7 +199,21 @@ class ThemeManager:
             if hasattr(sample, "setBrush"):
                 sample.setBrush(pg.mkBrush(fg_color))
 
+    def style_hist_lut(self, hist):
+        fg = "w" if self.mode == self.DARK else "k"
 
+        # 1. Axis ticks + labels
+        hist.axis.setPen(pg.mkPen(fg))
+        hist.axis.setTextPen(pg.mkPen(fg))
+
+        # 2. Histogram plot (inside the LUT widget)
+
+        # 3. Gradient ticks (important)
+        hist.gradient.tickPen = pg.mkPen(fg)
+        hist.gradient.textPen = pg.mkPen(fg)
+
+        # Force redraw
+        hist.gradient.update()
 class ColorRotator:
     """Provides a cycling color pen for plotting."""
 

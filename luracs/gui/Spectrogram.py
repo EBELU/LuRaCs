@@ -239,6 +239,7 @@ class SpectrogramWidget(QWidget):
         self.hist.vb.enableAutoRange(axis="x")
         self.hist.vb.enableAutoRange(axis="y")
         self.hist.vb.setLimits(xMin=-0.2, xMax=1e3, minXRange=1)
+        self.hist.region.setBounds([0, 100000])
 
         self.spectrogram_plot.addItem(
             self.hist, row=1, col=0

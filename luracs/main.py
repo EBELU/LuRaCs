@@ -1,6 +1,7 @@
 import sys
 import asyncio
 import logging
+from pathlib import Path
 
 
 def print_progress(text, progress):
@@ -53,6 +54,7 @@ from utils.file_io.nuclide_dataloader import load_nuclide_data
 from gui.popup_windows.BluetoothListPopup import BluetoothListPopup
 from gui.popup_windows.USBListPopup import USBListPopup
 from gui.popup_windows.documentation_dialogs import SmallDocumentationDialog, DocumentationDialog
+from gui.popup_windows.settings_dialog import SettingsDialog
 
 
 __version__ = "0.1.0"
@@ -79,8 +81,10 @@ class MainWindow(QMainWindow):
         load_nuclide_data()
         self.data_store = DataLibrary("Data Store", None)
         
-        self.bibliography_dialog = SmallDocumentationDialog("luracs/resources/docs/bibliography.md")
-        self.documentation_dialog = DocumentationDialog("luracs/resources/docs/documentation", None)
+        self.bibliography_dialog = SmallDocumentationDialog(Path("luracs/resources/docs/bibliography.md"))
+        self.documentation_dialog = DocumentationDialog(Path("luracs/resources/docs/documentation"), parent=None)
+        
+        self.settings_dialog = SettingsDialog()
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -143,6 +147,8 @@ class MainWindow(QMainWindow):
         self.theme.register_plot(self.spectrum_plot.plot_widget)
         self.theme.register_plot(self.current_value_tab.cps_plot_widget)
         self.theme.register_plot(self.current_value_tab.dose_plot_widget)
+        self.theme.register_plot(self.spectrogram.plot)
+        self.theme.register_plot(self.spectrogram.top_spectrum_plot)
 
         self.theme.register_legend(self.current_value_tab.legends)
 

@@ -50,7 +50,7 @@ class _Advanced:
     optimizer_tolerance: float = 1e-6
     optimizer_use_chi2_weight: bool = True
 
-    headless_deque_length: int = 1024
+    log_buffer_length: int = 1024
 
 def get_runtime_base() -> Path:
     if hasattr(sys, "_MEIPASS"):
