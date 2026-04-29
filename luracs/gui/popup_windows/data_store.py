@@ -28,6 +28,7 @@ from utils.file_io import io_dispatcher
 from core import Settings, SpectrumManager
 from utils.DataLogging import restart_logger
 from .data_store_edit_dialogs import InstrumentDialog
+from InstrumentClasses import UniqueInstrument, GenericInstrument
 
 import os
 import shutil
@@ -35,6 +36,7 @@ from pathlib import Path
 from glob import glob
 from datetime import timedelta, datetime
 import utils.file_io as file_io
+from gui.import_export import save_instrument
 
 
 class DataLibrary(QWidget):
@@ -404,7 +406,7 @@ class InstrumentsTab(LibraryTab):
             parent,
             [
                 "Name",
-                "Type",
+                "Model",
                 "Calibration",
                 "Resolution",
                 "Efficiency",
@@ -413,17 +415,56 @@ class InstrumentsTab(LibraryTab):
         )
         self.btn_load.setText("New")
         self.btn_load.clicked.connect(self.new)
+        self.run_index()
+        self.btn_info.clicked.connect(self.edit)
+        
+    def run_index(self):
+        for file in glob(str(Settings.Paths.unique_instrument_library / "**.xml")):
+            file = Path(file)
+            if file not in self.file_index:
+                self.file_index[file] = io_dispatcher(file, True)
 
+        self.set_table()
+        
+    def set_table(self):
+        for key, parser in self.file_index.items():
+            instr_data = parser.get_instrument_data()
+            
+            calibration = "True" if instr_data.get("calibration") is not None else "False"
+            resolution = "True" if instr_data.get("resolution") is not None else "False"
+            efficiency = "True" if instr_data.get("efficiency") is not None else "False"
+            response_matrix = "True" if instr_data.get("response_matrix") is not None else "False"
+            
+            self.table.write_row(key, [instr_data["name"], instr_data["model"], calibration, resolution, efficiency, response_matrix])
+            
+    def edit(self):
+        selection = self._get_selection()
+        if not selection:
+            return
+        
+        if len(selection) > 1:
+            QMessageBox.warning(self, "Selection error", "Only one item may be edited simultaneously")
+            return
+        
+        edit_dialog = InstrumentDialog(**self.file_index[selection[0]].get_instrument_data())
+        edit_dialog.exec()
+        
     def new(self):
         edit_dialog = InstrumentDialog()
-
         res = edit_dialog.exec()
-
+        if res != InstrumentDialog.Accepted:
+            return
+        
+        new_instrument = UniqueInstrument(**edit_dialog.get_data(), detector_type="Gamma Spectrometer")
+        
+        save_instrument(new_instrument, edit_dialog.get_data()["name"])
+        self.run_index()
+        
 
 class GenericInstrumentsTab(LibraryTab):
     def __init__(self, parent):
         super().__init__(
-            parent, ["Type", "Resolution", "Efficiency", "Response Matrix"]
+            parent, ["Model", "Resolution", "Efficiency", "Response Matrix"]
         )
         self.btn_load.setText("New")
         self.btn_load.clicked.connect(self.new)
@@ -433,3 +474,4 @@ class GenericInstrumentsTab(LibraryTab):
         edit_dialog.name_input.setEnabled(False)
 
         res = edit_dialog.exec()
+        

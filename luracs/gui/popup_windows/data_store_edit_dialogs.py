@@ -200,7 +200,7 @@ class InstrumentDialog(QDialog):
             "manufacturer": self.manufacturer.text(),
             "detector_material": self.detector_material.text(),
             "detector_shape": self.shape.currentText(),
-            "detector_dimensions": [
+            "detector_dimensions_cm": [
                 self.height_spin.value(),
                 self.width_spin.value(),
                 self.depth_spin.value(),

@@ -8,6 +8,7 @@ from core import SpectrumManager, Settings
 from ROIClasses import ROI
 from SpectrumClasses import Spectrum
 from .popup_windows.save_dialog import SaveNamingDialog
+from InstrumentClasses import GenericInstrument, UniqueInstrument
 
 
 class FileDialogs(QObject):
@@ -193,3 +194,15 @@ def save_spectrum_to_library(spectrum: Spectrum):
     file_io.xml_writer(
         spectrum, new_file
     )
+    
+def save_instrument(instrument: UniqueInstrument | GenericInstrument, file_name: Path):
+    dummy_spectrum = Spectrum(1, "Dummy")
+    dummy_spectrum.instrument = instrument
+    if isinstance(instrument, UniqueInstrument):
+        file_path = Settings.Paths.unique_instrument_library / file_name
+    elif isinstance(instrument, GenericInstrument):
+        file_path = Settings.Paths.generic_instrument_library / file_name
+    else:
+        raise ValueError(f"Invalid instrument type! {type(instrument)}")
+    
+    file_io.xml_writer(dummy_spectrum, file_path, export_spectrum=False, export_rois=False)

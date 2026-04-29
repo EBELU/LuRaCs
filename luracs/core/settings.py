@@ -65,7 +65,7 @@ class _Paths:
     spectrogram_library: Path = field(init=False)
     roi_library: Path = field(init=False)
     datalog_library: Path = field(init=False)
-    instrument_library: Path = field(init=False)
+    unique_instrument_library: Path = field(init=False)
     BASE: Path = field(init=False)
 
     settings_file: Path = field(init=False)
@@ -81,7 +81,8 @@ class _Paths:
         self.datalog_library = self.appdata / "datalog_library"
         self.spectrogram_library = self.appdata / "spectrogram_library"
         self.roi_library = self.appdata / "roi_library"
-        self.instrument_library = self.appdata / "instrument_library"
+        self.unique_instrument_library = self.appdata / "unique_instrument_library"
+        self.generic_instrument_library = self.appdata / "generic_instrument_library"
         self.settings_file = self.appdata / "settings.json"
 
 

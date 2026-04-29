@@ -30,6 +30,8 @@ class GenericInstrument:
     # --- Response Matrix ---
     response_matrix: np.ndarray = None
     response_matrix_shape: list = None
+    
+    remark: str = ""
 
     def get_copy(self):
         return copy.deepcopy(self)
@@ -46,5 +48,3 @@ class UniqueInstrument(GenericInstrument):
     calibration_energy_points: list = None  # known energies (keV)
     calibration_channel_points: list = None  # corresponding channels
     calibration_date: datetime = None
-
-    remark: str = ""

@@ -10,6 +10,7 @@ from lxml import etree
 from uuid import uuid4
 from datetime import datetime, timezone
 from utils.numerics.compression import compress_spectrum, encode_base64
+from pathlib import Path
 
 NS = "http://physics.nist.gov/N42/2011/N42"
 MY = "https://example.com/n42/extensions"
@@ -40,13 +41,13 @@ class xml_writer:
     def __init__(
         self,
         spectrum: Spectrum,
-        file_name: str,
+        file_name: str | Path,
         export_spectrum=True,
         export_rois=True,
         export_instrument=True,
     ):
         self.spectrum = spectrum
-        self.file_name = file_name
+        self.file_name = Path(file_name)
 
         self.extension_section = None
         self.root = etree.Element(
@@ -110,13 +111,12 @@ class xml_writer:
                 if self.extension_section is None
                 else self.extension_section
             )
-            peaks = etree.SubElement(self.extension_section, "Instrument")
             write_instrument_data(spectrum.instrument, self.extension_section)
 
         # --- Write out ---
         tree = etree.ElementTree(self.root)
         tree.write(
-            file_name,
+            str(file_name.with_suffix(".xml")),
             pretty_print=True,
             xml_declaration=True,
             encoding="utf-8",
@@ -222,8 +222,7 @@ def write_instrument_data(instrument: GenericInstrument | UniqueInstrument, root
         "Instrument",
         generic_instrument=str(not isinstance(instrument, UniqueInstrument)).lower(),
     )
-
-    print("got here")
+    
     # --- Basic info ---
     write_text_to_SubElement(
         instrument_section, "Name", getattr(instrument, "name", "Generic")
@@ -293,7 +292,7 @@ def write_instrument_data(instrument: GenericInstrument | UniqueInstrument, root
         shape_as_str = " ".join([str(i) for i in instrument.response_matrix_shape])
         write_text_to_SubElement(
             instrument_section,
-            "ResponseMatix",
+            "ResponseMatrix",
             str(comp_matrix),
             matrix_shape=shape_as_str,
             compression="Base64-zLib",
@@ -323,8 +322,8 @@ def write_instrument_data(instrument: GenericInstrument | UniqueInstrument, root
                 calibration, "Date", instrument.calibration_date.isoformat()
             )
 
-        if instrument.remark:
-            write_text_to_SubElement(calibration, "Remark", instrument.remark)
+    if instrument.remark:
+        write_text_to_SubElement(instrument_section, "Remark", instrument.remark)
 
 
 if __name__ == "__main__":

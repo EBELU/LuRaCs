@@ -11,6 +11,7 @@ from lxml import etree
 from SpectrumClasses import SpectrumData
 from NuclideClasses import Emission
 from ROIClasses import ROI, Fit
+from utils.numerics.compression import decode_base64, decompress_spectrum
 
 
 # --- Helper Functions ---
@@ -133,7 +134,10 @@ class xml_parser:
 
     def get_roi_data(self) -> list[dict]:
         return self.data.get("peak_data", [])
-
+    
+    def get_instrument_data(self) -> dict:
+        return self.data.get("instrument")
+    
     def get_header(self) -> dict:
         return {
             self.data.get("name"),
@@ -302,7 +306,7 @@ class xml_parser:
         lrc = self.root.find("./lrc:LuRaCs", namespaces=self.LRC_NS)
         if lrc is not None:
             data["peaks"], data["peak_data"] = self.parse_roisV1(lrc)
-
+            data["instrument"] = self.parse_instrument(lrc)
         return data
 
     def parse_roisV1(self, ext_root):
@@ -411,3 +415,128 @@ class xml_parser:
             peak_data.append(misc_peak_kwargs)
 
         return peaks, peak_data
+    
+    def parse_instrument(self, ext_root):
+        ns = self.N42_NS
+
+        instrument_nodes = ext_root.xpath(".//n42:Instrument", namespaces=ns)
+        if not instrument_nodes:
+            return None
+
+        instrument = instrument_nodes[0]
+
+        # --- Type ---
+        is_generic = str_to_bool(instrument.get("generic_instrument"))
+
+        # --- Basic info ---
+        instrument_data = {
+            "is_generic": is_generic,
+            "name": instrument.xpath("./n42:Name", namespaces=ns)[0].text,
+            "model": instrument.xpath("./n42:Model", namespaces=ns)[0].text,
+            "manufacturer": instrument.xpath("./n42:Manufacturer", namespaces=ns)[0].text,
+            "detector_material": instrument.xpath("./n42:DetectorMaterial", namespaces=ns)[0].text,
+            "detector_shape": instrument.xpath("./n42:DetectorShape", namespaces=ns)[0].text,
+        }
+
+        # --- Detector dimensions ---
+        dim = instrument.xpath("./n42:DetectorDimensions", namespaces=ns)
+        instrument_data["detector_dimensions_cm"] = (
+            _parse_array(dim[0].text) if dim and dim[0].text else None
+        )
+
+        # --- Resolution ---
+        res = instrument.xpath("./n42:Resolution", namespaces=ns)
+        if res:
+            res = res[0]
+
+            resolution = {
+                "function": res.xpath("./n42:Function", namespaces=ns)[0].text,
+                "parameters": _parse_array(
+                    res.xpath("./n42:Parameters", namespaces=ns)[0].text
+                ),
+                "E_points": [],
+                "FWHM_points": [],
+            }
+
+            for pt in res.xpath(".//n42:Point", namespaces=ns):
+                E = float(pt.xpath("./n42:Energy", namespaces=ns)[0].text)
+                fwhm = float(pt.xpath("./n42:FWHM", namespaces=ns)[0].text)
+                resolution["E_points"].append(E)
+                resolution["FWHM_points"].append(fwhm)
+
+            instrument_data["resolution"] = resolution
+        else:
+            instrument_data["resolution"] = None
+
+        # --- Efficiency ---
+        eff = instrument.xpath("./n42:Efficiency", namespaces=ns)
+        if eff:
+            eff = eff[0]
+
+            instrument_data["efficiency"] = {
+                "function": eff.xpath("./n42:Function", namespaces=ns)[0].text,
+                "parameters": _parse_array(
+                    eff.xpath("./n42:Parameters", namespaces=ns)[0].text
+                ),
+                "created": eff.xpath("./n42:Created", namespaces=ns)[0].text,
+                "description": eff.xpath("./n42:Description", namespaces=ns)[0].text,
+            }
+        else:
+            instrument_data["efficiency"] = None
+
+        # --- Response Matrix ---
+        rm = instrument.xpath("./n42:ResponseMatrix", namespaces=ns)
+        if rm:
+            rm = rm[0]
+
+            shape = rm.get("matrix_shape")
+            shape = tuple(map(int, shape.split())) if shape else None
+
+            matrix = None
+            if rm.text:
+                decoded = decode_base64(rm.text)
+                matrix = decompress_spectrum(decoded)
+
+            instrument_data["response_matrix"] = matrix
+            instrument_data["response_matrix_shape"] = shape
+        else:
+            instrument_data["response_matrix"] = None
+            instrument_data["response_matrix_shape"] = None
+
+        # --- Calibration ---
+        cal = instrument.xpath("./n42:Calibration", namespaces=ns)
+        if cal:
+            cal = cal[0]
+
+            calibration = {
+                "poly_order": int(cal.xpath("./n42:PolynomialOrder", namespaces=ns)[0].text),
+                "coefficients": _parse_array(
+                    cal.xpath("./n42:Coefficients", namespaces=ns)[0].text
+                ),
+                "energy_points": [],
+                "channel_points": [],
+                "date": None,
+            }
+
+            for pt in cal.xpath(".//n42:Point", namespaces=ns):
+                E = float(pt.xpath("./n42:Energy", namespaces=ns)[0].text)
+                ch = float(pt.xpath("./n42:Channel", namespaces=ns)[0].text)
+                calibration["energy_points"].append(E)
+                calibration["channel_points"].append(ch)
+
+            date = cal.xpath("./n42:Date", namespaces=ns)
+            if date:
+                calibration["date"] = date[0].text
+
+            remark = cal.xpath("./n42:Remark", namespaces=ns)
+            if remark:
+                calibration["remark"] = remark[0].text
+
+            instrument_data["calibration"] = calibration
+        else:
+            instrument_data["calibration"] = None
+            
+        instrument_data["remark"] = instrument.xpath("./n42:Remark", namespaces=ns)[0].text
+
+        return instrument_data
+        
