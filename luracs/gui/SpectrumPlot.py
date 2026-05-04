@@ -36,12 +36,22 @@ class SpectrumPlot(QWidget):
     Does not manage the spectra, can only request operations from SpectrumManager.
     """
 
-    def __init__(self, xlabel="Energy [keV]", ylabel="Counts", parent=None):
+    def __init__(self, xlabel="Energy [keV]", ylabel="Counts", parent=None, owned_spectrum=None):
         super().__init__(parent)
 
         # --- Signals ---
 
         self.Signals = EmittedSignals()
+        
+        # ROIs
+        sigUpdateSpectumROIs = Signal(str)
+        sigRemoveROI = Signal(str)
+        # Transform state
+        sigLogLinUpdated = Signal(bool)
+        sigCpsUpdated = Signal(bool)
+        sigBkgSubUpdated = Signal(bool)
+        
+        sigRedrawRequested = Signal()
 
         # Spectrum manager
         SpectrumManager.Signals.spectrumUpdated.connect(self.update_plot)
@@ -133,6 +143,8 @@ class SpectrumPlot(QWidget):
         self.btn_y_axis_lock.clicked.connect(self.lock_y_axis)
         self.cbox_bkg_choises.currentIndexChanged.connect(self._on_bkg_option_selection)
 
+        self.owned_spectrum = owned_spectrum # Used for tabbed mode
+
         self.primary_lines = {}
         self.bkg_lines = {}
 
@@ -209,6 +221,24 @@ class SpectrumPlot(QWidget):
         self.Signals.cpsUpdated.emit(self.cps)
         if recalculate:
             self._redraw()
+            
+    def change_lin_log(self):
+        """Change lin log at data retrieval"""
+        if self.log == False:
+            self.log = True
+            self.plot_widget.setLimits(yMin=-10, yMax=1e6)
+            self.btn_lin_log.setText("Lin")
+
+        else:
+            self.log = False
+            self.btn_lin_log.setText("Log")
+            self.plot_widget.setLimits(
+                yMin=0,
+                yMax=1e6,
+            )
+            
+        self.Signals.logLinUpdated.emit(self.log)
+        self._redraw()
 
     def lock_y_axis(self):
         """Lock or unlock if the y-axis can be zoomed in the spectrum plot"""
@@ -226,11 +256,16 @@ class SpectrumPlot(QWidget):
         self.plot_widget.clear()
         self.primary_lines.clear()
         self.bkg_lines.clear()
-        for spect_name in SpectrumManager.get_spectra_dict().keys():
-            self.update_plot(spect_name)
-
+        
         self.ROI_lines_gaussian.clear()
         self.ROI_lines_linear.clear()
+        
+        
+        for spect_name in SpectrumManager.get_spectra_dict().keys():
+            self.update_plot(spect_name)
+            for roi in SpectrumManager.ROIManager.ROIs.keys():
+                self.draw_roi(roi, spectrum_name=spect_name)
+
         self.update_all_rois()
         self.Signals.redrawRequested.emit()
 
@@ -401,23 +436,6 @@ class SpectrumPlot(QWidget):
 
         self._redraw()
 
-    def change_lin_log(self):
-        """Change lin log at data retrieval"""
-        if self.log == False:
-            self.log = True
-            self.plot_widget.setLimits(yMin=-10, yMax=1e6)
-            self.btn_lin_log.setText("Lin")
-
-        else:
-            self.log = False
-            self.btn_lin_log.setText("Log")
-            self.plot_widget.setLimits(
-                yMin=0,
-                yMax=1e6,
-            )
-        self.Signals.logLinUpdated.emit(self.log)
-        self._redraw()
-
     def create_roi_lines(self, roi_tag):
         self.ROI_lines_gaussian[roi_tag] = {}
         self.ROI_lines_linear[roi_tag] = {}
@@ -443,13 +461,19 @@ class SpectrumPlot(QWidget):
 
         # --- Gaussian line ---
         if spectrum_name not in self.ROI_lines_gaussian[roi_tag]:
-            pen = pg.mkPen(color=QColor("#BAFFC9"), width=1.3)
+            pen = pg.mkPen(
+                color=QColor("#BAFFC9") if Settings.Appearance.theme == "dark" else QColor("#000080"), 
+                width=1.3
+                )
             line = self.plot_widget.plot([], [], pen=pen, name=roi_tag)
             self.ROI_lines_gaussian[roi_tag][spectrum_name] = line
 
         # --- Linear background line ---
         if spectrum_name not in self.ROI_lines_linear[roi_tag]:
-            pen = pg.mkPen(color="w", width=1, style=Qt.DashLine)
+            pen = pg.mkPen(
+                color=QColor("#BAFFC9") if Settings.Appearance.theme == "dark" else QColor("#000080"), 
+                width=1, 
+                style=Qt.DashLine)
             line = self.plot_widget.plot([], [], pen=pen, name=roi_tag)
             self.ROI_lines_linear[roi_tag][spectrum_name] = line
 

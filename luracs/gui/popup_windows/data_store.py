@@ -447,7 +447,20 @@ class InstrumentsTab(LibraryTab):
             return
         
         edit_dialog = InstrumentDialog(**self.file_index[selection[0]].get_instrument_data())
-        edit_dialog.exec()
+        res = edit_dialog.exec()
+        
+        if res != InstrumentDialog.Accepted:
+            return
+        
+        
+        self.file_index.pop(selection[0])
+        self.table.delete_row(selection[0])
+        os.remove(selection[0])
+        
+        new_instrument = UniqueInstrument(**edit_dialog.get_data(), detector_type="Gamma Spectrometer")
+        
+        save_instrument(new_instrument, edit_dialog.get_data()["name"])
+        self.run_index()
         
     def new(self):
         edit_dialog = InstrumentDialog()

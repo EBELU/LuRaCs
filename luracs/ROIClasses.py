@@ -304,6 +304,7 @@ class DeletableROI(LinearRegionItem):
         poisson_weights = False,
         movable = True,
         emission = None,
+        owner_spectrum = None,
         **kwargs
         
     ):
@@ -318,6 +319,7 @@ class DeletableROI(LinearRegionItem):
         self.poisson_weights = poisson_weights
         self.emission = emission
         self.nuclide_lib_ref = nuclide_lib_ref
+        self.owner_spectrum = owner_spectrum
         
         self.setToolTip(f"ROI: {self.alias}\nRight-click to edit")
 

@@ -55,6 +55,7 @@ from gui.popup_windows.BluetoothListPopup import BluetoothListPopup
 from gui.popup_windows.USBListPopup import USBListPopup
 from gui.popup_windows.documentation_dialogs import SmallDocumentationDialog, DocumentationDialog
 from gui.popup_windows.settings_dialog import SettingsDialog
+from gui.popup_windows.efficiency_dialog import EfficiencyWindow
 
 
 __version__ = "0.1.0"
@@ -85,6 +86,10 @@ class MainWindow(QMainWindow):
         self.documentation_dialog = DocumentationDialog(Path("luracs/resources/docs/documentation"), parent=None)
         
         self.settings_dialog = SettingsDialog()
+        
+        self.calculate_windows = {
+            "efficiency": EfficiencyWindow()
+        }
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -174,6 +179,7 @@ class MainWindow(QMainWindow):
             return
         Log.info("Disconnecting devices and shutting down application...")
         event.ignore()
+        Settings.save_settings()
         self.hide()
         asyncio.create_task(self._async_close())
 

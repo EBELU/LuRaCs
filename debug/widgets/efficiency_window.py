@@ -8,6 +8,9 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QTableWidget,
     QTableWidgetItem,
+    QPushButton,
+    QDoubleSpinBox,
+    QHBoxLayout
 )
 import pyqtgraph as pg
 
@@ -18,35 +21,29 @@ import sys
 app = QApplication.instance() or QApplication(sys.argv)
 
 
-class ROIsWidget(QWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(6)
 
-        table = QTableWidget()
-        table.setColumnCount(4)
-        table.setHorizontalHeaderLabels(["Name", "Include", "Energy", "Probability"])
-        table.setRowCount(3)  # dummy number of ROIs
-        for i in range(3):
-            table.setItem(i, 0, QTableWidgetItem(f"ROI {i + 1}"))
-            checkbox = QCheckBox()
-            checkbox.setChecked(False)  # default to excluded
-            table.setCellWidget(i, 1, checkbox)
-        layout.addWidget(table)
 
+def value_with_uncertainty():
+    container = QWidget()
+    layout = QHBoxLayout(container)
+    layout.setContentsMargins(0, 0, 0, 0)
+
+    value = QDoubleSpinBox()
+    uncertainty = QDoubleSpinBox()
+
+    # Optional: make uncertainty smaller / styled differently
+    uncertainty.setPrefix("± ")
+
+    layout.addWidget(value)
+    layout.addWidget(uncertainty)
+
+    return container, value, uncertainty
 
 class EfficiencyWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Efficiency Window")
-        self.resize(540, 640)
-
-        self.setMinimumWidth(540)
-        self.setMinimumHeight(640)
-        self.setMaximumWidth(540)
-        self.setMaximumHeight(640)
+        self.resize(640, 740)
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(8, 8, 8, 8)
@@ -57,19 +54,67 @@ class EfficiencyWindow(QDialog):
         form = QFormLayout()
         form.setSpacing(9)
 
-        spectrum_combo = QComboBox()
-        spectrum_combo.addItems(
-            ["No Spectrum", "Spectrum 1", "Spectrum 2", "Spectrum 3"]
-        )  # dummy items
-        spectrum_combo.setCurrentIndex(0)  # default to "No Spectrum"
-        form.addRow("Chosen Spectrum", spectrum_combo)
+        self.spectrum_combo = QComboBox()
+        self.spectrum_combo.addItem("None")
+        
+        self.spectrum_combo.setCurrentIndex(0)  # default to "None"
+        form.addRow("Spectrum", self.spectrum_combo)
 
-        rois_widget = ROIsWidget()
-        form.addRow("ROIs", rois_widget)
+        titles = ["", "ROI", "Counts", "Yield", "Nuclide"]
+        widths = [25, 130, 130, 130, 100]
+        self.data_table = QTableWidget(columnCount=len(titles))
+        self.data_table.setHorizontalHeaderLabels(titles)
+        for i, w in enumerate(widths):
+            self.data_table.setColumnWidth(i, w)
+        
+        form.addRow("", self.data_table)
+        
+        self.instrument_combo = QComboBox()
+        self.instrument_combo.addItem("None")
+        form.addRow("Instrument", self.instrument_combo)
+        
+        # Detector area
+        widget, self.detector_area, self.detector_area_unc = value_with_uncertainty()
+        form.addRow("Detector area [cm²]", widget)
 
-        form.addRow("Efficiency Plot", pg.PlotWidget())  # placeholder for the plot
+        # Source-detector distance
+        widget, self.source_detector_distance, self.source_detector_distance_unc = value_with_uncertainty()
+        form.addRow("Source-Detector\nDistance [cm]", widget)
+
+        self.calculate_button = QPushButton("Calculate")
+        form.addRow("", self.calculate_button)
+        
+        self.demo_plot = pg.PlotWidget()
+        self.demo_plot.setMaximumHeight(250)
+        self.demo_plot.getPlotItem().layout.setContentsMargins(2, 13, 13, 2)
+        self.demo_plot.setLimits(
+            xMin=0,
+            xMax=3500,
+            yMin=0,
+            yMax=1,
+        )
+
+        form.addRow("Efficiency Plot", self.demo_plot)
+        
+
+        
 
         main_layout.addLayout(form)
+        
+        bottom_buttons = QHBoxLayout()
+        self.assign_to_instrument_btn = QPushButton("Assign to instrument")
+        self.close_btn = QPushButton("Close")
+        
+        bottom_buttons.addStretch()
+        bottom_buttons.addWidget(self.assign_to_instrument_btn)
+        bottom_buttons.addWidget(self.close_btn)
+
+        
+        main_layout.addLayout(bottom_buttons)
+        
+    def show(self):
+        
+        super().show()
 
 
 e_w = EfficiencyWindow()

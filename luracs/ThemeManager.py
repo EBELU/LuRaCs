@@ -192,8 +192,8 @@ class ThemeManager:
         legend.setBrush(pg.mkBrush(bg_color))
 
         fg_color = "w" if self.mode == self.DARK else "k"
-        for label, sample in legend.items:
-            label.setText(label.text(), color=fg_color)
+        for sample, label in legend.items:
+            label.setText(label.text, color=fg_color)
             if hasattr(sample, "setPen"):
                 sample.setPen(pg.mkPen(fg_color))
             if hasattr(sample, "setBrush"):

@@ -4,15 +4,16 @@ if TYPE_CHECKING:
     from main import MainWindow
 
 from PySide6.QtWidgets import QMenuBar, QMessageBox
+from PySide6.QtGui import QAction, QActionGroup
 from dataclasses import dataclass
 import asyncio
 
 from core import RunManager, Settings
-from gui.popup_windows.efficiency_window import EfficiencyWindow
 
 from .import_export import save_roi_references
 
 from gui.popup_windows.settings_dialog import edit_settings, edit_advanced_settings
+from gui.popup_windows.efficiency_dialog import EfficiencyWindow
 
 
 class MainMenuBar(QMenuBar):
@@ -52,9 +53,9 @@ class MainMenuBar(QMenuBar):
 
         calculate_menu = self.addMenu("&Gamma Tools")
         calculate_menu_photoEff = calculate_menu.addAction("Efficiency")
-        calculate_menu_photoEff.triggered.connect(lambda: EfficiencyWindow(self).show())
-        calculate_menu_photoActi = calculate_menu.addAction("Activity")
-        calculate_menu_photoFrac = calculate_menu.addAction("Photofraction")
+        calculate_menu_photoEff.triggered.connect(lambda: parent.calculate_windows["efficiency"].show())
+        calculate_menu_photoActivity = calculate_menu.addAction("Activity")
+        calculate_menu_photoCalibration = calculate_menu.addAction("Calibration")
 
         calculate_menu = self.addMenu("&MRI Tools")
 
@@ -64,6 +65,37 @@ class MainMenuBar(QMenuBar):
         settings_action.triggered.connect(lambda : edit_settings(parent))
         advanced_settings_action = options_menu.addAction("Advanced Settings")
         advanced_settings_action.triggered.connect(lambda : edit_advanced_settings(parent))
+        
+        spectrum_tabbed_group = QActionGroup(self)
+        spectrum_tabbed_group.setExclusive(True)
+        
+        
+        options_menu.addSeparator()
+
+        # Create exclusive group
+        view_group = QActionGroup(self)
+        view_group.setExclusive(True)
+
+        # Create checkable actions
+        self.tabbed_action = QAction("Tabbed", self, checkable=True)
+        self.combined_action = QAction("Combined", self, checkable=True)
+
+        # Add to group
+        view_group.addAction(self.tabbed_action)
+        view_group.addAction(self.combined_action)
+
+        # Set default
+        if Settings.Appearance.tabbed_spetrum_view:
+            self.tabbed_action.setChecked(True)
+        else:
+            self.combined_action.setChecked(True)
+
+        # Add to menu
+        options_menu.addAction(self.tabbed_action)
+        options_menu.addAction(self.combined_action)
+
+        view_group.triggered.connect(self.on_view_changed)
+        
         # ---------- Help Menu ----------
         help_menu = self.addMenu("&Help")
         documentation_action = help_menu.addAction("Documentation")
@@ -101,3 +133,12 @@ class MainMenuBar(QMenuBar):
         else:
             if self.parent:
                 self.parent.close()
+                
+            # Handle selection
+    def on_view_changed(self, action):
+        if action == self.tabbed_action:
+            print("Switched to tabbed view")
+            # switch your UI to tabbed mode here
+        elif action == self.combined_action:
+            print("Switched to combined view")
+            # switch your UI to combined mode here

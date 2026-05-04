@@ -114,6 +114,9 @@ class FileDialogs(QObject):
 def save_roi_references():
     "Export reference rois for the library to be loaded on any spectrum"
     save_diag = SaveNamingDialog()
+    if len(SpectrumManager.ROIManager.ROIs) < 1:
+        QMessageBox.warning(save_diag, "Warning Message", "No ROIs set")
+        return
     res = save_diag.exec()
 
     if res == SaveNamingDialog.Accepted:

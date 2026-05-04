@@ -24,7 +24,8 @@ dependencies = [
     "libusb_package",
     "uncertainties",
     "plotext",
-    "prompt_toolkit"
+    "prompt_toolkit",
+    "markdown",
 ]
 
 [project.optional-dependencies]
@@ -32,7 +33,6 @@ dev = [
     "pandas",
     "pyinstaller",
     "odfpy",
-    "markdown
 ]
 
 [tool.setuptools.packages.find]
