@@ -30,7 +30,6 @@ a = Analysis(
         'PySide6.Qt3DRender',
         'PySide6.Qt3DExtras',
         'PySide6.QtMultimedia',
-        'PySide6.QtWebEngineWidgets',
         'scipy',
         'matplotlib',
         'numba',
@@ -38,7 +37,8 @@ a = Analysis(
         'Cython',
         'llvmlite',
         'pandas',
-        'PyQt6'
+        'PyQt6',
+        'PyQt5',
     ],
     noarchive=False,
     optimize=0,

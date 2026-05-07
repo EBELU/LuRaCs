@@ -84,6 +84,7 @@ class StrIdxTable(QWidget):
                     self.table.setColumnWidth(i + 1, widths[i])
 
         self.table.setColumnHidden(0, True)
+        self.current_keys.clear()
 
     def write_row(
         self,
@@ -124,6 +125,7 @@ class StrIdxTable(QWidget):
                     row_index, data_start_col + col_index, QTableWidgetItem(str(value))
                 )
 
+            self.current_keys.add(row_tag)
         finally:
             self.table.setSortingEnabled(True)
 
@@ -132,3 +134,4 @@ class StrIdxTable(QWidget):
         if row_index is None:
             return
         self.table.removeRow(row_index)
+        self.current_keys.remove(row_tag)

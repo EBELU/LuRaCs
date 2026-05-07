@@ -28,6 +28,16 @@ class ThemeManager:
             self._registry_plots.extend(plot)
         else:
             self._registry_plots.append(plot)
+            
+    def unregister_plot(self, plot):
+        """Remove a plot widget or list of plot widgets."""
+        if isinstance(plot, list):
+            for p in plot:
+                if p in self._registry_plots:
+                    self._registry_plots.remove(p)
+        else:
+            if plot in self._registry_plots:
+                self._registry_plots.remove(plot)
 
     def register_legend(self, legend):
         """Register a legend item or a list of legend items."""
@@ -174,6 +184,9 @@ class ThemeManager:
             pw.getViewWidget().setBackgroundBrush(
                 pg.mkBrush((30, 30, 30) if self.mode == self.DARK else "w")
             )
+        
+        except RuntimeError:
+            return
 
         axis_pen = pg.mkPen("w" if self.mode == self.DARK else "k")
         for axis in ("left", "bottom", "right", "top"):

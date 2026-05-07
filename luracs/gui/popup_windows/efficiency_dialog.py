@@ -11,14 +11,19 @@ from PySide6.QtWidgets import (
     QPushButton,
     QDoubleSpinBox,
     QHBoxLayout,
-    QAbstractItemView
-)
-from PySide6.QtCore import Qt
+    QAbstractItemView,
+    QDateTimeEdit,
+    QLabel,
+    QHeaderView,
+    QMessageBox)
+
+from PySide6.QtCore import Qt, QDate, QDateTime, QTime
 import pyqtgraph as pg
 import numpy as np
 
 from core import SpectrumManager
 from uncertainties import ufloat
+import uncertainties.umath as umath
 from utils.numerics.efficiency import u_intrinsic_efficiency
 from utils.numerics import curve_fit
 from utils.numerics.approximation_fns import exp_atten, exp_polynomial
@@ -49,7 +54,7 @@ class EfficiencyWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Efficiency Window")
-        self.resize(640, 740)
+        self.resize(1000, 700)
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(8, 8, 8, 8)
@@ -60,13 +65,7 @@ class EfficiencyWindow(QDialog):
         form = QFormLayout()
         form.setSpacing(9)
 
-        self.spectrum_combo = QComboBox()
-        self.spectrum_combo.addItem("None")
-        
-        self.spectrum_combo.setCurrentIndex(0)  # default to "None"
-        form.addRow("Spectrum", self.spectrum_combo)
-
-        titles = ["", "ROI", "Counts", "Yield", "Energy", "Nuclide"]
+        titles = ["", "ROI", "Spectrum", "Counts", "Yield", "Energy", "Nuclide"]
         widths = [15, 130, 130, 130, 130, 100]
         
         self.data_table = QTableWidget(columnCount=len(titles))
@@ -75,7 +74,19 @@ class EfficiencyWindow(QDialog):
         for i, w in enumerate(widths):
             self.data_table.setColumnWidth(i, w)
         
-        form.addRow("", self.data_table)
+        form.addRow("Peaks", self.data_table)
+        
+        # Source activity        
+        titles = ["Nuclide", "Activity 0", "Activity Uncertainty", "Unit", "Calibration Data", "Measurement Date", "Corrected Activity"]
+        
+        self.source_activity_table = QTableWidget(columnCount=len(titles))
+        self.source_activity_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.source_activity_table.setHorizontalHeaderLabels(titles)
+        self.source_activity_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        # for i, w in enumerate(widths):
+        #     self.data_table.setColumnWidth(i, w)
+
+        form.addRow("Source Activity", self.source_activity_table)
         
         self.instrument_combo = QComboBox()
         self.instrument_combo.addItem("None")
@@ -87,13 +98,8 @@ class EfficiencyWindow(QDialog):
 
         # Source-detector distance
         widget, self.source_detector_distance, self.source_detector_distance_unc = value_with_uncertainty()
-        form.addRow("Source-Detector\nDistance [cm]", widget)
+        form.addRow("Source-Detector\nDistance [cm]", widget)        
         
-        # Source activity
-        widget, self.source_activity, self.source_activity_unc, self.source_activity_unit = value_with_uncertainty(has_unit = True)
-        self.source_activity_unit.addItems(["Bq", "kBq", "MBq", "GBq", "TBq"])
-        form.addRow("Source Activity", widget)
-
         self.calculate_btn = QPushButton("Calculate")
         self.calculate_btn.clicked.connect(self.calculate)
         form.addRow("", self.calculate_btn)
@@ -128,17 +134,47 @@ class EfficiencyWindow(QDialog):
         main_layout.addLayout(bottom_buttons)
         
     def show(self):
-        self.spectrum_combo.clear()
-        self.spectrum_combo.addItems(sorted(list(SpectrumManager.get_spectra_dict().keys())))  
-        self.spectrum_combo.currentTextChanged.connect(self.set_table) 
-        self.set_table(self.spectrum_combo.currentText())     
+        self.set_data_table() 
+        self.set_source_activity_table()    
         super().show()
+        
+    def set_source_activity_table(self):
+        table = self.source_activity_table
+        table.setRowCount(0)  # clear properly
+        used_nuclides = set()
+        
+        for r in SpectrumManager.ROIManager.ROIs.values():
+            if r.emission is not None:
+                used_nuclides.add(r.emission.parent_nuclide)
+        
+        for i, nuclide in enumerate(used_nuclides):
+            widget, source_activity, source_activity_unc, source_activity_unit = value_with_uncertainty(has_unit = True)
+            source_activity_unit.addItems(["Bq", "kBq", "MBq", "GBq", "TBq"])
+            
+            self.source_activity_table.insertRow(i)
+            
+            self.source_activity_table.setItem(i, 0, QTableWidgetItem(str(nuclide)))
+            self.source_activity_table.setCellWidget(i, 1, source_activity)
+            self.source_activity_table.setCellWidget(i, 2, source_activity_unc)
+            self.source_activity_table.setCellWidget(i, 3, source_activity_unit)
+            
+            start_edit = QDateTimeEdit()
+            start_edit.setMinimumDate(QDate(1900, 1, 1))
 
-    def set_table(self, spectrum_name):
+            end_edit = QDateTimeEdit()
+            end_edit.setMinimumDate(QDate(1900, 1, 1))
+
+            self.source_activity_table.setCellWidget(i, 4, start_edit)
+            self.source_activity_table.setCellWidget(i, 5, end_edit)
+            self.source_activity_table.setCellWidget(i, 6, QLabel("-"))
+
+    def set_data_table(self):
         table = self.data_table
         table.setRowCount(0)  # clear properly
 
-        rois = SpectrumManager.ROIManager.get_data_from_spectrum(spectrum_name).values()
+        rois = []
+        for spectrum_name in SpectrumManager.get_spectra_dict().keys():
+            rois.extend(SpectrumManager.ROIManager.get_data_from_spectrum(spectrum_name).values())
 
         for row, roi in enumerate(rois):
             table.insertRow(row)
@@ -153,6 +189,10 @@ class EfficiencyWindow(QDialog):
             roi_item = QTableWidgetItem(str(roi.alias))
             roi_item.setData(Qt.UserRole, roi)
             table.setItem(row, 1, roi_item)
+            
+            spectrum_item = QTableWidgetItem(str(roi.meta["spectrum_name"]))
+            spectrum_item.setData(Qt.UserRole, roi)
+            table.setItem(row, 2, spectrum_item)
 
             # Default values
             cps_text = "-"
@@ -170,68 +210,93 @@ class EfficiencyWindow(QDialog):
                     parent_text = str(roi.emission.parent_nuclide)
 
             # --- Fill remaining columns ---
-            table.setItem(row, 2, QTableWidgetItem(cps_text))
-            table.setItem(row, 3, QTableWidgetItem(intensity_text))
-            table.setItem(row, 4, QTableWidgetItem(energy_text))
-            table.setItem(row, 5, QTableWidgetItem(parent_text))
+            table.setItem(row, 3, QTableWidgetItem(cps_text))
+            table.setItem(row, 4, QTableWidgetItem(intensity_text))
+            table.setItem(row, 5, QTableWidgetItem(energy_text))
+            table.setItem(row, 6, QTableWidgetItem(parent_text))
     
     def calculate(self):
         energies = []
         efficiencies = []
-        activity_conversion = 1
-        match self.source_activity_unit.currentText():
-            case "Bq":
-                activity_conversion = 1
-            case "kBq":
-                activity_conversion = 1e3
-            case "MBq":
-                activity_conversion = 1e6
-            case "GBq":
-                activity_conversion = 1e9
-            case "TBq":
-                activity_conversion = 1e12
-            
         
-        for i in range(self.data_table.rowCount()):
-            item = self.data_table.item(i, 1)
-            if item is None:
-                continue
+        for i_sa in range(self.source_activity_table.rowCount()):
+            activity_conversion = 1
+            A_unit = self.source_activity_table.cellWidget(i_sa, 3).currentText()
+            match A_unit:
+                case "Bq":
+                    activity_conversion = 1
+                case "kBq":
+                    activity_conversion = 1e3
+                case "MBq":
+                    activity_conversion = 1e6
+                case "GBq":
+                    activity_conversion = 1e9
+                case "TBq":
+                    activity_conversion = 1e12
+                    
+            A0 = self.source_activity_table.cellWidget(i_sa, 1).value()
+            A0_unc = self.source_activity_table.cellWidget(i_sa, 2).value()
+            
+            calibration_date_widget = self.source_activity_table.cellWidget(i_sa, 4).dateTime()
+            measurment_date_widget = self.source_activity_table.cellWidget(i_sa, 5).dateTime()
+            
+            decay_time_s = calibration_date_widget.secsTo(measurment_date_widget)
+            if decay_time_s == 0:
+                A = ufloat(A0, A0_unc) * activity_conversion
+            elif decay_time_s < 0:
+                QMessageBox.warning(self, "Invalid time", "Negative decay time encountered\nNo time travelling! >:(")
+                return
+            else:
+                nuclide_name = self.source_activity_table.item(i_sa, 0).text()
+                nuclide = SpectrumManager.NuclideLibrary.get_nuclide(nuclide_name)
+                A0_u = ufloat(A0, A0_unc) * activity_conversion
+                
+                A = A0_u * umath.exp(-np.log(2) / ufloat(*nuclide.half_life_s) * decay_time_s)
+                
+            
+            
+            self.source_activity_table.cellWidget(i_sa, 6).setText(f"{A} {A_unit}")
+            
+            for i_dt in range(self.data_table.rowCount()):
+                item = self.data_table.item(i_dt, 1)
+                if item is None:
+                    continue
 
-            roi = item.data(Qt.UserRole)
-            if roi is None or roi.emission is None or roi.fit is None:
-                continue
-            
-            
-            
-            eff = u_intrinsic_efficiency(
-                activity_Bq = ufloat(self.source_activity.value() * activity_conversion, self.source_activity_unc.value() * activity_conversion),
-                source_detector_distance_cm = ufloat(self.source_detector_distance.value(), self.source_detector_distance_unc.value()),
-                detector_area_cm2 = ufloat(self.detector_area.value(), self.detector_area_unc.value()),
-                emission_yield = ufloat(roi.emission.intensity_percent*0.01, roi.emission.intensity_error_percent*0.01),
-                cps = ufloat(roi.get_count_data("N", cps=True), 1e-12)
-            )
-            print(roi.get_count_data("peak_counts", cps=True), roi.get_count_data("N", cps=True))
-            energies.append(roi.emission.energy_keV)
-            efficiencies.append(eff)
-            
-        if len(efficiencies) > 0:
-            self.demo_plot.plotItem.clear()
-            x = np.asarray(energies, dtype=float)
-            y = np.asarray([e.n for e in efficiencies], dtype=float)
-            yerr = np.asarray([e.s for e in efficiencies], dtype=float)
+                roi = item.data(Qt.UserRole)
+                if roi is None or roi.emission is None or roi.fit is None:
+                    continue
+                
+                
+                
+                eff = u_intrinsic_efficiency(
+                    activity_Bq = A,
+                    source_detector_distance_cm = ufloat(self.source_detector_distance.value(), self.source_detector_distance_unc.value()),
+                    detector_area_cm2 = ufloat(self.detector_area.value(), self.detector_area_unc.value()),
+                    emission_yield = ufloat(roi.emission.intensity_percent*0.01, roi.emission.intensity_error_percent*0.01),
+                    cps = ufloat(roi.get_count_data("N", cps=True), 1e-12)
+                )
+                # print(roi.get_count_data("peak_counts", cps=True), roi.get_count_data("N", cps=True))
+                energies.append(roi.emission.energy_keV)
+                efficiencies.append(eff)
+                
+            if len(efficiencies) > 0:
+                self.demo_plot.plotItem.clear()
+                x = np.asarray(energies, dtype=float)
+                y = np.asarray([e.n for e in efficiencies], dtype=float)
+                yerr = np.asarray([e.s for e in efficiencies], dtype=float)
 
-            self.demo_plot.plotItem.plot(x, y, pen=None, symbol='o')
-            err = pg.ErrorBarItem(
-                x=x,
-                y=y,
-                height=yerr
-            )
-            self.demo_plot.plotItem.addItem(err)
-            
-            fit_params, _, _ = curve_fit(exp_atten, x, y, [10, 10])
-            
-            full_x = np.linspace(0, 3500, 1000)
-            fitted_y = exp_atten(full_x, fit_params)
-            
-            self.demo_plot.plotItem.plot(full_x, fitted_y)
+                self.demo_plot.plotItem.plot(x, y, pen=None, symbol='o')
+                err = pg.ErrorBarItem(
+                    x=x,
+                    y=y,
+                    height=yerr
+                )
+                self.demo_plot.plotItem.addItem(err)
+                
+                fit_params, _, _ = curve_fit(exp_atten, x, y, [10, 10])
+                
+                full_x = np.linspace(0, 3500, 1000)
+                fitted_y = exp_atten(full_x, fit_params)
+                
+                self.demo_plot.plotItem.plot(full_x, fitted_y)
             

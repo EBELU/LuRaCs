@@ -10,12 +10,12 @@ import sys
 
 @dataclass
 class _Appearance:
-    theme: str = "dark"
+    theme: str = "light"
     pen: bool = True
     brush: bool = False
     font_size: int = 10
     tabbed_spetrum_view: bool = False
-
+    verbose_calculation_logging: bool = True
 
 @dataclass
 class _State:

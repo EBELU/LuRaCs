@@ -103,7 +103,7 @@ class DocumentationDialog(QWidget):
             md_text,
             extensions=["fenced_code", "tables"]
         )
-
+        
         styled_html = f"""
         <html>
         <head>
@@ -114,6 +114,19 @@ class DocumentationDialog(QWidget):
             padding: 12px;
         }}
         h1 {{ color: #1a73e8; }}
+        th, td {{
+            padding: 2px 2px;
+            text-align: left;
+        }}
+
+        th {{
+            font-weight: bold;
+        }}
+
+        p {{
+            margin-top: 1px;
+            margin-bottom: 1px;
+        }}
         </style>
         </head>
         <body>

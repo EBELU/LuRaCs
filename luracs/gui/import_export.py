@@ -154,7 +154,8 @@ def save_roi_references():
             None,
             0,
             1,
-            {
+            r.emission,
+            meta={
                 "movable": r.movable,
                 "poisson_weights": r.poisson_weights,
                 "merge": r.merge,

@@ -178,6 +178,7 @@ class ROIManager(QObject):
     sigROICreated = Signal(object)
     sigROIUpdated = Signal(str, str, object)
     sigROIDeleted = Signal(object)
+    sigCpsChanged = Signal(bool)
 
     def __init__(self, spectrum_manager, title="", parent=None):
         super().__init__(parent=parent)
@@ -187,22 +188,12 @@ class ROIManager(QObject):
 
         self.ROIs: dict[str, DeletableROI] = {}
         self.roi_counter: int = 0
-        self.plot_widget: PlotWidget = None  # Keep a reference, should be changed
 
         # Spectrum state
-        self.spectrum_is_log = False
         self.spectrum_is_cps = False
         self.spectrum_is_bkg_sub = False
 
         self.roi_groupings: list[set[str]] = []
-
-    def set_plot(self, plot_widget):
-        "Communication with SpectrumPlot"
-        self.plot_widget = plot_widget
-
-    def set_log(self, log_bool):
-        "Communication with SpectrumPlot"
-        self.spectrum_is_log = log_bool
 
     def set_bkg_sub(self, bkg_sub_bool):
         "Communication with SpectrumPlot"
@@ -211,29 +202,18 @@ class ROIManager(QObject):
     def set_cps(self, cps_bool):
         "Communication with SpectrumPlot"
         self.spectrum_is_cps = cps_bool
+        self.sigCpsChanged.emit(cps_bool)
+        
 
     def add_roi(self, x_low=None, x_high=None, **kwargs):
         "Add a ROI to the plot, kwargs are given to the class DeletableROI"
-        assert self.plot_widget is not None, "Plot item has not been set"
 
         roi_tag = f"ROI_{self.roi_counter}"
         self.roi_counter += 1
-
-        # Pick a good position in the plit to spawn the new roi
-        x_min, x_max = self.plot_widget.viewRange()[0]
-
-        diff = float(x_max) - float(x_min)
-        if diff > 400:
-            diff = 400
-        if x_low is None or x_low == 0:
-            x_low = float(x_min) + diff * 0.15
-        if x_high is None:
-            x_high = float(x_min) + diff * 0.45
-
         new_roi = DeletableROI(roi_tag,[x_low, x_high], 
                                nuclide_lib_ref=self.spectrum_manager.NuclideLibrary,
                                **kwargs)
-        self.plot_widget.addItem(new_roi)
+
         self.ROIs[roi_tag] = new_roi
 
         new_roi.sigDeleteRequested.connect(self.remove_roi)
@@ -245,6 +225,8 @@ class ROIManager(QObject):
         new_roi.sigSettingsUpdated.connect(self.propagrade_roi_settings_change)
 
         self.on_roi_change(roi_tag=new_roi.tag)
+        
+        return new_roi
 
     def remove_roi(self, roi_tag: str) -> None:
         "Remove a ROI based the tag"
@@ -315,42 +297,49 @@ class ROIManager(QObject):
 
     def calculate_roi_groups(self) -> list[set[str]]:
         """Calculate overlapping rois and return groups of overlap"""
-        mergeable = []
-        singles = []
+
+        mergeable_dict: dict[str, list] = {}
+        singles_dict: dict[str, list] = {}
 
         for r in self.ROIs.values():
+            if r.owner_spectrum not in mergeable_dict and r.owner_spectrum not in singles_dict:
+                mergeable_dict[r.owner_spectrum] = []
+                singles_dict[r.owner_spectrum] = []
+                
             tag = r.tag
             low, high = r.getRegion()
 
             if r.merge and r.fit_type != "None":
-                mergeable.append((tag, low, high))
+                mergeable_dict[r.owner_spectrum].append((tag, low, high))
             else:
-                singles.append({tag})  # singleton group
-
-        mergeable.sort(key=lambda x: x[1])  # by low
-
+                singles_dict[r.owner_spectrum].append({tag})  # singleton group
+        
         groups: list[set[str]] = []
-        current_group: set[str] = set()
-        current_end = None
+        for mergeable, singles in zip(mergeable_dict.values(), singles_dict.values()):
 
-        for tag, low, high in mergeable:
-            if not current_group:
-                current_group = {tag}
-                current_end = high
-                continue
+            mergeable.sort(key=lambda x: x[1])  # by low
 
-            if low < current_end:  # overlap condition
-                current_group.add(tag)
-                current_end = max(current_end, high)
-            else:
+            current_group: set[str] = set()
+            current_end = None
+
+            for tag, low, high in mergeable:
+                if not current_group:
+                    current_group = {tag}
+                    current_end = high
+                    continue
+
+                if low < current_end:  # overlap condition
+                    current_group.add(tag)
+                    current_end = max(current_end, high)
+                else:
+                    groups.append(current_group)
+                    current_group = {tag}
+                    current_end = high
+
+            if current_group:
                 groups.append(current_group)
-                current_group = {tag}
-                current_end = high
 
-        if current_group:
-            groups.append(current_group)
-
-        groups.extend(singles)
+            groups.extend(singles)
 
         return groups
 
@@ -394,6 +383,9 @@ class ROIManager(QObject):
             )  # Track updated rois since groups are evaluated all at once
             for roi in rois:
                 if roi in updated_rois:
+                    continue
+                
+                if self.ROIs[roi].owner_spectrum is not None and self.ROIs[roi].owner_spectrum != spect.name:
                     continue
 
                 # Find the group(s) this ROI belongs to

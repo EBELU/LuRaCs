@@ -295,31 +295,31 @@ class DeletableROI(LinearRegionItem):
     def __init__(
         self,
         tag: str,
-        region,
+        region: tuple,
         nuclide_lib_ref: NuclideLibrary, # keep a reference to avoid circular imports
-        alias = None,
-        fit_type = "Gaussian",
-        bkg_type = "Linear",
-        merge = True,
-        poisson_weights = False,
-        movable = True,
-        emission = None,
-        owner_spectrum = None,
+        alias: str | None = None,
+        fit_type: str = "Gaussian", # Gaussian, None
+        bkg_type: str = "Linear",
+        merge: bool = True,
+        poisson_weights: bool = False,
+        movable: bool = True,
+        emission: Emission = None,
+        owner_spectrum: str = None,
         **kwargs
         
     ):
         super().__init__(values=region, orientation="vertical", movable=movable)
         self.setZValue(25)
-        self.tag = tag
-        self.merge = merge
-        self.perform_fit = True
-        self.alias = alias if alias else tag
-        self.fit_type = fit_type
-        self.bkg_type = bkg_type
-        self.poisson_weights = poisson_weights
-        self.emission = emission
+        self.tag: str = tag
+        self.merge: bool = merge
+        self.perform_fit: bool = True
+        self.alias: str = alias if alias else tag
+        self.fit_type: str = fit_type
+        self.bkg_type: str = bkg_type
+        self.poisson_weights: bool = poisson_weights
+        self.emission: Emission = emission
         self.nuclide_lib_ref = nuclide_lib_ref
-        self.owner_spectrum = owner_spectrum
+        self.owner_spectrum: str = owner_spectrum
         
         self.setToolTip(f"ROI: {self.alias}\nRight-click to edit")
 

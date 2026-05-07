@@ -126,7 +126,7 @@ class Spectrum:
         elif cps and not self.background.live_time > 0:
             return
         else:
-            bkg_y_data = self.background
+            bkg_y_data = self.background.y_axis
 
         if log:
             return np.log10(np.where(bkg_y_data > 0, bkg_y_data, np.nan))

@@ -28,7 +28,7 @@ from PySide6.QtCore import QTimer
 
 print_progress("Loading GUI", 0)
 
-from gui import MainMenuBar, SpectrumPlot, SpectrogramWidget, DataLibrary
+from gui import MainMenuBar, SpectrumPlotContainer, SpectrogramWidget, DataLibrary
 
 print_progress("Loading GUI", 2)
 
@@ -102,8 +102,9 @@ class MainWindow(QMainWindow):
         self.spect_tab = QTabWidget()
         self.spect_tab.setTabPosition(QTabWidget.South)
         
-        self.spectrum_plot = SpectrumPlot()
-        self.spect_tab.addTab(self.spectrum_plot, "Spectrum")
+        
+        self.spectrum_plot_container = SpectrumPlotContainer(self)
+        self.spect_tab.addTab(self.spectrum_plot_container, "Spectrum")
 
         self.spectrogram = SpectrogramWidget(self)
         self.spectrogram.sigShowDataStore.connect(self.show_data_store)
@@ -134,8 +135,8 @@ class MainWindow(QMainWindow):
         
         self.isotopics_tab = IsotopicsTab(list(SpectrumManager.NuclideLibrary.get_sorted_nuclide_names()))
         self.bottom_tabs.addTab(self.isotopics_tab, "Isotopics")
-        self.spectrum_plot.Signals.redrawRequested.connect(self.isotopics_tab.request_line_data)
-        self.isotopics_tab.sigColorChanged.connect(lambda x, y: self.spectrum_plot._redraw())
+        self.spectrum_plot_container.sigRedrawRequested.connect(self.isotopics_tab.request_line_data)
+        self.isotopics_tab.sigColorChanged.connect(lambda : self.spectrum_plot_container.request_redraw())
 
         # Console
         self.console_tab = ConsoleTab()
@@ -149,7 +150,7 @@ class MainWindow(QMainWindow):
         bottom_layout.addWidget(self.bottom_tabs)
         layout.addLayout(bottom_layout, stretch=3)
 
-        self.theme.register_plot(self.spectrum_plot.plot_widget)
+        # self.theme.register_plot(self.spectrum_plot.plot_widget)
         self.theme.register_plot(self.current_value_tab.cps_plot_widget)
         self.theme.register_plot(self.current_value_tab.dose_plot_widget)
         self.theme.register_plot(self.spectrogram.plot)

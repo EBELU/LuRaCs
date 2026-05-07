@@ -131,13 +131,13 @@ def edit_settings(main_window: MainWindow):
                     main_window.theme.mode = value
                     main_window.theme.apply()
                     main_window.theme.style_hist_lut(main_window.spectrogram.hist)
-                    main_window.spectrum_plot._redraw()
+                    main_window.spectrum_plot_container.request_redraw()
                     for w in app.allWidgets():
                         w.update()
                         w.repaint()
                         
                 case "pen" | "brush":
-                    main_window.spectrum_plot._redraw()
+                    main_window.spectrum_plot_container.request_redraw()
                     
                 case "font_size":
                     font = app.font()

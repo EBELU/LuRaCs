@@ -5,6 +5,7 @@ if TYPE_CHECKING:
 
 from PySide6.QtWidgets import QMenuBar, QMessageBox
 from PySide6.QtGui import QAction, QActionGroup
+from PySide6.QtCore import Signal
 from dataclasses import dataclass
 import asyncio
 
@@ -17,11 +18,15 @@ from gui.popup_windows.efficiency_dialog import EfficiencyWindow
 
 
 class MainMenuBar(QMenuBar):
+    sigSetSpectrumViewToTabs = Signal()
+    sigSetSpectrumViewToCombined = Signal()
+    
     def __init__(self, parent: MainWindow =None):
         super().__init__(parent)
         self.parent = parent
 
         Settings.latestConnectionUpdated.connect(self.update_last_connections)
+
 
         # ---------- File Menu ----------
         file_menu = self.addMenu("&File")
@@ -137,8 +142,8 @@ class MainMenuBar(QMenuBar):
             # Handle selection
     def on_view_changed(self, action):
         if action == self.tabbed_action:
-            print("Switched to tabbed view")
-            # switch your UI to tabbed mode here
+            self.sigSetSpectrumViewToTabs.emit()
+
         elif action == self.combined_action:
-            print("Switched to combined view")
-            # switch your UI to combined mode here
+            self.sigSetSpectrumViewToCombined.emit()
+
