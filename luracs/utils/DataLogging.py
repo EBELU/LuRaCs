@@ -205,6 +205,8 @@ class SpectrumLogger(QObject):
                 avg_cps INTEGER NOT NULL,
                 avg_dr INTEGER NOT NULL,
                 temperature REAL,
+                lat REAL,
+                long REAL,
                 spectrum BLOB NOT NULL
             )
         """)
@@ -414,14 +416,16 @@ class SpectrumLogger(QObject):
         cursor.execute(
             """
             INSERT INTO spectrogram
-            (timestamp, avg_cps, avg_dr, temperature, spectrum)
-            VALUES (?, ?, ?, ?, ?)
+            (timestamp, avg_cps, avg_dr, temperature, lat, long, spectrum)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 timestamp,
                 round(avg_cps * 1000),
                 round(avg_dr * 1000),
                 temperature,
+                0,
+                0,
                 spectrum_bytes,
             ),
         )

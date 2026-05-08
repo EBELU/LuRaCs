@@ -74,7 +74,7 @@ class MainMenuBar(QMenuBar):
         spectrum_tabbed_group = QActionGroup(self)
         spectrum_tabbed_group.setExclusive(True)
         
-        
+        # --- Spectrum view options ---
         options_menu.addSeparator()
 
         # Create exclusive group
@@ -82,22 +82,24 @@ class MainMenuBar(QMenuBar):
         view_group.setExclusive(True)
 
         # Create checkable actions
-        self.tabbed_action = QAction("Tabbed", self, checkable=True)
-        self.combined_action = QAction("Combined", self, checkable=True)
+        self.combined_action = QAction("Combined Spectrum View", self, checkable=True)
+        self.tabbed_action = QAction("Tabbed Spectrum View", self, checkable=True)
+
 
         # Add to group
-        view_group.addAction(self.tabbed_action)
         view_group.addAction(self.combined_action)
+        view_group.addAction(self.tabbed_action)
+
 
         # Set default
-        if Settings.Appearance.tabbed_spetrum_view:
+        if Settings.Appearance.tabbed_spectrum_view:
             self.tabbed_action.setChecked(True)
         else:
             self.combined_action.setChecked(True)
 
         # Add to menu
-        options_menu.addAction(self.tabbed_action)
         options_menu.addAction(self.combined_action)
+        options_menu.addAction(self.tabbed_action)
 
         view_group.triggered.connect(self.on_view_changed)
         
@@ -142,8 +144,11 @@ class MainMenuBar(QMenuBar):
             # Handle selection
     def on_view_changed(self, action):
         if action == self.tabbed_action:
+            Settings.Appearance.tabbed_spectrum_view = True
             self.sigSetSpectrumViewToTabs.emit()
+            
 
         elif action == self.combined_action:
+            Settings.Appearance.tabbed_spectrum_view = False
             self.sigSetSpectrumViewToCombined.emit()
 

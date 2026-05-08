@@ -218,6 +218,7 @@ class EfficiencyWindow(QDialog):
     def calculate(self):
         energies = []
         efficiencies = []
+        self.demo_plot.plotItem.clear()
         
         for i_sa in range(self.source_activity_table.rowCount()):
             activity_conversion = 1

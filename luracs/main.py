@@ -137,6 +137,7 @@ class MainWindow(QMainWindow):
         self.bottom_tabs.addTab(self.isotopics_tab, "Isotopics")
         self.spectrum_plot_container.sigRedrawRequested.connect(self.isotopics_tab.request_line_data)
         self.isotopics_tab.sigColorChanged.connect(lambda : self.spectrum_plot_container.request_redraw())
+        self.isotopics_tab.btn_assign_emissions.clicked.connect(self.spectrum_plot_container.match_nuclide_to_rois)
 
         # Console
         self.console_tab = ConsoleTab()
@@ -150,7 +151,7 @@ class MainWindow(QMainWindow):
         bottom_layout.addWidget(self.bottom_tabs)
         layout.addLayout(bottom_layout, stretch=3)
 
-        # self.theme.register_plot(self.spectrum_plot.plot_widget)
+        # Theming
         self.theme.register_plot(self.current_value_tab.cps_plot_widget)
         self.theme.register_plot(self.current_value_tab.dose_plot_widget)
         self.theme.register_plot(self.spectrogram.plot)
@@ -160,11 +161,18 @@ class MainWindow(QMainWindow):
 
         self.theme.apply()
 
+        # Run things that need the event loop active
         if len(sys.argv) > 1:
+            if Settings.Appearance.tabbed_spectrum_view:
+                self.spectrum_plot_container.set_tabbed_mode()
+            else:
+                self.spectrum_plot_container.set_combined_mode()
+                
             QTimer.singleShot(0, lambda: parse_cli_args(self))
 
 
         print_progress("Main window loaded", 9)
+        
         
         
 

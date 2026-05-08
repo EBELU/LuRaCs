@@ -162,6 +162,13 @@ class ThemeManager:
             QLineEdit::placeholder {
                 color: #dddddd;
             }
+            
+            QMenu::separator {
+                height: 0.5px;
+                background: palette(mid);
+                margin-left: 8px;
+                margin-right: 8px;
+            }
             """)
         else:
             app.setStyleSheet("")
@@ -227,6 +234,7 @@ class ThemeManager:
 
         # Force redraw
         hist.gradient.update()
+        
 class ColorRotator:
     """Provides a cycling color pen for plotting."""
 

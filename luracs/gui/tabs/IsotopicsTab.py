@@ -19,7 +19,7 @@ from core import SpectrumManager
 
 from textwrap import dedent
 
-
+# --- Helpers ---
 def format_emissions(emissions):
     lines = [
         f"{'Energy (keV)':>12} | {'Intensity (%)':>14} | {'Type':>6} | Origin",
@@ -123,7 +123,7 @@ class NuclideListItem(QWidget):
     sigViewCheckChanged = Signal(str, bool, object)  # (name, checked, QColor)
     sigColorChanged = Signal(str, object)  # (name, QColor)
 
-    def __init__(self, text, color):
+    def __init__(self, text, color, chain=False):
         super().__init__()
 
         self.name = text
@@ -134,21 +134,16 @@ class NuclideListItem(QWidget):
 
         self.checkbox = QCheckBox()
 
-        #         self.checkbox.setStyleSheet("""
-        # QCheckBox::indicator:unchecked {
-        #     border: 2px solid #888;
-        #     background-color: #222;
-        # }
-        # """)
-
         self.label = QLabel(text)
+
 
         self.color_widget = ColorCellWidget(color)
 
         layout.addWidget(self.checkbox)
         layout.addWidget(self.label)
         layout.addStretch()
-        layout.addWidget(self.color_widget)
+        if not chain:
+            layout.addWidget(self.color_widget)
 
         # connect checkbox
         self.checkbox.stateChanged.connect(self._on_state_changed)
@@ -175,7 +170,7 @@ class NuclideListItem(QWidget):
 
 
 class IsotopicsTab(QWidget):
-    sigViewCheckChanged = Signal(str, bool, object)  # (name, checked)
+    sigViewCheckChanged = Signal(str, bool, object)  # (name, checked, QColor)
     sigListItemClicked = Signal(str)
     sigColorChanged = Signal(str, object)  # (name, QColor)
 
@@ -202,8 +197,13 @@ class IsotopicsTab(QWidget):
         
         self.all_nuclides = all_nuclides
         
-        for nuclide in self.all_nuclides:
-            self.add_nuclide(nuclide, "blue")
+        for nuclide in sorted([*self.all_nuclides, *SpectrumManager.NuclideLibrary.decay_chains.keys()]):
+            self.add_nuclide(
+                            nuclide, "blue", 
+                            is_chain = True if "Chain" in nuclide else False
+                            )
+            
+
 
         self.nuclides_info_textbox = QTextEdit()
         self.nuclides_info_textbox.setReadOnly(True)
@@ -214,13 +214,18 @@ class IsotopicsTab(QWidget):
         self.nuclides_info_textbox.setFont(font)
 
         peak_search_layout = QVBoxLayout()
+        
+        self.btn_assign_emissions = QPushButton("Auto Set Emissions")
+        peak_search_layout.addWidget(self.btn_assign_emissions)
 
-        btn_search_peaks = QPushButton("Search peaks")
+
+        self.btn_search_peaks = QPushButton("Search peaks")
 
         self.search_spect_combo = QComboBox()
 
-        peak_search_layout.addWidget(btn_search_peaks)
+        peak_search_layout.addWidget(self.btn_search_peaks)
         peak_search_layout.addWidget(self.search_spect_combo)
+        peak_search_layout.addStretch()
 
         nuclides_list_layout.setContentsMargins(0, 0, 0, 0)
         nuclides_list_layout.setSpacing(6)
@@ -231,21 +236,27 @@ class IsotopicsTab(QWidget):
         main_layout.addLayout(nuclides_list_layout, 2)
         main_layout.addWidget(self.nuclides_info_textbox, 4)
         main_layout.addLayout(peak_search_layout, 2)
+        
 
-    def add_nuclide(self, name, color):
+    def add_nuclide(self, name, color, is_chain=False):
+        "Used during startup"
         item = QListWidgetItem()
-        widget = NuclideListItem(name, color)
+        widget = NuclideListItem(name, color, is_chain)
 
         item.setSizeHint(widget.sizeHint())
 
         self.nuclide_list_widget.addItem(item)
         self.nuclide_list_widget.setItemWidget(item, widget)
 
-        # Propagate signals from lines
-        widget.sigViewCheckChanged.connect(self.sigViewCheckChanged)
-        widget.sigColorChanged.connect(self.sigColorChanged)
+        # Propagate signals from lines if its not a decay chain
+        if not is_chain:
+            widget.sigViewCheckChanged.connect(self.sigViewCheckChanged)
+            widget.sigColorChanged.connect(self.sigColorChanged)
+        else:
+            widget.sigViewCheckChanged.connect(self.expand_chain)
 
     def filter_nuclides(self, text):
+        "Search functionality"
         text = text.lower()
 
         for i in range(self.nuclide_list_widget.count()):
@@ -269,10 +280,17 @@ class IsotopicsTab(QWidget):
 
         name = widget.name
 
-        # Example: reuse your existing signal
         self.sigListItemClicked.emit(name)
         
+    def expand_chain(self, chain: str, state: bool, _):
+        chain_members = SpectrumManager.NuclideLibrary.decay_chains[chain]
+        
+        for nuclide in chain_members:
+            self.set_nuclide_check(nuclide, state)
+            
+        
     def request_line_data(self):
+        "Get data from currently selected nuclides"
         for i in range(self.nuclide_list_widget.count()):
             item = self.nuclide_list_widget.item(i)
             item_widget = self.nuclide_list_widget.itemWidget(item)
@@ -289,6 +307,10 @@ class IsotopicsTab(QWidget):
                 item_widget.checkbox.setChecked(state)
 
     def change_nuclide_info(self, name):
+        "Display nuclide data in the GUI"
+        if "Chain" in name:
+            # TODO Display decay chain in GUI
+            return
         nuc = SpectrumManager.NuclideLibrary.get_nuclide(name)
         
         title_str = f"| {nuc.element} | {nuc.nuclide} |"

@@ -14,7 +14,7 @@ class _Appearance:
     pen: bool = True
     brush: bool = False
     font_size: int = 10
-    tabbed_spetrum_view: bool = False
+    tabbed_spectrum_view: bool = False
     verbose_calculation_logging: bool = True
 
 @dataclass

@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QObject, Signal
 from PySide6.QtGui import QColor
 import pyqtgraph as pg
+from pyqtgraph.Qt import QtWidgets
 import numpy as np
 
 from core import SpectrumManager, Settings
@@ -43,9 +44,7 @@ class SpectrumPlot(QWidget):
         SpectrumManager.Signals.spectrumRemoved.connect(self.remove_plot)
         SpectrumManager.Signals.backgroundRemoved.connect(lambda *args: self._redraw())
         SpectrumManager.Signals.visibilityChanged.connect(lambda *args: self._redraw())
-        SpectrumManager.ROIManager.sigROICreated.connect(
-            lambda r: self.create_roi_lines(r.tag)
-        )
+
         
         # ROI manager
         SpectrumManager.ROIManager.sigROIUpdated.connect(self.draw_roi)
@@ -456,7 +455,6 @@ class SpectrumPlot(QWidget):
             
         new_roi = SpectrumManager.ROIManager.add_roi(x_low=x_low, x_high=x_high, movable=True, owner_spectrum=self.owned_spectrum)
         
-        self.plot_widget.addItem(new_roi)
             
 
     def draw_roi(self, roi_tag: str, spectrum_name):
@@ -517,10 +515,6 @@ class SpectrumPlot(QWidget):
             lin /= spectrum.foreground.live_time
             gaussian /= spectrum.foreground.live_time
 
-        if self.log:
-            gaussian = np.log10(np.where(gaussian > 0, gaussian, np.nan))
-            lin = np.log10(np.where(lin > 0, lin, np.nan))
-
         # --- Update plot ---
         if gaussian is not None:
             self.ROI_lines_gaussian[roi_tag][spectrum_name].setData(x, gaussian)
@@ -544,58 +538,88 @@ class SpectrumPlot(QWidget):
                 self.plot_widget.removeItem(gaussian_line)
                 self.plot_widget.removeItem(lin_line)
                 
+
+
     def draw_nuclide_lines(self, nuclide: str, show_state: bool, color: QColor):
-        if show_state:
-            # Create the line
-            maximum = -1e12
-            vb = self.plot_widget.getViewBox()
-            (x_min, x_max), (y_min, y_max) = vb.viewRange()
-            for spectrum in SpectrumManager.get_spectra_dict().values():
-                if not spectrum.show_in_plot or (self.owned_spectrum is not None and spectrum.name != self.owned_spectrum):
-                    continue
-                if not self.bkg_sub:
-                    maximum = max(maximum, np.nanmax(spectrum.get_foreground(self.log, self.cps)[(spectrum.x_axis >= x_min) & (spectrum.x_axis <= x_max)]))
-                else:
-                    maximum = max(maximum, np.nanmax(spectrum.get_bkg_sub(self.log)[(spectrum.x_axis >= x_min) & (spectrum.x_axis <= x_max)]))
-                    
-            self.nuclide_lines[nuclide] = []
-            
-            # Some nuclides dont have photon emissions
-            emissions = SpectrumManager.NuclideLibrary.get_nuclide(nuclide).emissions
-            if not len(emissions):
-                return
-            
-            largest_yield = max(e.intensity_percent for e in emissions)
-            for emission in emissions:
-                self.nuclide_lines[nuclide].append(
-                    self.plot_widget.plot(
-                        [emission.energy_keV, emission.energy_keV], 
-                        [y_min, min(emission.intensity_percent *  maximum / largest_yield, maximum)],
-                        pen = pg.mkPen(color=color, width=3),
-                        ignoreBounds=True)
-                        )
-        else:
-            # Remove the line
-            lines = self.nuclide_lines.pop(nuclide)
-            for line in lines:
-                self.plot_widget.removeItem(line)
-    
-    def update_nuclide_lines(self):
-        maximum = -1e12
+
+        # Remove existing lines first
+        if nuclide in self.nuclide_lines:
+            for line in self.nuclide_lines.pop(nuclide):
+                self.plot_widget.getViewBox().removeItem(line)
+
+        if not show_state:
+            return
+
         vb = self.plot_widget.getViewBox()
-        (x_min, x_max), (y_min, y_max) = vb.viewRange()
-        for spectrum in SpectrumManager.get_spectra_dict().values():
-            if not spectrum.show_in_plot or (self.owned_spectrum is not None and spectrum.name != self.owned_spectrum):
+        (_, _), (_, y_max) = vb.viewRange()
+
+        maximum = y_max * 0.85
+
+        emissions = SpectrumManager.NuclideLibrary.get_nuclide(nuclide).emissions
+
+        if not emissions:
+            return
+
+        largest_yield = max(e.intensity_percent for e in emissions)
+
+        self.nuclide_lines[nuclide] = []
+
+        for emission in emissions:
+
+            height = (
+                emission.intensity_percent * maximum / largest_yield
+            )
+
+            line = QtWidgets.QGraphicsLineItem(
+                emission.energy_keV,
+                0,
+                emission.energy_keV,
+                height,
+            )
+            
+            pen = pg.mkPen(color=color, width=3)
+            if emission.type.lower() == "x-ray":
+                pen.setStyle(Qt.PenStyle.DashLine)
+
+            line.setPen(pen)
+
+            # add directly to ViewBox with ignoreBounds
+            vb.addItem(line, ignoreBounds=True)
+
+            self.nuclide_lines[nuclide].append(line)
+
+
+    def update_nuclide_lines(self):
+
+        vb = self.plot_widget.getViewBox()
+        (_, _), (_, y_max) = vb.viewRange()
+
+        maximum = y_max * 0.85
+
+        for nuclide, line_list in self.nuclide_lines.items():
+
+            emissions = SpectrumManager.NuclideLibrary.get_nuclide(
+                nuclide
+            ).emissions
+
+            if not emissions:
                 continue
-            if not self.bkg_sub:
-                maximum = max(maximum, np.nanmax(spectrum.get_foreground(self.log, self.cps)[(spectrum.x_axis >= x_min) & (spectrum.x_axis <= x_max)]))
-            else:
-                maximum = max(maximum, np.nanmax(spectrum.get_bkg_sub(self.log)[(spectrum.x_axis >= x_min) & (spectrum.x_axis <= x_max)]))
-                
-        for key, line_list in self.nuclide_lines.items():
-            emissions = SpectrumManager.NuclideLibrary.get_nuclide(key).emissions
-            largest_yield = max(e.intensity_percent for e in emissions)
+
+            largest_yield = max(
+                e.intensity_percent for e in emissions
+            )
+
             for line, emission in zip(line_list, emissions):
-                
-                line.setData(x = [emission.energy_keV, emission.energy_keV],
-                             y = [0, min(emission.intensity_percent *  maximum / largest_yield, maximum)])
+
+                height = (
+                    emission.intensity_percent
+                    * maximum
+                    / largest_yield
+                )
+
+                line.setLine(
+                    emission.energy_keV,
+                    0,
+                    emission.energy_keV,
+                    height,
+                )

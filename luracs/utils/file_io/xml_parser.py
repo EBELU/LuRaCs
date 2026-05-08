@@ -2,7 +2,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from pathlib import Path
+    pass
+
+from pathlib import Path
 
 from datetime import datetime
 import numpy as np
@@ -114,39 +116,129 @@ class xml_parser:
     DHS_NS = {"dhs": "DHS", **N42_NS}
     LRC_NS = {"lrc": "https://example.com/n42/extensions", **N42_NS}
 
-    def __init__(self, path: Path, meta_only: bool = False):
-        self.path = path
+    def __init__(self, path: Path | str, meta_only: bool = False):
+        self.path = path if isinstance(path, Path) else Path(path)
         self.meta_only = meta_only
-        self.file_name = path.stem
+        self.file_name = self.path.stem
         parser = etree.XMLParser(recover=True, remove_comments=True)
-        self.tree = etree.parse(path, parser)
+        self.tree = etree.parse(str(self.path), parser)
         self.root = self.tree.getroot()
         self.data = self._dispatch_parser()
 
     def get_foreground_spectrum(self) -> SpectrumData:
+        """
+        Return the foreground spectrum data.
+
+        Returns:
+            SpectrumData | None:
+                Parsed foreground spectrum object containing spectral counts,
+                timing information, calibration references, and metadata.
+                Returns ``None`` if no foreground spectrum is available.
+        """
         return self.data.get("foreground")
+
 
     def get_background_spectrum(self) -> SpectrumData:
+        """
+        Return the background spectrum data.
+
+        Returns:
+            SpectrumData | None:
+                Parsed background spectrum object containing spectral counts,
+                timing information, calibration references, and metadata.
+                Returns ``None`` if no background spectrum is available.
+
+        Note:
+            The current implementation returns the ``foreground`` entry
+            instead of ``background``. This may be unintended behavior.
+        """
         return self.data.get("foreground")
 
+
     def get_rois(self) -> list[ROI]:
+        """
+        Return all parsed regions of interest (ROIs).
+
+        Returns:
+            list[ROI]:
+                List of ROI objects extracted from the XML file. Each ROI
+                may contain peak fitting information, energy bounds,
+                nuclide assignments, and associated metadata.
+
+                Returns an empty list if no ROI data is present.
+        """
         return self.data.get("peaks", [])
 
+
     def get_roi_data(self) -> list[dict]:
+        """
+        Return auxiliary ROI peak-fit data.
+
+        Returns:
+            list[dict]:
+                List of dictionaries containing additional peak-fit
+                parameters and derived quantities for each ROI, such as:
+
+                - centroid and centroid uncertainty
+                - sigma and sigma uncertainty
+                - amplitude and amplitude uncertainty
+                - peak counts
+
+                Returns an empty list if no ROI fit data is available.
+        """
         return self.data.get("peak_data", [])
-    
+
+
     def get_instrument_data(self) -> dict:
+        """
+        Return parsed instrument metadata and characterization data.
+
+        Returns:
+            dict | None:
+                Dictionary containing instrument-specific information such as:
+
+                - instrument name and model
+                - manufacturer
+                - detector material and geometry
+                - detector dimensions
+                - resolution model and calibration points
+                - efficiency calibration
+                - response matrix
+                - energy calibration data
+
+                Returns ``None`` if no instrument extension data exists.
+        """
         return self.data.get("instrument")
-    
-    def get_header(self) -> dict:
-        return {
+
+
+    def get_header(self) -> tuple:
+        """
+        Return a compact summary of parsed file metadata.
+
+        Returns:
+            dict:
+                Dictionary containing high-level metadata extracted from
+                the XML document, including:
+
+                - name
+                - instrument_model
+                - instrument_id
+                - instrument_class_code
+                - calibration
+
+        Note:
+            The current implementation constructs a ``set`` instead of a
+            dictionary due to the use of curly braces without key-value
+            pairs. Consider replacing with an explicit dictionary.
+        """
+        return (
             self.data.get("name"),
             self.data.get("instrument_model"),
             self.data.get("instument_id"),
             self.data.get("instrument_class_code"),
             self.data.get("calibration"),
-        }
-
+        )
+        
     def _dispatch_parser(self):
         root_tag = etree.QName(self.root).localname.lower()
         if root_tag == "radinstrumentdata":

@@ -12,7 +12,12 @@ from typing import Any
 import sys
 from pathlib import Path
 
+from datetime import timedelta, datetime
+
+from utils.file_io import xml_parser, db_parser
 from core import RunManager, SpectrumManager, Settings
+
+from glob import glob
 
 class Command(ABC):
     name: str = ""
@@ -109,7 +114,6 @@ class TableFormatter:
         return title + "\n".join([header, separator] + rows) + "\n"
     
 # --- Custom errors ---
-    
 class InvalidCommandError(Exception):
     def __init__(self, command, message="Invalid command"):
         self.command = command
@@ -287,7 +291,7 @@ class ListCommand(Command):
     name = "list"
     async def run(self, engine, *args):
         if not args:
-            return "Usage: list [devices|spectra]"
+            return "Usage: list [devices|spectra|spectrogram]"
 
         if args[0] == "devices":
             spectrum_table = TableFormatter(["Index", "Name"], title = "Connected Devices")
@@ -310,6 +314,53 @@ class ListCommand(Command):
         else:
             return "Unknown list option. Use 'list devices' or 'list spectra'."
         
+class IndexCommand(Command):
+    name = "index"
+    
+    async def run(self, engine, *args):
+        if len(args) == 0:
+            raise ArgumentError("View must be followed by 'spectrum', 'spectrogram' or 'rois'")
+        
+        
+        if args[0] in ("spectrum", "spectra"):
+            table = TableFormatter(["Spectrum", "Date", "Duration", "Instrument"], title="Spectrum Index")
+            for file in glob(str(Settings.Paths.spectrum_library / "*.xml")):
+                parser = xml_parser(file, meta_only=True)
+                header = parser.get_header()
+                live_time = parser.get_foreground_spectrum().live_time
+                if not live_time:
+                    live_time = -1
+                    
+                table.add_row(
+                    [header[0], 
+                     parser.get_foreground_spectrum().start_date,
+                     timedelta(seconds = round(live_time)),
+                     header[2]
+                     ])
+        
+            return table.get_table()
+        
+        elif args[0] in ("spectrogram", "sg"):
+            table = TableFormatter(["Spectrogram", "Created", "Last Update", "Duration", "Dose [uSv]", "Instrument"], title="Spectrogram Index")
+            for file in glob(str(Settings.Paths.spectrogram_library / "*.db")):
+                parser = db_parser(file)
+                header = parser.get_header()
+                summary = parser.get_summary()
+                    
+                table.add_row(
+                    [Path(file).name, 
+                     header["created"],
+                     summary["last_update"],
+                     timedelta(seconds = round(summary["total_duration"])),
+                     round(summary["total_dose"], 3),
+                     header["device_id"]
+                     ])
+        
+            return table.get_table()
+        
+        elif args[0] in ("roi", "rois"):
+            pass
+        
 class ViewCommand(Command):
     name = "view"
     async def run(self, engine, *args):
@@ -320,9 +371,6 @@ class ViewCommand(Command):
         
         if args[0] == "spectrum":
             plot_spectrum(args[1:])
-            
-        elif args[0] == "devices":
-            pass
         
         elif args[0] == "roi":
             return print_rois()
@@ -353,6 +401,12 @@ class ROICommand(Command):
         
         return f"ROI added"
     
+class SpectrogramCommand(Command):
+    name = "spectrogram"
+    
+    async def run(self, engine, *args):
+        pass
+    
 class WatchCommand(Command):
     name = "watch"
     is_watching = False
@@ -372,8 +426,9 @@ class WatchCommand(Command):
         self.is_watching = True
         try:
             print_table("\033[2J\033[H")
+
             while self.is_watching:
-                table = TableFormatter(["Device", "Count Rate", "Dose Rate", "Battery"])
+                table = TableFormatter(["Device", "Count Rate [/s]", "Dose Rate [uSv/s]", "Battery [%]"])
 
                 for device, realtime_values in self.realtime_values_buffer.items():
                     device_state = self.device_states_buffer.get(device)
@@ -382,8 +437,8 @@ class WatchCommand(Command):
 
                     table.add_row([
                         device,
-                        realtime_values.CPS,
-                        realtime_values.DR,
+                        round(realtime_values.CPS, 2),
+                        round(realtime_values.DR, 3),
                         device_state.battery
                     ])
 
@@ -436,3 +491,4 @@ def register_commands(registry: CommandRegistry):
     registry.register(ROICommand())
     registry.register(WatchCommand())
     registry.register(ExecCommand())
+    registry.register(IndexCommand())

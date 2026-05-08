@@ -223,13 +223,12 @@ class ROIManager(QObject):
 
         new_roi.sigSelected.connect(self.select_roi)
         new_roi.sigSettingsUpdated.connect(self.propagrade_roi_settings_change)
-
-        self.on_roi_change(roi_tag=new_roi.tag)
         
+        self.sigROICreated.emit(new_roi)
         return new_roi
 
     def remove_roi(self, roi_tag: str) -> None:
-        "Remove a ROI based the tag"
+        "Remove a ROI based the tag"        
         popped_roi = self.ROIs.pop(roi_tag, None)
         if not popped_roi:
             return
@@ -237,7 +236,15 @@ class ROIManager(QObject):
             spect.remove_roi(roi_tag)
         self.sigROIDeleted.emit(popped_roi)
         self.roi_groupings = self.calculate_roi_groups()
-        self.update_roi()
+
+        # Fix roi color after removal and update calculations
+        updated_tags = set()
+        for g in self.roi_groupings:
+            for r in g:
+                if r not in updated_tags:
+                    self.on_roi_change(r)
+                    updated_tags.add(r)
+            
 
     def clear_all(self) -> None:
         "Remove all rois"
