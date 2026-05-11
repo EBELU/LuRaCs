@@ -7,7 +7,9 @@ from collections import deque
 import traceback
 
 from core import RunManager, Log, Settings, SpectrumManager
-from utils.console_commands import register_commands, CommandRegistry, ArgumentError, InvalidCommandError, ActiveGUIError
+from .script_engine_components.exceptions import ArgumentError, InvalidCommandError, ActiveGUIError
+from .script_engine_components.registry import CommandRegistry
+from .script_engine_components.commands import register_commands
 
 from prompt_toolkit import PromptSession, print_formatted_text
 from prompt_toolkit.patch_stdout import patch_stdout

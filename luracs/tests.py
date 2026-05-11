@@ -1,6 +1,6 @@
 from utils.file_io import xml_parser, xml_writer, io_dispatcher
-from SpectrumClasses import Spectrum
-from InstrumentClasses import GenericInstrument, UniqueInstrument
+from luracs.containers.spectrum_classes import Spectrum
+from luracs.containers.instrument_classes import GenericInstrument, UniqueInstrument
 from dataclasses import dataclass
 from datetime import datetime
 import numpy as np

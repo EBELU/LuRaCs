@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ROIClasses import ROI, Fit
+    from luracs.containers.roi_classes import ROI, Fit
 from PySide6.QtWidgets import (
     QWidget,
     QGroupBox,

@@ -46,7 +46,7 @@ from PySide6.QtWidgets import QAbstractItemView
 
 
 from core import RunManager, Settings
-from utils.DataLogging import WrappedSpectrogramData, start_logger, restart_logger
+from containers.spectrogram import WrappedSpectrogramData, start_logger, restart_logger
 
 
 def combobox_has_data(combobox, target):

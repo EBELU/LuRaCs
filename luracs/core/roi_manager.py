@@ -1,6 +1,6 @@
 from PySide6.QtCore import Signal, QObject
 from PySide6.QtGui import QColor
-from ROIClasses import DeletableROI, Fit, ROI
+from containers.roi_classes import DeletableROI, Fit, ROI
 from core import Settings
 import numpy as np
 from utils.numerics import (
@@ -10,7 +10,7 @@ from utils.numerics import (
     multi_gaussian_jacobian,
 )
 import pyqtgraph as pg
-from SpectrumClasses import Spectrum
+from containers.spectrum_classes import Spectrum
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

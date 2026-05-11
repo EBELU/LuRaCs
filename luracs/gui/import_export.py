@@ -5,10 +5,10 @@ from PySide6.QtCore import QObject, Signal
 
 import utils.file_io as file_io
 from core import SpectrumManager, Settings
-from ROIClasses import ROI
-from SpectrumClasses import Spectrum
+from containers.roi_classes import ROI
+from containers.spectrum_classes import Spectrum
 from .popup_windows.save_dialog import SaveNamingDialog
-from InstrumentClasses import GenericInstrument, UniqueInstrument
+from containers.instrument_classes import GenericInstrument, UniqueInstrument
 
 
 class FileDialogs(QObject):

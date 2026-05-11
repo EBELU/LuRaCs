@@ -5,7 +5,7 @@ if TYPE_CHECKING:
     from core.spectrum_manager import SpectrumManagerBase
     from PySide6.QtGui import QColor
 from PySide6.QtCore import QObject, Signal
-from NuclideClasses import Nuclide, Emission
+from containers.nuclide_classes import Nuclide, Emission
 import numpy as np
 from collections import Counter
 

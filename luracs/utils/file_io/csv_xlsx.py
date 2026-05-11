@@ -6,7 +6,7 @@ import openpyxl as pyxl
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from SpectrumClasses import Spectrum
+    from luracs.containers.spectrum_classes import Spectrum
     from pathlib import Path
 
 

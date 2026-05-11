@@ -2,13 +2,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ROIClasses import ROI
+    from luracs.containers.roi_classes import ROI
 
 import numpy as np
 from dataclasses import dataclass
 from PySide6.QtGui import QColor
 from datetime import datetime
-from InstrumentClasses import UniqueInstrument
+from containers.instrument_classes import UniqueInstrument
 
 
 @dataclass

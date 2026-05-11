@@ -1,6 +1,6 @@
 from pathlib import Path
-from SpectrumClasses import Spectrum, SpectrumData
-from ROIClasses import ROI, Fit
+from containers.spectrum_classes import Spectrum, SpectrumData
+from containers.roi_classes import ROI, Fit
 import openpyxl as pyxl
 from .dispatcher import io_dispatcher
 from .xml_parser import xml_parser

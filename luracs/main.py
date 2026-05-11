@@ -45,7 +45,7 @@ from gui.tabs import (
 print_progress("Loading utils", 5)
 from gui.import_export import FileDialogs
 from ThemeManager import ThemeManager
-from utils.ArgParser import parse_cli_args
+from utils.arg_parser import parse_cli_args
 from utils.startup import startup_script
 
 from core import RunManager, Log, Settings, SpectrumManager

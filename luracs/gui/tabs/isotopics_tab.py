@@ -330,7 +330,7 @@ class IsotopicsTab(QWidget):
         title_str = f"| {nuc.element} | {nuc.nuclide} |"
         separator = "="*len(title_str)
         
-        daughters = "\n".join([f"{n} {p}%" for n, p in nuc.daughters])
+        daughters = "\n".join([f"{d.replace("alpha", "α").replace("B", "β")} {n} {p}%" for d, n, p in nuc.daughters])
 
         self.nuclides_info_textbox.setText(
             f"{separator}\n"

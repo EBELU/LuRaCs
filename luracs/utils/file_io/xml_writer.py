@@ -2,10 +2,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from SpectrumClasses import Spectrum, SpectrumData
-    from ROIClasses import ROI, Fit
+    from containers.spectrum_classes import Spectrum, SpectrumData
+    from containers.roi_classes import ROI, Fit
 
-from InstrumentClasses import GenericInstrument, UniqueInstrument
+from containers.instrument_classes import GenericInstrument, UniqueInstrument
 from lxml import etree
 from uuid import uuid4
 from datetime import datetime, timezone

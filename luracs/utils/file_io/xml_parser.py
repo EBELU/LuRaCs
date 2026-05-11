@@ -10,9 +10,9 @@ from datetime import datetime
 import numpy as np
 from lxml import etree
 
-from SpectrumClasses import SpectrumData
-from NuclideClasses import Emission
-from ROIClasses import ROI, Fit
+from containers.spectrum_classes import SpectrumData
+from containers.nuclide_classes import Emission
+from containers.roi_classes import ROI, Fit
 from utils.numerics.compression import decode_base64, decompress_spectrum
 
 

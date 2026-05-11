@@ -26,9 +26,9 @@ from PySide6.QtCore import Qt
 from ..misc.idx_table import StrIdxTable
 from utils.file_io import io_dispatcher
 from core import Settings, SpectrumManager
-from utils.DataLogging import restart_logger
+from containers.spectrogram import restart_logger
 from .data_store_edit_dialogs import InstrumentDialog
-from InstrumentClasses import UniqueInstrument, GenericInstrument
+from containers.instrument_classes import UniqueInstrument, GenericInstrument
 
 import os
 import shutil

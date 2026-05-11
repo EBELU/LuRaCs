@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from core.nuclide_library import NuclideLibrary
 
-from NuclideClasses import Emission
+from containers.nuclide_classes import Emission
 
 from PySide6.QtCore import Signal, Qt
 from pyqtgraph import LinearRegionItem

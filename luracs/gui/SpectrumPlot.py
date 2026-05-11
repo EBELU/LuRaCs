@@ -14,7 +14,7 @@ import numpy as np
 
 from core import SpectrumManager, Settings
 
-from SpectrumClasses import Spectrum
+from containers.spectrum_classes import Spectrum
 
 from utils.numerics import multi_gaussian
 

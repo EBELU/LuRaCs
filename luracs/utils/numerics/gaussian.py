@@ -1,5 +1,5 @@
 import numpy as np
-from ROIClasses import Fit
+from containers.roi_classes import Fit
 
 
 def multi_gaussian(x, params):

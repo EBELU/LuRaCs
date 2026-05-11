@@ -1,4 +1,4 @@
-from NuclideClasses import Nuclide, Emission
+from containers.nuclide_classes import Nuclide, Emission
 from core import SpectrumManager, Settings
 import json
 import glob

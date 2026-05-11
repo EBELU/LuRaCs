@@ -1,10 +1,10 @@
-from SpectrumClasses import Spectrum, SpectrumData
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QColor
 from clients.DeviceWrappers import WrappedSpectrumPackage
 from datetime import datetime, timedelta
 
-from InstrumentClasses import GenericInstrument, UniqueInstrument
+from containers.instrument_classes import GenericInstrument, UniqueInstrument
+from containers.spectrum_classes import Spectrum, SpectrumData
 
 from .gui_logger import gui_logger
 from .roi_manager import ROIManager
