@@ -1,0 +1,27 @@
+{
+    "citation_ref": "LNHB Volume 6",
+    "Nuclide": "Pa-234m",
+    "Element": "Protactinium",
+    "Z": "91",
+    "Daughters": [
+        [
+            "(I.T.)",
+            "Pa-234",
+            0.15
+        ],
+        [
+            "(B-)",
+            "U-234",
+            99.85
+        ]
+    ],
+    "Half-life (s)": [
+        69.5,
+        0.7
+    ],
+    "Specific activity (Bq/g)": [
+        2.565e+19,
+        2.4e+17
+    ],
+    "Emissions": []
+}

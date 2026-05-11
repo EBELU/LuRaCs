@@ -1,10 +1,11 @@
 {
-    "lnhb_volume": 7,
+    "citation_ref": "LNHB Volume 7",
     "Nuclide": "Th-228",
     "Element": "Thorium",
     "Z": "90",
     "Daughters": [
         [
+            "(alpha)",
             "Ra-224",
             100.0
         ]

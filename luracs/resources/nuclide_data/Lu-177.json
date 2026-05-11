@@ -1,10 +1,11 @@
 {
-    "lnhb_volume": 25,
+    "citation_ref": "LNHB Volume 25",
     "Nuclide": "Lu-177",
     "Element": "Lutetium",
     "Z": "71",
     "Daughters": [
         [
+            "(B-)",
             "Hf-177",
             100.0
         ]

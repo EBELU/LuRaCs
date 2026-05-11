@@ -11,11 +11,13 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QLabel,
     QColorDialog,
+    QSpinBox
 )
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtGui import QColor, QPainter, QBrush, QAction, QFont
 
-from core import SpectrumManager
+from core import SpectrumManager, Settings
+from utils.numerics import find_peaks
 
 from textwrap import dedent
 
@@ -179,6 +181,10 @@ class IsotopicsTab(QWidget):
 
         self.sigListItemClicked.connect(self.change_nuclide_info)
         self.sigViewCheckChanged.connect(SpectrumManager.NuclideLibrary._track_selected_nuclies)
+        
+        SpectrumManager.Signals.spectrumCreated.connect(self.set_search_combo)
+        SpectrumManager.Signals.spectrumRemoved.connect(self.set_search_combo)
+        
 
         main_layout = QHBoxLayout(self)
 
@@ -197,7 +203,7 @@ class IsotopicsTab(QWidget):
         
         self.all_nuclides = all_nuclides
         
-        for nuclide in sorted([*self.all_nuclides, *SpectrumManager.NuclideLibrary.decay_chains.keys()]):
+        for nuclide in sorted([*self.all_nuclides, *SpectrumManager.NuclideLibrary.decay_chains.keys()], key=lambda x: int(x.removesuffix("-- Chain").split("-")[1].removesuffix("m"))):
             self.add_nuclide(
                             nuclide, "blue", 
                             is_chain = True if "Chain" in nuclide else False
@@ -220,11 +226,19 @@ class IsotopicsTab(QWidget):
 
 
         self.btn_search_peaks = QPushButton("Search peaks")
+        self.btn_search_peaks.clicked.connect(self.peak_finder)
 
         self.search_spect_combo = QComboBox()
+        
+        self.search_window_length = QSpinBox()
+        self.search_window_length.setRange(3, 1001)
+        self.search_window_length.setSingleStep(2)
+        self.search_window_length.setValue(31)
 
         peak_search_layout.addWidget(self.btn_search_peaks)
         peak_search_layout.addWidget(self.search_spect_combo)
+        peak_search_layout.addWidget(QLabel("Channels in Search Window"))
+        peak_search_layout.addWidget(self.search_window_length)
         peak_search_layout.addStretch()
 
         nuclides_list_layout.setContentsMargins(0, 0, 0, 0)
@@ -318,21 +332,49 @@ class IsotopicsTab(QWidget):
         
         daughters = "\n".join([f"{n} {p}%" for n, p in nuc.daughters])
 
-        self.nuclides_info_textbox.setText(dedent(
-f"""{separator}
-{title_str}
-{separator}
-Half-Life = {format_duration(nuc.half_life_s[0])}
-Z = {nuc.Z}
+        self.nuclides_info_textbox.setText(
+            f"{separator}\n"
+            f"{title_str}\n"
+            f"{separator}\n"
+            f"Half-Life = {format_duration(nuc.half_life_s[0])}\n"
+            f"Z = {nuc.Z}\n\n"
+            "Emissions:\n"
+            f"{format_emissions(nuc.emissions)}\n\n"
+            "Daughter Products:\n"
+            f"{daughters}\n\n"
+            f"LNHB citation volume: {nuc.citation_ref}\n"
+            "(see bibliography)"
+        )
 
-
-Emissions:
-{format_emissions(nuc.emissions)}
-
-Daughter Products:
-{daughters}
-
-LNHB citation volume: {nuc.lnhb_volume}
-(see bibliography)
-        """
-).strip())
+    def peak_finder(self):
+        spectrum_key = self.search_spect_combo.currentData()
+        
+        spectrum = SpectrumManager.get_spectrum(spectrum_key)
+        if spectrum is None:
+            return
+        
+        if SpectrumManager.ROIManager.spectrum_is_bkg_sub:
+            y_data = spectrum.get_bkg_sub()
+        else:
+            y_data = spectrum.get_foreground()
+        
+        peaks = find_peaks(y_data)
+        
+        for le, p, re in peaks:
+            le_e, re_e = spectrum.x_axis[le], spectrum.x_axis[re]
+            
+            width_threshold = 75 if re_e < 250 else 250
+            
+            if abs(le_e - re_e) < width_threshold:            
+                SpectrumManager.ROIManager.add_roi(le_e, re_e)
+            
+    def set_search_combo(self):
+        self.search_spect_combo.clear()
+        if Settings.Appearance.tabbed_spectrum_view:
+            self.search_spect_combo.setEnabled(False)
+        else:
+            self.search_spect_combo.setEnabled(True)
+            for key, spectrum in SpectrumManager.get_spectra_dict().items():
+                self.search_spect_combo.addItem(spectrum.name, key)
+        
+        

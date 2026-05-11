@@ -1,0 +1,101 @@
+{
+    "citation_ref": "LNHB Volume 4",
+    "Nuclide": "Pb-214",
+    "Element": "Lead",
+    "Z": "82",
+    "Daughters": [
+        [
+            "(B-)",
+            "Bi-214",
+            100.0
+        ]
+    ],
+    "Parents": [
+        [
+            "Po-218",
+            99.978
+        ]
+    ],
+    "Half-life (s)": [
+        1615.0,
+        2.6
+    ],
+    "Specific activity (Bq/g)": [
+        1.2078e+18,
+        2000000000000000.0
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 53.2275,
+            "Energy error (keV)": 0.0021,
+            "I (%)": 1.06,
+            "I error (%)": 0.007,
+            "Type": "g",
+            "Origin": "Bi-214"
+        },
+        {
+            "Energy (keV)": 74.8157,
+            "Energy error (keV)": -1,
+            "I (%)": 6.26,
+            "I error (%)": 0.12,
+            "Type": "x-ray",
+            "Origin": "Bi-214"
+        },
+        {
+            "Energy (keV)": 77.1088,
+            "Energy error (keV)": -1,
+            "I (%)": 10.47,
+            "I error (%)": 0.2,
+            "Type": "x-ray",
+            "Origin": "Bi-214"
+        },
+        {
+            "Energy (keV)": 87.347,
+            "Energy error (keV)": -1,
+            "I (%)": 3.59,
+            "I error (%)": 0.09,
+            "Type": "x-ray",
+            "Origin": "Bi-214"
+        },
+        {
+            "Energy (keV)": 90.0757,
+            "Energy error (keV)": -1,
+            "I (%)": 1.1,
+            "I error (%)": 0.04,
+            "Type": "x-ray",
+            "Origin": "Bi-214"
+        },
+        {
+            "Energy (keV)": 241.997,
+            "Energy error (keV)": 0.003,
+            "I (%)": 7.268,
+            "I error (%)": 0.022,
+            "Type": "g",
+            "Origin": "Bi-214"
+        },
+        {
+            "Energy (keV)": 295.224,
+            "Energy error (keV)": 0.002,
+            "I (%)": 18.414,
+            "I error (%)": 0.036,
+            "Type": "g",
+            "Origin": "Bi-214"
+        },
+        {
+            "Energy (keV)": 351.932,
+            "Energy error (keV)": 0.002,
+            "I (%)": 35.6,
+            "I error (%)": 0.07,
+            "Type": "g",
+            "Origin": "Bi-214"
+        },
+        {
+            "Energy (keV)": 785.96,
+            "Energy error (keV)": 0.09,
+            "I (%)": 1.064,
+            "I error (%)": 0.013,
+            "Type": "g",
+            "Origin": "Bi-214"
+        }
+    ]
+}

@@ -1,14 +1,16 @@
 {
-    "lnhb_volume": 6,
+    "citation_ref": "LNHB Volume 6",
     "Nuclide": "Ac-228",
     "Element": "Actinium",
     "Z": "89",
     "Daughters": [
         [
+            "(B-)",
             "Th-228",
             100.0
         ],
         [
+            "(alpha)",
             "Fr-224",
             5.5e-06
         ]

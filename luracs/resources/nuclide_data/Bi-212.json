@@ -1,14 +1,16 @@
 {
-    "lnhb_volume": 2,
+    "citation_ref": "LNHB Volume 2",
     "Nuclide": "Bi-212",
     "Element": "Bismuth",
     "Z": "83",
     "Daughters": [
         [
+            "(B-)",
             "Po-212",
             64.07
         ],
         [
+            "(alpha)",
             "Tl-208",
             35.93
         ]

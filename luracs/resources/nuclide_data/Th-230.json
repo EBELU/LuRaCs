@@ -1,0 +1,28 @@
+{
+    "citation_ref": "ChemLin.org & Wikipedia",
+    "Nuclide": "Th-230",
+    "Element": "Thorium",
+    "Z": "90",
+    "Daughters": [
+        [
+            "(alpha)",
+            "Rn-226",
+            100.0
+        ]
+    ],
+    "Parents": [
+        [
+            "U-234",
+            100.0
+        ]
+    ],
+    "Half-life (s)": [
+        3.43280628809e+12,
+        0
+    ],
+    "Specific activity (Bq/g)": [
+        762735177.36727,
+        0
+    ],
+    "Emissions": []
+}

@@ -21,7 +21,7 @@ class Nuclide:
     daughters: List[Tuple[str, float]]
     half_life_s: Tuple[float, float]
     specific_activity_Bq_per_g: Tuple[float, float]
-    lnhb_volume: int
+    citation_ref: str
     emissions: List[Emission]
     
 EmptyEmission = Emission(

@@ -1,0 +1,33 @@
+{
+    "citation_ref": "LNHB Volume 4",
+    "Nuclide": "Bi-210",
+    "Element": "Bismuth",
+    "Z": "83",
+    "Daughters": [
+        [
+            "(B-)",
+            "Po-210",
+            99.99986
+        ],
+        [
+            "(alpha)",
+            "Tl-206",
+            0.00014
+        ]
+    ],
+    "Parents": [
+        [
+            "Pb-210",
+            100.0
+        ]
+    ],
+    "Half-life (s)": [
+        432950.0,
+        430.0
+    ],
+    "Specific activity (Bq/g)": [
+        4591100000000000.0,
+        4600000000000.0
+    ],
+    "Emissions": []
+}

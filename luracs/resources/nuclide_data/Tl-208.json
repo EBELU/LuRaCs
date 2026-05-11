@@ -1,10 +1,11 @@
 {
-    "lnhb_volume": 7,
+    "citation_ref": "LNHB Volume 7",
     "Nuclide": "Tl-208",
     "Element": "Thallium",
     "Z": "81",
     "Daughters": [
         [
+            "(B-)",
             "Pb-208",
             100.0
         ]

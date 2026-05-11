@@ -1,10 +1,11 @@
 {
-    "lnhb_volume": 5,
+    "citation_ref": "LNHB Volume 5",
     "Nuclide": "Am-241",
     "Element": "Americium",
     "Z": "95",
     "Daughters": [
         [
+            "(alpha)",
             "Np-237",
             100.0
         ]

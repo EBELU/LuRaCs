@@ -1,0 +1,53 @@
+{
+    "citation_ref": "LNHB Volume 3",
+    "Nuclide": "U-234",
+    "Element": "Uranium",
+    "Z": "92",
+    "Daughters": [
+        [
+            "(alpha)",
+            "Th-230",
+            100.0
+        ]
+    ],
+    "Parents": [
+        [
+            "Pa-234",
+            100.0
+        ],
+        [
+            "Pa-234m",
+            99.85
+        ],
+        [
+            "Pu-238",
+            100.0
+        ]
+    ],
+    "Half-life (s)": [
+        7747000000000.0,
+        19000000000.0
+    ],
+    "Specific activity (Bq/g)": [
+        230300000.0,
+        600000.0
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 4722.4,
+            "Energy error (keV)": 0.7,
+            "I (%)": 28.42,
+            "I error (%)": 0.02,
+            "Type": "x-ray",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 4774.6,
+            "Energy error (keV)": 0.7,
+            "I (%)": 71.37,
+            "I error (%)": 0.02,
+            "Type": "x-ray",
+            "Origin": "U-234"
+        }
+    ]
+}

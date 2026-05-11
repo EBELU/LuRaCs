@@ -1,0 +1,42 @@
+{
+    "citation_ref": "LNHB Volume 4",
+    "Nuclide": "Po-218",
+    "Element": "Polonium",
+    "Z": "84",
+    "Daughters": [
+        [
+            "(B-)",
+            "At-218",
+            0.022
+        ],
+        [
+            "(alpha)",
+            "Pb-214",
+            99.978
+        ]
+    ],
+    "Parents": [
+        [
+            "Rn-222",
+            100.0
+        ]
+    ],
+    "Half-life (s)": [
+        184.3,
+        1.3
+    ],
+    "Specific activity (Bq/g)": [
+        1.039e+19,
+        7e+16
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 6002.35,
+            "Energy error (keV)": 0.09,
+            "I (%)": 99.9769,
+            "I error (%)": 0.0032,
+            "Type": "x-ray",
+            "Origin": "Po-218"
+        }
+    ]
+}

@@ -1,14 +1,16 @@
 {
-    "lnhb_volume": 99,
+    "citation_ref": "LNHB Volume 99",
     "Nuclide": "Ir-192",
     "Element": "Iridium",
     "Z": "77",
     "Daughters": [
         [
+            "(EC)",
             "Os-192",
             4.87
         ],
         [
+            "(B-)",
             "Pt-192",
             95.13
         ]

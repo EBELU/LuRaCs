@@ -1,0 +1,46 @@
+{
+    "citation_ref": "LNHB Volume 4",
+    "Nuclide": "Pb-210",
+    "Element": "Lead",
+    "Z": "82",
+    "Daughters": [
+        [
+            "(B-)",
+            "Bi-210",
+            100.0
+        ],
+        [
+            "(alpha)",
+            "Hg-206",
+            1.9e-06
+        ]
+    ],
+    "Parents": [
+        [
+            "Tl-210",
+            100.0
+        ],
+        [
+            "Po-214",
+            100.0
+        ]
+    ],
+    "Half-life (s)": [
+        701500000.0,
+        3800000.0
+    ],
+    "Specific activity (Bq/g)": [
+        2833000000000.0,
+        15000000000.0
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 46.539,
+            "Energy error (keV)": 0.001,
+            "I (%)": 4.252,
+            "I error (%)": 0.04,
+            "Type": "g",
+            "Origin": "Bi-210"
+        }
+    ]
+}

@@ -30,8 +30,8 @@ def nuclide_from_json(data: dict) -> Nuclide:
         nuclide=data["Nuclide"],
         element=data["Element"],
         Z=int(data["Z"]),
-        daughters=[(d[0], float(d[1])) for d in data["Daughters"]],
-        lnhb_volume=int(data["lnhb_volume"]),
+        daughters=[(d[0], d[1], float(d[2])) for d in data["Daughters"]],
+        citation_ref=data["citation_ref"],
         half_life_s=(
             float(data["Half-life (s)"][0]),
             float(data["Half-life (s)"][1]),

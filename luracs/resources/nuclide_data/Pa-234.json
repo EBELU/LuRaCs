@@ -1,0 +1,441 @@
+{
+    "citation_ref": "LNHB Volume 6",
+    "Nuclide": "Pa-234",
+    "Element": "Protactinium",
+    "Z": "91",
+    "Daughters": [
+        [
+            "(B-)",
+            "U-234",
+            100.0
+        ]
+    ],
+    "Parents": [
+        [
+            "Pa-234m",
+            0.15
+        ],
+        [
+            "Th-234",
+            100.0
+        ]
+    ],
+    "Half-life (s)": [
+        24120.0,
+        180.0
+    ],
+    "Specific activity (Bq/g)": [
+        7.4e+16,
+        600000000000000.0
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 62.7,
+            "Energy error (keV)": 0.01,
+            "I (%)": 1.6,
+            "I error (%)": 0.5,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 94.666,
+            "Energy error (keV)": -1,
+            "I (%)": 12.4,
+            "I error (%)": 0.8,
+            "Type": "x-ray",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 98.44,
+            "Energy error (keV)": -1,
+            "I (%)": 19.8,
+            "I error (%)": 1.2,
+            "Type": "x-ray",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 99.86,
+            "Energy error (keV)": 0.02,
+            "I (%)": 3.2,
+            "I error (%)": 0.6,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 111.2277,
+            "Energy error (keV)": -1,
+            "I (%)": 7.1,
+            "I error (%)": 0.5,
+            "Type": "x-ray",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 114.932,
+            "Energy error (keV)": -1,
+            "I (%)": 2.44,
+            "I error (%)": 0.16,
+            "Type": "x-ray",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 131.3,
+            "Energy error (keV)": 0.01,
+            "I (%)": 18.2,
+            "I error (%)": 1.6,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 152.71,
+            "Energy error (keV)": 0.02,
+            "I (%)": 6.0,
+            "I error (%)": 0.7,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 186.15,
+            "Energy error (keV)": 0.02,
+            "I (%)": 1.78,
+            "I error (%)": 0.19,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 203.12,
+            "Energy error (keV)": 0.03,
+            "I (%)": 1.24,
+            "I error (%)": 0.15,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 226.5,
+            "Energy error (keV)": 0.03,
+            "I (%)": 4.9,
+            "I error (%)": 0.6,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 227.25,
+            "Energy error (keV)": 0.03,
+            "I (%)": 5.8,
+            "I error (%)": 0.6,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 249.22,
+            "Energy error (keV)": 0.01,
+            "I (%)": 2.5,
+            "I error (%)": 0.4,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 272.28,
+            "Energy error (keV)": 0.05,
+            "I (%)": 1.09,
+            "I error (%)": 0.14,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 293.79,
+            "Energy error (keV)": 0.05,
+            "I (%)": 3.0,
+            "I error (%)": 0.4,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 369.5,
+            "Energy error (keV)": 0.05,
+            "I (%)": 2.5,
+            "I error (%)": 0.3,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 372.0,
+            "Energy error (keV)": 0.1,
+            "I (%)": 1.23,
+            "I error (%)": 0.14,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 458.68,
+            "Energy error (keV)": 0.05,
+            "I (%)": 1.14,
+            "I error (%)": 0.12,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 506.75,
+            "Energy error (keV)": 0.05,
+            "I (%)": 1.3,
+            "I error (%)": 0.14,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 565.2,
+            "Energy error (keV)": 0.1,
+            "I (%)": 1.04,
+            "I error (%)": 0.11,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 568.9,
+            "Energy error (keV)": 0.2,
+            "I (%)": 3.6,
+            "I error (%)": 0.6,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 569.5,
+            "Energy error (keV)": 0.1,
+            "I (%)": 9.3,
+            "I error (%)": 1.2,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 666.5,
+            "Energy error (keV)": 0.1,
+            "I (%)": 1.18,
+            "I error (%)": 0.13,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 669.7,
+            "Energy error (keV)": 0.1,
+            "I (%)": 1.0,
+            "I error (%)": 0.1,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 692.6,
+            "Energy error (keV)": 0.1,
+            "I (%)": 1.25,
+            "I error (%)": 0.13,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 699.03,
+            "Energy error (keV)": 0.05,
+            "I (%)": 3.6,
+            "I error (%)": 0.4,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 705.9,
+            "Energy error (keV)": 0.1,
+            "I (%)": 2.29,
+            "I error (%)": 0.23,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 733.39,
+            "Energy error (keV)": 0.05,
+            "I (%)": 7.0,
+            "I error (%)": 0.8,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 738.0,
+            "Energy error (keV)": 0.1,
+            "I (%)": 1.16,
+            "I error (%)": 0.13,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 742.813,
+            "Energy error (keV)": 0.005,
+            "I (%)": 2.08,
+            "I error (%)": 0.21,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 755.0,
+            "Energy error (keV)": 0.1,
+            "I (%)": 1.23,
+            "I error (%)": 0.13,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 786.272,
+            "Energy error (keV)": 0.022,
+            "I (%)": 1.21,
+            "I error (%)": 0.13,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 796.1,
+            "Energy error (keV)": 0.1,
+            "I (%)": 2.6,
+            "I error (%)": 0.3,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 805.8,
+            "Energy error (keV)": 0.05,
+            "I (%)": 2.5,
+            "I error (%)": 0.3,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 819.2,
+            "Energy error (keV)": 0.1,
+            "I (%)": 1.9,
+            "I error (%)": 0.2,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 824.2,
+            "Energy error (keV)": 0.2,
+            "I (%)": 1.25,
+            "I error (%)": 0.15,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 825.1,
+            "Energy error (keV)": 0.2,
+            "I (%)": 1.9,
+            "I error (%)": 0.2,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 831.5,
+            "Energy error (keV)": 0.1,
+            "I (%)": 4.2,
+            "I error (%)": 0.5,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 876.0,
+            "Energy error (keV)": 0.1,
+            "I (%)": 2.55,
+            "I error (%)": 0.23,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 880.52,
+            "Energy error (keV)": 0.04,
+            "I (%)": 10.5,
+            "I error (%)": 1.0,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 883.24,
+            "Energy error (keV)": 0.04,
+            "I (%)": 9.7,
+            "I error (%)": 1.1,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 898.67,
+            "Energy error (keV)": 0.05,
+            "I (%)": 3.3,
+            "I error (%)": 0.4,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 925.0,
+            "Energy error (keV)": 0.1,
+            "I (%)": 7.9,
+            "I error (%)": 0.9,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 926.0,
+            "Energy error (keV)": 0.2,
+            "I (%)": 1.8,
+            "I error (%)": 1.3,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 926.7,
+            "Energy error (keV)": 0.1,
+            "I (%)": 7.3,
+            "I error (%)": 1.2,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 946.0,
+            "Energy error (keV)": 0.03,
+            "I (%)": 13.5,
+            "I error (%)": 1.5,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 947.7,
+            "Energy error (keV)": 0.2,
+            "I (%)": 1.63,
+            "I error (%)": 0.21,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 980.3,
+            "Energy error (keV)": 0.1,
+            "I (%)": 4.47,
+            "I error (%)": -1,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 984.2,
+            "Energy error (keV)": 0.1,
+            "I (%)": 1.63,
+            "I error (%)": 0.21,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 1352.9,
+            "Energy error (keV)": 0.1,
+            "I (%)": 1.16,
+            "I error (%)": 0.12,
+            "Type": "g",
+            "Origin": "U-234"
+        },
+        {
+            "Energy (keV)": 1393.9,
+            "Energy error (keV)": 0.1,
+            "I (%)": 2.08,
+            "I error (%)": 0.21,
+            "Type": "g",
+            "Origin": "U-234"
+        }
+    ]
+}

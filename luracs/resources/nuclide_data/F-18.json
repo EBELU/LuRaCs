@@ -1,10 +1,11 @@
 {
-    "lnhb_volume": 1,
+    "citation_ref": "LNHB Volume 1",
     "Nuclide": "F-18",
     "Element": "Fluorine",
     "Z": "9",
     "Daughters": [
         [
+            "(B+, EC)",
             "O-18",
             100.0
         ]

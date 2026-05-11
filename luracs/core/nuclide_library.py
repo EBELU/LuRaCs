@@ -31,22 +31,43 @@ class NuclideLibrary(QObject):
                 "Tl-208",  # alternative beta branch from Bi-212
                 "Pb-208"   # stable end product (via Tl-208)
             ],
-            "U-235 -- Chain": [
-                "U-235",
-                "Th-231",
-                "Pa-231",
-                "Ac-227",
-                "Th-227",
-                "Ra-223",
-                "Rn-219",
-                "Po-215",
-                "Pb-211",
-                "Bi-211",
+            "U-238 -- Chain": [
+                "U-238",
+                "Th-234",
+                "Pa-234",
+                "U-234",
+                "Th-230",
+                "Ra-226",
+                "Rn-222",
+                "Po-218",
+                "Pb-214",
+                "Bi-214",
                 # branch point:
-                "Po-211",  # -> Pb-207 (stable)
-                "Tl-207",  # -> Pb-207 (stable)
-                "Pb-207"   # stable end product
-            ]
+                "Po-214",  # alpha decay -> Pb-210
+                "Tl-210",  # rare beta branch from Bi-214
+                "Pb-210",
+                "Bi-210",
+                # branch point:
+                "Po-210",  # alpha decay -> Pb-206 (stable)
+                "Tl-206",  # rare beta branch from Bi-210
+                "Pb-206"   # stable end product
+            ],
+            # "U-235 -- Chain": [
+            #     "U-235",
+            #     "Th-231",
+            #     "Pa-231",
+            #     "Ac-227",
+            #     "Th-227",
+            #     "Ra-223",
+            #     "Rn-219",
+            #     "Po-215",
+            #     "Pb-211",
+            #     "Bi-211",
+            #     # branch point:
+            #     "Po-211",  # -> Pb-207 (stable)
+            #     "Tl-207",  # -> Pb-207 (stable)
+            #     "Pb-207"   # stable end product
+            # ]
         }
         self.selected_nuclides: set[str] = set()
         

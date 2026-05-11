@@ -1,0 +1,37 @@
+{
+    "citation_ref": "LNHB Volume 4",
+    "Nuclide": "Rn-222",
+    "Element": "Radon",
+    "Z": "86",
+    "Daughters": [
+        [
+            "(alpha)",
+            "Po-218",
+            100.0
+        ]
+    ],
+    "Parents": [
+        [
+            "Ra-226",
+            100.0
+        ]
+    ],
+    "Half-life (s)": [
+        330320.0,
+        70.0
+    ],
+    "Specific activity (Bq/g)": [
+        5692200000000000.0,
+        1200000000000.0
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 5489.48,
+            "Energy error (keV)": 0.3,
+            "I (%)": 99.92,
+            "I error (%)": 0.01,
+            "Type": "x-ray",
+            "Origin": "Rn-222"
+        }
+    ]
+}

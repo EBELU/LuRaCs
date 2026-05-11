@@ -1,0 +1,41 @@
+{
+    "citation_ref": "LNHB Volume 4",
+    "Nuclide": "Po-214",
+    "Element": "Polonium",
+    "Z": "84",
+    "Daughters": [
+        [
+            "(alpha)",
+            "Pb-210",
+            100.0
+        ]
+    ],
+    "Parents": [
+        [
+            "Bi-214",
+            99.979
+        ],
+        [
+            "Rn-218",
+            100.0
+        ]
+    ],
+    "Half-life (s)": [
+        0.0001623,
+        1.2e-06
+    ],
+    "Specific activity (Bq/g)": [
+        1.202e+25,
+        9e+22
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 7686.82,
+            "Energy error (keV)": 0.06,
+            "I (%)": 99.9895,
+            "I error (%)": 0.0007,
+            "Type": "x-ray",
+            "Origin": "Po-214"
+        }
+    ]
+}

@@ -1,0 +1,53 @@
+{
+    "citation_ref": "LNHB Volume 4",
+    "Nuclide": "Ra-226",
+    "Element": "Radium",
+    "Z": "88",
+    "Daughters": [
+        [
+            "(alpha)",
+            "Rn-222",
+            100.0
+        ]
+    ],
+    "Parents": [
+        [
+            "Th-230",
+            100.0
+        ]
+    ],
+    "Half-life (s)": [
+        50490000000.0,
+        220000000.0
+    ],
+    "Specific activity (Bq/g)": [
+        36580000000.0,
+        160000000.0
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 186.211,
+            "Energy error (keV)": 0.013,
+            "I (%)": 3.555,
+            "I error (%)": 0.019,
+            "Type": "g",
+            "Origin": "Rn-222"
+        },
+        {
+            "Energy (keV)": 4601.0,
+            "Energy error (keV)": 1.0,
+            "I (%)": 5.95,
+            "I error (%)": 0.04,
+            "Type": "x-ray",
+            "Origin": "Ra-226"
+        },
+        {
+            "Energy (keV)": 4784.34,
+            "Energy error (keV)": 0.25,
+            "I (%)": 94.038,
+            "I error (%)": 0.04,
+            "Type": "x-ray",
+            "Origin": "Ra-226"
+        }
+    ]
+}
