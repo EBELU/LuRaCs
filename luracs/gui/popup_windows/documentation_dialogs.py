@@ -70,9 +70,6 @@ class DocumentationDialog(QWidget):
         self.doc_list = QListView()
         self.text_browser = QTextBrowser()
         
-
-
-        
         self.model = QFileSystemModel()
         self.model.setRootPath(str(doc_dir))
 

@@ -29,7 +29,7 @@ def write_row(table, row_index, values):
         table.setItem(row_index, col_index, QTableWidgetItem(str(value)))
 
 
-from ThemeManager import ColorRotator
+from utils.color_rotator import ColorRotator
 from core import RunManager
 
 

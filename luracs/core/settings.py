@@ -70,6 +70,8 @@ class _Paths:
     BASE: Path = field(init=False)
 
     settings_file: Path = field(init=False)
+    
+    last_opened_dir: Path = field(init=False)
 
     def __post_init__(self):
         # runtime base (where bundled resources live)
@@ -85,6 +87,10 @@ class _Paths:
         self.unique_instrument_library = self.appdata / "unique_instrument_library"
         self.generic_instrument_library = self.appdata / "generic_instrument_library"
         self.settings_file = self.appdata / "settings.json"
+        
+        # Track what directory files were last loaded from or saved to during runtime
+        # For the users convenience :)
+        self.last_opened_dir = Path.home()
 
 
 class SettingsBase(QObject):
@@ -105,6 +111,7 @@ class SettingsBase(QObject):
         self.latestConnectionUpdated.emit(list(self.State.last_connections))
 
     def load_settings(self):
+        "Ingest the previous settings file"
         with open(self.Paths.settings_file, "r") as f:
             json_content = json.load(f)
 
@@ -114,9 +121,10 @@ class SettingsBase(QObject):
         self.latestConnectionUpdated.emit(list(self.State.last_connections))
 
     def save_settings(self):
+        "Dump settings, typically at shutdown"
         json_content = {
             "appearance": self.Appearance.__dict__,
-            "state": self.State.to_dict(),
+            "state": self.State.to_dict(), # Dequeues make this annoying
             "advanced": self.Advanced.__dict__,
         }
 

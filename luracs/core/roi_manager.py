@@ -2,6 +2,7 @@ from PySide6.QtCore import Signal, QObject
 from PySide6.QtGui import QColor
 from containers.roi_classes import DeletableROI, Fit, ROI
 from core import Settings
+from .gui_logger import gui_logger as Log
 import numpy as np
 from utils.numerics import (
     curve_fit,
@@ -225,6 +226,7 @@ class ROIManager(QObject):
         new_roi.sigSettingsUpdated.connect(self.propagrade_roi_settings_change)
         
         self.sigROICreated.emit(new_roi)
+        Log.info(f"[ROI Added]")
         return new_roi
 
     def remove_roi(self, roi_tag: str) -> None:
@@ -432,7 +434,7 @@ class ROIManager(QObject):
         y_axis = (
             spectrum.get_foreground()
             if not self.spectrum_is_bkg_sub
-            else spectrum.get_bkg_sub()
+            else spectrum.get_bkg_sub() * spectrum.foreground.live_time
         )
 
         # Determine the counts in the selected region, independent of the fit

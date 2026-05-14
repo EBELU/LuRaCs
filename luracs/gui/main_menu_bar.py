@@ -15,6 +15,7 @@ from .import_export import save_roi_references
 
 from gui.popup_windows.settings_dialog import edit_settings, edit_advanced_settings
 from gui.popup_windows.efficiency_dialog import EfficiencyWindow
+from gui.import_export import FileDialogs
 
 
 class MainMenuBar(QMenuBar):
@@ -32,8 +33,8 @@ class MainMenuBar(QMenuBar):
         file_menu = self.addMenu("&File")
         file_menu_import = file_menu.addAction("Import Spectrum")
         file_menu_import.triggered.connect(
-            lambda: self.parent.file_import_export.import_generic()
-        )
+            lambda : FileDialogs().import_generic()
+            )
         file_load = file_menu.addAction("Data Store")
         file_load.triggered.connect(lambda: parent.data_store.show())
         file_menu_saveRoi = file_menu.addAction("Save reference ROIs")
@@ -131,15 +132,12 @@ class MainMenuBar(QMenuBar):
         QMessageBox.information(
             self.parent,
             "About",
-            "LuRaCs\nAuthor: Your Name",
+            "LuRaCs - Lund Radiation analysis Computer software\n\n A free and open source tool for measuring and analysing radiation spectra.\n\nAuthored by Erik Ewald & Malte Axner \n\nSource code licenced under GPL-3.0\nDocumentation & Images licenced under CC BY-SA 4.0",
         )
 
     def on_exit(self):
-        if self.actions.exit_callback:
-            self.actions.exit_callback()
-        else:
-            if self.parent:
-                self.parent.close()
+        if self.parent:
+            self.parent.close()
                 
             # Handle selection
     def on_view_changed(self, action):

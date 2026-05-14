@@ -361,6 +361,10 @@ class xml_parser:
         )
         if coeff:
             data["calibration"] = [float(x) for x in coeff.split()][::-1]
+            
+        data["remark"] = self.root.findtext(
+            ".//n42:Remark", namespaces=ns
+        )
 
         for meas in self.root.xpath(".//n42:RadMeasurement", namespaces=ns):
             code = meas.findtext(
@@ -628,7 +632,8 @@ class xml_parser:
         else:
             instrument_data["calibration"] = None
             
-        instrument_data["remark"] = instrument.xpath("./n42:Remark", namespaces=ns)[0].text
+        remark = instrument.xpath("./n42:Remark", namespaces=ns)
+        instrument_data["remark"] = remark[0].text if remark else ""
 
         return instrument_data
         

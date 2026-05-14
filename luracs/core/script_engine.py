@@ -73,9 +73,9 @@ class ScriptEngine(QObject):
                     self.cancel_current_command()
                     self.queue.put_nowait("clear")
 
-
                 if not cmd:
                     continue
+                
                 await self.queue.put(cmd.strip())
 
                 if cmd.strip().lower() in ("exit", "quit", "shutdown"):
@@ -113,10 +113,10 @@ class ScriptEngine(QObject):
         for task in self._tasks:
             task.cancel()
 
-        # optionally wait for them to finish cleanly
+        # wait for them to finish cleanly
         await asyncio.gather(*self._tasks, return_exceptions=True)
 
-    # --- Sync-safe entry point (GUI / threads) ---
+    # --- Sync-safe entry point ---
     def submit_from_sync(self, cmd: str):
         if self._loop is None:
             return
@@ -126,13 +126,13 @@ class ScriptEngine(QObject):
             cmd
         )
 
-
     def print_output(self, text: str):
         if self.output_suppressed:
             return
         
         if text:
             clear_terminal()
+            
         print(text)
 
 

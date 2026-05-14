@@ -2,7 +2,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from luracs.containers.instrument_classes import UniqueInstrument, GenericInstrument
+    pass
+
+from containers.instrument_classes import UniqueInstrument, GenericInstrument
 from PySide6.QtCore import QObject, Signal
 
 
@@ -33,7 +35,15 @@ class InstrumentLibrary(QObject):
             self.instruments.pop(name, None)
 
     def get_instrument(self, name: str) -> UniqueInstrument | GenericInstrument | None:
+        "Get a loaded instrument, the name is not loaded "
         return self.instruments.get(name, None)
+    
+    def fetch_instrument(self, name: str):
+        pass
+    
+    def get_unique_instruments(self):
+        return {key: item for key, item in self.instruments.items() if isinstance(item, UniqueInstrument)}
+    
 
     def get_instrument_names(self) -> list[str]:
         return list(self.instruments.keys())

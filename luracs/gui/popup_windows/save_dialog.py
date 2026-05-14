@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QDialogButtonBox,
     QPushButton,
+    QTextEdit
 )
 
 
@@ -27,7 +28,7 @@ class SaveNamingDialog(QDialog):
         self.name_edit.setText(name)
         form.addRow("Name:", self.name_edit)
 
-        self.remark_edit = QLineEdit()
+        self.remark_edit = QTextEdit()
         form.addRow("Remark:", self.remark_edit)
 
         main_layout.addLayout(form)
@@ -50,3 +51,6 @@ class SaveNamingDialog(QDialog):
 
     def get_name(self):
         return self.name_edit.text().strip()
+    
+    def get_remark(self):
+        return self.remark_edit.toPlainText()

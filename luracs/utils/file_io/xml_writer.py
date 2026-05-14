@@ -85,6 +85,9 @@ class xml_writer:
                     "CoefficientValues",
                     list(spectrum.calibration_coefficients[::-1]),
                 )
+                
+            if spectrum.remark:
+                write_text_to_SubElement(self.root, "Remark", spectrum.remark)
 
             write_SpectrumData(
                 spectrum.foreground, self.root, "foreground", foreground_id
@@ -141,8 +144,13 @@ def write_SpectrumData(data: SpectrumData, root, kind: str, spectrum_id: str):
             rad_measurement, n42("RealTimeDuration"), f"PT{round(data.real_time, 2)}S"
         )
 
+    if kind == "foreground":
+        id = data.spectrum_name if data.spectrum_name is not None else "Sample0Spectrum"
+    else:
+        id = data.spectrum_name if data.spectrum_name is not None else "Sample1Spectrum"
+    
     spectrum = etree.SubElement(
-        rad_measurement, n42("Spectrum"), energyCalibrationReference="EnergyCal0"
+        rad_measurement, n42("Spectrum"), energyCalibrationReference="EnergyCal0", id = id 
     )
 
     write_text_to_SubElement(

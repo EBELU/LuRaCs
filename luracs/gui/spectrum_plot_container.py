@@ -5,7 +5,7 @@ if TYPE_CHECKING:
     
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QStackedWidget, QTabWidget, QMessageBox
 from PySide6.QtCore import Signal
-from .SpectrumPlot import SpectrumPlot
+from .spectrum_plot import SpectrumPlot
 
 from core import SpectrumManager, Settings
 
@@ -22,8 +22,8 @@ class SpectrumPlotContainer(QWidget):
         
         SpectrumManager.Signals.spectrumCreated.connect(self.add_tab)
         SpectrumManager.Signals.spectrumRemoved.connect(self.remove_tab)
-        self.main_window.menu_bar.sigSetSpectrumViewToCombined.connect(self.set_combined_mode)
-        self.main_window.menu_bar.sigSetSpectrumViewToTabs.connect(self.set_tabbed_mode)
+        self.main_window.main_menu_bar.sigSetSpectrumViewToCombined.connect(self.set_combined_mode)
+        self.main_window.main_menu_bar.sigSetSpectrumViewToTabs.connect(self.set_tabbed_mode)
         SpectrumManager.ROIManager.sigROICreated.connect(self.add_roi_to_plot)
         
         self.sigModeChanged.connect(SpectrumManager.ROIManager.clear_all)

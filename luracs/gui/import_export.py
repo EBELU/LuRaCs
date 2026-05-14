@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from PySide6.QtWidgets import QFileDialog, QMessageBox
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtWidgets import QFileDialog, QMessageBox, QWidget
+from PySide6.QtCore import Signal
 
 import utils.file_io as file_io
 from core import SpectrumManager, Settings
@@ -9,9 +9,10 @@ from containers.roi_classes import ROI
 from containers.spectrum_classes import Spectrum
 from .popup_windows.save_dialog import SaveNamingDialog
 from containers.instrument_classes import GenericInstrument, UniqueInstrument
+from utils.file_io import xml_parser
 
 
-class FileDialogs(QObject):
+class FileDialogs(QWidget):
     sigImportSpectrum = Signal(dict)
     sigImportSpectrumAsBackground = Signal(str, dict)
 
@@ -29,28 +30,42 @@ class FileDialogs(QObject):
     }
 
     def __init__(self, parent=None):
-        super().__init__(parent)
-        self.parent = parent
-        self.last_spect_dir = Path.home()
+        super().__init__(parent=parent)
 
+        print(Settings.Paths.last_opened_dir)
+        
         self.sigImportSpectrum.connect(SpectrumManager.import_spectrum)
         self.sigImportSpectrumAsBackground.connect(
             SpectrumManager.import_spectrum_as_background
         )
 
     # --- Import ---
-    def import_files(self, filter=None):
+    def import_files(self, filter=None) -> tuple[list[Path], list[str]]:
         "Import multiple files with filters"
         if filter is None:
             filter = ";;".join(self.import_filters.values())
         file_paths, selected_filter = QFileDialog.getOpenFileNames(
-            self.parent, "Import File", str(self.last_spect_dir), filter
+            self, "Import File", str(Settings.Paths.last_opened_dir), filter
         )
 
         if file_paths is not None and len(file_paths) > 0:
             file_paths = [Path(fp) for fp in file_paths]
-            self.last_spect_dir = file_paths[0].parent
+            Settings.Paths.last_opened_dir = file_paths[0].parent
             return file_paths, selected_filter
+
+        else:
+            return None, None
+        
+    def import_file(self, filter=None) -> tuple[Path, str]:
+        "Import a single file with filters"
+        if filter is None:
+            filter = ";;".join(self.import_filters.values())
+        file_path, selected_filter = QFileDialog.getOpenFileName(
+            self, "Import File", str(Settings.Paths.last_opened_dir), filter
+        )
+
+        if file_path is not None:
+            return Path(file_path), selected_filter
 
         else:
             return None, None
@@ -64,7 +79,7 @@ class FileDialogs(QObject):
         if selected_filter == self.import_filters["spectrum"]:
             for file_path in file_paths:
                 spectrum_parser = file_io.io_dispatcher(file_path)
-                if spectrum_parser is not None:
+                if isinstance(spectrum_parser, xml_parser):
                     self.sigImportSpectrum.emit(spectrum_parser.data)
 
     def import_spectrum(self, _=None):
@@ -72,14 +87,14 @@ class FileDialogs(QObject):
 
     def load_spectrum_as_background(self, spectrum_name: str):
         file_path, _ = QFileDialog.getOpenFileName(
-            self.parent,
+            self,
             "Import File",
-            str(self.last_spect_dir),
+            str(Settings.Paths.last_opened_dir),
             self.import_filters["spectrum"],
         )
         if file_path is not None:
             file_path = Path(file_path)
-            self.last_spect_dir = file_path.parent
+            Settings.Paths.last_opened_dir = file_path.parent
         else:
             return
 
@@ -91,9 +106,9 @@ class FileDialogs(QObject):
     def export_spectrum(self, spectrum_name: str):
         "Export a single spectrum from outside the data store"
         file_path, selected_filter = QFileDialog.getSaveFileName(
-            self.parent,
+            self,
             "Export File",
-            str(self.last_spect_dir),
+            str(Settings.Paths.last_opened_dir),
             self.export_filters["spectrum"],
         )
 
@@ -171,9 +186,12 @@ def save_roi_references():
 
 def save_spectrum_to_library(spectrum: Spectrum):
     save_diag = SaveNamingDialog(spectrum.name)
+    save_diag.remark_edit.setText(spectrum.remark)
     res = save_diag.exec()
     
     spectrum.name = save_diag.get_name()
+    
+    spectrum.remark = save_diag.get_remark()
 
     if res == SaveNamingDialog.Accepted:
         new_file = (Settings.Paths.spectrum_library / save_diag.get_name()).with_suffix(".xml")

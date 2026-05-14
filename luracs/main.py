@@ -43,7 +43,7 @@ from gui.tabs import (
 )
 
 print_progress("Loading utils", 5)
-from gui.import_export import FileDialogs
+
 from ThemeManager import ThemeManager
 from utils.arg_parser import parse_cli_args
 from utils.startup import startup_script
@@ -61,6 +61,12 @@ from gui.popup_windows.efficiency_dialog import EfficiencyWindow
 __version__ = "0.1.0"
 from core.script_engine import ScriptEngine
 
+# ===================== IMPORTANT CONNECTIONS =====================
+
+RunManager.createDeviceSpectrum.connect(SpectrumManager.create_spectrum)
+RunManager.removeDeviceSpectrum.connect(SpectrumManager.remove_spectrum)
+RunManager.spectrumUpdated.connect(SpectrumManager.set_foreground_spectrum)
+
 # ===================== MAIN WINDOW =====================
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -77,7 +83,6 @@ class MainWindow(QMainWindow):
         self.bt_window = BluetoothListPopup()
 
         self.usb_window = USBListPopup()
-        self.file_import_export = FileDialogs(self)
         print_progress("Indexing Data Store", 8)
         load_nuclide_data()
         self.data_store = DataLibrary("Data Store", None)
@@ -95,8 +100,8 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
         layout = QVBoxLayout(central)
 
-        self.menu_bar = MainMenuBar(self)
-        self.setMenuBar(self.menu_bar)
+        self.main_menu_bar = MainMenuBar(self)
+        self.setMenuBar(self.main_menu_bar)
 
         # ---------- SPECTRUM PLOT ----------
         self.spect_tab = QTabWidget()
@@ -117,7 +122,7 @@ class MainWindow(QMainWindow):
         self.bottom_tabs = QTabWidget(self)
 
         # Spectrum Infp
-        self.spectrum_info_tab = SpectrumInfoTab(parent=self)
+        self.spectrum_info_tab = SpectrumInfoTab(self, parent=self)
         self.bottom_tabs.addTab(self.spectrum_info_tab, "Spectra")
 
         # ROI info
@@ -138,8 +143,8 @@ class MainWindow(QMainWindow):
         self.spectrum_plot_container.sigRedrawRequested.connect(self.isotopics_tab.request_line_data)
         self.isotopics_tab.sigColorChanged.connect(lambda : self.spectrum_plot_container.request_redraw())
         self.isotopics_tab.btn_assign_emissions.clicked.connect(self.spectrum_plot_container.match_nuclide_to_rois)
-        self.menu_bar.tabbed_action.triggered.connect(self.isotopics_tab.set_search_combo)
-        self.menu_bar.combined_action.triggered.connect(self.isotopics_tab.set_search_combo)
+        self.main_menu_bar.tabbed_action.triggered.connect(self.isotopics_tab.set_search_combo)
+        self.main_menu_bar.combined_action.triggered.connect(self.isotopics_tab.set_search_combo)
 
         # Console
         self.console_tab = ConsoleTab()

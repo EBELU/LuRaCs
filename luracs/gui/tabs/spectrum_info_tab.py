@@ -3,6 +3,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from luracs.containers.spectrum_classes import Spectrum, SpectrumData
+    from containers.spectrum_classes import Spectrum
+    from gui.popup_windows.data_store import DataLibrary
 
 from datetime import timedelta
 from PySide6.QtWidgets import (
@@ -24,6 +26,7 @@ from PySide6.QtGui import QColor
 
 from core import SpectrumManager, RunManager
 from gui.misc.idx_table import StrIdxTable
+from utils.file_io import io_dispatcher
 
 
 from PySide6.QtWidgets import QWidget
@@ -31,6 +34,7 @@ from PySide6.QtGui import QColor, QPainter, QBrush, QAction
 from PySide6.QtCore import Qt, Signal
 
 from gui.import_export import save_spectrum_to_library
+from gui.popup_windows.data_store_edit_dialogs import SpectrumEditDialog
 
 
 class ColorCellWidget(QWidget):
@@ -102,9 +106,10 @@ class SpectrumInfoTab(QWidget):
 
     # spectrum_name, "foreground"/"background", color
 
-    def __init__(self, title="", parent=None):
+    def __init__(self, main_window, title="", parent=None, ):
         super().__init__(parent)
         self.parent = parent
+        self.main_window = main_window
 
         # Incoming signals from SpectrumManager
         SpectrumManager.Signals.spectrumUpdated.connect(self.recieve_update)
@@ -142,6 +147,30 @@ class SpectrumInfoTab(QWidget):
 
         self.hide_show_btn = {}
         self.hide_show_states = {}
+        
+    def edit_spectrum(self, spectrum: Spectrum):
+        spectrum_index = self.main_window.data_store.spectrum_tab.file_index
+        instrument_index = self.main_window.data_store.instruments_tab.file_index
+        connected = True if spectrum.connection is not None else False
+        dialog = SpectrumEditDialog(spectrum=spectrum, spectrum_is_connected=connected, spectrum_index=spectrum_index, instrument_index=instrument_index)
+        res = dialog.exec()
+        
+        if res != SpectrumEditDialog.Accepted:
+            return
+        
+        data = dialog.get_data()
+        if data["flag_can_change_name"] and data["name"] not in SpectrumManager.spectra:
+            SpectrumManager.rename_spectrum(spectrum.name, data["name"])
+        
+        if data["background_pth"] and not data["flag_clear_bkg"] and data["flag_change_bkg"]:
+            SpectrumManager.import_spectrum_as_background(data["name"], io_dispatcher(data["background_pth"]).data)
+            
+        elif data["flag_clear_bkg"]:
+            SpectrumManager.clear_background(data["name"])
+            
+        if data["remark"]:
+            SpectrumManager.spectra[data["name"]].remark = data["remark"]
+        
 
     def build_menu_button(
         self, spectrum: Spectrum, role: str, color: QColor, parent=None
@@ -149,7 +178,7 @@ class SpectrumInfoTab(QWidget):
         menu_button = MenuButton(parent=parent, title="...")
         color_widget = ColorCellWidget(color)
         if (
-            role == "foreground" and spectrum.connected_device is not None
+            role == "foreground" and spectrum.connection is not None
         ):  # Has connected device
             disconnect = menu_button.add_action("Remove and Disconnect")
             disconnect.triggered.connect(
@@ -159,17 +188,20 @@ class SpectrumInfoTab(QWidget):
             save = menu_button.add_action("Save")
             save.triggered.connect(lambda : save_spectrum_to_library(spectrum))
 
-            add_bkg = menu_button.add_action("Add Background")
-            add_bkg.triggered.connect(
-                lambda _: parent.file_import_export.load_spectrum_as_background(
-                    spectrum.name
-                )
-            )
+            # add_bkg = menu_button.add_action("Add Background")
+            # add_bkg.triggered.connect(
+            #     lambda : parent.file_import_export.load_spectrum_as_background(
+            #         spectrum.name
+            #     )
+            # )
 
             self.hide_show_btn[spectrum.name] = menu_button.add_action("Hide")
             self.hide_show_btn[spectrum.name].triggered.connect(
-                lambda x: self._show_hide_action(spectrum.name)
+                lambda : self._show_hide_action(spectrum.name)
             )
+            
+            edit_action = menu_button.add_action("Edit")
+            edit_action.triggered.connect(lambda : self.edit_spectrum(spectrum))
 
         elif role == "foreground":
             remove = menu_button.add_action("Remove Spectrum")
@@ -180,28 +212,30 @@ class SpectrumInfoTab(QWidget):
             save = menu_button.add_action("Save")
             save.triggered.connect(lambda : save_spectrum_to_library(spectrum))
                         
-            add_bkg = menu_button.add_action("Add Background")
-            add_bkg.triggered.connect(
-                lambda _: parent.file_import_export.load_spectrum_as_background(
-                    spectrum.name
-                )
-            )
+            # add_bkg = menu_button.add_action("Add Background")
+            # add_bkg.triggered.connect(
+            #     lambda : parent.file_import_export.load_spectrum_as_background(
+            #         spectrum.name
+            #     )
+            # )
 
             self.hide_show_btn[spectrum.name] = menu_button.add_action("Hide")
             self.hide_show_btn[spectrum.name].triggered.connect(
-                lambda x: self._show_hide_action(spectrum.name)
+                lambda : self._show_hide_action(spectrum.name)
             )
+            
+            edit_action = menu_button.add_action("Edit")
+            edit_action.triggered.connect(lambda : self.edit_spectrum(spectrum))
 
         else:  # Background
             rm_bkg = menu_button.add_action("Remove Background")
             rm_bkg.triggered.connect(
-                lambda x: SpectrumManager.clear_background(spectrum.name)
+                lambda : SpectrumManager.clear_background(spectrum.name)
             )
 
         # export_btn = menu_button.add_action("Export")
         # export_btn.triggered.connect(lambda _:parent.file_import_export.export_spectrum(spectrum.name))
 
-        menu_button.add_action("Edit")
         
         
 

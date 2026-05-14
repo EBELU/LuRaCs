@@ -205,7 +205,7 @@ class RunManagerBase(QObject):
             new_device.set_state(DeviceWrapper.DeviceState.CONNECTION_FAILED)
             return
         if new_device.is_running:
-            gui_logger.info(f"[Device connected] {new_device.name}")
+            gui_logger.info(f"[Device connected] name = {new_device.name}, type = {device_type}, connection_type = {"USB" if usb else "USB"}")
             self.deviceConnected.emit(new_device.name)
             new_device.set_state(DeviceWrapper.DeviceState.CONNECTED)
             self.createDeviceSpectrum.emit(
@@ -311,7 +311,7 @@ class RunManagerBase(QObject):
                 for device_type in DeviceWrapper.get_registry().keys():
                     if device_type in device.name.lower():
                         gui_logger.info(
-                            f"Connecting device {device.name}, type: {device_type}"
+                            f"[Connecting device] name = {device.name}, type = {device_type}"
                         )
                         await self.add_device(device, device_type)
                         connections_made += 1
@@ -333,7 +333,7 @@ class RunManagerBase(QObject):
         async def _scan():
             async with self._scan_lock:
                 try:
-                    gui_logger.info("Started bluetooth scan")
+                    gui_logger.info(f"[Started bluetooth scan] scan_time = {timeout}")
                     devices = await BleakScanner.discover(timeout)
                     self.bluetoothFound.emit(devices)
                 except asyncio.CancelledError:
@@ -376,11 +376,11 @@ class RunManagerBase(QObject):
 
         return results
 
-    def add_logger(self, device_name, new_log):
+    def add_logger(self, device_name: str, new_log: bool):
         self.dataloggers[device_name] = new_log
         self.loggerStarted.emit(device_name)
         gui_logger.info(
-            f"[Spectrum Logger Opened] DB_name: {new_log.db_name}, device: {new_log.device_id}"
+            f"[Spectrogram Opened] db_name = {new_log.db_name}, device = {new_log.device_id}"
         )
 
     def close_logger(self, name: str):
@@ -388,7 +388,7 @@ class RunManagerBase(QObject):
         if logger:
             logger.close()
             self.loggerClosed.emit(name)
-            gui_logger.info(f"[Spectrum Logger Closed] {name}")
+            gui_logger.info(f"[Spectrogram Closed] name = {name}")
 
 
 RunManager = RunManagerBase()

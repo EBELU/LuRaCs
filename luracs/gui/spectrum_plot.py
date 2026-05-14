@@ -91,7 +91,6 @@ class SpectrumPlot(QWidget):
         self.plot_widget.getPlotItem().layout.setContentsMargins(2, 13, 13, 2)
 
         self.plot_widget.getViewBox().setMouseEnabled(x=True, y=False)
-        self.view = self.plot_widget.getViewBox()
         self.plot_widget.enableAutoRange()
 
         # Buttons

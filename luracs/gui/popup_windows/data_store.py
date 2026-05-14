@@ -27,7 +27,7 @@ from ..misc.idx_table import StrIdxTable
 from utils.file_io import io_dispatcher
 from core import Settings, SpectrumManager
 from containers.spectrogram import restart_logger
-from .data_store_edit_dialogs import InstrumentDialog
+from .data_store_edit_dialogs import InstrumentDialog, SpectrumEditDialog
 from containers.instrument_classes import UniqueInstrument, GenericInstrument
 
 import os
@@ -75,6 +75,7 @@ class DataLibrary(QWidget):
         self.spectrum_tab.run_index()
         self.spectrogram_tab.run_index()
         self.roi_tab.run_index()
+        self.instruments_tab.run_index()
         super().show()
 
 
@@ -211,6 +212,11 @@ class LibraryTab(QWidget):
 
     def show_info(self):
         raise NotImplementedError("Info button not implemented")
+    
+    def remove_old_item(self, index_key):
+        del self.file_index[index_key]
+        self.table.delete_row(index_key)
+        os.remove(str(index_key))
 
 
 class SpectrumTab(LibraryTab):
@@ -367,6 +373,10 @@ class ROIsTab(LibraryTab):
         self.run_index()
         self.btn_load.clicked.connect(self.load)
         self.table.table.cellDoubleClicked.connect(self.load)
+        export_xml = self.export_menu.addAction("LuRaCs ROI File (*.xml)")
+        export_xml.triggered.connect(
+            lambda: self.export_same("LuRaCs ROI file (*.xml)")
+        )
 
     def run_index(self):
         for file in glob(str(Settings.Paths.roi_library / "**.xml")):
@@ -379,7 +389,7 @@ class ROIsTab(LibraryTab):
         for key, parser in self.file_index.items():
             rois = parser.get_rois()
             regions = ", ".join([str([round(rb) for rb in r.roi_bound]) for r in rois])
-            self.table.write_row(key, [Path(key).name, len(rois), str(regions)])
+            self.table.write_row(key, [Path(key).stem, len(rois), str(regions)])
 
     def load(self):
         selection = self._get_selection()
@@ -391,12 +401,11 @@ class ROIsTab(LibraryTab):
             rois = parser.get_rois()
             for peak in rois:
                 extented_kwargs = {
-                    "alias": peak.alias,
-                    "fit_type": peak.fit_type,
-                    "bkg_type": peak.bkg_type,
+                    **peak.__dict__,
                     **peak.meta,
                 }
-
+                del extented_kwargs["tag"]
+                print(extented_kwargs)
                 SpectrumManager.ROIManager.add_roi(*peak.roi_bound, **extented_kwargs)
 
 
@@ -410,7 +419,6 @@ class InstrumentsTab(LibraryTab):
                 "Calibration",
                 "Resolution",
                 "Efficiency",
-                "Response Matrix",
             ],
         )
         self.btn_load.setText("New")
@@ -435,7 +443,7 @@ class InstrumentsTab(LibraryTab):
             efficiency = "True" if instr_data.get("efficiency") is not None else "False"
             response_matrix = "True" if instr_data.get("response_matrix") is not None else "False"
             
-            self.table.write_row(key, [instr_data["name"], instr_data["model"], calibration, resolution, efficiency, response_matrix])
+            self.table.write_row(key, [instr_data["name"], instr_data["model"], calibration, resolution, efficiency])
             
     def edit(self):
         selection = self._get_selection()
@@ -453,14 +461,12 @@ class InstrumentsTab(LibraryTab):
             return
         
         
-        self.file_index.pop(selection[0])
-        self.table.delete_row(selection[0])
-        os.remove(selection[0])
+        self.remove_old_item(selection[0])
         
         new_instrument = UniqueInstrument(**edit_dialog.get_data(), detector_type="Gamma Spectrometer")
         
         save_instrument(new_instrument, edit_dialog.get_data()["name"])
-        self.run_index()
+        self.finish_editing(selection[0])
         
     def new(self):
         edit_dialog = InstrumentDialog()
@@ -477,14 +483,71 @@ class InstrumentsTab(LibraryTab):
 class GenericInstrumentsTab(LibraryTab):
     def __init__(self, parent):
         super().__init__(
-            parent, ["Model", "Resolution", "Efficiency", "Response Matrix"]
+            parent, ["Model", "Resolution", "Efficiency"]
         )
         self.btn_load.setText("New")
         self.btn_load.clicked.connect(self.new)
+        self.btn_info.clicked.connect(self.edit)
+        self.run_index()
 
+    def run_index(self):
+        for file in glob(str(Settings.Paths.generic_instrument_library / "**.xml")):
+            file = Path(file)
+            if file not in self.file_index:
+                self.file_index[file] = io_dispatcher(file, True)
+
+        self.set_table()
+        
+    def set_table(self):
+        for key, parser in self.file_index.items():
+            instr_data = parser.get_instrument_data()
+            
+            calibration = "True" if instr_data.get("calibration") is not None else "False"
+            resolution = "True" if instr_data.get("resolution") is not None else "False"
+            efficiency = "True" if instr_data.get("efficiency") is not None else "False"
+            response_matrix = "True" if instr_data.get("response_matrix") is not None else "False"
+            
+            self.table.write_row(key, [instr_data["model"], calibration, resolution, efficiency])
+            
+    def edit(self):
+        selection = self._get_selection()
+        if not selection:
+            return
+        
+        if len(selection) > 1:
+            QMessageBox.warning(self, "Selection error", "Only one item may be edited simultaneously")
+            return
+        
+        edit_dialog = InstrumentDialog(**self.file_index[selection[0]].get_instrument_data())
+        edit_dialog.name_input.setEnabled(False)
+        res = edit_dialog.exec()
+        
+        if res != InstrumentDialog.Accepted:
+            return
+        
+        
+        self.remove_old_item(selection[0])
+        
+        dialog_data = edit_dialog.get_data()
+        del dialog_data["name"]
+        
+        new_instrument = GenericInstrument(**dialog_data, detector_type="Gamma Spectrometer")
+
+        save_instrument(new_instrument, dialog_data["model"])
+        self.run_index()
+        
     def new(self):
         edit_dialog = InstrumentDialog()
         edit_dialog.name_input.setEnabled(False)
-
         res = edit_dialog.exec()
+        if res != InstrumentDialog.Accepted:
+            return
+        
+        dialog_data = edit_dialog.get_data()
+        del dialog_data["name"]
+        
+        new_instrument = GenericInstrument(**dialog_data, detector_type="Gamma Spectrometer")
+
+        save_instrument(new_instrument, dialog_data["model"])
+        self.run_index()
         

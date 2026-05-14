@@ -130,13 +130,20 @@ class ThemeManager:
         p.setColor(QPalette.ToolTipText, QColor(240, 240, 240))
 
         # --- Disabled state ---
-        p.setColor(QPalette.Disabled, QPalette.WindowText, QColor(128, 128, 128))
-        p.setColor(QPalette.Disabled, QPalette.Text, QColor(128, 128, 128))
-        p.setColor(QPalette.Disabled, QPalette.ButtonText, QColor(128, 128, 128))
-        p.setColor(QPalette.Disabled, QPalette.Button, QColor(40, 40, 45))
-        p.setColor(QPalette.Disabled, QPalette.Base, QColor(35, 35, 40))
-        p.setColor(QPalette.Disabled, QPalette.Highlight, QColor(80, 80, 80))
-        p.setColor(QPalette.Disabled, QPalette.HighlightedText, QColor(160, 160, 160))
+        p.setColor(QPalette.Disabled, QPalette.WindowText, QColor(140, 140, 145))
+        p.setColor(QPalette.Disabled, QPalette.Text, QColor(150, 150, 155))
+        p.setColor(QPalette.Disabled, QPalette.ButtonText, QColor(140, 140, 145))
+        p.setColor(QPalette.PlaceholderText, QColor(130, 130, 135))
+
+        # Slightly lighter than active Base so fields remain visible
+        p.setColor(QPalette.Disabled, QPalette.Base, QColor(45, 45, 50))
+
+        # Keep buttons visually recessed
+        p.setColor(QPalette.Disabled, QPalette.Button, QColor(48, 48, 54))
+
+        # Muted blue-gray highlight
+        p.setColor(QPalette.Disabled, QPalette.Highlight, QColor(70, 80, 95))
+        p.setColor(QPalette.Disabled, QPalette.HighlightedText, QColor(170, 170, 175))
 
         return p
 
@@ -154,10 +161,6 @@ class ThemeManager:
                 background: solid #b3b3b3;
             }
             
-            QLineEdit {
-                color: white;
-                border: 1px solid #555;
-            }
 
             QLineEdit::placeholder {
                 color: #dddddd;
@@ -235,37 +238,3 @@ class ThemeManager:
         # Force redraw
         hist.gradient.update()
         
-class ColorRotator:
-    """Provides a cycling color pen for plotting."""
-
-    def __init__(self, colors="mpl", width=2):
-        if colors == "mpl":
-            self.colors = [
-                "#1f77b4",
-                "#ff7f0e",
-                "#2ca02c",
-                "#d62728",
-                "#9467bd",
-                "#8c564b",
-            ]
-        elif colors == "lo":
-            self.colors = [
-                "#004586",
-                "#ff420e",
-                "#ffd320",
-                "#579d1c",
-                "#7e0021",
-                "#83caff",
-            ]
-        else:
-            self.colors = colors
-        self.width = width
-        self._i = 0
-
-    def next_pen(self):
-        color = self.colors[self._i % len(self.colors)]
-        self._i += 1
-        return pg.mkPen(color, width=self.width)
-
-    def reset(self):
-        self._i = 0

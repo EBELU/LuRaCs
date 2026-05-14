@@ -5,7 +5,6 @@ from .gui_logger import gui_logger as Log
 from .calculator import Calculator
 from .gui_services import GuiServices, GuiServicesKeys
 
-from .spec_run_signaling import _
 
 """
 Global state classes shared by the entire program. 
