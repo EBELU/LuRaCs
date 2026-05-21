@@ -84,7 +84,7 @@ class LogWidget(QWidget):
 
         for name in loggers:
             logger = logging.getLogger(name)
-            logger.setLevel(logging.DEBUG)
+            logger.setLevel(logging.INFO)
             logger.addHandler(handler)
             logger.propagate = False
 

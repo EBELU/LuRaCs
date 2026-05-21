@@ -550,7 +550,7 @@ class SpectrumPlot(QWidget):
             return
 
         vb = self.plot_widget.getViewBox()
-        (_, _), (_, y_max) = vb.viewRange()
+        (_, _), (y_min, y_max) = vb.viewRange()
 
         maximum = y_max * 0.85
 
@@ -571,7 +571,7 @@ class SpectrumPlot(QWidget):
 
             line = QtWidgets.QGraphicsLineItem(
                 emission.energy_keV,
-                0,
+                y_min,
                 emission.energy_keV,
                 height,
             )
@@ -591,7 +591,7 @@ class SpectrumPlot(QWidget):
     def update_nuclide_lines(self):
 
         vb = self.plot_widget.getViewBox()
-        (_, _), (_, y_max) = vb.viewRange()
+        (_, _), (y_min, y_max) = vb.viewRange()
 
         maximum = y_max * 0.85
 
@@ -618,7 +618,7 @@ class SpectrumPlot(QWidget):
 
                 line.setLine(
                     emission.energy_keV,
-                    0,
+                    y_min,
                     emission.energy_keV,
                     height,
                 )

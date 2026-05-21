@@ -26,7 +26,7 @@ from PySide6.QtCore import Qt
 from ..misc.idx_table import StrIdxTable
 from utils.file_io import io_dispatcher
 from core import Settings, SpectrumManager
-from containers.spectrogram import restart_logger
+from containers.spectrogram import restart_spectrogram
 from .data_store_edit_dialogs import InstrumentDialog, SpectrumEditDialog
 from containers.instrument_classes import UniqueInstrument, GenericInstrument
 
@@ -317,7 +317,7 @@ class SpectrogramTab(LibraryTab):
             return
 
         for file in selection:
-            restart_logger(Path(file).name)
+            restart_spectrogram(Path(file).name)
 
     def set_table(self):
         for key, parser in self.file_index.items():
@@ -421,6 +421,7 @@ class InstrumentsTab(LibraryTab):
                 "Efficiency",
             ],
         )
+        self.file_index = SpectrumManager.UniqueInstrumentLibrary.instruments
         self.btn_load.setText("New")
         self.btn_load.clicked.connect(self.new)
         self.run_index()
@@ -430,20 +431,24 @@ class InstrumentsTab(LibraryTab):
         for file in glob(str(Settings.Paths.unique_instrument_library / "**.xml")):
             file = Path(file)
             if file not in self.file_index:
-                self.file_index[file] = io_dispatcher(file, True)
+                self.file_index[file] = io_dispatcher(file, True).get_instrument()
 
         self.set_table()
         
     def set_table(self):
-        for key, parser in self.file_index.items():
-            instr_data = parser.get_instrument_data()
-            
-            calibration = "True" if instr_data.get("calibration") is not None else "False"
-            resolution = "True" if instr_data.get("resolution") is not None else "False"
-            efficiency = "True" if instr_data.get("efficiency") is not None else "False"
-            response_matrix = "True" if instr_data.get("response_matrix") is not None else "False"
-            
-            self.table.write_row(key, [instr_data["name"], instr_data["model"], calibration, resolution, efficiency])
+        for key, instr in self.file_index.items():
+
+            calibration = str(instr.calibration_coefficients is not None)
+            resolution = str(instr.resolution_fn is not None)
+            efficiency = str(instr.int_efficiency_fn is not None)
+            response_matrix = str(instr.response_matrix is not None)
+
+            name = getattr(instr, "name", "Generic")
+
+            self.table.write_row(
+                key,
+                [name, instr.model, calibration, resolution, efficiency,],
+            )
             
     def edit(self):
         selection = self._get_selection()
@@ -454,7 +459,7 @@ class InstrumentsTab(LibraryTab):
             QMessageBox.warning(self, "Selection error", "Only one item may be edited simultaneously")
             return
         
-        edit_dialog = InstrumentDialog(**self.file_index[selection[0]].get_instrument_data())
+        edit_dialog = InstrumentDialog(**self.file_index[selection[0]].__dict__)
         res = edit_dialog.exec()
         
         if res != InstrumentDialog.Accepted:
@@ -466,14 +471,13 @@ class InstrumentsTab(LibraryTab):
         new_instrument = UniqueInstrument(**edit_dialog.get_data(), detector_type="Gamma Spectrometer")
         
         save_instrument(new_instrument, edit_dialog.get_data()["name"])
-        self.finish_editing(selection[0])
+        self.run_index()
         
     def new(self):
         edit_dialog = InstrumentDialog()
         res = edit_dialog.exec()
         if res != InstrumentDialog.Accepted:
             return
-        
         new_instrument = UniqueInstrument(**edit_dialog.get_data(), detector_type="Gamma Spectrometer")
         
         save_instrument(new_instrument, edit_dialog.get_data()["name"])
@@ -485,6 +489,7 @@ class GenericInstrumentsTab(LibraryTab):
         super().__init__(
             parent, ["Model", "Resolution", "Efficiency"]
         )
+        self.file_index = SpectrumManager.GenericInstrumentLibrary.instruments
         self.btn_load.setText("New")
         self.btn_load.clicked.connect(self.new)
         self.btn_info.clicked.connect(self.edit)
@@ -494,20 +499,21 @@ class GenericInstrumentsTab(LibraryTab):
         for file in glob(str(Settings.Paths.generic_instrument_library / "**.xml")):
             file = Path(file)
             if file not in self.file_index:
-                self.file_index[file] = io_dispatcher(file, True)
+                self.file_index[file] = io_dispatcher(file, True).get_instrument()
 
         self.set_table()
         
     def set_table(self):
-        for key, parser in self.file_index.items():
-            instr_data = parser.get_instrument_data()
-            
-            calibration = "True" if instr_data.get("calibration") is not None else "False"
-            resolution = "True" if instr_data.get("resolution") is not None else "False"
-            efficiency = "True" if instr_data.get("efficiency") is not None else "False"
-            response_matrix = "True" if instr_data.get("response_matrix") is not None else "False"
-            
-            self.table.write_row(key, [instr_data["model"], calibration, resolution, efficiency])
+        for key, instr in self.file_index.items():
+
+            resolution = str(instr.resolution_fn is not None)
+            efficiency = str(instr.int_efficiency_fn is not None)
+            response_matrix = str(instr.response_matrix is not None)
+
+            self.table.write_row(
+                key,
+                [instr.model, resolution, efficiency,],
+            )
             
     def edit(self):
         selection = self._get_selection()
@@ -518,7 +524,7 @@ class GenericInstrumentsTab(LibraryTab):
             QMessageBox.warning(self, "Selection error", "Only one item may be edited simultaneously")
             return
         
-        edit_dialog = InstrumentDialog(**self.file_index[selection[0]].get_instrument_data())
+        edit_dialog = InstrumentDialog(**self.file_index[selection[0]].__dict__)
         edit_dialog.name_input.setEnabled(False)
         res = edit_dialog.exec()
         

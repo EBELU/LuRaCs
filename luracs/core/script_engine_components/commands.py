@@ -23,12 +23,17 @@ from .exceptions import ArgumentError, ActiveGUIError, InvalidCommandError
 class Command(ABC):
     name: str = ""
     aliases: list[str] = []
+    argument_tree: dict = {}
 
     @abstractmethod
     async def run(self, engine, *args):
         pass
+    
+    @property
+    def help(self) -> str:
+        return self.run.__doc__ or "No help available."
 
-
+    
 class ClearCommand(Command):
     name = "clear"
     async def run(self, engine, *args):
@@ -81,9 +86,25 @@ class HelpCommand(Command):
 
 class ListCommand(Command):
     name = "list"
+    argument_tree = {"devices": None, "rois": None, "spectra": None, "spectrogram": None}
     async def run(self, engine, *args):
+        """
+        List available resources.
+
+        Usage:
+            list devices
+            list rois
+            list spectra
+            list spectrogram
+
+        Arguments:
+            devices         Show connected devices
+            rois            Show defined ROIs
+            spectra         Show loaded spectra
+            spectrogram     Show loaded spectrogram
+        """ 
         if not args:
-            return "Usage: list [devices|spectra|spectrogram]"
+            return self.help
 
         if args[0] == "devices":
             spectrum_table = TableFormatter(["Index", "Name"], title = "Connected Devices")
@@ -103,16 +124,21 @@ class ListCommand(Command):
                 spectrum_table.add_row([i, key])
             return spectrum_table.get_table()
         
+        elif args[0] == "spectrogram":
+            spectrum_table = TableFormatter(["Index", "Name"], title = "Loaded Spectrogram")
+            for i, key in enumerate(RunManager.loaded_spectrogram):
+                spectrum_table.add_row([i, key])
+            return spectrum_table.get_table()
+        
         else:
-            return "Unknown list option. Use 'list devices' or 'list spectra'."
+            raise ArgumentError(f"{args[0]} is not a valid argument!")
         
 class IndexCommand(Command):
     name = "index"
-    
+    argument_tree = {"spectrum": None, "spectrogram": None, "rois": None}
     async def run(self, engine, *args):
         if len(args) == 0:
             raise ArgumentError("View must be followed by 'spectrum', 'spectrogram' or 'rois'")
-        
         
         if args[0] in ("spectrum", "spectra"):
             table = TableFormatter(["Spectrum", "Date", "Duration", "Instrument"], title="Spectrum Index")
@@ -151,10 +177,23 @@ class IndexCommand(Command):
             return table.get_table()
         
         elif args[0] in ("roi", "rois"):
-            pass
+            table = TableFormatter(["Name", "Bounds", "Nuclides"], title="ROI Index")
+            for file in glob(str(Settings.Paths.roi_library / "*.xml")):
+                parser = xml_parser(file)
+                rois = parser.get_rois()   
+                table.add_row(
+                    [Path(file).stem, 
+                     ", ".join([str(i.roi_bound) for i in rois]),
+                     ", ".join([str(i.emission.parent_nuclide) for i in rois])
+                    ])
+                
+            return table.get_table()
+            
+            
         
 class ViewCommand(Command):
     name = "view"
+    argument_tree = {"spectrum": None, "rois": None, "log": None}
     async def run(self, engine, *args):
         if not engine.headless:
             raise ActiveGUIError("view")
@@ -164,7 +203,7 @@ class ViewCommand(Command):
         if args[0] == "spectrum":
             plot_spectrum(args[1:])
         
-        elif args[0] == "roi":
+        elif args[0] == "rois":
             return print_rois()
         
         elif args[0] == "log":
@@ -176,6 +215,7 @@ class ViewCommand(Command):
         
 class ROICommand(Command):
     name = "roi"
+    
     async def run(self, engine, *args):
         if len(args) < 1:
             raise ArgumentError(f"Too few arguments")

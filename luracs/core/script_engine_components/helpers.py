@@ -25,7 +25,7 @@ class ArgumentParser:
             arg_key = args[i]
             if arg_key.startswith("-"):
                 if arg_key not in self.signatures:
-                    raise ArgumentError(f"{arg_key} is not a valid argument for {self.command}, valid arguments are {self.signatures.keys()}")
+                    raise ArgumentError(f"{arg_key} is not a valid optional argument for {self.command}, valid arguments are {self.signatures.keys()}")
                 default_argument = self.signatures[arg_key]
                 if isinstance(default_argument, (tuple, list)):
                     self.signatures[arg_key] = args[i:i+len(default_argument)]

@@ -58,7 +58,7 @@ from gui.popup_windows.settings_dialog import SettingsDialog
 from gui.popup_windows.efficiency_dialog import EfficiencyWindow
 
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 from core.script_engine import ScriptEngine
 
 # ===================== IMPORTANT CONNECTIONS =====================
@@ -138,13 +138,18 @@ class MainWindow(QMainWindow):
         self.devices_tab = DevicesInfoTab()
         self.bottom_tabs.addTab(self.devices_tab, "Devices")
         
+        # Isotopics
         self.isotopics_tab = IsotopicsTab(list(SpectrumManager.NuclideLibrary.get_sorted_nuclide_names()))
         self.bottom_tabs.addTab(self.isotopics_tab, "Isotopics")
-        self.spectrum_plot_container.sigRedrawRequested.connect(self.isotopics_tab.request_line_data)
-        self.isotopics_tab.sigColorChanged.connect(lambda : self.spectrum_plot_container.request_redraw())
+        # Isotopics connections
+        self.spectrum_plot_container.sigRedrawRequested.connect(self.isotopics_tab.request_line_data) # If spectrum plot redraws, get nuclide lines
+        self.spectrum_plot_container.sigTabChanged.connect(self.isotopics_tab.search_spect_combo.setCurrentText) # In tabbed mode change what spectrum is searched by selected tab
+        
+        self.isotopics_tab.sigColorChanged.connect(lambda : self.spectrum_plot_container.request_redraw()) # Redraw on color change
         self.isotopics_tab.btn_assign_emissions.clicked.connect(self.spectrum_plot_container.match_nuclide_to_rois)
-        self.main_menu_bar.tabbed_action.triggered.connect(self.isotopics_tab.set_search_combo)
-        self.main_menu_bar.combined_action.triggered.connect(self.isotopics_tab.set_search_combo)
+        
+        self.main_menu_bar.tabbed_action.triggered.connect(self.isotopics_tab.set_search_combo) # Disable combo
+        self.main_menu_bar.combined_action.triggered.connect(self.isotopics_tab.set_search_combo) # Enable combo
 
         # Console
         self.console_tab = ConsoleTab()

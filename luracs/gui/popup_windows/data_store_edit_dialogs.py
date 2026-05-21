@@ -29,6 +29,8 @@ import pyqtgraph as pg
 import numpy as np
 from gui.import_export import FileDialogs
 
+from core import SpectrumManager
+
 class InstrumentDialog(QDialog):
     def __init__(self, parent=None, **kwargs):
         super().__init__(parent)
@@ -45,6 +47,10 @@ class InstrumentDialog(QDialog):
         # Generic instruments as a base
         self.generic_list = QComboBox()
         form_layout.addRow("Generic Instruments:", self.generic_list)
+        self.generic_list.addItem("None")
+        for i in SpectrumManager.GenericInstrumentLibrary.instruments.values():
+            self.generic_list.addItem(i.model, i)
+        self.generic_list.setCurrentText("None")
 
         # Name and model
         model_name_row = QHBoxLayout()
@@ -86,25 +92,52 @@ class InstrumentDialog(QDialog):
         self.shape.currentTextChanged.connect(self.update_spinboxes)
         form_layout.addRow("Shape:", self.shape)
 
-        dimensions = kwargs.get("detector_dimensions")
+        dimensions = kwargs.get("detector_dimensions_cm")
+        dimensions_uncert = kwargs.get("detector_dimensions_uncert_cm")
         # Dimensions spin boxes
         self.height_spin = QDoubleSpinBox()
         self.height_spin.setRange(0, 500)
         self.height_spin.setDecimals(3)
+
+        self.height_uncert_spin = QDoubleSpinBox()
+        self.height_uncert_spin.setRange(0, 500)
+        self.height_uncert_spin.setDecimals(3)
+
         if dimensions is not None:
             self.height_spin.setValue(dimensions[0])
+
+        if dimensions_uncert is not None:
+            self.height_uncert_spin.setValue(dimensions_uncert[0])
+
 
         self.width_spin = QDoubleSpinBox()
         self.width_spin.setRange(0, 500)
         self.width_spin.setDecimals(3)
+
+        self.width_uncert_spin = QDoubleSpinBox()
+        self.width_uncert_spin.setRange(0, 500)
+        self.width_uncert_spin.setDecimals(3)
+
         if dimensions is not None:
             self.width_spin.setValue(dimensions[1])
+
+        if dimensions_uncert is not None:
+            self.width_uncert_spin.setValue(dimensions_uncert[1])
+
 
         self.depth_spin = QDoubleSpinBox()
         self.depth_spin.setRange(0, 500)
         self.depth_spin.setDecimals(3)
-        if self.shape.currentText != "Cylinder" and dimensions is not None:
-            self.height_spin.setValue(dimensions[2])
+
+        self.depth_uncert_spin = QDoubleSpinBox()
+        self.depth_uncert_spin.setRange(0, 500)
+        self.depth_uncert_spin.setDecimals(3)
+
+        if self.shape.currentText() != "Cylinder" and dimensions is not None:
+            self.depth_spin.setValue(dimensions[2])
+
+        if self.shape.currentText() != "Cylinder" and dimensions_uncert is not None:
+            self.depth_uncert_spin.setValue(dimensions_uncert[2])
 
         # Layout for dimensions
         dim_layout = QHBoxLayout()
@@ -205,6 +238,9 @@ class InstrumentDialog(QDialog):
         else:
             self.depth_spin.setEnabled(True)
             self.W_label.setText("Width: ")
+            
+    def generic_instrument_selected(self):
+        instr = self.generic_list.currentData()
 
     def get_data(self):
         """Collect data from the dialog and return as a dictionary."""
@@ -228,8 +264,7 @@ class SpectrumEditDialog(QDialog):
     def __init__(self, parent=None, 
                  spectrum: Spectrum = None, 
                  spectrum_is_connected: bool = False, 
-                 spectrum_index = None,
-                 instrument_index = None):
+                 spectrum_index = None):
         super().__init__(parent)
         self.setWindowTitle("Spectrum Edit Dialog")
         self.resize(400, 300)
@@ -325,11 +360,11 @@ class SpectrumEditDialog(QDialog):
         self.instrument_line.setText(spectrum.instrument.name if spectrum.instrument is not None else "")
         form_layout.addRow("", self.instrument_list)
         
-        if instrument_index is not None:
-            for path, parser in instrument_index.items():
-                item = QListWidgetItem(str(parser.get_instrument_data()["name"]))
-                item.setData(Qt.ItemDataRole.UserRole, path)
-                self.instrument_list.addItem(item)
+
+        for path, instr in SpectrumManager.UniqueInstrumentLibrary.instruments.items():
+            item = QListWidgetItem(instr.name)
+            item.setData(Qt.ItemDataRole.UserRole, instr)
+            self.instrument_list.addItem(item)
         
         # Buttons
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -398,10 +433,10 @@ class SpectrumEditDialog(QDialog):
         else:
             return
         name = item.text()
-        path = item.data(Qt.ItemDataRole.UserRole)
+        instr = item.data(Qt.ItemDataRole.UserRole)
         
         self.instrument_line.setText(name)
-        self.selected_instrument = path
+        self.selected_instrument = instr
         self.flag_clear_instrument = False
         self.flag_change_instrument = True
         

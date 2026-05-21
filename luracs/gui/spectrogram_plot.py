@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
     QRadioButton,
     QButtonGroup,
 )
-from PySide6.QtCore import QTimer, Signal, QCoreApplication, Qt
+from PySide6.QtCore import QTimer, Signal, QCoreApplication, Qt, QRectF
 import pyqtgraph as pg
 
 pg.setConfigOptions(antialias=True)
@@ -42,11 +42,8 @@ from datetime import datetime, timedelta
 import sqlite3 as sql
 from pathlib import Path
 
-from PySide6.QtWidgets import QAbstractItemView
-
-
 from core import RunManager, Settings
-from containers.spectrogram import WrappedSpectrogramData, start_logger, restart_logger
+from containers.spectrogram import WrappedSpectrogramData, start_spectrogram, restart_spectrogram
 
 
 def combobox_has_data(combobox, target):
@@ -60,11 +57,11 @@ def find_index_by_data(combobox, target):
     return -1
 
 
-class StartLoggerDialog(QDialog):
+class StartSpectrogramDialog(QDialog):
     def __init__(self, instruments, parent=None):
         super().__init__(parent)
 
-        self.setWindowTitle("Start Data Logger")
+        self.setWindowTitle("Start Spectrogram")
         self.setMinimumWidth(450)
         self.setMinimumHeight(190)
         main_layout = QVBoxLayout(self)
@@ -81,7 +78,7 @@ class StartLoggerDialog(QDialog):
 
         # File name (default = timestamp)
         self.filename_edit = QLineEdit()
-        default_name = f"SpectrumLog-{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        default_name = f"Spectrogram-{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         self.filename_edit.setText(default_name)
         form.addRow("File name:", self.filename_edit)
 
@@ -130,24 +127,26 @@ class StartLoggerDialog(QDialog):
 
 
 class SpectrogramWidget(QWidget):
-    startLogger = Signal(
+    sigStartSpectrogram = Signal(
         str, str, int, int, bool
     )  # Signal to the start logger function
-    loadLogger = Signal(str)
+    sigLoadSpectrogram = Signal(str)
     sigShowDataStore = Signal(int)
 
     def __init__(self, parent):
         super().__init__(parent=parent)
         self.setWindowTitle("Waterfall")
 
-        self.startLogger.connect(start_logger)
-        self.loadLogger.connect(restart_logger)
-        RunManager.loggerStarted.connect(self.connect_logger)
+        self.sigStartSpectrogram.connect(start_spectrogram)
+        self.sigLoadSpectrogram.connect(restart_spectrogram)
+        RunManager.spectrogramStarted.connect(self.connect_logger)
 
         # Default values
         self.y_len = 256
         self.x_len = 1024
-        self.selected_spectrogram = None
+        self.tracked_spectrogram = None
+        self.current_calibration: list = []
+        self.current_concat_factor: int = np.nan
 
         main_layout = QHBoxLayout(self)
 
@@ -174,7 +173,7 @@ class SpectrogramWidget(QWidget):
 
         left_layout.addLayout(self.options_bar)
 
-        # Combo box for selecting loaded loggers
+        # Combo box for selecting loaded spectrogram
         self.spectrogram_selection = QComboBox()
         self.spectrogram_selection.currentIndexChanged.connect(
             self.update_on_spectrogram_selection
@@ -268,12 +267,12 @@ class SpectrogramWidget(QWidget):
 
     def start_logger(self, *_):
         devices = list(RunManager.devices.keys())
-        dialog = StartLoggerDialog(devices)
+        dialog = StartSpectrogramDialog(devices)
         if dialog.exec():
             if dialog.get_values()["instrument"]:
                 "db_name, device, save_interval, "
                 chosen_values = dialog.get_values()
-                self.startLogger.emit(
+                self.sigStartSpectrogram.emit(
                     chosen_values["filename"],
                     chosen_values["instrument"],
                     chosen_values["interval"],
@@ -285,31 +284,30 @@ class SpectrogramWidget(QWidget):
                 self.btn_resume.setEnabled(False)
 
     def restart_logger(self):
-        current_logger_name = self.spectrogram_selection.currentData()
+        current_spectrogram_name = self.spectrogram_selection.currentData()
 
-        current_logger = RunManager.dataloggers.get(current_logger_name)
+        current_spectrogram = RunManager.loaded_spectrogram.get(current_spectrogram_name)
         if (
-            current_logger is not None
-            and current_logger.device_id not in RunManager.devices
+            current_spectrogram is not None
+            and current_spectrogram.device_id not in RunManager.devices
         ):
-            print("Device not connected")
             return
 
-        if current_logger is not None:
-            current_logger.pause_unpause()
+        if current_spectrogram is not None:
+            current_spectrogram.pause_unpause()
             self.btn_resume.setEnabled(False)
             self.btn_stop.setEnabled(True)
-            current_logger.request_data()
+            current_spectrogram.request_data()
 
     def pause_logger(self):
-        current_logger_name = self.spectrogram_selection.currentData()
-        current_logger = RunManager.dataloggers.get(current_logger_name)
+        current_spectrogram_name = self.spectrogram_selection.currentData()
+        current_spectrogram = RunManager.loaded_spectrogram.get(current_spectrogram_name)
 
-        if current_logger is not None:
-            current_logger.pause_unpause()
+        if current_spectrogram is not None:
+            current_spectrogram.pause_unpause()
             self.btn_resume.setEnabled(True)
             self.btn_stop.setEnabled(False)
-            current_logger.request_data()
+            current_spectrogram.request_data()
 
     # def load_logger(self, *_):
     #     dialog = SpectrogramLoadDialog(Settings.Paths.spectrogram_library)
@@ -321,23 +319,40 @@ class SpectrogramWidget(QWidget):
     def show_data_store(self):
         self.sigShowDataStore.emit(1)
 
-    def update_x_len(self, new_len: int):
-        if new_len == self.x_len:
-            return
-        self.x_len = new_len
+    def update_x_len(self, new_len: int, calib_coeff: list, concat_factor: int):
+        if new_len != self.x_len or len(calib_coeff) != len(self.current_calibration) or any(cc != nc for cc, nc in zip(self.current_calibration, calib_coeff) or self.current_concat_factor != concat_factor):
+            self.x_len = new_len
+            self.current_calibration = calib_coeff
+            self.current_concat_factor = concat_factor
 
-        self.top_spectrum_plot.setLimits(xMax=self.x_len)
-        self.plot.setLimits(xMax=self.x_len)
+            
+            
+            self.x = np.arange(self.x_len)
+            y = np.zeros(self.x_len)
+            bar_width = np.mean(np.diff(self.x))
 
-        self.x = np.arange(self.x_len)
-        y = np.zeros(self.x_len)
+            self.top_spectrum_plot.removeItem(self.bar)
+            self.bar = pg.BarGraphItem(x=self.x, height=y, width=bar_width, brush="y")
+            self.top_spectrum_plot.addItem(self.bar)        
+            
+            self.top_spectrum_plot.setLimits(xMax=np.max(self.x))
+            self.plot.setLimits(xMin = self.x[0], xMax=self.x[-1])
+            self.plot.setRange(xRange = [self.x[0], self.x[-1]])
+            
+            x_calib  = np.polyval(calib_coeff, np.arange(self.x_len) * concat_factor)
+            
+            step = self.x_len // 15
+            ticks = [
+                (i * step, f"{x_c:.0f}")
+                for i, x_c in enumerate(x_calib[::step])
+            ]
 
-        self.bar = pg.BarGraphItem(x=self.x, height=y, width=1.0, brush="y")
-        self.top_spectrum_plot.addItem(self.bar)
+            self.top_spectrum_plot.getAxis("bottom").setTicks([ticks])
+            self.plot.getAxis("bottom").setTicks([ticks])
 
     def update_on_spectrogram_selection(self):
         db_name = self.spectrogram_selection.currentData()
-        logger = RunManager.dataloggers.get(db_name)
+        logger = RunManager.loaded_spectrogram.get(db_name)
         if logger:
             if logger.paused:
                 self.btn_resume.setEnabled(True)
@@ -348,8 +363,8 @@ class SpectrogramWidget(QWidget):
             logger.request_data()
 
     def connect_logger(self):
-        for logger in list(RunManager.dataloggers.values()):
-            logger.dataUpdated.connect(self.recieve_data)
+        for logger in list(RunManager.loaded_spectrogram.values()):
+            logger.sigDataUpdated.connect(self.receive_data)
 
     def unload_logger(self):
         index = self.spectrogram_selection.currentIndex()
@@ -361,7 +376,7 @@ class SpectrogramWidget(QWidget):
                 self.bar.setOpts(height=np.zeros(self.x_len))
                 self.info_label.setText("")
 
-    def recieve_data(self, logger_name: str, data_packet: WrappedSpectrogramData):
+    def receive_data(self, logger_name: str, data_packet: WrappedSpectrogramData):
         index = find_index_by_data(self.spectrogram_selection, logger_name)
 
         state_text = data_packet.status.name
@@ -371,6 +386,7 @@ class SpectrogramWidget(QWidget):
             self.spectrogram_selection.addItem(
                 f"[{state_text}] {logger_name}", logger_name
             )
+            self.spectrogram_selection.setCurrentText(f"[{state_text}] {logger_name}")
         else:
             # Update existing item text
             self.spectrogram_selection.setItemText(
@@ -396,7 +412,7 @@ class SpectrogramWidget(QWidget):
                 {data_packet.db_name}
             Instrument: {data_packet.instrument}
             Start Date: {datetime.fromtimestamp(round(data_packet.start_date))}
-            Duration: {timedelta(seconds=np.floor(data_packet.duration))}
+            Duration: {timedelta(seconds=np.floor(data_packet.duration)) if data_packet.duration else 0}
             Estimated Dose: {round(dose, 3)} {dose_unit}
             Time Interval: {data_packet.save_interval}s
             Spectrum Concat Factor: {data_packet.concat}
@@ -404,7 +420,9 @@ class SpectrogramWidget(QWidget):
         """).strip()
         )
 
-        self.update_x_len(data_packet.spect_channels)  # Update x-axis if changed
+        self.update_x_len(data_packet.spect_channels, data_packet.calibration_coefficients, data_packet.concat)  # Update x-axis if changed
+        if data_packet.latest_spectrum is None:
+            return
         self.bar.setOpts(
             height=data_packet.latest_spectrum
         )  # Update bar plot above the waterfall
@@ -414,7 +432,12 @@ class SpectrogramWidget(QWidget):
 
         # Flip the view buffer so the earlist is at the top
         new_image = np.array(view_buf)[::-1]
-        self.img.setImage(new_image.T, autoLevels=False)
+        self.img.setImage(
+            new_image.T,
+            autoLevels=False,
+            rect=QRectF(self.x[0], 0, self.x[-1] - self.x[0], new_image.shape[0])
+        )
+        
 
 
 if __name__ == "__main__":

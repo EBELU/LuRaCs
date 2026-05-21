@@ -15,6 +15,8 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtGui import QColor, QPainter, QBrush, QAction, QFont
+import pyqtgraph as pg
+import numpy as np
 
 from core import SpectrumManager, Settings
 from utils.numerics import find_peaks
@@ -153,6 +155,12 @@ class NuclideListItem(QWidget):
         # connect color picker
         self.color_widget.clicked.connect(self.color_widget.get_color)
         self.color_widget.sigColorChanged.connect(self._on_color_changed)
+        
+    def mouseDoubleClickEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.checkbox.toggle()
+
+        super().mouseDoubleClickEvent(event)
 
     def _on_state_changed(self, state):
         self.sigViewCheckChanged.emit(
@@ -170,6 +178,113 @@ class NuclideListItem(QWidget):
     def _on_color_changed(self, color):
         self.sigColorChanged.emit(self.name, color)
 
+class SpectrumDebugViewWidget(QWidget):
+    def __init__(self, parent = None):
+        super().__init__(parent=parent)
+        self.spectrum_y = None
+        self.d1 = None
+        self.d2 = None
+        self.peaks = None
+
+        self.spectrum_plot = pg.PlotWidget()
+        self.d1_plot = pg.PlotWidget()
+        self.d2_plot = pg.PlotWidget()
+        
+        self.d1_plot.getPlotItem().setXLink(self.spectrum_plot)
+        self.d2_plot.getPlotItem().setXLink(self.spectrum_plot) 
+        
+        self.plots_L = [self.spectrum_plot, self.d1_plot, self.d2_plot]
+        
+        main_layout = QVBoxLayout(self)
+        
+        main_layout.addWidget(self.spectrum_plot)
+        main_layout.addWidget(self.d1_plot)
+        main_layout.addWidget(self.d2_plot)
+        
+
+    def show(self):
+        for plot in self.plots_L:
+            plot.getPlotItem().clear()
+
+        # Split peak positions by type
+        left_positions = []
+        centre_positions = []
+        right_positions = []
+
+        if self.peaks is not None:
+            for left, centre, right in self.peaks:
+                left_positions.append(left)
+                centre_positions.append(centre)
+                right_positions.append(right)
+
+        def add_peak_markers(plot_item, data):
+            # Left = red
+            if left_positions:
+                x = np.array(left_positions)
+                y = data[x]
+
+                plot_item.plot(
+                    x, y,
+                    pen=None,
+                    symbol='o',
+                    symbolSize=8,
+                    symbolBrush='r'
+                )
+
+            # Centre = blue
+            if centre_positions:
+                x = np.array(centre_positions)
+                y = data[x]
+
+                plot_item.plot(
+                    x, y,
+                    pen=None,
+                    symbol='o',
+                    symbolSize=8,
+                    symbolBrush='b'
+                )
+
+            # Right = green
+            if right_positions:
+                x = np.array(right_positions)
+                y = data[x]
+
+                plot_item.plot(
+                    x, y,
+                    pen=None,
+                    symbol='o',
+                    symbolSize=8,
+                    symbolBrush='g'
+                )
+
+        # ---------------- Spectrum ----------------
+        if self.spectrum_y is not None:
+            x = np.arange(len(self.spectrum_y))
+
+            plot_item = self.spectrum_plot.getPlotItem()
+            plot_item.plot(x, self.spectrum_y)
+
+            add_peak_markers(plot_item, self.spectrum_y)
+
+        # ---------------- First derivative ----------------
+        if self.d1 is not None:
+            x = np.arange(len(self.d1))
+
+            plot_item = self.d1_plot.getPlotItem()
+            plot_item.plot(x, self.d1)
+
+            add_peak_markers(plot_item, self.d1)
+
+        # ---------------- Second derivative ----------------
+        if self.d2 is not None:
+            x = np.arange(len(self.d2))
+
+            plot_item = self.d2_plot.getPlotItem()
+            plot_item.plot(x, self.d2)
+
+            add_peak_markers(plot_item, self.d2)
+
+        super().show()
 
 class IsotopicsTab(QWidget):
     sigViewCheckChanged = Signal(str, bool, object)  # (name, checked, QColor)
@@ -234,11 +349,16 @@ class IsotopicsTab(QWidget):
         self.search_window_length.setRange(3, 1001)
         self.search_window_length.setSingleStep(2)
         self.search_window_length.setValue(31)
+        
+        self.debug_view = SpectrumDebugViewWidget()
+        self.btn_view_calculation = QPushButton("View Derivatives")
+        self.btn_view_calculation.clicked.connect(self.debug_view.show)
 
         peak_search_layout.addWidget(self.btn_search_peaks)
         peak_search_layout.addWidget(self.search_spect_combo)
         peak_search_layout.addWidget(QLabel("Channels in Search Window"))
         peak_search_layout.addWidget(self.search_window_length)
+        peak_search_layout.addWidget(self.btn_view_calculation)
         peak_search_layout.addStretch()
 
         nuclides_list_layout.setContentsMargins(0, 0, 0, 0)
@@ -342,7 +462,7 @@ class IsotopicsTab(QWidget):
             f"{format_emissions(nuc.emissions)}\n\n"
             "Daughter Products:\n"
             f"{daughters}\n\n"
-            f"LNHB citation volume: {nuc.citation_ref}\n"
+            f"Source: {nuc.citation_ref}\n"
             "(see bibliography)"
         )
 
@@ -358,7 +478,12 @@ class IsotopicsTab(QWidget):
         else:
             y_data = spectrum.get_foreground()
         
-        peaks = find_peaks(y_data)
+        peaks, d1, d2 = find_peaks(y_data)
+        
+        self.debug_view.spectrum_y = y_data
+        self.debug_view.d1 = d1
+        self.debug_view.d2 = d2
+        self.debug_view.peaks = peaks
         
         for le, p, re in peaks:
             le_e, re_e = spectrum.x_axis[le], spectrum.x_axis[re]
@@ -372,9 +497,14 @@ class IsotopicsTab(QWidget):
         self.search_spect_combo.clear()
         if Settings.Appearance.tabbed_spectrum_view:
             self.search_spect_combo.setEnabled(False)
+            for key, spectrum in SpectrumManager.get_spectra_dict().items():
+                self.search_spect_combo.addItem(spectrum.name, key)
         else:
             self.search_spect_combo.setEnabled(True)
             for key, spectrum in SpectrumManager.get_spectra_dict().items():
                 self.search_spect_combo.addItem(spectrum.name, key)
+    
+
+        
         
         

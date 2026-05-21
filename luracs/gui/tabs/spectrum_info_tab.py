@@ -103,6 +103,7 @@ class SpectrumInfoTab(QWidget):
     sigDisconnectAndRemove = Signal(str, bool)
     sigRemoveSpectrum = Signal(str)
     sigToggleVisibility = Signal(str)
+    sigUpdateSpectrumInstrument = Signal(str, object)
 
     # spectrum_name, "foreground"/"background", color
 
@@ -120,6 +121,7 @@ class SpectrumInfoTab(QWidget):
         self.sigRemoveSpectrum.connect(SpectrumManager.remove_spectrum)
         self.sigToggleVisibility.connect(SpectrumManager.update_visibility)
         self.sigColorChanged.connect(SpectrumManager.set_color)
+        self.sigUpdateSpectrumInstrument.connect(SpectrumManager.set_spectrum_instrument)
         self.sigDisconnectAndRemove.connect(RunManager.remove_device)
 
         self.group_box = QGroupBox(title)
@@ -150,9 +152,8 @@ class SpectrumInfoTab(QWidget):
         
     def edit_spectrum(self, spectrum: Spectrum):
         spectrum_index = self.main_window.data_store.spectrum_tab.file_index
-        instrument_index = self.main_window.data_store.instruments_tab.file_index
         connected = True if spectrum.connection is not None else False
-        dialog = SpectrumEditDialog(spectrum=spectrum, spectrum_is_connected=connected, spectrum_index=spectrum_index, instrument_index=instrument_index)
+        dialog = SpectrumEditDialog(spectrum=spectrum, spectrum_is_connected=connected, spectrum_index=spectrum_index)
         res = dialog.exec()
         
         if res != SpectrumEditDialog.Accepted:
@@ -170,7 +171,9 @@ class SpectrumInfoTab(QWidget):
             
         if data["remark"]:
             SpectrumManager.spectra[data["name"]].remark = data["remark"]
-        
+            
+        if data["instrument"] is not None:
+            self.sigUpdateSpectrumInstrument.emit(data["name"], data["instrument"])
 
     def build_menu_button(
         self, spectrum: Spectrum, role: str, color: QColor, parent=None
@@ -278,6 +281,9 @@ class SpectrumInfoTab(QWidget):
 
     def recieve_update(self, name):
         new_spect = SpectrumManager.get_spectrum(name)
+        
+        # Get instrument
+        instr = new_spect.instrument.name if new_spect.instrument is not None else "None"
 
         # --- Foreground ---
         if name + "f" not in self.table.get_all_keys():
@@ -307,6 +313,7 @@ class SpectrumInfoTab(QWidget):
                 live_time,
                 real_time,
                 str(new_spect.calibrated),
+                instr
             ],
             menu_button=foreground_menu_button,
         )
@@ -339,7 +346,7 @@ class SpectrumInfoTab(QWidget):
                     live_time,
                     real_time,
                     str(new_spect.calibrated),
-                    "",
+                    instr,
                 ],
                 menu_button=background_menu_button,
             )

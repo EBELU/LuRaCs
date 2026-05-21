@@ -16,7 +16,7 @@ from clients.DeviceWrappers import (
     WrappedStatusPackage,
 )
 
-from core import Settings, RunManager, Log
+from core import Settings, RunManager, Log, SpectrumManager
 
 
 def compress_spectrum(array: np.ndarray) -> bytes:
@@ -31,48 +31,57 @@ def decompress_spectrum(blob: bytes, channel_count: int) -> np.ndarray:
     return np.frombuffer(raw, dtype=np.uint32, count=channel_count)
 
 
-def restart_logger(db_name: str):
-    new_log = SpectrumLogger(db_name, resume=True)
+def restart_spectrogram(db_name: str):
+    new_log = Spectrogram(db_name, resume=True)
 
     RunManager.currentUpdated.connect(new_log.receive_current)
     RunManager.statusUpdated.connect(new_log.receive_status)
     RunManager.spectrumUpdated.connect(new_log.receive_spectrum)
 
-    RunManager.add_logger(db_name, new_log)
+    RunManager.add_spectrogram(db_name, new_log)
 
     new_log.request_data()
 
 
-def start_logger(db_name, device: str, save_interval: int = 1, truncation: int = 0):
+def start_spectrogram(db_name, device: str, save_interval: int = 1, truncation: int = 0):
     device_wrapper = RunManager.devices.get(device, None)
     if not device_wrapper:
         Log.warning(f"Logging could not be started as {device} does not exist")
         return
 
-    if device_wrapper.name in RunManager.dataloggers:
+    if device_wrapper.name in RunManager.loaded_spectrogram:
         Log.warning(f"Logger already running for device {device_wrapper.name}")
         return
+    
+    calibration_coeff = None
+    for spectrum in SpectrumManager.get_spectra_dict().values():
+        if device == spectrum.connection:
+            calibration_coeff = spectrum.calibration_coefficients
+            break
 
-    new_log = SpectrumLogger(
+    new_log = Spectrogram(
         db_name,
         save_interval=save_interval,
         spect_channels=device_wrapper.channels,
         device_id=device_wrapper.name,
-        calibration_coeff=device_wrapper.calibration,
+        calibration_coeff=calibration_coeff if calibration_coeff is not None else [],
         channel_concat_factor=truncation,
     )
+    
 
     RunManager.currentUpdated.connect(new_log.receive_current)
     RunManager.statusUpdated.connect(new_log.receive_status)
     RunManager.spectrumUpdated.connect(new_log.receive_spectrum)
 
-    RunManager.add_logger(db_name, new_log)
+    RunManager.add_spectrogram(db_name, new_log)
+    new_log.request_data()
 
 
 @dataclass
 class WrappedSpectrogramData:
     db_name: str
     instrument: str
+    calibration_coefficients: list
     start_date: float
     duration: float
     concat: int
@@ -101,9 +110,9 @@ class Buffers:
     duration: float = 0
 
 
-class SpectrumLogger(QObject):
-    loggerStarted = Signal()
-    dataUpdated = Signal(str, object)
+class Spectrogram(QObject):
+    sigStarted = Signal()
+    sigDataUpdated = Signal(str, object)
 
     class State(Enum):
         ACTIVE = auto()
@@ -150,6 +159,7 @@ class SpectrumLogger(QObject):
             self.data_wrapper = WrappedSpectrogramData(
                 db_name,
                 self.device_id,
+                self.calibration_coeff,
                 self.start_date,
                 0,
                 self.concat_factor,
@@ -249,7 +259,7 @@ class SpectrumLogger(QObject):
             self.data_wrapper.status = self.state
 
     def request_data(self):
-        self.dataUpdated.emit(self.db_name, self.data_wrapper)
+        self.sigDataUpdated.emit(self.db_name, self.data_wrapper)
 
     def load_from_db(self):
         cursor = self.connection.cursor()
@@ -316,6 +326,7 @@ class SpectrumLogger(QObject):
         self.data_wrapper = WrappedSpectrogramData(
             self.db_name,
             self.device_id,
+            self.calibration_coeff,
             self.start_date,
             self.buffers.duration,
             self.concat_factor,
@@ -391,7 +402,7 @@ class SpectrumLogger(QObject):
         self.data_wrapper.status = self.state
 
         # Emit wrapper
-        self.dataUpdated.emit(self.db_name, self.data_wrapper)
+        self.sigDataUpdated.emit(self.db_name, self.data_wrapper)
 
         # Compress spectrum and insert it into the database
         spectrum_bytes = compress_spectrum(processed_spectrum)

@@ -229,7 +229,7 @@ class ROIManager(QObject):
         Log.info(f"[ROI Added]")
         return new_roi
 
-    def remove_roi(self, roi_tag: str) -> None:
+    def remove_roi(self, roi_tag: str, update_state: bool = True) -> None:
         "Remove a ROI based the tag"        
         popped_roi = self.ROIs.pop(roi_tag, None)
         if not popped_roi:
@@ -240,18 +240,19 @@ class ROIManager(QObject):
         self.roi_groupings = self.calculate_roi_groups()
 
         # Fix roi color after removal and update calculations
-        updated_tags = set()
-        for g in self.roi_groupings:
-            for r in g:
-                if r not in updated_tags:
-                    self.on_roi_change(r)
-                    updated_tags.add(r)
+        if update_state:
+            updated_tags = set()
+            for g in self.roi_groupings:
+                for r in g:
+                    if r not in updated_tags:
+                        self.on_roi_change(r)
+                        updated_tags.add(r)
             
 
     def clear_all(self) -> None:
         "Remove all rois"
         for tag in self.ROIs.copy().keys():
-            self.remove_roi(tag)
+            self.remove_roi(tag, update_state=False)
 
     def get_tag_from_alias(self, roi_alias: str) -> str:
         """Returns the internal ROI tag from a ROI alias"""

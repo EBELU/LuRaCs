@@ -31,6 +31,7 @@ class EmittedSignals(QObject):
     roiRemoved = Signal(str)
 
     colorUpdated = Signal(str)
+    spectrumNameChanged = Signal(str, str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -47,8 +48,8 @@ class SpectrumManagerBase(QObject):
 
         self.ROIManager = ROIManager(self)
 
-        self.UniqueInstrumentLibrary = InstrumentLibrary(self, UniqueInstrument)
-        self.GenericInstrumentLibrary = InstrumentLibrary(self, GenericInstrument)
+        self.UniqueInstrumentLibrary = InstrumentLibrary(UniqueInstrument)
+        self.GenericInstrumentLibrary = InstrumentLibrary(GenericInstrument)
 
         self.NuclideLibrary = NuclideLibrary(self)
 
@@ -140,6 +141,10 @@ class SpectrumManagerBase(QObject):
         try:
             self.blockSignals(True)
             self.spectra[new_name] = self.spectra.pop(current_name)
+            self.spectra[new_name].name = new_name
+            for roi in self.ROIManager.ROIs.values():
+                if roi.owner_spectrum == current_name:
+                    roi.owner_spectrum = new_name
         finally:
             self.blockSignals(False)
             self.Signals.spectrumRemoved.emit(current_name)
@@ -222,7 +227,11 @@ class SpectrumManagerBase(QObject):
             gui_logger.warning("File contains no spectrum")
             return
         self.set_background_spectrum(spectrum_name, data_dict["foreground"])
-
+        
+    def set_spectrum_instrument(self, spectrum_name: str, instrument: UniqueInstrument):
+        assert isinstance(instrument, UniqueInstrument), f"Instrument must be UniqueInstrument, is {type(instrument)}"
+        self.spectra[spectrum_name].instrument = instrument
+        self.Signals.spectrumUpdated.emit(spectrum_name)
 
 # Declare ONE instance
 SpectrumManager = SpectrumManagerBase()

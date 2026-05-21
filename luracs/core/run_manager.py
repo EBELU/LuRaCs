@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from luracs.containers.spectrum_classes import Spectrum
-    from luracs.containers.spectrogram import SpectrumLogger
+    from luracs.containers.spectrogram import Spectrogram
 
 import asyncio
 from pathlib import Path
@@ -86,8 +86,8 @@ class RunManagerBase(QObject):
     deviceRemoved = Signal(str)
     deviceError = Signal(str, str)
 
-    loggerStarted = Signal(str)
-    loggerClosed = Signal(str)
+    spectrogramStarted = Signal(str)
+    spectrogramClosed = Signal(str)
 
     shutdownStarted = Signal()
     shutdownFinished = Signal()
@@ -116,7 +116,7 @@ class RunManagerBase(QObject):
         self._poll_task: asyncio.Task | None = None
         self._polling = False
 
-        self.dataloggers: dict[str, SpectrumLogger] = {}
+        self.loaded_spectrogram: dict[str, Spectrogram] = {}
 
     def set_loop(self, loop):
         self.event_loop = loop
@@ -256,14 +256,14 @@ class RunManagerBase(QObject):
         self.shutdownStarted.emit()
 
         # --- Close active loggers ---
-        for logger_key in self.dataloggers.copy().keys():
+        for logger_key in self.loaded_spectrogram.copy().keys():
             try:
-                self.close_logger(logger_key)
+                self.close_spectrogram(logger_key)
             except Exception as e:
-                gui_logger.warning(f"Closing logger {logger_key} raised {e}")
+                gui_logger.warning(f"Closing spectrogram {logger_key} raised {e}")
 
         # --- Stop devices ---
-        async def stop_device(device):
+        async def stop_device(device: DeviceWrapper):
             gui_logger.debug(f"Shutting down {device.name}")
             try:
                 await asyncio.wait_for(device.stop(), timeout=5)
@@ -376,18 +376,18 @@ class RunManagerBase(QObject):
 
         return results
 
-    def add_logger(self, device_name: str, new_log: bool):
-        self.dataloggers[device_name] = new_log
-        self.loggerStarted.emit(device_name)
+    def add_spectrogram(self, device_name: str, new_log: bool):
+        self.loaded_spectrogram[device_name] = new_log
+        self.spectrogramStarted.emit(device_name)
         gui_logger.info(
             f"[Spectrogram Opened] db_name = {new_log.db_name}, device = {new_log.device_id}"
         )
 
-    def close_logger(self, name: str):
-        logger = self.dataloggers.pop(name, None)
-        if logger:
-            logger.close()
-            self.loggerClosed.emit(name)
+    def close_spectrogram(self, name: str):
+        spectrogram = self.loaded_spectrogram.pop(name, None)
+        if spectrogram:
+            spectrogram.close()
+            self.spectrogramClosed.emit(name)
             gui_logger.info(f"[Spectrogram Closed] name = {name}")
 
 

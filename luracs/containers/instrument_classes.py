@@ -14,6 +14,7 @@ class GenericInstrument:
     detector_material: str = None
     detector_shape: str = None
     detector_dimensions_cm: list = None  # cm
+    detector_dimensions_uncert_cm: list = None  # cm
 
     # --- Resolution ---
     resolution_fn: str = None

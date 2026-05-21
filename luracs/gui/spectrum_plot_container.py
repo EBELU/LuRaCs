@@ -14,6 +14,7 @@ import numpy as np
 class SpectrumPlotContainer(QWidget):
     sigModeChanged = Signal()
     sigRedrawRequested = Signal()
+    sigTabChanged = Signal(str)
     _sigRedraw = Signal()
     
     def __init__(self, main_window: MainWindow, parent = None):
@@ -47,6 +48,7 @@ class SpectrumPlotContainer(QWidget):
         self.tabs = QTabWidget()
         self.tabs.setTabPosition(QTabWidget.North)
         self.tabs.setContentsMargins(0,0,0,0)
+        self.tabs.currentChanged.connect(lambda : self.sigTabChanged.emit(self.tabs.currentWidget().owned_spectrum))
         self.multi_page = QWidget()
         layout2 = QVBoxLayout(self.multi_page)
         layout2.setContentsMargins(0, 0, 0, 0)

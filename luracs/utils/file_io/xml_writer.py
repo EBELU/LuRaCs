@@ -246,6 +246,10 @@ def write_instrument_data(instrument: GenericInstrument | UniqueInstrument, root
         instrument_section, "DetectorShape", instrument.detector_shape
     )
 
+    write_text_to_SubElement(
+        instrument_section, "DetectorType", instrument.detector_type
+    )
+    
     if instrument.detector_dimensions_cm:
         write_text_to_SubElement(
             instrument_section,
@@ -287,9 +291,12 @@ def write_instrument_data(instrument: GenericInstrument | UniqueInstrument, root
         write_text_to_SubElement(
             efficiency_section, "Parameters", instrument.int_efficiency_params
         )
-        write_text_to_SubElement(
-            efficiency_section, "Created", instrument.int_efficiency_created.isoformat()
-        )
+        if instrument.int_efficiency_created:
+            write_text_to_SubElement(
+                efficiency_section,
+                "Created",
+                instrument.int_efficiency_created.isoformat(),
+            )
         write_text_to_SubElement(
             efficiency_section, "Description", instrument.int_efficiency_description
         )

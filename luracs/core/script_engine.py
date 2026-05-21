@@ -11,8 +11,8 @@ from .script_engine_components.exceptions import ArgumentError, InvalidCommandEr
 from .script_engine_components.registry import CommandRegistry
 from .script_engine_components.commands import register_commands
 
-from prompt_toolkit import PromptSession, print_formatted_text
-from prompt_toolkit.patch_stdout import patch_stdout
+from prompt_toolkit import PromptSession
+from prompt_toolkit.completion import NestedCompleter
 
 
 # --- Helpers ---
@@ -40,10 +40,15 @@ class ScriptEngine(QObject):
 
         self.registry = CommandRegistry()
         register_commands(self.registry)
-
+        self.auto_completer = None
         if self.headless:
+            command_args = {"exit": None}
+            for cmd in self.registry.commands.values():
+                command_args[cmd.name] = cmd.argument_tree
+                
+            self.auto_completer = NestedCompleter.from_nested_dict(command_args)
             self.sigCommandOutput.connect(self.print_output)
-            self.session = PromptSession()
+            self.session = PromptSession(completer=self.auto_completer)
 
     # --- Startup ---
     async def start(self):
@@ -61,6 +66,7 @@ class ScriptEngine(QObject):
         try:
             while True:
                 try:
+                    await asyncio.sleep(0.1)
                     cmd = await self.session.prompt_async("LuRaCs Console <<< ")
                 except KeyboardInterrupt:
                     self.sigCancelCurrent.emit()
@@ -80,8 +86,7 @@ class ScriptEngine(QObject):
 
                 if cmd.strip().lower() in ("exit", "quit", "shutdown"):
                     break
-                
-                await asyncio.sleep(0.1)
+            
 
         except asyncio.CancelledError:
             self.cancel_current_command()
