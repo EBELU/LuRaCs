@@ -48,7 +48,7 @@ class SpectrumPlotContainer(QWidget):
         self.tabs = QTabWidget()
         self.tabs.setTabPosition(QTabWidget.North)
         self.tabs.setContentsMargins(0,0,0,0)
-        self.tabs.currentChanged.connect(lambda : self.sigTabChanged.emit(self.tabs.currentWidget().owned_spectrum))
+        self.tabs.currentChanged.connect(lambda : self.sigTabChanged.emit(self.tabs.currentWidget().owned_spectrum if self.tabs.currentWidget() else ""))
         self.multi_page = QWidget()
         layout2 = QVBoxLayout(self.multi_page)
         layout2.setContentsMargins(0, 0, 0, 0)
@@ -85,22 +85,33 @@ class SpectrumPlotContainer(QWidget):
         self.tabs.addTab(plot_widget, spectrum_name)
         
     def remove_tab(self, spectrum_name):
-        plot_widget = self.tab_spectrum_plots[spectrum_name]
-        
+        plot_widget = self.tab_spectrum_plots.pop(spectrum_name)
         self.main_window.theme.unregister_plot(plot_widget)
         index = self.tabs.indexOf(plot_widget)
         self.tabs.removeTab(index)
         plot_widget.deleteLater()
+        
+        # Clean up rois
+        attached_rois = [roi.tag for roi in SpectrumManager.ROIManager.ROIs.values() if roi.owner_spectrum == spectrum_name]
+        for roi_tag in attached_rois:
+            SpectrumManager.ROIManager.remove_roi(roi_tag, update_state=False) # Everything is going, dont waste time on updating
 
     # --- Communication with plots ---
     def add_roi_to_plot(self, roi):
         if Settings.Appearance.tabbed_spectrum_view:
-            current_plot = self.tabs.currentWidget()
-            roi.owner_spectrum = current_plot.owned_spectrum
-            current_plot.plot_widget.addItem(roi)
+            if roi.owner_spectrum is None:
+                current_plot = self.tabs.currentWidget()
+                roi.owner_spectrum = current_plot.owned_spectrum
+                current_plot.plot_widget.addItem(roi)
+            else:
+                for i in range(self.tabs.count()):
+                    widget = self.tabs.widget(i)
+                    if roi.owner_spectrum == widget.owned_spectrum:
+                        widget.plot_widget.addItem(roi)
+                        break
         else:
             self.single_plot.plot_widget.addItem(roi)
-            
+        
         SpectrumManager.ROIManager.on_roi_change(roi_tag=roi.tag)
         
     def request_redraw(self):

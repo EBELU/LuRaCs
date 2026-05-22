@@ -7,10 +7,12 @@ from containers.instrument_classes import GenericInstrument, UniqueInstrument
 from containers.spectrum_classes import Spectrum, SpectrumData
 
 from .gui_logger import gui_logger
+from .settings import Settings
 from .roi_manager import ROIManager
 from .instument_library import InstrumentLibrary
 from .nuclide_library import NuclideLibrary
 from utils.color_rotator import ColorRotator
+from utils.file_io import xml_writer
 
 """
     The Spectrum manager handles the spectra in the program.
@@ -29,6 +31,8 @@ class EmittedSignals(QObject):
     roiCreated = Signal(str)
     roiUpdated = Signal(str)
     roiRemoved = Signal(str)
+    
+    newInstrumentLoaded = Signal(object)
 
     colorUpdated = Signal(str)
     spectrumNameChanged = Signal(str, str)
@@ -217,10 +221,31 @@ class SpectrumManagerBase(QObject):
                     **peak.meta,
                 }
 
-                self.ROIManager.add_roi(*peak.roi_bound, **extented_kwargs)
+                self.ROIManager.add_roi(*peak.roi_bound, **extented_kwargs, owner_spectrum = data_dict["name"] if Settings.Appearance.tabbed_spectrum_view else None)
+                
+        if "instrument" in data_dict:
+            instr = data_dict["instrument"]
+            if instr.name in self.UniqueInstrumentLibrary.get_instrument_names():
+                # Attach the stored instrument if possible
+                # Otherwise it will not share the reference to the same instrument
+                # If so changes will not propagate
+                self.set_spectrum_instrument(data_dict["name"], self.UniqueInstrumentLibrary.get_instrument_by_name(instr.name))
+            
+            else:
+                # If the instrument does not exist, save the new instrument and let the data library know
+                dummy_spectrum = Spectrum(1, "Dummy")
+                dummy_spectrum.instrument = instr
+                file_path = (Settings.Paths.unique_instrument_library / instr.name).with_suffix(".xml")
+                self.UniqueInstrumentLibrary.instruments[file_path] = instr
+                xml_writer(dummy_spectrum, file_path, export_spectrum=False, export_rois=False)
+                
+                self.set_spectrum_instrument(data_dict["name"], self.UniqueInstrumentLibrary.get_instrument_by_name(instr.name))
+                self.Signals.newInstrumentLoaded.emit(file_path)
         
         if "remark" in data_dict:
             self.spectra[data_dict["name"]].remark = data_dict["remark"]
+            
+        self.Signals.spectrumUpdated.emit(data_dict["name"])
 
     def import_spectrum_as_background(self, spectrum_name: str, data_dict: dict):
         if "foreground" not in data_dict:
@@ -232,6 +257,9 @@ class SpectrumManagerBase(QObject):
         assert isinstance(instrument, UniqueInstrument), f"Instrument must be UniqueInstrument, is {type(instrument)}"
         self.spectra[spectrum_name].instrument = instrument
         self.Signals.spectrumUpdated.emit(spectrum_name)
-
+        
+    def clear_spectrum_instrument(self, spectrum_name: str):
+        self.spectra[spectrum_name].instrument = None
+        self.Signals.spectrumUpdated.emit(spectrum_name)
 # Declare ONE instance
 SpectrumManager = SpectrumManagerBase()

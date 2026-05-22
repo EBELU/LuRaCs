@@ -62,7 +62,7 @@ class MainMenuBar(QMenuBar):
         calculate_menu_photoEff.triggered.connect(lambda: parent.calculate_windows["efficiency"].show())
         calculate_menu_photoActivity = calculate_menu.addAction("Activity")
         calculate_menu_photoCalibration = calculate_menu.addAction("Calibration")
-
+        calculate_menu_photoCalibration.triggered.connect(lambda: parent.calculate_windows["calibration"].show())
         calculate_menu = self.addMenu("&MRI Tools")
 
         # ---------- Options Menu ----------

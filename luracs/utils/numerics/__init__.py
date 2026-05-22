@@ -3,3 +3,4 @@ from .optimizer import curve_fit
 from .weights import poisson_weights, huber_weights
 from . import compression
 from .peak_detection import find_peaks
+from .calibration import calibrate_x_axis

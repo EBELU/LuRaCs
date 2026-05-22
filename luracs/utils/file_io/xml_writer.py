@@ -11,6 +11,7 @@ from uuid import uuid4
 from datetime import datetime, timezone
 from utils.numerics.compression import compress_spectrum, encode_base64
 from pathlib import Path
+import numpy as np
 
 NS = "http://physics.nist.gov/N42/2011/N42"
 MY = "https://example.com/n42/extensions"
@@ -28,7 +29,7 @@ def LRC(tag):
 def write_text_to_SubElement(
     branch, sub_element: str, data: str | int | float | list, **kwargs
 ):
-    if isinstance(data, list):
+    if isinstance(data, (list, tuple, np.ndarray)):
         data = " ".join([str(i) for i in data])
     else:
         data = str(data)
@@ -250,7 +251,7 @@ def write_instrument_data(instrument: GenericInstrument | UniqueInstrument, root
         instrument_section, "DetectorType", instrument.detector_type
     )
     
-    if instrument.detector_dimensions_cm:
+    if instrument.detector_dimensions_cm is not None:
         write_text_to_SubElement(
             instrument_section,
             "DetectorDimensions",
@@ -259,7 +260,7 @@ def write_instrument_data(instrument: GenericInstrument | UniqueInstrument, root
         )
 
     # --- Resolution ---
-    if instrument.resolution_fn:
+    if instrument.resolution_fn is not None:
         resolution_section = etree.SubElement(
             instrument_section, "Resolution", type="energy"
         )
@@ -280,7 +281,7 @@ def write_instrument_data(instrument: GenericInstrument | UniqueInstrument, root
             write_text_to_SubElement(pt, "FWHM", fwhm, unit="keV")
 
     # --- Efficiency ---
-    if instrument.int_efficiency_fn:
+    if instrument.int_efficiency_fn is not None:
         efficiency_section = etree.SubElement(
             instrument_section, "Efficiency", type="intrinsic"
         )
@@ -314,7 +315,7 @@ def write_instrument_data(instrument: GenericInstrument | UniqueInstrument, root
         )
 
     # --- Calibration (UniqueInstrument only) ---
-    if isinstance(instrument, UniqueInstrument) and instrument.calibration_coefficients:
+    if isinstance(instrument, UniqueInstrument) and instrument.calibration_coefficients is not None:
         calibration = etree.SubElement(instrument_section, "Calibration")
 
         write_text_to_SubElement(

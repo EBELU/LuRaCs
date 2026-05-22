@@ -56,7 +56,7 @@ from gui.popup_windows.USBListPopup import USBListPopup
 from gui.popup_windows.documentation_dialogs import SmallDocumentationDialog, DocumentationDialog
 from gui.popup_windows.settings_dialog import SettingsDialog
 from gui.popup_windows.efficiency_dialog import EfficiencyWindow
-
+from gui.popup_windows.calibration_dialog import CalibrationWindow
 
 __version__ = "0.2.0"
 from core.script_engine import ScriptEngine
@@ -93,7 +93,8 @@ class MainWindow(QMainWindow):
         self.settings_dialog = SettingsDialog()
         
         self.calculate_windows = {
-            "efficiency": EfficiencyWindow()
+            "efficiency": EfficiencyWindow(),
+            "calibration": CalibrationWindow()
         }
 
         central = QWidget()

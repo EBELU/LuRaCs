@@ -104,6 +104,7 @@ class SpectrumInfoTab(QWidget):
     sigRemoveSpectrum = Signal(str)
     sigToggleVisibility = Signal(str)
     sigUpdateSpectrumInstrument = Signal(str, object)
+    sigClearSpectrumInstrument = Signal(str)
 
     # spectrum_name, "foreground"/"background", color
 
@@ -122,6 +123,7 @@ class SpectrumInfoTab(QWidget):
         self.sigToggleVisibility.connect(SpectrumManager.update_visibility)
         self.sigColorChanged.connect(SpectrumManager.set_color)
         self.sigUpdateSpectrumInstrument.connect(SpectrumManager.set_spectrum_instrument)
+        self.sigClearSpectrumInstrument.connect(SpectrumManager.clear_spectrum_instrument)
         self.sigDisconnectAndRemove.connect(RunManager.remove_device)
 
         self.group_box = QGroupBox(title)
@@ -175,6 +177,9 @@ class SpectrumInfoTab(QWidget):
         if data["instrument"] is not None:
             self.sigUpdateSpectrumInstrument.emit(data["name"], data["instrument"])
 
+        if data["flag_clear_instrument"]:
+            self.sigClearSpectrumInstrument.emit(data["name"])
+        
     def build_menu_button(
         self, spectrum: Spectrum, role: str, color: QColor, parent=None
     ) -> MenuButton:

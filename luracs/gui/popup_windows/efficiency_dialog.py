@@ -183,7 +183,13 @@ class EfficiencyWindow(QDialog):
             check_box = QCheckBox()
             check_box.setChecked(True)
             check_box.setEnabled(bool(roi.fit))
-            table.setCellWidget(row, 0, check_box)
+            check_box = QCheckBox()
+            container = QWidget()
+            layout = QHBoxLayout(container)
+            layout.addWidget(check_box)
+            layout.setAlignment(check_box, Qt.AlignCenter)
+            layout.setContentsMargins(0, 0, 0, 0)
+            table.setCellWidget(row, 0, container)
 
             # --- Column 1: alias (always shown) ---
             roi_item = QTableWidgetItem(str(roi.alias))

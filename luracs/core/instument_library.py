@@ -29,3 +29,13 @@ class InstrumentLibrary(QObject):
             return [i.name for i in self.instruments.values()]
         else:
             return [i.model for i in self.instruments.values()]
+    
+    def get_instrument_by_name(self, name: str):
+        if self._instrument_class is UniqueInstrument:
+            for i in self.instruments.values():
+                if i.name == name:
+                    return i
+        else:
+            for i in self.instruments.values():
+                if i.model == name:
+                    return i

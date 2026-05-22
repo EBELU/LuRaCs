@@ -405,7 +405,6 @@ class ROIsTab(LibraryTab):
                     **peak.meta,
                 }
                 del extented_kwargs["tag"]
-                print(extented_kwargs)
                 SpectrumManager.ROIManager.add_roi(*peak.roi_bound, **extented_kwargs)
 
 
@@ -426,6 +425,7 @@ class InstrumentsTab(LibraryTab):
         self.btn_load.clicked.connect(self.new)
         self.run_index()
         self.btn_info.clicked.connect(self.edit)
+        SpectrumManager.Signals.newInstrumentLoaded.connect(self.new_instrument_from_spectrum)
         
     def run_index(self):
         for file in glob(str(Settings.Paths.unique_instrument_library / "**.xml")):
@@ -482,6 +482,10 @@ class InstrumentsTab(LibraryTab):
         
         save_instrument(new_instrument, edit_dialog.get_data()["name"])
         self.run_index()
+        
+    def new_instrument_from_spectrum(self, instrument_file_path):
+        self.run_index()
+        QMessageBox.information(self, "New Instrument Loaded", f"A new instrument was found when loading a spectrum\nInstrument '{SpectrumManager.UniqueInstrumentLibrary.instruments[instrument_file_path].name}' has been added")
         
 
 class GenericInstrumentsTab(LibraryTab):

@@ -423,8 +423,9 @@ class SpectrumPlot(QWidget):
         self.primary_lines.pop(name, None)
         self.bkg_lines.pop(name, None)
         for roi_tag in SpectrumManager.ROIManager.ROIs.keys():
-            self.ROI_lines_linear[roi_tag].pop(name, None)
-            self.ROI_lines_gaussian[roi_tag].pop(name, None)
+            if roi_tag in self.ROI_lines_linear:
+                self.ROI_lines_linear[roi_tag].pop(name, None)
+                self.ROI_lines_gaussian[roi_tag].pop(name, None)
 
         self._redraw()
 
