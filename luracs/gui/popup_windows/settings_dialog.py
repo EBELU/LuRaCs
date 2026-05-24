@@ -86,6 +86,11 @@ class SettingsDialog(QDialog):
         
         form.addRow("Font Size", self.font_size_spin)
         
+        self.verbose_calculation_logging = QCheckBox("Verbose Calculation Logging")
+        self.verbose_calculation_logging.setChecked(Settings.Appearance.verbose_calculation_logging)
+        
+        form.addRow("", self.verbose_calculation_logging)
+        
     def get_values(self):
         theme = self.theme_combo.currentText().lower()
 
@@ -108,7 +113,8 @@ class SettingsDialog(QDialog):
             "theme": theme,
             "pen": pen,
             "brush": brush,
-            "font_size": font_size
+            "font_size": font_size,
+            "verbose_calculation_logging": self.verbose_calculation_logging.isChecked()
         }
 
 
@@ -143,6 +149,9 @@ def edit_settings(main_window: MainWindow):
                     font = app.font()
                     font.setPointSize(value)  # Change the font size
                     app.setFont(font)
+                    
+                case "verbose_calculation_logging":
+                    Settings.Appearance.verbose_calculation_logging = value
     
     
 from PySide6.QtWidgets import (
@@ -269,7 +278,7 @@ def edit_advanced_settings(main_window: MainWindow):
 
     if len(changed_settings & require_restart):
         restart_message = QMessageBox.information(
-            main_window,  # or main_window
+            main_window,
             "Changed Settings Require Restart",
             f"The following settings require a restart of the program to take effect:\n"
             f"{', '.join(changed_settings & require_restart)}"

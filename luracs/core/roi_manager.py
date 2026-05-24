@@ -226,7 +226,7 @@ class ROIManager(QObject):
         new_roi.sigSettingsUpdated.connect(self.propagrade_roi_settings_change)
         
         self.sigROICreated.emit(new_roi)
-        Log.info(f"[ROI Added]")
+        Log.info(f"ROI Added: alias={new_roi.alias}, bounds={[f"{int(v):4d}" for v in np.array(new_roi.getRegion()).round()]}, nuclide={new_roi.emission.parent_nuclide if new_roi.emission else "None"}, nuclide_energy={new_roi.emission.energy_keV if new_roi.emission else "None"} keV")
         return new_roi
 
     def remove_roi(self, roi_tag: str, update_state: bool = True) -> None:

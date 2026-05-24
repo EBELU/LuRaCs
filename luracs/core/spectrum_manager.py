@@ -32,7 +32,7 @@ class EmittedSignals(QObject):
     roiUpdated = Signal(str)
     roiRemoved = Signal(str)
     
-    newInstrumentLoaded = Signal(object)
+    newInstrumentLoaded = Signal(object) # Signal if an unknown instrument from a file
 
     colorUpdated = Signal(str)
     spectrumNameChanged = Signal(str, str)
@@ -73,7 +73,7 @@ class SpectrumManagerBase(QObject):
 
             # Emit done
             self.Signals.spectrumCreated.emit(name)
-            gui_logger.info(f"[Spectrum added] name = {name}, channels = {channels}, connection = {str(device)}")
+            gui_logger.info(f"Spectrum added: name={name}, channels={channels}, connection={str(device)}")
             return True
         else:
             return False
@@ -84,6 +84,7 @@ class SpectrumManagerBase(QObject):
         if name not in self.spectra:
             raise ValueError(f"Spectrum {name} does not exist")
         if isinstance(spectrum_data, WrappedSpectrumPackage):
+            # Re-Wrap data from a connected instrument
             start_date = datetime.now() - timedelta(seconds=spectrum_data.uptime)
             new_spectrum = SpectrumData(
                 y_axis=spectrum_data.y_axis,
@@ -103,11 +104,15 @@ class SpectrumManagerBase(QObject):
         elif isinstance(spectrum_data, SpectrumData):
             new_spectrum = spectrum_data
             calib_coeff = None
+            
         else:
             gui_logger.warning(f"Invalid spectrum data type {type(spectrum_data)}")
             return
 
         self.spectra[name].set_foreground(new_spectrum)
+        
+        # If the instrument provides a calibration is is sent by the WrappedSpectrumData
+        # If the spectrum is already calibrated it will not be recalibrated
         if not self.spectra[name].calibrated and calib_coeff is not None:
             self.calibrate_spectrum(name, spectrum_data.calib_coeff)
 
@@ -116,27 +121,24 @@ class SpectrumManagerBase(QObject):
     def set_background_spectrum(self, foreground_name: str, spectrum_data: SpectrumData):
         if foreground_name not in self.spectra:
             raise ValueError(f"Spectrum {foreground_name} does not exist")
-
-        y_axis = getattr(spectrum_data, "y_axis", None)
-
-        if y_axis is None:
-            return
         
         self.spectra[foreground_name].set_background(spectrum_data)
         self.Signals.spectrumUpdated.emit(foreground_name)
+        gui_logger.info(f"Background set: name={foreground_name}")
 
     def clear_background(self, name: str):
         if name not in self.spectra:
             raise ValueError(f"Spectrum {name} does not exist")
+        
         self.spectra[name].background = None
         self.Signals.backgroundRemoved.emit(name, "bkg")
-        gui_logger.info(f"[Background removed] {name}")
+        gui_logger.info(f"Background removed: {name}")
 
     def remove_spectrum(self, name: str):
         if name in self.spectra:
-            self.spectra.pop(name)
+            del self.spectra[name]
             self.Signals.spectrumRemoved.emit(name)
-            gui_logger.info(f"[Spectrum removed] {name}")
+            gui_logger.info(f"Spectrum removed: {name}")
             
     def rename_spectrum(self, current_name: str, new_name: str):
         if current_name not in self.spectra:
@@ -146,6 +148,7 @@ class SpectrumManagerBase(QObject):
             self.blockSignals(True)
             self.spectra[new_name] = self.spectra.pop(current_name)
             self.spectra[new_name].name = new_name
+            # Assign the ROIs to the renamed owner
             for roi in self.ROIManager.ROIs.values():
                 if roi.owner_spectrum == current_name:
                     roi.owner_spectrum = new_name
@@ -154,6 +157,7 @@ class SpectrumManagerBase(QObject):
             self.Signals.spectrumRemoved.emit(current_name)
             self.Signals.spectrumCreated.emit(new_name)
             self.Signals.spectrumUpdated.emit(new_name)
+            gui_logger.info(f"Spectrum renamed: old_name={current_name}, new_name={new_name}")
 
     def calibrate_spectrum(self, name: str, coeff: list):
         """Apply a polynomial calibration of the x-axis."""
@@ -162,9 +166,9 @@ class SpectrumManagerBase(QObject):
 
         self.spectra[name].apply_calibration(coeff)
         self.Signals.spectrumUpdated.emit(name)
+        gui_logger.info(f"Spectrum calibrated: name={name}")
 
     def set_color(self, name: str, fg_bkg: str, color: QColor):
-
         if name not in self.spectra:
             raise ValueError(f"Spectrum {name} does not exist")
 
@@ -223,7 +227,7 @@ class SpectrumManagerBase(QObject):
 
                 self.ROIManager.add_roi(*peak.roi_bound, **extented_kwargs, owner_spectrum = data_dict["name"] if Settings.Appearance.tabbed_spectrum_view else None)
                 
-        if "instrument" in data_dict:
+        if "instrument" in data_dict and data_dict["instrument"] is not None:
             instr = data_dict["instrument"]
             if instr.name in self.UniqueInstrumentLibrary.get_instrument_names():
                 # Attach the stored instrument if possible
@@ -261,5 +265,6 @@ class SpectrumManagerBase(QObject):
     def clear_spectrum_instrument(self, spectrum_name: str):
         self.spectra[spectrum_name].instrument = None
         self.Signals.spectrumUpdated.emit(spectrum_name)
+        
 # Declare ONE instance
 SpectrumManager = SpectrumManagerBase()

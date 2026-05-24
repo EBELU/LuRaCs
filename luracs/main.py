@@ -57,6 +57,7 @@ from gui.popup_windows.documentation_dialogs import SmallDocumentationDialog, Do
 from gui.popup_windows.settings_dialog import SettingsDialog
 from gui.popup_windows.efficiency_dialog import EfficiencyWindow
 from gui.popup_windows.calibration_dialog import CalibrationWindow
+from gui.popup_windows.resolution_dialog import ResolutionWindow
 
 __version__ = "0.2.0"
 from core.script_engine import ScriptEngine
@@ -94,7 +95,8 @@ class MainWindow(QMainWindow):
         
         self.calculate_windows = {
             "efficiency": EfficiencyWindow(),
-            "calibration": CalibrationWindow()
+            "calibration": CalibrationWindow(),
+            "resolution": ResolutionWindow()
         }
 
         central = QWidget()
@@ -177,6 +179,7 @@ class MainWindow(QMainWindow):
         # Run things that need the event loop active
         if len(sys.argv) > 1:                
             QTimer.singleShot(0, lambda: parse_cli_args(self))
+            QTimer.singleShot(0, lambda: self.calculate_windows["resolution"].show())
             
         if Settings.Appearance.tabbed_spectrum_view:
             self.spectrum_plot_container.set_tabbed_mode()

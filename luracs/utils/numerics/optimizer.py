@@ -154,3 +154,13 @@ def curve_fit(
         cov *= chi2
 
     return p, cov, converged
+
+
+def r_squared(y: np.ndarray, y_fit: np.ndarray):
+    y = np.array(y)
+    y_fit = np.array(y_fit)
+
+    ss_res = np.sum((y - y_fit) ** 2)
+    ss_tot = np.sum((y - np.mean(y)) ** 2)
+
+    return 1 - (ss_res / ss_tot)

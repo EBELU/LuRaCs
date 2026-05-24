@@ -43,7 +43,7 @@ class LogWidget(QWidget):
         font = QFont()
         font.setFamily("Consolas")  # Windows-friendly monospace
         font.setStyleHint(QFont.Monospace)
-        font.setPointSize(Settings.Appearance.font_size + 1)
+        font.setPointSize(Settings.Appearance.font_size)
         self.text_edit.setFont(font)
 
         layout = QVBoxLayout(self)
@@ -75,7 +75,7 @@ class LogWidget(QWidget):
         handler = QtHandler(self.emitter)
 
         formatter = logging.Formatter(
-            fmt="%(asctime)s | %(name)s -- %(levelname)s: %(message)s",
+            fmt="%(asctime)s | %(name)s | %(levelname)s | %(message)s",
             datefmt="%H:%M:%S",
         )
         handler.setFormatter(formatter)

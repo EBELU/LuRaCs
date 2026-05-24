@@ -7,7 +7,7 @@ if TYPE_CHECKING:
 import numpy as np
 
 
-def calibrate_x_axis(ref_channel_points: list, ref_energy_points: list, polynomial_degree:int, axis_len: int, current_x_axis: np.ndarray = None):
+def calibrate_x_axis(ref_channel_points: list, ref_energy_points: list, polynomial_degree:int, axis_len: int, current_x_axis: np.ndarray = None, return_reference_points: bool = False):
     """Calibrate the energy axis of a spectrum.
 
     Args:
@@ -16,10 +16,13 @@ def calibrate_x_axis(ref_channel_points: list, ref_energy_points: list, polynomi
         polynomial_degree (int): Degree of fitted polynomial
         axis_len (int): Length of returned x-axis
         current_x_axis (np.ndarray, optional): If the ref_channel_points are measured on an already calibrated x-axis this must be provided to interpolate the points to channel values. Defaults to None.
+        return_reference_points (bool, optional): Return the channel and energy points used for the calibration as a tuple of lists
 
     Returns:
         np.ndarray: New x-axix
         np.ndarray: Calibration coefficients
+        
+        (optional) tuple[list, list]: Reference points [channels, energies]
     """
     
     if current_x_axis is not None:
@@ -28,7 +31,11 @@ def calibrate_x_axis(ref_channel_points: list, ref_energy_points: list, polynomi
     coefficients = np.polyfit(ref_channel_points, ref_energy_points,  polynomial_degree)
     new_x = np.polyval(coefficients, np.arange(axis_len))
     
-    return new_x, coefficients
+    if return_reference_points:
+        return new_x, coefficients, (ref_channel_points, ref_energy_points)
+    
+    else:
+        return new_x, coefficients
         
 if __name__ == "__main__":
     channels = 1024

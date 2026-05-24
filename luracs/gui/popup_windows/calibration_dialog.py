@@ -15,11 +15,14 @@ from PySide6.QtWidgets import (QDialog,
                                QAbstractItemView, 
                                QDoubleSpinBox, 
                                QSpinBox,
-                               QComboBox)
+                               QComboBox,
+                               QMessageBox)
 from PySide6.QtCore import Qt, Signal
 import pyqtgraph as pg
+import numpy as np
 
 from core import SpectrumManager
+from utils.numerics import calibrate_x_axis
 
 class CalibrationWindow(QDialog):
     def __init__(self, parent=None):
@@ -31,15 +34,19 @@ class CalibrationWindow(QDialog):
         main_layout.setContentsMargins(8, 8, 8, 8)
         main_layout.setSpacing(6)
 
-        self.layout = main_layout
-
         form = QFormLayout()
         form.setSpacing(9)
         
+        # --- Store Calculation Results ---
+        self.current_new_coeff = None
+        
+        # --- Spectrum Combo Box ---
         self.combo_spectrum = QComboBox()
+        self.combo_spectrum.currentTextChanged.connect(self.set_table)
 
         form.addRow("Spectrum", self.combo_spectrum)
         
+        # --- ROI Table ---
         titles = ["", "ROI", "Nuclide","Centroid", "Reference", "Difference"]
         self.roi_table = QTableWidget(columnCount = len(titles))
         self.roi_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -47,24 +54,30 @@ class CalibrationWindow(QDialog):
         
         form.addRow("ROI Peaks", self.roi_table)
         
-        spin_poly_degree = QSpinBox()
-        spin_poly_degree.setRange(0, 3)
-        spin_poly_degree.setValue(2)
-        spin_poly_degree.valueChanged.connect(self.poly_degree_changed)
-        form.addRow("Degree", spin_poly_degree)
+        # --- Polynomial degree selection ---
+        self.spin_poly_degree = QSpinBox()
+        self.spin_poly_degree.setRange(0, 3)
+        self.spin_poly_degree.setValue(2)
+        self.spin_poly_degree.valueChanged.connect(self.poly_degree_changed)
         
+        form.addRow("Degree", self.spin_poly_degree)
+        
+        # --- Polynomial parameters ---
         parameter_layout = QFormLayout()
         parameter_layout.setContentsMargins(1,0,1,0)
         self.poly_spin_list = [QDoubleSpinBox() for i in range(4)]
         
         for i, sb in enumerate(self.poly_spin_list):
+            sb.setDecimals(6)
             parameter_layout.addRow(f"a{i} =", sb)
-            if i > spin_poly_degree.value():
+            if i > self.spin_poly_degree.value():
                 sb.setEnabled(False)
         
         form.addRow("", parameter_layout)
         
+        # --- Calculations ---
         btn_calculate = QPushButton("Calculate")
+        btn_calculate.clicked.connect(self.calculate)
         
         form.addRow("", btn_calculate)
         
@@ -73,6 +86,10 @@ class CalibrationWindow(QDialog):
         self.calibration_plot.getPlotItem().layout.setContentsMargins(2, 13, 13, 2)
         self.calibration_plot.getPlotItem().setLabel("bottom", "Channels")
         self.calibration_plot.getPlotItem().setLabel("left", "Energy [keV]")
+        self.calibration_plot.setLimits(
+            xMin=0,
+            yMin=0,
+        )
         
         form.addRow("Plot", self.calibration_plot)
         
@@ -80,7 +97,9 @@ class CalibrationWindow(QDialog):
         
         bottom_buttons = QHBoxLayout()
         self.assign_to_instrument_btn = QPushButton("Assign to instrument")
+
         self.assign_to_spectrum_btn = QPushButton("Assign to spectrum")
+        self.assign_to_spectrum_btn.clicked.connect(self.assign_to_spectrum)
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(self.close)
         
@@ -110,6 +129,7 @@ class CalibrationWindow(QDialog):
         self.combo_spectrum.addItems(SpectrumManager.get_spectra_dict().keys())
                 
     def set_table(self, spectrum_name: str):
+        self.current_new_coeff = None
         if not spectrum_name:
             return
         table = self.roi_table
@@ -140,20 +160,85 @@ class CalibrationWindow(QDialog):
             roi_item.setData(Qt.UserRole, roi)
             table.setItem(row, 1, roi_item)
             
-            
             # --- Column 2: Nuclide ---
             table.setItem(row, 2, QTableWidgetItem(str(roi.emission.parent_nuclide if roi.emission else "None")))
             
             # --- Column 3: Centroid ---
             table.setItem(row, 3, QTableWidgetItem(str(round(roi.fit.mu, 2))))
+            
             # --- Column 4: Ref photopeak ---
             ref_box = QDoubleSpinBox()
             ref_box.setRange(0, 1e5)
             ref_box.setValue(roi.emission.energy_keV if roi.emission else 0)
             table.setCellWidget(row, 4, ref_box)
+            
             # --- Column 5: Diff ---
-
             table.setItem(row, 5, QTableWidgetItem(str(round(ref_box.value() - roi.fit.mu, 2)) if roi.emission else None))
+            
+        calib_coeff = SpectrumManager.get_spectrum(spectrum_name).calibration_coefficients
+        
+        for i, display in enumerate(self.poly_spin_list):
+            if i >= len(calib_coeff):
+                break
+            display.setValue(calib_coeff[-(i+1)])
+            
+    def calculate(self):
+        spectrum = SpectrumManager.get_spectrum(
+            self.combo_spectrum.currentText()
+        )
+
+        centroids = []
+        reference_energies = []
+
+        for i in range(self.roi_table.rowCount()):
+            if not self.roi_table.cellWidget(i, 0).layout().itemAt(0).widget().isChecked():
+                continue
+
+            # Column 3 = centroid item
+            centroid_item = self.roi_table.item(i, 3)
+
+            if centroid_item is None:
+                continue
+
+            centroid = float(centroid_item.text())
+
+            # Column 4 = QDoubleSpinBox
+            ref_box = self.roi_table.cellWidget(i, 4)
+
+            reference_energy = ref_box.value()
+            if reference_energy == 0:
+                continue
+
+            centroids.append(centroid)
+            reference_energies.append(reference_energy)
+        
+        new_x_axis, new_coeff, ref_points = calibrate_x_axis(centroids, 
+                                        reference_energies, 
+                                        self.spin_poly_degree.value(), 
+                                        spectrum.channels,
+                                        spectrum.x_axis if spectrum.calibrated else None,
+                                        return_reference_points = True)
+        
+        self.calibration_plot.clear()
+        self.calibration_plot.getPlotItem().plot(np.arange(len(new_x_axis)), new_x_axis)
+        self.calibration_plot.plotItem.plot(*ref_points, pen=None, symbol='o')
+        
+        for i, display in enumerate(self.poly_spin_list):
+            if i >= len(new_coeff):
+                display.setValue(0)
+                continue
+            display.setValue(new_coeff[-(i+1)])
+            
+        self.current_new_coeff = new_coeff
+    def assign_to_spectrum(self):
+        if self.current_new_coeff is None:
+            QMessageBox.warning(self, "Error", "No new calibration points calculated to assign")
+            return
+        
+        spectrum_name = self.combo_spectrum.currentText()
+        SpectrumManager.calibrate_spectrum(spectrum_name, self.current_new_coeff)
+        
+        self.set_table(spectrum_name)
             
 if __name__ == "__main__":
     import sys

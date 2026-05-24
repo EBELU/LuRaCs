@@ -22,7 +22,7 @@ class MainMenuBar(QMenuBar):
     sigSetSpectrumViewToTabs = Signal()
     sigSetSpectrumViewToCombined = Signal()
     
-    def __init__(self, parent: MainWindow =None):
+    def __init__(self, parent: MainWindow = None):
         super().__init__(parent)
         self.parent = parent
 
@@ -58,12 +58,15 @@ class MainMenuBar(QMenuBar):
         # device_menu_info.triggered.connect(lambda x: RunManager.start_logger())
 
         calculate_menu = self.addMenu("&Gamma Tools")
-        calculate_menu_photoEff = calculate_menu.addAction("Efficiency")
-        calculate_menu_photoEff.triggered.connect(lambda: parent.calculate_windows["efficiency"].show())
-        calculate_menu_photoActivity = calculate_menu.addAction("Activity")
         calculate_menu_photoCalibration = calculate_menu.addAction("Calibration")
         calculate_menu_photoCalibration.triggered.connect(lambda: parent.calculate_windows["calibration"].show())
-        calculate_menu = self.addMenu("&MRI Tools")
+        calculate_menu_photoEff = calculate_menu.addAction("Efficiency")
+        calculate_menu_photoEff.triggered.connect(lambda: parent.calculate_windows["efficiency"].show())
+        calculate_menu_photoResolution = calculate_menu.addAction("Resolution")
+        calculate_menu_photoResolution.triggered.connect(lambda: parent.calculate_windows["resolution"].show())
+
+        
+        #calculate_menu = self.addMenu("&MRI Tools")
 
         # ---------- Options Menu ----------
         options_menu = self.addMenu("&Options")
@@ -132,14 +135,14 @@ class MainMenuBar(QMenuBar):
         QMessageBox.information(
             self.parent,
             "About",
-            "LuRaCs - Lund Radiation analysis Computer software\n\n A free and open source tool for measuring and analysing radiation spectra.\n\nAuthored by Erik Ewald & Malte Axner \n\nSource code licenced under GPL-3.0\nDocumentation & Images licenced under CC BY-SA 4.0",
+            "LuRaCs - Lund Radiation analysis Computer software\n\n A free and open source tool for measuring and analysing radiation spectra.\n\nCreated by Erik Ewald & Malte Axner \n\nSource code licenced under GPL-3.0\nDocumentation & Images licenced under CC BY-SA 4.0",
         )
 
     def on_exit(self):
         if self.parent:
             self.parent.close()
                 
-            # Handle selection
+    # Handle selection
     def on_view_changed(self, action):
         if action == self.tabbed_action:
             Settings.Appearance.tabbed_spectrum_view = True

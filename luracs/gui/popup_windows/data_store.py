@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 
 from ..misc.idx_table import StrIdxTable
-from utils.file_io import io_dispatcher
+from utils.file_io import io_dispatcher, xml_parser
 from core import Settings, SpectrumManager
 from containers.spectrogram import restart_spectrogram
 from .data_store_edit_dialogs import InstrumentDialog, SpectrumEditDialog
@@ -228,6 +228,7 @@ class SpectrumTab(LibraryTab):
             True,
         )
         self.run_index()
+        self.include_instrument_check.setChecked(True)
         self.btn_load.clicked.connect(self.load)
         self.table.table.cellDoubleClicked.connect(self.load)
 
@@ -260,9 +261,10 @@ class SpectrumTab(LibraryTab):
                 parser.data.get("peaks") if parser.data.get("peaks") is not None else []
             )
             rois = len(peaks)
-            instrument = parser.data.get("instrument_model")
+            instrument = parser.data.get("instrument")
+            
             self.table.write_row(
-                key, [name, date, live_time, has_bkg, rois, instrument]
+                key, [name, date, live_time, has_bkg, rois, instrument.name if instrument is not None else "None"]
             )
 
     def load(self):
@@ -274,7 +276,10 @@ class SpectrumTab(LibraryTab):
             parser = io_dispatcher(file)
             if not self.include_roi_check.isChecked():
                 parser.data.pop("peaks", None)
-
+            
+            if not self.include_instrument_check.isChecked():
+                parser.data.pop("instrument", None)
+                
             SpectrumManager.import_spectrum(parser.data)
 
 

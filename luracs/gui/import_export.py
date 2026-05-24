@@ -189,8 +189,6 @@ def save_spectrum_to_library(spectrum: Spectrum):
     save_diag.remark_edit.setText(spectrum.remark)
     res = save_diag.exec()
     
-    spectrum.name = save_diag.get_name()
-    
     spectrum.remark = save_diag.get_remark()
 
     if res == SaveNamingDialog.Accepted:
@@ -212,6 +210,7 @@ def save_spectrum_to_library(spectrum: Spectrum):
     else:
         return
     
+    SpectrumManager.rename_spectrum(spectrum.name, save_diag.get_name())
     
     file_io.xml_writer(
         spectrum, new_file
