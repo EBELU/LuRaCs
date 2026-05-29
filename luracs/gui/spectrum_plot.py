@@ -243,7 +243,7 @@ class SpectrumPlot(QWidget):
         
         for spect_name in SpectrumManager.get_spectra_dict().keys():
             self.update_plot(spect_name)
-            for roi in SpectrumManager.ROIManager.ROIs.keys():
+            for roi in SpectrumManager.ROIManager.roi_registry.keys():
                 self.draw_roi(roi, spectrum_name=spect_name)
 
         self.update_all_rois()
@@ -422,7 +422,7 @@ class SpectrumPlot(QWidget):
     def remove_plot(self, name: str):
         self.primary_lines.pop(name, None)
         self.bkg_lines.pop(name, None)
-        for roi_tag in SpectrumManager.ROIManager.ROIs.keys():
+        for roi_tag in SpectrumManager.ROIManager.roi_registry.keys():
             if roi_tag in self.ROI_lines_linear:
                 self.ROI_lines_linear[roi_tag].pop(name, None)
                 self.ROI_lines_gaussian[roi_tag].pop(name, None)
@@ -434,11 +434,11 @@ class SpectrumPlot(QWidget):
         self.ROI_lines_linear[roi_tag] = {}
 
     def update_all_rois(self):
-        for roi in SpectrumManager.ROIManager.ROIs.values():
+        for roi in SpectrumManager.ROIManager.roi_registry.values():
             if roi not in self.plot_widget.plotItem.items and roi.owner_spectrum == self.owned_spectrum:
                 self.plot_widget.addItem(roi)
-        for spectrum_name in SpectrumManager.spectra.keys():
-            for roi_tag in SpectrumManager.ROIManager.ROIs.keys():
+        for spectrum_name in SpectrumManager.spectrum_registry.keys():
+            for roi_tag in SpectrumManager.ROIManager.roi_registry.keys():
                 self.draw_roi(roi_tag, spectrum_name)
                 
     def add_roi(self):
@@ -463,7 +463,7 @@ class SpectrumPlot(QWidget):
         if spectrum is None or not spectrum.show_in_plot:
             return
         
-        roi = SpectrumManager.ROIManager.ROIs.get(roi_tag)
+        roi = SpectrumManager.ROIManager.roi_registry.get(roi_tag)
         if roi is None or roi.owner_spectrum != self.owned_spectrum:
             return
 

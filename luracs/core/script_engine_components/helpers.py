@@ -157,10 +157,10 @@ def plot_spectrum(args):
 def print_rois(by="roi", cps=False):
     str_parts = []
     if by == "roi":
-        for roi_tag in SpectrumManager.ROIManager.ROIs.keys():
+        for roi_tag in SpectrumManager.ROIManager.roi_registry.keys():
             table = TableFormatter(
                 ["Spectrum", "Lower", "Upper", "Centroid", "FWHM", "Peak Counts"],
-                title=SpectrumManager.ROIManager.ROIs[roi_tag].alias
+                title=SpectrumManager.ROIManager.roi_registry[roi_tag].alias
             )
             for spectrum_name, roi in SpectrumManager.ROIManager.get_data_from_roi(roi_tag).items():
                 

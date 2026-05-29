@@ -43,14 +43,10 @@ def restart_spectrogram(db_name: str):
     new_log.request_data()
 
 
-def start_spectrogram(db_name, device: str, save_interval: int = 1, truncation: int = 0):
-    device_wrapper = RunManager.devices.get(device, None)
+def start_spectrogram(db_name, device: str, save_interval: int = 1, concat: int = 0):
+    device_wrapper = RunManager.device_registry.get(device, None)
     if not device_wrapper:
         Log.warning(f"Logging could not be started as {device} does not exist")
-        return
-
-    if device_wrapper.name in RunManager.loaded_spectrogram:
-        Log.warning(f"Logger already running for device {device_wrapper.name}")
         return
     
     calibration_coeff = None
@@ -63,9 +59,9 @@ def start_spectrogram(db_name, device: str, save_interval: int = 1, truncation: 
         db_name,
         save_interval=save_interval,
         spect_channels=device_wrapper.channels,
-        device_id=device_wrapper.name,
+        device_id=spectrum.instrument.name if spectrum.instrument else device_wrapper.name,
         calibration_coeff=calibration_coeff if calibration_coeff is not None else [],
-        channel_concat_factor=truncation,
+        channel_concat_factor=concat,
     )
     
 
@@ -122,7 +118,7 @@ class Spectrogram(QObject):
     def __init__(self, db_name: str, resume: bool = False, **kwargs):
         super().__init__(parent=None)
         self.db_name = db_name
-        self.db_path = str(Settings.Paths.spectrogram_library / self.db_name)
+        self.db_path = str((Settings.Paths.spectrogram_library / self.db_name).with_suffix(".db"))
         self.connection = sql.connect(self.db_path)
         self.buffers = Buffers(
             spectrum_view_queue=deque([], 256),

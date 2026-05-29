@@ -187,7 +187,7 @@ class ROIManager(QObject):
             spectrum_manager  # Keep a reference
         )
 
-        self.ROIs: dict[str, DeletableROI] = {}
+        self.roi_registry: dict[str, DeletableROI] = {}
         self.roi_counter: int = 0
 
         # Spectrum state
@@ -215,7 +215,7 @@ class ROIManager(QObject):
                                nuclide_lib_ref=self.spectrum_manager.NuclideLibrary,
                                **kwargs)
 
-        self.ROIs[roi_tag] = new_roi
+        self.roi_registry[roi_tag] = new_roi
 
         new_roi.sigDeleteRequested.connect(self.remove_roi)
         new_roi.sigRegionChangeFinished.connect(
@@ -231,10 +231,10 @@ class ROIManager(QObject):
 
     def remove_roi(self, roi_tag: str, update_state: bool = True) -> None:
         "Remove a ROI based the tag"        
-        popped_roi = self.ROIs.pop(roi_tag, None)
+        popped_roi = self.roi_registry.pop(roi_tag, None)
         if not popped_roi:
             return
-        for spect in self.spectrum_manager.spectra.values():
+        for spect in self.spectrum_manager.spectrum_registry.values():
             spect.remove_roi(roi_tag)
         self.sigROIDeleted.emit(popped_roi)
         self.roi_groupings = self.calculate_roi_groups()
@@ -251,24 +251,36 @@ class ROIManager(QObject):
 
     def clear_all(self) -> None:
         "Remove all rois"
-        for tag in self.ROIs.copy().keys():
+        for tag in self.roi_registry.copy().keys():
             self.remove_roi(tag, update_state=False)
 
     def get_tag_from_alias(self, roi_alias: str) -> str:
         """Returns the internal ROI tag from a ROI alias"""
-        for key, roi in self.ROIs.items():
+        for key, roi in self.roi_registry.items():
             if roi.alias == roi_alias:
                 return key
 
-    def on_roi_change(self, roi_tag):
+    def on_roi_change(self, roi_tag: str, update_all: bool = True):
         """Callback for when a roi is moved, recalculates everything"""
+        # Save the old group so all rois can be updated
+        old_group = set([roi_tag]) # Put this in for newly added rois
+        for g in self.roi_groupings:
+            if roi_tag in g:
+                old_group = g.copy()
+                
         self.roi_groupings = self.calculate_roi_groups()
         self.set_brushes()  # Set brush color
-        self.update_roi(roi_tag=roi_tag)
+        # Update all rois in the old group, otherwise the plot wont change
+        if update_all:
+            for g_roi_tag in old_group:
+                self.update_roi(roi_tag=g_roi_tag)
+        else:
+            self.update_roi(roi_tag=roi_tag)
+        
 
     def select_roi(self, selected_roi_tag):
         """Callback for when a roi is clicked with M1"""  # Currently only changes color and Z-value
-        for tag, roi in self.ROIs.items():
+        for tag, roi in self.roi_registry.items():
             # Get the current color of the ROI
             color = roi.brush.color()
 
@@ -296,14 +308,14 @@ class ROIManager(QObject):
             if roi_tag == roi.tag:  # Dont change the current triggering roi
                 continue
 
-            self.ROIs[roi_tag].update_self(
+            self.roi_registry[roi_tag].update_self(
                 bkg_type=roi.bkg_type,
                 poisson_weights=roi.poisson_weights,
                 signal_update=False,
             )  # Dont created an infinite loop
 
         for roi_tag in g:
-            self.on_roi_change(roi_tag)  # Recalculate all to be sure
+            self.on_roi_change(roi_tag, update_all=False)  # Recalculate all to be sure
 
     def calculate_roi_groups(self) -> list[set[str]]:
         """Calculate overlapping rois and return groups of overlap"""
@@ -311,7 +323,7 @@ class ROIManager(QObject):
         mergeable_dict: dict[str, list] = {}
         singles_dict: dict[str, list] = {}
 
-        for r in self.ROIs.values():
+        for r in self.roi_registry.values():
             if r.owner_spectrum not in mergeable_dict and r.owner_spectrum not in singles_dict:
                 mergeable_dict[r.owner_spectrum] = []
                 singles_dict[r.owner_spectrum] = []
@@ -359,7 +371,7 @@ class ROIManager(QObject):
             color = (0, 0, 255, 20) if len(g) == 1 else (0, 255, 0, 20)
 
             for roi_tag in g:
-                roi = self.ROIs[roi_tag]
+                roi = self.roi_registry[roi_tag]
 
                 # Only update if changed
                 if getattr(roi, "_current_brush", None) != color:
@@ -382,7 +394,7 @@ class ROIManager(QObject):
 
         # --- Get ROIs ---
         if roi_tag is None:
-            rois = self.ROIs.keys()
+            rois = self.roi_registry.keys()
         else:
             rois = [roi_tag]
 
@@ -395,7 +407,7 @@ class ROIManager(QObject):
                 if roi in updated_rois:
                     continue
                 
-                if self.ROIs[roi].owner_spectrum is not None and self.ROIs[roi].owner_spectrum != spect.name:
+                if self.roi_registry[roi].owner_spectrum is not None and self.roi_registry[roi].owner_spectrum != spect.name:
                     continue
 
                 # Find the group(s) this ROI belongs to
@@ -423,7 +435,7 @@ class ROIManager(QObject):
         if spectrum.foreground is None:  # Sometimes a spectrum is loaded to fast
             return
         "Perform all calculations needed for evaluating a roi"
-        roi_group = [self.ROIs[k] for k in roi_group]  # Change from keys to rois
+        roi_group = [self.roi_registry[k] for k in roi_group]  # Change from keys to rois
         bounds = [list(r.getRegion()) for r in roi_group]
 
         # Since these settings need to be the same for the entire group this is fine
@@ -452,7 +464,7 @@ class ROIManager(QObject):
                     poission_weights,
                     Settings.Advanced.optimizer_use_chi2_weight,
                     bkg_type,
-                    5,
+                    bkg_fit_extension = 5,
                 )
         else:
             fits, converged = None, False
@@ -464,20 +476,52 @@ class ROIManager(QObject):
         }
 
         # If the fitting converged and was requested
-        if converged and not fit_type == "None":
-            results = [ROI(r.tag, r.alias, tuple(r.getRegion()), (np.min(bounds), np.max(bounds)),
-                            fit_type, bkg_type, f, # fit
-                            get_roi_counts(r.getRegion()[0], r.getRegion()[1]), spectrum.foreground.live_time, # Save live time for CPS conversion
-                            r.emission,
-                            {"merge": r.merge, "movable": r.movable, **meta_data}) 
-                            for r, f in zip(roi_group, fits)]
+        common_kwargs = {
+            "fit_type": fit_type,
+            "bkg_type": bkg_type,
+            "live_time": spectrum.foreground.live_time,
+        }
+
+        if converged and fit_type != "None":
+            results = [
+                ROI(
+                    tag=r.tag,
+                    alias=r.alias,
+                    roi_bound=tuple(r.getRegion()),
+                    region_bound=(np.min(bounds), np.max(bounds)),
+                    fit=f,
+                    roi_counts=get_roi_counts(*r.getRegion()),
+                    emission=r.emission,
+                    meta={
+                        "merge": r.merge,
+                        "movable": r.movable,
+                        **meta_data,
+                    },
+                    **common_kwargs,
+                )
+                for r, f in zip(roi_group, fits)
+            ]
+
         else:
-            results = [ROI(r.tag, r.alias, tuple(r.getRegion()), (np.min(bounds), np.max(bounds)),
-                        fit_type, bkg_type, None, # No fit
-                        get_roi_counts(r.getRegion()[0], r.getRegion()[1]), spectrum.foreground.live_time,  # Save live time for CPS conversion
-                        r.emission,
-                        {"merge": r.merge, "movable": r.movable, "poisson_weights": r.poisson_weights,**meta_data}) 
-                        for r in roi_group]
+            results = [
+                ROI(
+                    tag=r.tag,
+                    alias=r.alias,
+                    roi_bound=tuple(r.getRegion()),
+                    region_bound=(np.min(bounds), np.max(bounds)),
+                    fit=None,
+                    roi_counts=get_roi_counts(*r.getRegion()),
+                    emission=r.emission,
+                    meta={
+                        "merge": r.merge,
+                        "movable": r.movable,
+                        "poisson_weights": r.poisson_weights,
+                        **meta_data,
+                    },
+                    **common_kwargs,
+                )
+                for r in roi_group
+            ]
 
         for roi in results:
             spectrum.set_roi(roi)  # Give the calculation results to the spectrum

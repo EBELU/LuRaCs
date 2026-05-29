@@ -8,6 +8,8 @@ from PySide6.QtCore import QObject, Signal
 from containers.nuclide_classes import Nuclide, Emission
 import numpy as np
 from collections import Counter
+from utils.file_io.nuclide_dataloader import load_nuclide_data
+from .settings import Settings
 
 class NuclideLibrary(QObject):
     sigViewCheckChanged = Signal(str, bool, object) # Propagated from the ui tab
@@ -70,6 +72,10 @@ class NuclideLibrary(QObject):
             # ]
         }
         self.selected_nuclides: set[str] = set()
+        
+        for nuclide in load_nuclide_data(str(Settings.Paths.nuclide_data / "*.json")):
+            self.add_nuclide(nuclide)
+
         
     def add_nuclide(self, nuclide: Nuclide):
         assert nuclide.nuclide not in self.nuclides, (

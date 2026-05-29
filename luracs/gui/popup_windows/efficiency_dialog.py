@@ -17,10 +17,11 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QMessageBox)
 
-from PySide6.QtCore import Qt, QDate, QDateTime, QTime
+from PySide6.QtCore import Qt, QDate, Signal
 import pyqtgraph as pg
 import numpy as np
 import warnings
+from datetime import datetime
 
 from core import SpectrumManager
 from uncertainties import ufloat
@@ -52,6 +53,9 @@ def value_with_uncertainty(has_unit = False):
         return container, value, uncertainty
 
 class EfficiencyWindow(QDialog):
+    sigUpdateGenericInstrument = Signal(object, dict)
+    sigUpdateUniqueInstrument = Signal(object, dict)
+    
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Efficiency Window")
@@ -119,35 +123,54 @@ class EfficiencyWindow(QDialog):
         
         # --- Bottom Buttons ---
         bottom_buttons = QHBoxLayout()
-        self.assign_to_instrument_btn = QPushButton("Assign to instrument")
+        self.assign_to_instrument_btn = QPushButton("Assign to Selected Instrument")
+        self.assign_to_instrument_btn.setToolTip("Assign the calculation to only the selected Generic Instrument")
+        self.assign_to_instrument_btn.clicked.connect(lambda: self.assign_to_instruments(False))
+        self.assign_to_instruments_of_same_model_btn = QPushButton("Assign to Instrument Model")
+        self.assign_to_instruments_of_same_model_btn.setToolTip("Assign the calculation to all Unique Instruments of the same model as the selected Generic Instrument")
+        self.assign_to_instruments_of_same_model_btn.clicked.connect(lambda: self.assign_to_instruments(True))
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(self.close)
         
         bottom_buttons.addStretch()
+        bottom_buttons.addWidget(self.assign_to_instruments_of_same_model_btn)
         bottom_buttons.addWidget(self.assign_to_instrument_btn)
         bottom_buttons.addWidget(close_btn)
 
         main_layout.addLayout(bottom_buttons)
         
+        self.sigUpdateGenericInstrument.connect(SpectrumManager.GenericInstrumentLibrary.update_instrument_data)
+        self.sigUpdateUniqueInstrument.connect(SpectrumManager.UniqueInstrumentLibrary.update_instrument_data)
+        
     def show(self):
         # Set the tables each time the dialog is shown
+        self.set_instrument_combo()
         self.set_data_table() 
         self.set_source_activity_table()    
         super().show()
+        
+    def set_instrument_combo(self):
+        self.instrument_combo.clear()
+        for key, i in SpectrumManager.GenericInstrumentLibrary.instrument_registry.items():
+            self.instrument_combo.addItem(i.model, key)
         
     def set_source_activity_table(self):
         table = self.source_activity_table
         
         # Collect which nuclides are used in the spectra
         used_nuclides = set()
-        for r in SpectrumManager.ROIManager.ROIs.values():
+        for r in SpectrumManager.ROIManager.roi_registry.values():
             if r.emission is not None:
                 used_nuclides.add(r.emission.parent_nuclide)
                 
         # Check which nuclides have already been set
         nuclides_in_table = set()
         for i in range(table.rowCount()):
-            nuclide_name = self.source_activity_table.item(i, 2).text()
+            nuclide_name = self.source_activity_table.item(i, 2)
+            if nuclide_name is not None:
+                nuclide_name = nuclide_name.text()
+            else:
+                continue
             if nuclide_name not in used_nuclides:
                 # Remove nuclides no longer present
                 self.source_activity_table.removeRow(i)
@@ -246,8 +269,8 @@ class EfficiencyWindow(QDialog):
             table.setItem(row, 6, QTableWidgetItem(parent_text))
     
     def calculate(self):
-        energies = []
-        efficiencies = []
+        self.energies = []
+        self.efficiencies = []
         self.demo_plot.clear()
         
         # Loop through the nuclides in the source-activity table
@@ -331,15 +354,15 @@ class EfficiencyWindow(QDialog):
                         cps = ufloat(roi.get_count_data("N", cps=True), 1e-12)
                     )
                 # print(roi.get_count_data("peak_counts", cps=True), roi.get_count_data("N", cps=True))
-                energies.append(roi.emission.energy_keV)
-                efficiencies.append(eff)
+                self.energies.append(roi.emission.energy_keV)
+                self.efficiencies.append(eff)
 
         # Plot the data
-        if len(efficiencies) > 0:
+        if len(self.efficiencies) > 0:
             self.demo_plot.plotItem.clear()
-            x = np.asarray(energies, dtype=float)
-            y = np.asarray([e.n for e in efficiencies], dtype=float)
-            yerr = np.asarray([e.s for e in efficiencies], dtype=float)
+            x = np.asarray(self.energies, dtype=float)
+            y = np.asarray([e.n for e in self.efficiencies], dtype=float)
+            yerr = np.asarray([e.s for e in self.efficiencies], dtype=float)
 
             self.demo_plot.plotItem.plot(x, y, pen=None, symbol='o')
             err = pg.ErrorBarItem(
@@ -352,10 +375,27 @@ class EfficiencyWindow(QDialog):
             # Suppress warnings during optimization
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                fit_params, _, _ = curve_fit(exp_polynomial, x, y, [1, -1, 0, 0])
+                self.fit_params, _, _ = curve_fit(exp_polynomial, x, y, [1, -1, 0, 0])
                 
-            full_x = np.linspace(25, max(energies) + 500, 1000) # Very few detectors work bellow 25keV
-            fitted_y = exp_polynomial(full_x, fit_params)
+            full_x = np.linspace(25, max(self.energies) + 500, 1000) # Very few detectors work bellow 25keV
+            fitted_y = exp_polynomial(full_x, self.fit_params)
             
             self.demo_plot.plotItem.plot(full_x, fitted_y)
+    
+    def assign_to_instruments(self, include_all_of_model: bool = False):
+        data_dict = {
+            "int_efficiency_fn": "exp_polynomial",
+            "int_efficiency_params": list(self.fit_params),
+            "int_efficiency_E_points": list(self.energies),
+            "int_efficiency_eff_points": list(self.efficiencies),
+            "int_efficiency_created": datetime.now()
+            }
+        
+        self.sigUpdateGenericInstrument.emit(self.instrument_combo.currentData(), data_dict)
+
+        if include_all_of_model:
+            generic_instr = SpectrumManager.GenericInstrumentLibrary.instrument_registry[self.instrument_combo.currentData()]
+            for key, instr in SpectrumManager.UniqueInstrumentLibrary.instrument_registry.items():
+                if instr.model == generic_instr.model:
+                    self.sigUpdateUniqueInstrument.emit(key, data_dict)
             

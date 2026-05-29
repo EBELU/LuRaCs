@@ -18,13 +18,18 @@ class GenericInstrument:
 
     # --- Resolution ---
     resolution_fn: str = None
-    resolution_param: list = None
+    resolution_params: list = None
     resolution_E_points: list = None
     resolution_FWHM_points: list = None
+    resolution_FWHM_uncert_points: list = None
+    resolution_created: datetime = None
 
     # --- Efficiency ---
     int_efficiency_fn: str = None
     int_efficiency_params: list = None
+    int_efficiency_E_points: list = None
+    int_efficiency_eff_points: list = None
+    int_efficiency_uncert_points: list = None
     int_efficiency_created: datetime = None
     int_efficiency_description: str = None
 

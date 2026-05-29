@@ -46,7 +46,7 @@ class SpectrumManagerBase(QObject):
         super().__init__()
         self.color_rotation = ColorRotator("mpl")
 
-        self.spectra: dict[str, Spectrum] = {}
+        self.spectrum_registry: dict[str, Spectrum] = {}
 
         self.Signals = EmittedSignals()
 
@@ -60,11 +60,11 @@ class SpectrumManagerBase(QObject):
     # --- Spectrum manipulators ---
 
     def create_spectrum(self, name: str, channels: int, device: str = None):
-        if name not in self.spectra:
+        if name not in self.spectrum_registry:
             # Create spectrum and add a possible connection
             new_spect = Spectrum(channels, name)
             new_spect.connection = device
-            self.spectra[name] = new_spect
+            self.spectrum_registry[name] = new_spect
 
             # Set colors
             fg_clr, bkg_clr = self.color_rotation.get_color_pair()
@@ -81,7 +81,7 @@ class SpectrumManagerBase(QObject):
     def set_foreground_spectrum(
         self, name: str, spectrum_data: WrappedSpectrumPackage | SpectrumData, connection: str = None
     ):
-        if name not in self.spectra:
+        if name not in self.spectrum_registry:
             raise ValueError(f"Spectrum {name} does not exist")
         if isinstance(spectrum_data, WrappedSpectrumPackage):
             # Re-Wrap data from a connected instrument
@@ -109,47 +109,47 @@ class SpectrumManagerBase(QObject):
             gui_logger.warning(f"Invalid spectrum data type {type(spectrum_data)}")
             return
 
-        self.spectra[name].set_foreground(new_spectrum)
+        self.spectrum_registry[name].set_foreground(new_spectrum)
         
         # If the instrument provides a calibration is is sent by the WrappedSpectrumData
         # If the spectrum is already calibrated it will not be recalibrated
-        if not self.spectra[name].calibrated and calib_coeff is not None:
+        if not self.spectrum_registry[name].calibrated and calib_coeff is not None:
             self.calibrate_spectrum(name, spectrum_data.calib_coeff)
 
         self.Signals.spectrumUpdated.emit(name)
 
     def set_background_spectrum(self, foreground_name: str, spectrum_data: SpectrumData):
-        if foreground_name not in self.spectra:
+        if foreground_name not in self.spectrum_registry:
             raise ValueError(f"Spectrum {foreground_name} does not exist")
         
-        self.spectra[foreground_name].set_background(spectrum_data)
+        self.spectrum_registry[foreground_name].set_background(spectrum_data)
         self.Signals.spectrumUpdated.emit(foreground_name)
         gui_logger.info(f"Background set: name={foreground_name}")
 
     def clear_background(self, name: str):
-        if name not in self.spectra:
+        if name not in self.spectrum_registry:
             raise ValueError(f"Spectrum {name} does not exist")
         
-        self.spectra[name].background = None
+        self.spectrum_registry[name].background = None
         self.Signals.backgroundRemoved.emit(name, "bkg")
         gui_logger.info(f"Background removed: {name}")
 
     def remove_spectrum(self, name: str):
-        if name in self.spectra:
-            del self.spectra[name]
+        if name in self.spectrum_registry:
+            del self.spectrum_registry[name]
             self.Signals.spectrumRemoved.emit(name)
             gui_logger.info(f"Spectrum removed: {name}")
             
     def rename_spectrum(self, current_name: str, new_name: str):
-        if current_name not in self.spectra:
+        if current_name not in self.spectrum_registry:
             raise ValueError(f"Spectrum {current_name} does not exist")
         
         try:
             self.blockSignals(True)
-            self.spectra[new_name] = self.spectra.pop(current_name)
-            self.spectra[new_name].name = new_name
+            self.spectrum_registry[new_name] = self.spectrum_registry.pop(current_name)
+            self.spectrum_registry[new_name].name = new_name
             # Assign the ROIs to the renamed owner
-            for roi in self.ROIManager.ROIs.values():
+            for roi in self.roi_registry.values():
                 if roi.owner_spectrum == current_name:
                     roi.owner_spectrum = new_name
         finally:
@@ -161,45 +161,45 @@ class SpectrumManagerBase(QObject):
 
     def calibrate_spectrum(self, name: str, coeff: list):
         """Apply a polynomial calibration of the x-axis."""
-        if name not in self.spectra:
+        if name not in self.spectrum_registry:
             raise ValueError(f"Spectrum {name} does not exist")
 
-        self.spectra[name].apply_calibration(coeff)
+        self.spectrum_registry[name].apply_calibration(coeff)
         self.Signals.spectrumUpdated.emit(name)
         gui_logger.info(f"Spectrum calibrated: name={name}")
 
     def set_color(self, name: str, fg_bkg: str, color: QColor):
-        if name not in self.spectra:
+        if name not in self.spectrum_registry:
             raise ValueError(f"Spectrum {name} does not exist")
 
         if fg_bkg.lower() == "foreground":
-            self.spectra[name].color_foreground = color
+            self.spectrum_registry[name].color_foreground = color
         else:
-            self.spectra[name].color_background = color
+            self.spectrum_registry[name].color_background = color
 
         self.Signals.colorUpdated.emit(name)
 
     def update_visibility(self, name: str):
-        if name not in self.spectra:
+        if name not in self.spectrum_registry:
             raise ValueError(f"Spectrum {name} does not exist")
 
-        if self.spectra[name].show_in_plot:
-            self.spectra[name].show_in_plot = False
-            self.spectra[name].fit_rois = False
+        if self.spectrum_registry[name].show_in_plot:
+            self.spectrum_registry[name].show_in_plot = False
+            self.spectrum_registry[name].fit_rois = False
             self.Signals.visibilityChanged.emit(False)
 
         else:
-            self.spectra[name].show_in_plot = True
-            self.spectra[name].fit_rois = True
+            self.spectrum_registry[name].show_in_plot = True
+            self.spectrum_registry[name].fit_rois = True
             self.Signals.visibilityChanged.emit(True)
 
     # --- Getters ---
 
     def get_spectrum(self, name: str) -> Spectrum | None:
-        return self.spectra.get(name)
+        return self.spectrum_registry.get(name)
 
     def get_spectra_dict(self) -> dict[str, Spectrum]:
-        return self.spectra
+        return self.spectrum_registry
 
     # --- IO ---
     def import_spectrum(self, data_dict: dict):
@@ -247,7 +247,7 @@ class SpectrumManagerBase(QObject):
                 self.Signals.newInstrumentLoaded.emit(file_path)
         
         if "remark" in data_dict:
-            self.spectra[data_dict["name"]].remark = data_dict["remark"]
+            self.spectrum_registry[data_dict["name"]].remark = data_dict["remark"]
             
         self.Signals.spectrumUpdated.emit(data_dict["name"])
 
@@ -259,11 +259,11 @@ class SpectrumManagerBase(QObject):
         
     def set_spectrum_instrument(self, spectrum_name: str, instrument: UniqueInstrument):
         assert isinstance(instrument, UniqueInstrument), f"Instrument must be UniqueInstrument, is {type(instrument)}"
-        self.spectra[spectrum_name].instrument = instrument
+        self.spectrum_registry[spectrum_name].instrument = instrument
         self.Signals.spectrumUpdated.emit(spectrum_name)
         
     def clear_spectrum_instrument(self, spectrum_name: str):
-        self.spectra[spectrum_name].instrument = None
+        self.spectrum_registry[spectrum_name].instrument = None
         self.Signals.spectrumUpdated.emit(spectrum_name)
         
 # Declare ONE instance

@@ -14,8 +14,10 @@ from glob import glob
 
 from utils.file_io import xml_parser, db_parser
 from core import RunManager, SpectrumManager, Settings
-from .helpers import print_table, TableFormatter, plot_spectrum, print_rois
+from .helpers import print_table, TableFormatter, plot_spectrum, print_rois, ArgumentParser
 from .exceptions import ArgumentError, ActiveGUIError, InvalidCommandError
+
+from containers.spectrogram import start_spectrogram, restart_spectrogram
 
 
 
@@ -23,7 +25,6 @@ from .exceptions import ArgumentError, ActiveGUIError, InvalidCommandError
 class Command(ABC):
     name: str = ""
     aliases: list[str] = []
-    argument_tree: dict = {}
 
     @abstractmethod
     async def run(self, engine, *args):
@@ -32,7 +33,12 @@ class Command(ABC):
     @property
     def help(self) -> str:
         return self.run.__doc__ or "No help available."
+    
+    def get_auto_complete(self) -> dict:
+        return 
 
+    def index_files(self) -> None:
+        return
     
 class ClearCommand(Command):
     name = "clear"
@@ -86,7 +92,6 @@ class HelpCommand(Command):
 
 class ListCommand(Command):
     name = "list"
-    argument_tree = {"devices": None, "rois": None, "spectra": None, "spectrogram": None}
     async def run(self, engine, *args):
         """
         List available resources.
@@ -108,13 +113,13 @@ class ListCommand(Command):
 
         if args[0] == "devices":
             spectrum_table = TableFormatter(["Index", "Name"], title = "Connected Devices")
-            for i, key in enumerate(RunManager.devices.keys()):
+            for i, key in enumerate(RunManager.device_registry.keys()):
                 spectrum_table.add_row([i, key])
             return spectrum_table.get_table()
         
         if args[0] == "rois":
             spectrum_table = TableFormatter(["Index", "Name"], title = "ROIs")
-            for i, key in enumerate(SpectrumManager.ROIManager.ROIs.keys()):
+            for i, key in enumerate(SpectrumManager.ROIManager.roi_registry.keys()):
                 spectrum_table.add_row([i, key])
             return spectrum_table.get_table()
         
@@ -133,9 +138,14 @@ class ListCommand(Command):
         else:
             raise ArgumentError(f"{args[0]} is not a valid argument!")
         
+    def get_auto_complete(self):
+        return {"devices": None, 
+                "rois": None, 
+                "spectra": None, 
+                "spectrogram": None}
+        
 class IndexCommand(Command):
     name = "index"
-    argument_tree = {"spectrum": None, "spectrogram": None, "rois": None}
     async def run(self, engine, *args):
         if len(args) == 0:
             raise ArgumentError("View must be followed by 'spectrum', 'spectrogram' or 'rois'")
@@ -189,11 +199,11 @@ class IndexCommand(Command):
                 
             return table.get_table()
             
-            
+    def get_auto_complete(self):
+        return {"spectrum": None, "spectrogram": None, "rois": None}
         
 class ViewCommand(Command):
     name = "view"
-    argument_tree = {"spectrum": None, "rois": None, "log": None}
     async def run(self, engine, *args):
         if not engine.headless:
             raise ActiveGUIError("view")
@@ -211,10 +221,15 @@ class ViewCommand(Command):
         
         else:
             raise InvalidCommandError(args[0])
-        
+    
+    def get_auto_complete(self):
+        return {"spectrum": {key: None for key in SpectrumManager.get_spectra_dict().keys()}, 
+                "rois": None, 
+                "log": None}
         
 class ROICommand(Command):
     name = "roi"
+    index = []
     
     async def run(self, engine, *args):
         if len(args) < 1:
@@ -235,9 +250,64 @@ class ROICommand(Command):
     
 class SpectrogramCommand(Command):
     name = "spectrogram"
+    index = []
     
     async def run(self, engine, *args):
+        if len(args) < 2:
+            raise ArgumentError("Too few arguments")
+        
+        # --- Start a spectrogram ---
+        if args[0] == "start":
+            arg_parser = ArgumentParser({"-n": None, "-i": 1, "-c": 1}, self.name)
+            parsed_args, pos_args = arg_parser.parse(args[1:])
+            
+            if args[-1] == "all":
+                if parsed_args["-n"] is not None:
+                    raise ArgumentError("Name can not be specified when mass starting")
+                
+                for device in RunManager.device_registry:
+                    start_spectrogram(
+                        db_name = f"Spectrogram-{device}-{datetime.now()}", 
+                        device = device, 
+                        save_interval = int(parsed_args["-i"]), 
+                        concat = int(parsed_args["-c"]))
+            else:
+                start_spectrogram(
+                    db_name = f"Spectrogram-{pos_args[0]}-{datetime.now()}" if parsed_args["-n"] is None else parsed_args["-n"], 
+                    device = pos_args[0], 
+                    save_interval = int(parsed_args["-i"]), 
+                    concat = int(parsed_args["-c"])
+                    )
+            
+            return
+        
+        elif args[0] == "stop":
+            return 
+        
+        elif args[0] == "load":
+            return 
+        
+        elif args[0] == "unload":
+            return 
+        
+        else:
+            raise InvalidCommandError(args[0])
+    
+    def get_auto_complete(self):
+        return {"start": {"all": None} | {key: None for key in RunManager.device_registry.keys()},
+                "pause": {"all": None} | {key: None for key, sg in RunManager.loaded_spectrogram.items() if not sg.paused},
+                "unpause": {"all": None} | {key: None for key, sg in RunManager.loaded_spectrogram.items() if sg.paused},
+                "load": {"all": None} |{file: None for file in self.index},
+                "unload": {"all": None} | {key: None for key in RunManager.loaded_spectrogram.keys()}}
+    
+class DeviceCommand(Command):
+    name = "device"
+    async def run(self, engine, *args):
         pass
+
+    def get_auto_complete(self):
+        return {"connect": {"bt": None, "usb": None}, 
+                "disconnect": {"all": None} | {key: None for key in RunManager.device_registry.keys()}}
     
 class WatchCommand(Command):
     name = "watch"
@@ -317,10 +387,13 @@ class ExecCommand(Command):
 # ===== Register commands ======
 def register_commands(registry: CommandRegistry):
     registry.register(ClearCommand())
+    registry.register(DeviceCommand())
+    registry.register(ExecCommand())
     registry.register(HelpCommand())
+    registry.register(IndexCommand())
     registry.register(ListCommand())
     registry.register(ViewCommand())
     registry.register(ROICommand())
+    registry.register(SpectrogramCommand())
     registry.register(WatchCommand())
-    registry.register(ExecCommand())
-    registry.register(IndexCommand())
+

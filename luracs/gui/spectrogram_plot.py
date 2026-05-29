@@ -160,6 +160,7 @@ class SpectrogramWidget(QWidget):
 
         # First row of buttons
         self.btn_start_log = QPushButton("Start New")
+        self.btn_start_log.clicked.connect(self.start_logger)
         self.btn_load_log = QPushButton("Load")
         self.btn_load_log.clicked.connect(self.show_data_store)
         self.btn_unload_log = QPushButton("Unload")
@@ -169,7 +170,7 @@ class SpectrogramWidget(QWidget):
         self.options_bar.addWidget(self.btn_load_log)
         self.options_bar.addWidget(self.btn_unload_log)
 
-        self.btn_start_log.clicked.connect(self.start_logger)
+
 
         left_layout.addLayout(self.options_bar)
 
@@ -266,7 +267,7 @@ class SpectrogramWidget(QWidget):
         self.img.setLevels((0, 5))
 
     def start_logger(self, *_):
-        devices = list(RunManager.devices.keys())
+        devices = list(RunManager.device_registry.keys())
         dialog = StartSpectrogramDialog(devices)
         if dialog.exec():
             if dialog.get_values()["instrument"]:
@@ -289,7 +290,7 @@ class SpectrogramWidget(QWidget):
         current_spectrogram = RunManager.loaded_spectrogram.get(current_spectrogram_name)
         if (
             current_spectrogram is not None
-            and current_spectrogram.device_id not in RunManager.devices
+            and current_spectrogram.device_id not in RunManager.device_registry
         ):
             return
 

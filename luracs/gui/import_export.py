@@ -121,7 +121,7 @@ class FileDialogs(QWidget):
         spectrum = SpectrumManager.get_spectrum(spectrum_name)
 
         if "xml" in selected_filter.lower():
-            file_io.xml_writer(spectrum, str(file_path))
+            file_io.xml_writer(spectrum, file_path)
         elif "csv" in selected_filter.lower():
             file_io.export_csv(spectrum, str(file_path))
 
@@ -129,7 +129,7 @@ class FileDialogs(QWidget):
 def save_roi_references():
     "Export reference rois for the library to be loaded on any spectrum"
     save_diag = SaveNamingDialog()
-    if len(SpectrumManager.ROIManager.ROIs) < 1:
+    if len(SpectrumManager.ROIManager.roi_registry) < 1:
         QMessageBox.warning(save_diag, "Warning Message", "No ROIs set")
         return
     res = save_diag.exec()
@@ -157,19 +157,19 @@ def save_roi_references():
     # Create a dummy spectrum, only give it rois and the export it using the normal xml_writer
     dummy_spectrum = Spectrum(1, "Dummy")
 
-    for r in SpectrumManager.ROIManager.ROIs.values():
+    for r in SpectrumManager.ROIManager.roi_registry.values():
         # Same as for the spectrum, make a dummy ROI
         dummy_roi = ROI(
-            r.tag,
-            r.alias,
-            r.getRegion(),
-            (None, None),
-            r.fit_type,
-            r.bkg_type,
-            None,
-            0,
-            1,
-            r.emission,
+            tag = r.tag,
+            alias = r.alias,
+            roi_bound = r.getRegion(),
+            region_bound = (None, None),
+            fit_type = r.fit_type,
+            bkg_type = r.bkg_type,
+            fit = None,
+            roi_counts = 0,
+            live_time = 1,
+            emission = r.emission,
             meta={
                 "movable": r.movable,
                 "poisson_weights": r.poisson_weights,

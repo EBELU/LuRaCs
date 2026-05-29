@@ -13,7 +13,7 @@ def print_progress(text, progress):
     )
 
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG if "-db" in sys.argv else logging.INFO)
 
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
@@ -85,7 +85,7 @@ class MainWindow(QMainWindow):
 
         self.usb_window = USBListPopup()
         print_progress("Indexing Data Store", 8)
-        load_nuclide_data()
+        load_nuclide_data(str(Settings.Paths.nuclide_data / "*.json"))
         self.data_store = DataLibrary("Data Store", None)
         
         self.bibliography_dialog = SmallDocumentationDialog(Path("luracs/resources/docs/bibliography.md"))
@@ -179,7 +179,6 @@ class MainWindow(QMainWindow):
         # Run things that need the event loop active
         if len(sys.argv) > 1:                
             QTimer.singleShot(0, lambda: parse_cli_args(self))
-            QTimer.singleShot(0, lambda: self.calculate_windows["resolution"].show())
             
         if Settings.Appearance.tabbed_spectrum_view:
             self.spectrum_plot_container.set_tabbed_mode()
@@ -198,13 +197,12 @@ class MainWindow(QMainWindow):
 
         self.data_store.show()
 
-    def closeEvent(self, event: QCloseEvent):
+    def closeEvent(self, event: QCloseEvent = None):
         if self._closing:
             event.accept()
             return
         Log.info("Disconnecting devices and shutting down application...")
         event.ignore()
-        Settings.save_settings()
         self.hide()
         asyncio.create_task(self._async_close())
 
@@ -251,7 +249,7 @@ def main():
     win.console_tab.sigCommandEntered.connect(script_engine.submit_from_sync)
     script_engine.sigCommandAppendOutput.connect(win.console_tab.append_output)
     script_engine.sigCommandOutput.connect(win.console_tab.set_output)
-    script_engine.sigShutdown.connect(app.quit)
+    script_engine.sigShutdown.connect(lambda: asyncio.create_task(win._async_close()))
     script_engine.connect_log_buffer(win.log_tab.get_buffered_logs)
 
     Log.info(

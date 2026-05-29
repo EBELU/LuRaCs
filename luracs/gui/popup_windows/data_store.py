@@ -425,7 +425,7 @@ class InstrumentsTab(LibraryTab):
                 "Efficiency",
             ],
         )
-        self.file_index = SpectrumManager.UniqueInstrumentLibrary.instruments
+        self.file_index = SpectrumManager.UniqueInstrumentLibrary.instrument_registry
         self.btn_load.setText("New")
         self.btn_load.clicked.connect(self.new)
         self.run_index()
@@ -490,7 +490,7 @@ class InstrumentsTab(LibraryTab):
         
     def new_instrument_from_spectrum(self, instrument_file_path):
         self.run_index()
-        QMessageBox.information(self, "New Instrument Loaded", f"A new instrument was found when loading a spectrum\nInstrument '{SpectrumManager.UniqueInstrumentLibrary.instruments[instrument_file_path].name}' has been added")
+        QMessageBox.information(self, "New Instrument Loaded", f"A new instrument was found when loading a spectrum\nInstrument '{SpectrumManager.UniqueInstrumentLibrary.instrument_registry[instrument_file_path].name}' has been added")
         
 
 class GenericInstrumentsTab(LibraryTab):
@@ -498,7 +498,7 @@ class GenericInstrumentsTab(LibraryTab):
         super().__init__(
             parent, ["Model", "Resolution", "Efficiency"]
         )
-        self.file_index = SpectrumManager.GenericInstrumentLibrary.instruments
+        self.file_index = SpectrumManager.GenericInstrumentLibrary.instrument_registry
         self.btn_load.setText("New")
         self.btn_load.clicked.connect(self.new)
         self.btn_info.clicked.connect(self.edit)

@@ -11,14 +11,9 @@ from PySide6.QtWidgets import (
     QWidget,
     QGroupBox,
     QVBoxLayout,
-    QTableWidget,
-    QTableWidgetItem,
-    QSizePolicy,
     QColorDialog,
-    QFrame,
     QHBoxLayout,
-    QToolButton,
-    QMenu,
+    QMessageBox
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
@@ -27,11 +22,11 @@ from PySide6.QtGui import QColor
 from core import SpectrumManager, RunManager
 from gui.misc.idx_table import StrIdxTable
 from utils.file_io import io_dispatcher
+from gui.misc.table_menu_button import MenuButton
 
 
-from PySide6.QtWidgets import QWidget
-from PySide6.QtGui import QColor, QPainter, QBrush, QAction
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor, QPainter, QBrush
+
 
 from gui.import_export import save_spectrum_to_library
 from gui.popup_windows.data_store_edit_dialogs import SpectrumEditDialog
@@ -73,29 +68,6 @@ class ColorCellWidget(QWidget):
         if color.isValid():
             self.set_color(color)
             return color
-
-
-class MenuButton(QWidget):
-    def __init__(self, title="Menu", parent=None):
-        super().__init__(parent)
-        self.parent = parent
-
-        self.button = QToolButton(self)
-        self.button.setText(title)
-        self.button.setPopupMode(QToolButton.InstantPopup)
-        self.button.setToolButtonStyle(self.button.toolButtonStyle())
-
-        self.menu = QMenu(self)
-        self.button.setMenu(self.menu)
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self.button)
-
-    def add_action(self, text: str) -> QAction:
-        action = QAction(text, self)
-        self.menu.addAction(action)
-        return action
 
 
 class SpectrumInfoTab(QWidget):
@@ -162,17 +134,20 @@ class SpectrumInfoTab(QWidget):
             return
         
         data = dialog.get_data()
-        if data["flag_can_change_name"] and data["name"] not in SpectrumManager.spectra:
+        if data["flag_can_change_name"] and data["name"] not in SpectrumManager.spectrum_registry:
             SpectrumManager.rename_spectrum(spectrum.name, data["name"])
         
         if data["background_pth"] and not data["flag_clear_bkg"] and data["flag_change_bkg"]:
-            SpectrumManager.import_spectrum_as_background(data["name"], io_dispatcher(data["background_pth"]).data)
+            try:
+                SpectrumManager.import_spectrum_as_background(data["name"], io_dispatcher(data["background_pth"]).data)
+            except IndexError as e:
+                QMessageBox.warning(self, "Error", str(e))
             
         elif data["flag_clear_bkg"]:
             SpectrumManager.clear_background(data["name"])
             
         if data["remark"]:
-            SpectrumManager.spectra[data["name"]].remark = data["remark"]
+            SpectrumManager.spectrum_registry[data["name"]].remark = data["remark"]
             
         if data["instrument"] is not None:
             self.sigUpdateSpectrumInstrument.emit(data["name"], data["instrument"])
@@ -190,18 +165,11 @@ class SpectrumInfoTab(QWidget):
         ):  # Has connected device
             disconnect = menu_button.add_action("Remove and Disconnect")
             disconnect.triggered.connect(
-                lambda x: RunManager.remove_device(spectrum.name, True)
+                lambda : RunManager.remove_device(spectrum.name, True)
             )
             
             save = menu_button.add_action("Save")
             save.triggered.connect(lambda : save_spectrum_to_library(spectrum))
-
-            # add_bkg = menu_button.add_action("Add Background")
-            # add_bkg.triggered.connect(
-            #     lambda : parent.file_import_export.load_spectrum_as_background(
-            #         spectrum.name
-            #     )
-            # )
 
             self.hide_show_btn[spectrum.name] = menu_button.add_action("Hide")
             self.hide_show_btn[spectrum.name].triggered.connect(
@@ -214,18 +182,11 @@ class SpectrumInfoTab(QWidget):
         elif role == "foreground":
             remove = menu_button.add_action("Remove Spectrum")
             remove.triggered.connect(
-                lambda x: SpectrumManager.remove_spectrum(spectrum.name)
+                lambda : SpectrumManager.remove_spectrum(spectrum.name)
             )
             
             save = menu_button.add_action("Save")
             save.triggered.connect(lambda : save_spectrum_to_library(spectrum))
-                        
-            # add_bkg = menu_button.add_action("Add Background")
-            # add_bkg.triggered.connect(
-            #     lambda : parent.file_import_export.load_spectrum_as_background(
-            #         spectrum.name
-            #     )
-            # )
 
             self.hide_show_btn[spectrum.name] = menu_button.add_action("Hide")
             self.hide_show_btn[spectrum.name].triggered.connect(

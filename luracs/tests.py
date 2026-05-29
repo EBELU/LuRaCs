@@ -1,6 +1,6 @@
 from utils.file_io import xml_parser, xml_writer, io_dispatcher
-from luracs.containers.spectrum_classes import Spectrum
-from luracs.containers.instrument_classes import GenericInstrument, UniqueInstrument
+from containers.spectrum_classes import Spectrum
+from containers.instrument_classes import GenericInstrument, UniqueInstrument
 from dataclasses import dataclass
 from datetime import datetime
 import numpy as np
@@ -16,13 +16,16 @@ generic = GenericInstrument(
     detector_dimensions_cm=[5.0, 5.0],  # diameter, length
     # Resolution (example: sqrt(a + bE))
     resolution_fn="sqrt(a + bE)",
-    resolution_param=[0.8, 0.02],
+    resolution_params=[0.8, 0.02],
     resolution_E_points=[59.5, 122.0, 662.0, 1332.0],
     resolution_FWHM_points=[7.5, 8.2, 12.0, 18.5],
     # Efficiency (example: exponential decay fit)
     int_efficiency_fn="a * exp(-bE)",
     int_efficiency_params=[0.9, 0.0015],
     int_efficiency_created=datetime(2025, 6, 15),
+    int_efficiency_eff_points=[0.4, 0.2, 0.1, 0.1],
+    int_efficiency_uncert_points=[0.01, 0.01, 0.01, 0.01],
+    int_efficiency_E_points=[356, 662, 1173, 1132],
     int_efficiency_description="Estimated from calibration sources (Cs-137, Co-60)",
     # Response matrix (example: 10x10 mock matrix)
     response_matrix=(np.arange(100, 100) * 1000).astype(np.int32),
@@ -38,7 +41,6 @@ unique = UniqueInstrument(
     calibration_energy_points=[59.5, 122.0, 662.0, 1332.0],
     calibration_channel_points=[120, 250, 1350, 2750],
     calibration_date=datetime(2026, 3, 10),
-    remark="Installed in lab B, slight drift observed above 1 MeV",
 )
 
 
@@ -54,8 +56,8 @@ def test_xml_io():
     for r in outpt.get_rois():
         new_spect.set_roi(r)
 
-    xml_writer(new_spect, "/home/erik/t")
-    print(io_dispatcher("/home/erik/t.xml", meta_parsing=False))
+    xml_writer(new_spect, "/home/eewa/Documents/git/MySpect/debug")
+    print(io_dispatcher("/home/eewa/Documents/git/MySpect/debug.xml", meta_parsing=False).__dict__)
 
 
 if __name__ == "__main__":

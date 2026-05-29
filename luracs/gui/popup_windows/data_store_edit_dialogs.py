@@ -48,7 +48,7 @@ class InstrumentDialog(QDialog):
         self.generic_list = QComboBox()
         form_layout.addRow("Generic Instruments:", self.generic_list)
         self.generic_list.addItem("None")
-        for i in SpectrumManager.GenericInstrumentLibrary.instruments.values():
+        for i in SpectrumManager.GenericInstrumentLibrary.instrument_registry.values():
             self.generic_list.addItem(i.model, i)
         self.generic_list.setCurrentText("None")
 
@@ -361,7 +361,7 @@ class SpectrumEditDialog(QDialog):
         form_layout.addRow("", self.instrument_list)
         
 
-        for path, instr in SpectrumManager.UniqueInstrumentLibrary.instruments.items():
+        for path, instr in SpectrumManager.UniqueInstrumentLibrary.instrument_registry.items():
             item = QListWidgetItem(instr.name)
             item.setData(Qt.ItemDataRole.UserRole, instr)
             self.instrument_list.addItem(item)

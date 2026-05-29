@@ -130,15 +130,20 @@ class ResolutionWindow(QDialog):
         main_layout.addLayout(bottom_buttons)
     
     def show(self):
+        self.set_instrument_combo()
         self.set_table()
         super().show()
+        
+    def set_instrument_combo(self):
+        self.instrument_combo.clear()
+        self.instrument_combo.addItems([i.model for i in SpectrumManager.GenericInstrumentLibrary.instrument_registry.values()])
         
     def set_table(self):
         table = self.data_table
         table.setRowCount(0)
         
         rois = []
-        for roi_key in SpectrumManager.ROIManager.ROIs.keys():
+        for roi_key in SpectrumManager.ROIManager.roi_registry.keys():
             rois.extend(SpectrumManager.ROIManager.get_data_from_roi(roi_key).values())
 
         for row, roi in enumerate(sorted(rois, key = lambda r: r.fit.fwhm if r.fit else -1)):

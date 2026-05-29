@@ -92,7 +92,7 @@ class SpectrumPlotContainer(QWidget):
         plot_widget.deleteLater()
         
         # Clean up rois
-        attached_rois = [roi.tag for roi in SpectrumManager.ROIManager.ROIs.values() if roi.owner_spectrum == spectrum_name]
+        attached_rois = [roi.tag for roi in SpectrumManager.ROIManager.roi_registry.values() if roi.owner_spectrum == spectrum_name]
         for roi_tag in attached_rois:
             SpectrumManager.ROIManager.remove_roi(roi_tag, update_state=False) # Everything is going, dont waste time on updating
 
@@ -119,7 +119,7 @@ class SpectrumPlotContainer(QWidget):
         
     def match_nuclide_to_rois(self):
         matches = []
-        for roi in SpectrumManager.ROIManager.ROIs.values():
+        for roi in SpectrumManager.ROIManager.roi_registry.values():
             if roi.owner_spectrum is not None and roi.owner_spectrum != self.tabs.currentWidget().owned_spectrum:
                 continue
             

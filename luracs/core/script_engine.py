@@ -41,12 +41,8 @@ class ScriptEngine(QObject):
         self.registry = CommandRegistry()
         register_commands(self.registry)
         self.auto_completer = None
-        if self.headless:
-            command_args = {"exit": None}
-            for cmd in self.registry.commands.values():
-                command_args[cmd.name] = cmd.argument_tree
-                
-            self.auto_completer = NestedCompleter.from_nested_dict(command_args)
+        if self.headless:               
+            self.auto_completer = self.make_autocompleter()
             self.sigCommandOutput.connect(self.print_output)
             self.session = PromptSession(completer=self.auto_completer)
 
@@ -61,11 +57,21 @@ class ScriptEngine(QObject):
             self._tasks.append(asyncio.create_task(self._read_input()))
 
         self.queue.put_nowait(f"clear {self.headless}")  # Show welcome message
-
+    
+    
+    def make_autocompleter(self) -> dict:
+        command_args = {"exit": None}
+        for cmd in self.registry.commands.values():
+            command_args[cmd.name] = cmd.get_auto_complete()
+        return NestedCompleter.from_nested_dict(command_args)
+        
+        
     async def _read_input(self):
         try:
             while True:
                 try:
+                    self.session.completer = self.make_autocompleter()
+                    
                     await asyncio.sleep(0.1)
                     cmd = await self.session.prompt_async("LuRaCs Console <<< ")
                 except KeyboardInterrupt:
@@ -191,12 +197,15 @@ class ScriptEngine(QObject):
         
         self.sigCommandOutput.emit(res if res else "")
             
+            
     def cancel_current_command(self):
         if self._current_command_task and not self._current_command_task.done():
             self._current_command_task.cancel()
     
+    
     def connect_log_buffer(self, get_log_fn):
         self.get_log_buffer = get_log_fn
+        
         
     def suppress_output(self, state: bool):
         self.output_suppressed = state

@@ -25,6 +25,27 @@ def n42(tag):
 def LRC(tag):
     return f"{{{MY}}}{tag}"
 
+def write_coupled_points(branch, point_name:str, point_names: list[str], *point_data, point_kwargs: dict = None):
+    assert len(point_names) == len(point_data), f"Point Names: {len(point_names)}, Point Data: {len(point_data)}"
+    if point_kwargs is None:
+        point_kwargs = {}
+    
+    if point_kwargs is None:
+        point_kwargs = {}
+
+    for pack in zip(*point_data):
+        point_group = etree.SubElement(
+            branch,
+            point_name,
+            **point_kwargs
+        )
+
+        for i, point in enumerate(pack):
+            write_text_to_SubElement(
+                point_group,
+                point_names[i],
+                point
+            )
 
 def write_text_to_SubElement(
     branch, sub_element: str, data: str | int | float | list, **kwargs
@@ -119,8 +140,9 @@ class xml_writer:
 
         # --- Write out ---
         tree = etree.ElementTree(self.root)
+
         tree.write(
-            str(file_name.with_suffix(".xml")),
+            str(self.file_name.with_suffix(".xml")),
             pretty_print=True,
             xml_declaration=True,
             encoding="utf-8",
@@ -258,6 +280,13 @@ def write_instrument_data(instrument: GenericInstrument | UniqueInstrument, root
             instrument.detector_dimensions_cm,
             unit="cm",
         )
+        
+        write_text_to_SubElement(
+            instrument_section,
+            "DetectorDimensionsUncertainty",
+            instrument.detector_dimensions_uncert_cm,
+            unit="cm",
+        )
 
     # --- Resolution ---
     if instrument.resolution_fn is not None:
@@ -269,16 +298,21 @@ def write_instrument_data(instrument: GenericInstrument | UniqueInstrument, root
             resolution_section, "Function", instrument.resolution_fn
         )
         write_text_to_SubElement(
-            resolution_section, "Parameters", instrument.resolution_param
+            resolution_section, "Parameters", instrument.resolution_params
         )
 
-        points_section = etree.SubElement(resolution_section, "DataPoints")
-        for E, fwhm in zip(
-            instrument.resolution_E_points, instrument.resolution_FWHM_points
-        ):
-            pt = etree.SubElement(points_section, "Point")
-            write_text_to_SubElement(pt, "Energy", E, unit="keV")
-            write_text_to_SubElement(pt, "FWHM", fwhm, unit="keV")
+        measured_resolution_section = etree.SubElement(
+            resolution_section, "ResolutionPoints", energy_unit="keV",
+            FWHM_unit="keV"
+        )
+        write_coupled_points(measured_resolution_section, 
+            "DataPoint",
+            ["FWHM", 
+            "FWHMUncertainty", 
+            "Energy"], 
+            instrument.int_efficiency_eff_points,
+            instrument.int_efficiency_uncert_points,
+            instrument.int_efficiency_E_points)
 
     # --- Efficiency ---
     if instrument.int_efficiency_fn is not None:
@@ -292,6 +326,20 @@ def write_instrument_data(instrument: GenericInstrument | UniqueInstrument, root
         write_text_to_SubElement(
             efficiency_section, "Parameters", instrument.int_efficiency_params
         )
+        
+        measured_efficiency_section = etree.SubElement(
+            efficiency_section, "EfficiencyPoints", energy_unit="keV",
+            efficiency_unit="unitless"
+        )
+        write_coupled_points(measured_efficiency_section, 
+            "DataPoint",
+            ["Efficiency", 
+            "EfficiencyUncertainty", 
+            "Energy"], 
+            instrument.int_efficiency_eff_points,
+            instrument.int_efficiency_uncert_points,
+            instrument.int_efficiency_E_points)
+        
         if instrument.int_efficiency_created:
             write_text_to_SubElement(
                 efficiency_section,
@@ -325,13 +373,14 @@ def write_instrument_data(instrument: GenericInstrument | UniqueInstrument, root
             calibration, "Coefficients", instrument.calibration_coefficients
         )
 
-        points_section = etree.SubElement(calibration, "CalibrationPoints")
-        for E, ch in zip(
-            instrument.calibration_energy_points, instrument.calibration_channel_points
-        ):
-            pt = etree.SubElement(points_section, "Point")
-            write_text_to_SubElement(pt, "Energy", E, unit="keV")
-            write_text_to_SubElement(pt, "Channel", ch)
+        points_section = etree.SubElement(calibration, "CalibrationPoints", energy_unit="keV")
+        write_coupled_points(
+            points_section,
+            "DataPoint",
+            ["Energy", "Channel"],
+            instrument.calibration_energy_points,
+            instrument.calibration_channel_points
+        )
 
         if instrument.calibration_date:
             write_text_to_SubElement(

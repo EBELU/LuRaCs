@@ -74,7 +74,8 @@ class Spectrum:
             self.color_background = color
 
     def set_background(self, spectrum: SpectrumData, color: QColor = None):
-        assert spectrum.channels == self.channels
+        if spectrum.channels != self.channels:
+            raise IndexError(f"Number of channels in foreground does not match the number of channels in attempted background! \nForeground: {self.channels} channels, Background: {spectrum.channels} channels")
         self.background = spectrum
         if color is not None:
             self.color_background = color

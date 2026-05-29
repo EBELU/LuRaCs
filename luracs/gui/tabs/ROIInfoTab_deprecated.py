@@ -40,7 +40,7 @@ class RoiInfoDialog(QDialog):
 
         # Combo box for ROI selection
         self.combo = QComboBox()
-        self.combo.addItems([r.alias for r in SpectrumManager.ROIManager.ROIs.values()])
+        self.combo.addItems([r.alias for r in SpectrumManager.ROIManager.roi_registry.values()])
         layout.addWidget(self.combo)
 
         # Text edit to display info
@@ -196,7 +196,7 @@ class ROIInfoTab(QWidget):
         self.update_combo()
 
     def _open_info(self):
-        info_box = RoiInfoDialog(list(SpectrumManager.ROIManager.ROIs.keys()))
+        info_box = RoiInfoDialog(list(SpectrumManager.ROIManager.roi_registry.keys()))
         info_box.exec()
 
     def update_combo(self):
@@ -212,7 +212,7 @@ class ROIInfoTab(QWidget):
         if self.combo_show_spectrum:
             items = list(SpectrumManager.get_spectra_dict().keys())
         else:
-            items = [roi.alias for roi in SpectrumManager.ROIManager.ROIs.values()]
+            items = [roi.alias for roi in SpectrumManager.ROIManager.roi_registry.values()]
 
         self.combo.addItems(items)
 

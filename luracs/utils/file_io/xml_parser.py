@@ -543,21 +543,17 @@ class xml_parser:
                 res.xpath("./n42:Function", namespaces=ns)[0].text
             )
 
-            kwargs["resolution_param"] = _parse_array(
+            kwargs["resolution_params"] = _parse_array(
                 res.xpath("./n42:Parameters", namespaces=ns)[0].text
             )
 
-            kwargs["resolution_E_points"] = []
-            kwargs["resolution_FWHM_points"] = []
+            points = res.xpath(".//n42:ResolutionPoints/n42:DataPoint", namespaces=ns)
+            
+            kwargs["resolution_E_points"] = [_get_float(point, "./n42:Energy", ns) for point in points]
+            kwargs["resolution_FWHM_points"] = [_get_float(point, "./n42:FWHM", ns) for point in points]
+            kwargs["resolution_FWHM_uncert_points"] = [_get_float(point, "./n42:FWHMUncertainty", ns) for point in points]
 
-            for pt in res.xpath(".//n42:Point", namespaces=ns):
-                kwargs["resolution_E_points"].append(
-                    float(pt.xpath("./n42:Energy", namespaces=ns)[0].text)
-                )
 
-                kwargs["resolution_FWHM_points"].append(
-                    float(pt.xpath("./n42:FWHM", namespaces=ns)[0].text)
-                )
 
         # ------------------------------------------------------------------
         # Efficiency
@@ -576,29 +572,37 @@ class xml_parser:
             )
 
             kwargs["int_efficiency_created"] = get_text(
-                "./n42:Efficiency/n42:Created"
+                "./n42:Created"
             )
 
             kwargs["int_efficiency_description"] = get_text(
-                "./n42:Efficiency/n42:Description"
+                "./n42:Description"
             )
+            
+            points = eff.xpath(".//n42:EfficiencyPoints/n42:DataPoint", namespaces=ns)
+            
+            kwargs["int_efficiency_E_points"] = [_get_float(point, "./n42:Energy", ns) for point in points]
+            kwargs["int_efficiency_eff_points"] = [_get_float(point, "./n42:Efficiency", ns) for point in points]
+            kwargs["int_efficiency_uncert_points"] = [_get_float(point, "./n42:EfficiencyUncertainty", ns) for point in points]
+
+
 
         # ------------------------------------------------------------------
         # Response matrix
         # ------------------------------------------------------------------
 
-        rm = instrument.xpath("./n42:ResponseMatrix", namespaces=ns)
-        if rm:
-            rm = rm[0]
+        # rm = instrument.xpath("./n42:ResponseMatrix", namespaces=ns)
+        # if rm:
+        #     rm = rm[0]
 
-            shape = rm.get("matrix_shape")
-            kwargs["response_matrix_shape"] = (
-                tuple(map(int, shape.split())) if shape else None
-            )
+        #     shape = rm.get("matrix_shape")
+        #     kwargs["response_matrix_shape"] = (
+        #         tuple(map(int, shape.split())) if shape else None
+        #     )
 
-            if rm.text:
-                decoded = decode_base64(rm.text)
-                kwargs["response_matrix"] = decompress_spectrum(decoded)
+        #     if rm.text:
+        #         decoded = decode_base64(rm.text)
+        #         kwargs["response_matrix"] = decompress_spectrum(decoded)
 
         # ------------------------------------------------------------------
         # Generic instrument
@@ -623,17 +627,10 @@ class xml_parser:
                 cal.xpath("./n42:Coefficients", namespaces=ns)[0].text
             )
 
-            kwargs["calibration_energy_points"] = []
-            kwargs["calibration_channel_points"] = []
-
-            for pt in cal.xpath(".//n42:Point", namespaces=ns):
-                kwargs["calibration_energy_points"].append(
-                    float(pt.xpath("./n42:Energy", namespaces=ns)[0].text)
-                )
-
-                kwargs["calibration_channel_points"].append(
-                    float(pt.xpath("./n42:Channel", namespaces=ns)[0].text)
-                )
+            points = cal.xpath(".//n42:CalibrationPoints/n42:DataPoint", namespaces=ns)
+            
+            kwargs["calibration_energy_points"] = [_get_float(point, "./n42:Energy", ns) for point in points]
+            kwargs["calibration_channel_points"] = [_get_float(point, "./n42:Channel", ns) for point in points]
 
             date = cal.xpath("./n42:Date", namespaces=ns)
             if date:

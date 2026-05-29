@@ -6,8 +6,6 @@ if TYPE_CHECKING:
     from luracs.containers.spectrogram import Spectrogram
 
 import asyncio
-from pathlib import Path
-from copy import deepcopy
 from PySide6.QtCore import QObject, Signal
 from qasync import QEventLoop
 from dataclasses import dataclass
@@ -43,7 +41,7 @@ else:
 from PySide6.QtCore import QObject, Signal
 from .gui_logger import gui_logger
 
-from clients.DeviceWrappers import DeviceWrapper
+from clients.DeviceWrappers import DeviceWrapper, CriticalNotImplementedError
 
 
 @dataclass(frozen=True)
@@ -103,7 +101,7 @@ class RunManagerBase(QObject):
 
         self.deviceConnecting.connect(Settings.add_new_connection)
 
-        self.devices: dict[str, DeviceWrapper] = {}
+        self.device_registry: dict[str, DeviceWrapper] = {}
 
         self._scan_task: asyncio.Task | None = None
         self._scan_lock = asyncio.Lock()
@@ -132,14 +130,14 @@ class RunManagerBase(QObject):
             while self._polling:
                 now = time.monotonic()
 
-                for name, client in list(self.devices.items()):
+                for name, client in list(self.device_registry.items()):
                     # --- Remove stopped clients ---
-                    if client.is_stopped:
-                        self.devices.pop(name)
+                    if client.is_stopped():
+                        self.device_registry.pop(name)
                         continue
 
                     # --- Check crash ---
-                    if not client.is_running and not client.is_stopped:
+                    if not client.is_running() and not client.is_stopped():
                         client.set_state(DeviceWrapper.DeviceState.ERROR)
                         continue
 
@@ -175,6 +173,11 @@ class RunManagerBase(QObject):
 
         except asyncio.CancelledError:
             raise
+        
+        except CriticalNotImplementedError as e:
+            gui_logger.error(f"Wrapper for device {name} has critical method '{e}' not implemented! Removing device.")
+            self.remove_device(name)
+        
         except Exception as e:
             gui_logger.critical("Polling crashed:", e)
 
@@ -186,7 +189,7 @@ class RunManagerBase(QObject):
 
         new_device: DeviceWrapper = client_wrapper(device_address, usb)
 
-        if new_device.name in self.devices:
+        if new_device.name in self.device_registry:
             gui_logger.debug(f"Device {device_address} already exists")
             return
 
@@ -199,37 +202,44 @@ class RunManagerBase(QObject):
         except asyncio.CancelledError:
             gui_logger.error(f"Deive was cancelled {new_device.name}")
             self.deviceCancelled.emit(new_device.name)
+        
+        except CriticalNotImplementedError as e:
+            gui_logger.error(f"Wrapper for device {new_device.name} has critical method '{e}' not implemented! Aborting!")
 
         except Exception as e:
             gui_logger.error(f"Device start threw exception {e}. Start failed!")
             new_device.set_state(DeviceWrapper.DeviceState.CONNECTION_FAILED)
             return
-        if new_device.is_running:
-            gui_logger.info(f"Device connected: name={new_device.name}, type={device_type}, connection_type={"USB" if usb else "BLE"}")
-            self.deviceConnected.emit(new_device.name)
-            new_device.set_state(DeviceWrapper.DeviceState.CONNECTED)
-            self.createDeviceSpectrum.emit(
-                new_device.name, new_device.channels, new_device.name
-            )
-            self.devices[new_device.name] = new_device
+        
+        try:
+            if new_device.is_running():
+                gui_logger.info(f"Device connected: name={new_device.name}, type={device_type}, connection_type={"USB" if usb else "BLE"}")
+                self.deviceConnected.emit(new_device.name)
+                new_device.set_state(DeviceWrapper.DeviceState.CONNECTED)
+                self.createDeviceSpectrum.emit(
+                    new_device.name, new_device.channels, new_device.name
+                )
+                self.device_registry[new_device.name] = new_device
 
-        else:
-            new_device.set_state(DeviceWrapper.DeviceState.CONNECTION_FAILED)
-            gui_logger.error(f"Device failed to start properly {new_device.name}")
+            else:
+                new_device.set_state(DeviceWrapper.DeviceState.CONNECTION_FAILED)
+                gui_logger.error(f"Device failed to start properly {new_device.name}")
+        except CriticalNotImplementedError as e:
+            gui_logger.error(f"Wrapper for device {new_device.name} has critical method '{e}' not implemented! Aborting!")
 
         if not self._polling:
             self._polling = True
             self._poll_task = asyncio.create_task(self._poll_loop())
 
     def remove_all_devices(self):
-        for device_name in list(self.devices.keys()):
+        for device_name in list(self.device_registry.keys()):
             self.remove_device(device_name)
 
     def remove_device(self, device_name: str, remove_spectrum: bool = False):
         asyncio.create_task(self._remove_device(device_name, remove_spectrum))
 
     async def _remove_device(self, device_name: str, remove_spectrum: bool = False):
-        client = self.devices.pop(device_name, None)
+        client = self.device_registry.pop(device_name, None)
         if not client:
             return
 
@@ -246,7 +256,7 @@ class RunManagerBase(QObject):
             if remove_spectrum:
                 self.removeDeviceSpectrum.emit(device_name)
             # --- stop polling if no devices remain ---
-            if not self.devices and self._poll_task:
+            if not self.device_registry and self._poll_task:
                 self._polling = False
                 self._poll_task.cancel()
                 await asyncio.gather(self._poll_task, return_exceptions=True)
@@ -254,7 +264,6 @@ class RunManagerBase(QObject):
 
     async def shutdown(self):
         self.shutdownStarted.emit()
-
         # --- Close active loggers ---
         for logger_key in self.loaded_spectrogram.copy().keys():
             try:
@@ -273,7 +282,7 @@ class RunManagerBase(QObject):
                 gui_logger.error(f"{device.name} stop failed: {e}")
 
         tasks = [
-            asyncio.create_task(stop_device(device)) for device in self.devices.values()
+            asyncio.create_task(stop_device(device)) for device in self.device_registry.values()
         ]
 
         await asyncio.gather(*tasks, return_exceptions=True)
@@ -289,7 +298,7 @@ class RunManagerBase(QObject):
                 gui_logger.warning("Poll task did not finish in time")
             self._poll_task = None
 
-        self.devices.clear()
+        self.device_registry.clear()
         self.shutdownFinished.emit()
 
     def cancel_scan_task(self):
