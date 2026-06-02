@@ -84,7 +84,9 @@ class xml_writer:
             self.root, n42("RadInstrumentDataCreatorName"), "LuRaCs"
         )
 
-        # --- Spectrum data ---
+        # ------------------------------------------------------------------
+        # Spectrum Data
+        # ------------------------------------------------------------------
         if export_spectrum:
             foreground_id = (
                 spectrum.foreground.spectrum_name
@@ -120,7 +122,12 @@ class xml_writer:
                     spectrum.background, self.root, "background", background_id
                 )
 
-        # --- Extensions ---
+        # ------------------------------------------------------------------
+        # Luracs extensions
+        # ------------------------------------------------------------------
+        # Enough data is included in the extension the import everything to another app instance
+        
+        # --- ROIs ---
         if export_rois and len(spectrum.ROIs) > 0:
             self.extension_section = (
                 etree.SubElement(self.root, LRC("LuRaCs"), version="1")
@@ -130,6 +137,7 @@ class xml_writer:
             peaks = etree.SubElement(self.extension_section, "Peaks")
             write_ROI_data(spectrum.ROIs, peaks)
 
+        # --- Instrument ---
         if export_instrument and spectrum.instrument is not None:
             self.extension_section = (
                 etree.SubElement(self.root, LRC("LuRaCs"), version="1")
@@ -138,7 +146,9 @@ class xml_writer:
             )
             write_instrument_data(spectrum.instrument, self.extension_section)
 
-        # --- Write out ---
+        # ------------------------------------------------------------------
+        # Write out
+        # ------------------------------------------------------------------
         tree = etree.ElementTree(self.root)
 
         tree.write(
@@ -151,39 +161,50 @@ class xml_writer:
 
 def write_SpectrumData(data: SpectrumData, root, kind: str, spectrum_id: str):
     assert kind in ("foreground", "background")
+    
     rad_measurement = etree.SubElement(root, n42("RadMeasurement"), id=spectrum_id)
 
-    # MeasurementClassCode
+    # Fore- or background
     write_text_to_SubElement(rad_measurement, n42("MeasurementClassCode"), kind)
 
+    # The start date of a spectrum measurement, might not exist
     start_date = etree.SubElement(rad_measurement, n42("StartDateTime"))
     if data.start_date is None:
         pass
     else:
         start_date.text = data.start_date.strftime("%Y-%m-%dT%H:%M:%SZ")
 
+    # Realtime duration, might not exist
     if data.real_time:
         write_text_to_SubElement(
             rad_measurement, n42("RealTimeDuration"), f"PT{round(data.real_time, 2)}S"
         )
 
+    # Just placeholder names, idk what they should be called
     if kind == "foreground":
         id = data.spectrum_name if data.spectrum_name is not None else "Sample0Spectrum"
     else:
         id = data.spectrum_name if data.spectrum_name is not None else "Sample1Spectrum"
     
+    # Link calibration
     spectrum = etree.SubElement(
         rad_measurement, n42("Spectrum"), energyCalibrationReference="EnergyCal0", id = id 
     )
 
+    # Livetime, must exist
     write_text_to_SubElement(
         spectrum, n42("LiveTimeDuration"), f"PT{round(data.live_time, 2)}S"
     )
 
-    channel_data = etree.SubElement(
-        spectrum, n42("ChannelData"), compressionCode="None"
+    # Write our the actual counts, bunch o' casting
+    write_text_to_SubElement(
+        spectrum, "ChannelData", data.y_axis.round().astype(int), compressionCode="None"
     )
-    channel_data.text = " ".join(data.y_axis.round().astype(str))
+    
+    # channel_data = etree.SubElement(
+    #     spectrum, n42("ChannelData"), compressionCode="None"
+    # )
+    # channel_data.text = " ".join(data.y_axis.round().astype(int).astype(str))
     
     
 def write_ROI_data(ROIs: dict[str, ROI], peaks_section):
@@ -196,9 +217,13 @@ def write_ROI_data(ROIs: dict[str, ROI], peaks_section):
             "Roi",
             id=tag,
             alias=roi.alias,
-            spectrum_ref=str(roi.meta.get("spectrum_name")),
+            spectrum_ref=roi.spectrum,
             version="1",
         )
+        
+        # ------------------------------------------------------------------
+        # Basic Info
+        # ------------------------------------------------------------------
         continuum = etree.SubElement(
             new_peak,
             "PeakContinuum",
@@ -206,6 +231,7 @@ def write_ROI_data(ROIs: dict[str, ROI], peaks_section):
             movable=str(roi.meta.get("movable", True)),
             background_subtracted=str(roi.meta.get("background_subtracted", False)),
         )
+        # Basic roi data
         write_text_to_SubElement(continuum, "RegionCounts", roi.roi_counts)
         write_text_to_SubElement(continuum, "LiveTime", roi.live_time)
 
@@ -214,7 +240,6 @@ def write_ROI_data(ROIs: dict[str, ROI], peaks_section):
         write_text_to_SubElement(continuum, "UpperEnergy", roi.roi_bound[1])
 
         # Create the peak element
-
         write_text_to_SubElement(
             new_peak,
             "Fit",
@@ -222,6 +247,10 @@ def write_ROI_data(ROIs: dict[str, ROI], peaks_section):
             chi2_weighted_err=str(roi.meta.get("chi2_weighted_err", True)),
         )
         write_text_to_SubElement(new_peak, "BackgroundType", roi.bkg_type)
+        
+            # ------------------------------------------------------------------
+            # Fit results
+            # ------------------------------------------------------------------
         if roi.fit is not None:
             peak = etree.SubElement(new_peak, "Peak")
             write_text_to_SubElement(
@@ -239,6 +268,10 @@ def write_ROI_data(ROIs: dict[str, ROI], peaks_section):
 
             write_text_to_SubElement(peak, "PeakCounts", roi.fit.peak_counts)
             
+        # ------------------------------------------------------------------
+        # ROI nuclide and associated energy
+        # ------------------------------------------------------------------
+        
         if roi.emission is not None:
             nuclide_section = etree.SubElement(new_peak, "Nuclide")
             write_text_to_SubElement(nuclide_section, "Name", roi.emission.parent_nuclide)
@@ -254,11 +287,16 @@ def write_instrument_data(instrument: GenericInstrument | UniqueInstrument, root
         generic_instrument=str(not isinstance(instrument, UniqueInstrument)).lower(),
     )
     
-    # --- Basic info ---
+    # ------------------------------------------------------------------
+    # Basic Info
+    # ------------------------------------------------------------------
+    
     write_text_to_SubElement(
         instrument_section, "Name", getattr(instrument, "name", "Generic")
     )
-    write_text_to_SubElement(instrument_section, "Model", instrument.model)
+    write_text_to_SubElement(
+        instrument_section, "Model", instrument.model
+    )
     write_text_to_SubElement(
         instrument_section, "Manufacturer", instrument.manufacturer
     )
@@ -268,7 +306,6 @@ def write_instrument_data(instrument: GenericInstrument | UniqueInstrument, root
     write_text_to_SubElement(
         instrument_section, "DetectorShape", instrument.detector_shape
     )
-
     write_text_to_SubElement(
         instrument_section, "DetectorType", instrument.detector_type
     )
@@ -288,10 +325,17 @@ def write_instrument_data(instrument: GenericInstrument | UniqueInstrument, root
             unit="cm",
         )
 
-    # --- Resolution ---
+    # ------------------------------------------------------------------
+    # Resolution
+    # ------------------------------------------------------------------
+    
     if instrument.resolution_fn is not None:
         resolution_section = etree.SubElement(
             instrument_section, "Resolution", type="energy"
+        )
+        
+        write_text_to_SubElement(
+            resolution_section, "CreatedTS", instrument.resolution_created.isoformat()
         )
 
         write_text_to_SubElement(
@@ -310,14 +354,21 @@ def write_instrument_data(instrument: GenericInstrument | UniqueInstrument, root
             ["FWHM", 
             "FWHMUncertainty", 
             "Energy"], 
-            instrument.int_efficiency_eff_points,
-            instrument.int_efficiency_uncert_points,
-            instrument.int_efficiency_E_points)
+            instrument.resolution_FWHM_points,
+            instrument.resolution_FWHM_uncert_points,
+            instrument.resolution_E_points)
 
-    # --- Efficiency ---
+
+    # ------------------------------------------------------------------
+    # Efficiency
+    # ------------------------------------------------------------------
+    
     if instrument.int_efficiency_fn is not None:
         efficiency_section = etree.SubElement(
             instrument_section, "Efficiency", type="intrinsic"
+        )
+        write_text_to_SubElement(
+            efficiency_section, "CreatedTS", instrument.int_efficiency_created.isoformat()
         )
 
         write_text_to_SubElement(
@@ -350,7 +401,11 @@ def write_instrument_data(instrument: GenericInstrument | UniqueInstrument, root
             efficiency_section, "Description", instrument.int_efficiency_description
         )
 
-    # --- Response Matrix ---
+
+    
+    # ------------------------------------------------------------------
+    # Response Matrix  Not implemented
+    # ------------------------------------------------------------------
     if instrument.response_matrix is not None:
         comp_matrix = encode_base64(compress_spectrum(instrument.response_matrix))
         shape_as_str = " ".join([str(i) for i in instrument.response_matrix_shape])
@@ -362,7 +417,10 @@ def write_instrument_data(instrument: GenericInstrument | UniqueInstrument, root
             compression="Base64-zLib",
         )
 
-    # --- Calibration (UniqueInstrument only) ---
+    # ------------------------------------------------------------------
+    # Calibration (UniqueInstrument only)
+    # ------------------------------------------------------------------
+    
     if isinstance(instrument, UniqueInstrument) and instrument.calibration_coefficients is not None:
         calibration = etree.SubElement(instrument_section, "Calibration")
 
@@ -384,7 +442,7 @@ def write_instrument_data(instrument: GenericInstrument | UniqueInstrument, root
 
         if instrument.calibration_date:
             write_text_to_SubElement(
-                calibration, "Date", instrument.calibration_date.isoformat()
+                calibration, "CreatedTS", instrument.calibration_date.isoformat()
             )
 
     if instrument.remark:

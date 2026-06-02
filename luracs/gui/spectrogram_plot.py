@@ -206,7 +206,8 @@ class SpectrogramWidget(QWidget):
 
         # --- Plots ---
         self.top_spectrum_plot = pg.PlotWidget()
-        self.top_spectrum_plot.getPlotItem().layout.setContentsMargins(14, 13, 13, 0)
+        self.top_spectrum_plot.getPlotItem().layout.setContentsMargins(0, 13, 13, 0)
+        
 
         # Defaults
         self.x = np.arange(self.x_len)
@@ -216,7 +217,7 @@ class SpectrogramWidget(QWidget):
         self.bar = pg.BarGraphItem(x=self.x, height=y, width=1.0, brush="y")
 
         self.top_spectrum_plot.setLimits(
-            xMin=0, xMax=self.x_len, yMin=0, yMax=512, minXRange=10, minYRange=4
+            xMin=0, xMax=self.x_len, yMin=0, minXRange=10, minYRange=4
         )
 
         self.top_spectrum_plot.addItem(self.bar)
@@ -229,6 +230,7 @@ class SpectrogramWidget(QWidget):
 
         # Waterfall plot
         self.plot = self.spectrogram_plot.addPlot(row=0, col=0)
+        self.plot.getViewBox().setAspectLocked(True)
         self.img = pg.ImageItem()
         self.plot.addItem(self.img)
 
@@ -257,12 +259,12 @@ class SpectrogramWidget(QWidget):
 
         self.plot.invertY(True)
         self.plot.layout.setContentsMargins(0, 0, 0, 0)
-        self.top_spectrum_plot.getPlotItem().getAxis("left").setWidth(30)
-        self.plot.getAxis("left").setWidth(35)
+        self.top_spectrum_plot.getPlotItem().getAxis("left").setWidth(65)
+        self.plot.getAxis("left").setWidth(55)
         # Data buffer
 
         self.plot.setLimits(
-            xMin=0, xMax=self.x_len, yMin=0, yMax=self.y_len, minXRange=32, minYRange=32
+            xMin=0, xMax=self.x_len, yMin=0, yMax=self.y_len, minXRange=8, minYRange=8
         )
         self.img.setLevels((0, 5))
 
@@ -292,6 +294,7 @@ class SpectrogramWidget(QWidget):
             current_spectrogram is not None
             and current_spectrogram.device_id not in RunManager.device_registry
         ):
+            QMessageBox.warning(self, "Device not found", f"Spectrogram was measured with '{current_spectrogram.device_id }'. This device was not detected, spectrogram restart failed")
             return
 
         if current_spectrogram is not None:

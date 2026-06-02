@@ -338,6 +338,7 @@ class IsotopicsTab(QWidget):
         
         self.btn_assign_emissions = QPushButton("Auto Set Emissions")
         peak_search_layout.addWidget(self.btn_assign_emissions)
+        # Connected via main to the spectrum_plot_container that does the matching
 
 
         self.btn_search_peaks = QPushButton("Search peaks")

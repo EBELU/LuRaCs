@@ -250,7 +250,7 @@ class xml_parser:
         if node is not None and node.text:
             b = _parse_array(node.text)
             # Convert to polynomial
-            data["calibration"] = np.polyfit(np.arange(len(b)), b, 4)
+            data["calibration"] = np.polyfit(np.arange(len(b)), b, 3)
 
         for meas in self.root.xpath(".//n42:RadMeasurement", namespaces=ns):
             code = meas.findtext(
@@ -332,26 +332,33 @@ class xml_parser:
         return data
 
     def _parse_n42(self):
-        ns, data = self.N42_NS, {"name": self.file_name}
-        instrument = self.root.findtext(".//n42:RadInstrumentIdentifier", namespaces=ns)
-
+        """
+        Parse the n42 iso format for spectrometric data. This is not a complete parser but will work for most n42 instances
+        """
+        
+        ns, data = self.N42_NS, {"name": self.file_name} # Namespace
+        data["instrument_id"] = self.root.findtext(
+            ".//n42:RadInstrumentIdentifier", namespaces=ns
+        )
         data["instrument_model"] = self.root.findtext(
             ".//n42:RadInstrumentModelName", namespaces=ns
         )
         data["instrument_class_code"] = self.root.findtext(
             ".//n42:RadInstrumentClassCode", namespaces=ns
         )
-
+        
+        # --- Calibration ---
         coeff = self.root.findtext(
             ".//n42:EnergyCalibration/n42:CoefficientValues", namespaces=ns
         )
         if coeff:
-            data["calibration"] = [float(x) for x in coeff.split()][::-1]
+            data["calibration"] = [float(x) for x in coeff.split()][::-1] # Swing around for numpy
             
         data["remark"] = self.root.findtext(
             ".//n42:Remark", namespaces=ns
         )
 
+        # --- Spectrum data ---
         for meas in self.root.xpath(".//n42:RadMeasurement", namespaces=ns):
             code = meas.findtext(
                 "n42:MeasurementClassCode", default="", namespaces=ns
@@ -382,7 +389,6 @@ class xml_parser:
                 start_date=_safe_iso(meas.findtext("n42:StartDateTime", namespaces=ns)),
                 end_date=_safe_iso(meas.findtext("n42:EndDateTime", namespaces=ns)),
                 spectrum_name=self.file_name,
-                instrument=instrument,
             )
 
         lrc = self.root.find("./lrc:LuRaCs", namespaces=self.LRC_NS)
@@ -398,13 +404,19 @@ class xml_parser:
         peak_data = []
 
         for roi in ext_root.xpath(".//n42:Roi", namespaces=self.N42_NS):
+            # Misc info
+            # roi_id is the internal tag and should not be used again
             roi_id, alias, spectrum = (
                 roi.get("id"),
                 roi.get("alias"),
                 roi.get("spectrum_ref"),
             )
             cont = roi.xpath(".//n42:PeakContinuum", namespaces=ns)
-            # --- Continuum ---
+            
+            # ------------------------------------------------------------------
+            # ROI Continuum
+            # ------------------------------------------------------------------
+            
             cont = cont[0] if cont else None
             if cont is not None:
                 meta_data = {
@@ -424,7 +436,10 @@ class xml_parser:
             bkg_type = roi.xpath(".//n42:BackgroundType", namespaces=ns)[0].text
             meta_data["chi2_weighted_err"] = fit.get("chi2_weighted_err")
 
-            # --- Peak fit ---
+            # ------------------------------------------------------------------
+            # Peak Fit
+            # ------------------------------------------------------------------
+            
             peak_nodes = roi.xpath("./n42:Peak", namespaces=ns)
             if peak_nodes is not None and len(peak_nodes) != 0:
                 peak = peak_nodes[0]
@@ -450,6 +465,8 @@ class xml_parser:
                                 "peak_counts": counts,
                                 "bkg_params": bkg_params,
                 }
+                
+                # The data of a roi, idk what to do with this
                 misc_peak_kwargs = {
                     "centroid": centroid,
                     "centroid_err": centroid_err,
@@ -460,9 +477,13 @@ class xml_parser:
                     "peak_counts": counts,
                 }
             else:
+                # No peak
                 peak_kwargs = misc_peak_kwargs = None
                 
-            # --- Nuclide ---
+            # ------------------------------------------------------------------
+            # Nuclide data of the ROI
+            # ------------------------------------------------------------------
+            # Contains the data required for most calculations on the peak
             nuclide = roi.xpath("./n42:Nuclide", namespaces=ns)
             emission_data = {}
             if nuclide:
@@ -481,7 +502,7 @@ class xml_parser:
 
 
             general_kwargs = {
-                "tag": roi_id,
+                "tag": "",
                 "alias": alias,
                 "roi_bound": (e_low, e_high),
                 "region_bound": (None, None),
@@ -491,6 +512,7 @@ class xml_parser:
                 "live_time": live_time,
                 "meta": meta_data,
                 "emission_data": emission_data,
+                "spectrum": spectrum
             }
 
             peaks.append(_build_roi(general_kwargs, peak_kwargs))
@@ -515,7 +537,10 @@ class xml_parser:
 
         def get_array(path):
             txt = get_text(path)
-            return _parse_array(txt) if txt else None
+            try:
+                return _parse_array(txt) if txt else None
+            except ValueError:
+                return None
 
         # ------------------------------------------------------------------
         # Base fields shared by GenericInstrument and UniqueInstrument
@@ -528,6 +553,7 @@ class xml_parser:
             "detector_material": get_text("./n42:DetectorMaterial"),
             "detector_shape": get_text("./n42:DetectorShape"),
             "detector_dimensions_cm": get_array("./n42:DetectorDimensions"),
+            "detector_dimensions_uncert_cm": get_array("./n42:DetectorDimensionsUncertainty"),
             "remark": get_text("./n42:Remark", ""),
         }
 
@@ -538,6 +564,10 @@ class xml_parser:
         res = instrument.xpath("./n42:Resolution", namespaces=ns)
         if res:
             res = res[0]
+            
+            kwargs["resolution_created"] = datetime.fromisoformat((
+                res.xpath("./n42:CreatedTS", namespaces=ns)[0].text
+            ))
 
             kwargs["resolution_fn"] = (
                 res.xpath("./n42:Function", namespaces=ns)[0].text
@@ -562,6 +592,10 @@ class xml_parser:
         eff = instrument.xpath("./n42:Efficiency", namespaces=ns)
         if eff:
             eff = eff[0]
+            
+            kwargs["int_efficiency_created"] = datetime.fromisoformat((
+                eff.xpath("./n42:CreatedTS", namespaces=ns)[0].text
+            ))
 
             kwargs["int_efficiency_fn"] = (
                 eff.xpath("./n42:Function", namespaces=ns)[0].text
@@ -569,10 +603,6 @@ class xml_parser:
 
             kwargs["int_efficiency_params"] = _parse_array(
                 eff.xpath("./n42:Parameters", namespaces=ns)[0].text
-            )
-
-            kwargs["int_efficiency_created"] = get_text(
-                "./n42:Created"
             )
 
             kwargs["int_efficiency_description"] = get_text(

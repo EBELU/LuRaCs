@@ -85,7 +85,6 @@ class MainWindow(QMainWindow):
 
         self.usb_window = USBListPopup()
         print_progress("Indexing Data Store", 8)
-        load_nuclide_data(str(Settings.Paths.nuclide_data / "*.json"))
         self.data_store = DataLibrary("Data Store", None)
         
         self.bibliography_dialog = SmallDocumentationDialog(Path("luracs/resources/docs/bibliography.md"))

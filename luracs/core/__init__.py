@@ -3,7 +3,7 @@ from .settings import Settings
 from .spectrum_manager import SpectrumManager
 from .gui_logger import gui_logger as Log
 from .calculator import Calculator
-from .gui_services import GuiServices, GuiServicesKeys
+from .io_manager import IOManager
 
 
 """

@@ -88,8 +88,15 @@ class SettingsDialog(QDialog):
         
         self.verbose_calculation_logging = QCheckBox("Verbose Calculation Logging")
         self.verbose_calculation_logging.setChecked(Settings.Appearance.verbose_calculation_logging)
-        
         form.addRow("", self.verbose_calculation_logging)
+        
+        self.load_rois_on_import = QCheckBox("Load ROIs on import")
+        self.load_rois_on_import.setChecked(Settings.Appearance.load_rois_on_import)
+        form.addRow("", self.load_rois_on_import)
+        
+        self.load_instrument_on_import = QCheckBox("Load instrument on import")
+        self.load_instrument_on_import.setChecked(Settings.Appearance.load_instrument_on_import)
+        form.addRow("", self.load_instrument_on_import)
         
     def get_values(self):
         theme = self.theme_combo.currentText().lower()
@@ -114,7 +121,9 @@ class SettingsDialog(QDialog):
             "pen": pen,
             "brush": brush,
             "font_size": font_size,
-            "verbose_calculation_logging": self.verbose_calculation_logging.isChecked()
+            "verbose_calculation_logging": self.verbose_calculation_logging.isChecked(),
+            "load_rois_on_import": self.load_rois_on_import.isChecked(),
+            "load_instrument_on_import": self.load_instrument_on_import.isChecked(),
         }
 
 

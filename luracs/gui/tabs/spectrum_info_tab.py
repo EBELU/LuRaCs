@@ -28,7 +28,7 @@ from gui.misc.table_menu_button import MenuButton
 from PySide6.QtGui import QColor, QPainter, QBrush
 
 
-from gui.import_export import save_spectrum_to_library
+from gui.save_to_internal import save_spectrum_to_library
 from gui.popup_windows.data_store_edit_dialogs import SpectrumEditDialog
 
 
@@ -125,9 +125,8 @@ class SpectrumInfoTab(QWidget):
         self.hide_show_states = {}
         
     def edit_spectrum(self, spectrum: Spectrum):
-        spectrum_index = self.main_window.data_store.spectrum_tab.file_index
         connected = True if spectrum.connection is not None else False
-        dialog = SpectrumEditDialog(spectrum=spectrum, spectrum_is_connected=connected, spectrum_index=spectrum_index)
+        dialog = SpectrumEditDialog(spectrum=spectrum, spectrum_is_connected=connected)
         res = dialog.exec()
         
         if res != SpectrumEditDialog.Accepted:

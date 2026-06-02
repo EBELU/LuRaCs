@@ -1,12 +1,8 @@
 from PySide6.QtCore import QObject, Signal, Qt
 import asyncio
-import sys
 import shlex
-import readline
-from collections import deque
 import traceback
 
-from core import RunManager, Log, Settings, SpectrumManager
 from .script_engine_components.exceptions import ArgumentError, InvalidCommandError, ActiveGUIError
 from .script_engine_components.registry import CommandRegistry
 from .script_engine_components.commands import register_commands
@@ -21,6 +17,9 @@ def clear_terminal():
 
 
 class ScriptEngine(QObject):
+    """
+    The script engine converts text commands to actions for the application using async. It is the backbone of headless mode.
+    """
     sigCommandAppendOutput = Signal(str)
     sigCommandOutput = Signal(str)
     sigShutdown = Signal()
@@ -70,11 +69,13 @@ class ScriptEngine(QObject):
         try:
             while True:
                 try:
+                    # Update the autocompleter
                     self.session.completer = self.make_autocompleter()
                     
-                    await asyncio.sleep(0.1)
+                    await asyncio.sleep(0.1) # Wait so the input is under the displayed output
                     cmd = await self.session.prompt_async("LuRaCs Console <<< ")
                 except KeyboardInterrupt:
+                    # Cancel whatever is going on but dont lock up the program
                     self.sigCancelCurrent.emit()
                     self.cancel_current_command()
                     self.queue.put_nowait("clear")
@@ -95,11 +96,13 @@ class ScriptEngine(QObject):
             
 
         except asyncio.CancelledError:
+            # Stop!
             self.cancel_current_command()
             return
 
     # --- Main command loop ---
     async def _run(self):
+        "Run the execution loop"
         try:
             while True:
                 cmd = await self.queue.get()
@@ -129,6 +132,7 @@ class ScriptEngine(QObject):
 
     # --- Sync-safe entry point ---
     def submit_from_sync(self, cmd: str):
+        "Put a command in the execution queue"
         if self._loop is None:
             return
 
@@ -149,16 +153,19 @@ class ScriptEngine(QObject):
 
     # --- Command handling ---
     async def command_parser(self, cmd: str):
+        "Where the dough is made"
         if self._current_command_task:
             self.sigCancelCurrent.emit()
             self.cancel_current_command()
-        commands = shlex.split(cmd)
+        
+        commands = shlex.split(cmd) # Split it like a unix shell
         if not commands:
             return
 
         cmd_name = commands[0].lower()
         cmd_args = commands[1:]
 
+        # Shutdown?
         if cmd_name in ("exit", "quit", "shutdown"):
             self.sigCommandAppendOutput.emit("Shutting down...")
             self.sigShutdown.emit()
@@ -169,6 +176,7 @@ class ScriptEngine(QObject):
 
         command = self.registry.get(cmd_name)
         if not command:
+            # If the command does not exist give some help
             self.sigCommandOutput.emit(
                 f"Unknown command: {cmd_name}. Type 'help' for a list of commands."
             )
@@ -176,6 +184,7 @@ class ScriptEngine(QObject):
 
         res = None
         try:
+            # Run the command and catch the result
             self._current_command_task = asyncio.create_task(
                 command.run(self, *cmd_args)
             )
@@ -186,9 +195,12 @@ class ScriptEngine(QObject):
             pass
 
         except (InvalidCommandError, ArgumentError, ActiveGUIError) as e:
+            # These are errors defined to help with the execution of the command
+            # They do not constitute a real error or crash
             res = f"{type(e).__name__}: {e}"
 
         except Exception:
+            # If something crashes for real give a proper traceback
             res = traceback.format_exc()
 
         finally:

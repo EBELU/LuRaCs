@@ -16,6 +16,9 @@ class _Appearance:
     font_size: int = 10
     tabbed_spectrum_view: bool = False
     verbose_calculation_logging: bool = True
+    
+    load_rois_on_import: bool = True
+    load_instrument_on_import: bool = True
 
 @dataclass
 class _State:
@@ -93,7 +96,7 @@ class _Paths:
         self.last_opened_dir = Path.home()
 
 
-class SettingsBase(QObject):
+class _Settings(QObject):
     latestConnectionUpdated = Signal(list)
 
     def __init__(self):
@@ -132,4 +135,4 @@ class SettingsBase(QObject):
             json.dump(json_content, f, indent=4)
 
 
-Settings = SettingsBase()
+Settings = _Settings()

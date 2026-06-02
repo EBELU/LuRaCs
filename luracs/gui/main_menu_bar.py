@@ -9,13 +9,12 @@ from PySide6.QtCore import Signal
 from dataclasses import dataclass
 import asyncio
 
-from core import RunManager, Settings
+from core import RunManager, Settings, IOManager
 
-from .import_export import save_roi_references
+from .save_to_internal import save_roi_references
 
 from gui.popup_windows.settings_dialog import edit_settings, edit_advanced_settings
 from gui.popup_windows.efficiency_dialog import EfficiencyWindow
-from gui.import_export import FileDialogs
 
 
 class MainMenuBar(QMenuBar):
@@ -31,9 +30,9 @@ class MainMenuBar(QMenuBar):
 
         # ---------- File Menu ----------
         file_menu = self.addMenu("&File")
-        file_menu_import = file_menu.addAction("Import Spectrum")
+        file_menu_import = file_menu.addAction("Import")
         file_menu_import.triggered.connect(
-            lambda : FileDialogs().import_generic()
+            lambda : IOManager.Importer.import_generic()
             )
         file_load = file_menu.addAction("Data Store")
         file_load.triggered.connect(lambda: parent.data_store.show())

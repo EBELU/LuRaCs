@@ -14,16 +14,12 @@ from .nuclide_library import NuclideLibrary
 from utils.color_rotator import ColorRotator
 from utils.file_io import xml_writer
 
-"""
-    The Spectrum manager handles the spectra in the program.
-    GUI components can request actions from the spectrum manager but should not change the state of any spectrum without going through the manager.
-"""
-
 
 class EmittedSignals(QObject):
     spectrumCreated = Signal(str)
     spectrumUpdated = Signal(str)
     spectrumRemoved = Signal(str)
+    spectrumRenamed = Signal(str)
 
     backgroundRemoved = Signal(str, str)
     visibilityChanged = Signal(bool)
@@ -41,7 +37,11 @@ class EmittedSignals(QObject):
         super().__init__(parent)
 
 
-class SpectrumManagerBase(QObject):
+class _SpectrumManager(QObject):
+    """
+    The Spectrum manager handles the spectra in the program.
+    GUI components can request actions from the spectrum manager but should not change the state of any spectrum without going through the manager.
+    """
     def __init__(self):
         super().__init__()
         self.color_rotation = ColorRotator("mpl")
@@ -58,7 +58,6 @@ class SpectrumManagerBase(QObject):
         self.NuclideLibrary = NuclideLibrary(self)
 
     # --- Spectrum manipulators ---
-
     def create_spectrum(self, name: str, channels: int, device: str = None):
         if name not in self.spectrum_registry:
             # Create spectrum and add a possible connection
@@ -85,17 +84,18 @@ class SpectrumManagerBase(QObject):
             raise ValueError(f"Spectrum {name} does not exist")
         if isinstance(spectrum_data, WrappedSpectrumPackage):
             # Re-Wrap data from a connected instrument
-            start_date = datetime.now() - timedelta(seconds=spectrum_data.uptime)
+            duration = spectrum_data.real_time if spectrum_data.real_time else spectrum_data.live_time
+            start_date = datetime.now() - timedelta(seconds=duration) 
             new_spectrum = SpectrumData(
                 y_axis=spectrum_data.y_axis,
                 channels=len(spectrum_data.y_axis),
                 total_counts=sum(spectrum_data.y_axis),
-                live_time=spectrum_data.uptime,
-                real_time=None,
-                avg_cps=sum(spectrum_data.y_axis) / max(spectrum_data.uptime, 1),
+                live_time=spectrum_data.live_time,
+                real_time=spectrum_data.real_time,
+                avg_cps=sum(spectrum_data.y_axis) / max(spectrum_data.live_time, 1),
                 avg_dose_rate=None,
                 start_date=start_date,
-                end_date=None,
+                end_date=datetime.now(),
                 spectrum_name=name,
                 instrument=connection,
             )
@@ -149,7 +149,7 @@ class SpectrumManagerBase(QObject):
             self.spectrum_registry[new_name] = self.spectrum_registry.pop(current_name)
             self.spectrum_registry[new_name].name = new_name
             # Assign the ROIs to the renamed owner
-            for roi in self.roi_registry.values():
+            for roi in self.ROIManager.roi_registry.values():
                 if roi.owner_spectrum == current_name:
                     roi.owner_spectrum = new_name
         finally:
@@ -157,6 +157,7 @@ class SpectrumManagerBase(QObject):
             self.Signals.spectrumRemoved.emit(current_name)
             self.Signals.spectrumCreated.emit(new_name)
             self.Signals.spectrumUpdated.emit(new_name)
+            self.Signals.spectrumRenamed.emit(new_name)
             gui_logger.info(f"Spectrum renamed: old_name={current_name}, new_name={new_name}")
 
     def calibrate_spectrum(self, name: str, coeff: list):
@@ -202,7 +203,7 @@ class SpectrumManagerBase(QObject):
         return self.spectrum_registry
 
     # --- IO ---
-    def import_spectrum(self, data_dict: dict):
+    def import_spectrum(self, data_dict: dict, external_import: bool = False):
         if "foreground" not in data_dict:
             gui_logger.warning("File contains no spectrum")
             return
@@ -214,8 +215,9 @@ class SpectrumManagerBase(QObject):
 
         if "calibration" in data_dict:
             self.calibrate_spectrum(data_dict["name"], data_dict["calibration"])
+        
 
-        if "peaks" in data_dict:
+        if "peaks" in data_dict and ((not external_import) or Settings.Appearance.load_rois_on_import):
             for peak in data_dict["peaks"]:
                 extented_kwargs = {
                     "alias": peak.alias,
@@ -227,7 +229,7 @@ class SpectrumManagerBase(QObject):
 
                 self.ROIManager.add_roi(*peak.roi_bound, **extented_kwargs, owner_spectrum = data_dict["name"] if Settings.Appearance.tabbed_spectrum_view else None)
                 
-        if "instrument" in data_dict and data_dict["instrument"] is not None:
+        if "instrument" in data_dict and data_dict["instrument"] is not None and ((not external_import) or Settings.Appearance.load_instrument_on_import):
             instr = data_dict["instrument"]
             if instr.name in self.UniqueInstrumentLibrary.get_instrument_names():
                 # Attach the stored instrument if possible
@@ -240,7 +242,7 @@ class SpectrumManagerBase(QObject):
                 dummy_spectrum = Spectrum(1, "Dummy")
                 dummy_spectrum.instrument = instr
                 file_path = (Settings.Paths.unique_instrument_library / instr.name).with_suffix(".xml")
-                self.UniqueInstrumentLibrary.instruments[file_path] = instr
+                self.UniqueInstrumentLibrary.instrument_registry[file_path] = instr
                 xml_writer(dummy_spectrum, file_path, export_spectrum=False, export_rois=False)
                 
                 self.set_spectrum_instrument(data_dict["name"], self.UniqueInstrumentLibrary.get_instrument_by_name(instr.name))
@@ -267,4 +269,4 @@ class SpectrumManagerBase(QObject):
         self.Signals.spectrumUpdated.emit(spectrum_name)
         
 # Declare ONE instance
-SpectrumManager = SpectrumManagerBase()
+SpectrumManager = _SpectrumManager()

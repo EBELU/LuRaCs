@@ -23,11 +23,14 @@ from PySide6.QtCore import Qt, Signal
 import pyqtgraph as pg
 import numpy as np
 import warnings
+from datetime import datetime
 
 from core import SpectrumManager
 from utils.numerics import resolution, curve_fit, r_squared
 
 class ResolutionWindow(QDialog):
+    sigUpdateGenericInstrument = Signal(object, dict)
+    sigUpdateUniqueInstrument = Signal(object, dict)
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Resolution Window")
@@ -119,15 +122,19 @@ class ResolutionWindow(QDialog):
         
         # --- Bottom Buttons ---
         bottom_buttons = QHBoxLayout()
-        self.assign_to_instrument_btn = QPushButton("Assign to instrument")
+        assign_to_instrument_btn = QPushButton("Assign to instrument")
+        assign_to_instrument_btn.clicked.connect(self.assign_to_instruments)
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(self.close)
         
         bottom_buttons.addStretch()
-        bottom_buttons.addWidget(self.assign_to_instrument_btn)
+        bottom_buttons.addWidget(assign_to_instrument_btn)
         bottom_buttons.addWidget(close_btn)
 
         main_layout.addLayout(bottom_buttons)
+        
+        self.sigUpdateGenericInstrument.connect(SpectrumManager.GenericInstrumentLibrary.update_instrument_data)
+        self.sigUpdateUniqueInstrument.connect(SpectrumManager.UniqueInstrumentLibrary.update_instrument_data)
     
     def show(self):
         self.set_instrument_combo()
@@ -136,7 +143,11 @@ class ResolutionWindow(QDialog):
         
     def set_instrument_combo(self):
         self.instrument_combo.clear()
-        self.instrument_combo.addItems([i.model for i in SpectrumManager.GenericInstrumentLibrary.instrument_registry.values()])
+        for key, i in sorted(SpectrumManager.GenericInstrumentLibrary.instrument_registry.items(), key=lambda x: x[1].model):
+            self.instrument_combo.addItem(i.model, key)
+        self.instrument_combo.insertSeparator(self.instrument_combo.count())
+        for key, i in sorted(SpectrumManager.UniqueInstrumentLibrary.instrument_registry.items(), key=lambda x: x[1].name):
+            self.instrument_combo.addItem(i.name, key)
         
     def set_table(self):
         table = self.data_table
@@ -180,7 +191,7 @@ class ResolutionWindow(QDialog):
 
                 # --- Column 5: FWHM ---
                 fwhm_item = QTableWidgetItem(f"{round(roi.fit.fwhm, 2)} keV")
-                fwhm_item.setData(Qt.UserRole, roi.fit.fwhm)
+                fwhm_item.setData(Qt.UserRole, (roi.fit.fwhm, roi.fit.fwhm_err))
                 table.setItem(row, 5, fwhm_item)
 
                 # --- Column 6: Resolution ---
@@ -198,20 +209,26 @@ class ResolutionWindow(QDialog):
     def calculate(self):
         centroids = []
         fwhms = []
+        fwhm_errors = []
+        
+        if self.data_table.rowCount() == 0:
+            return
         
         for i in range(self.data_table.rowCount()):
             if not self.data_table.cellWidget(i, 0).layout().itemAt(0).widget().isChecked() or  self.data_table.item(i, 4).text() == "-":
                 continue
             
             centroid = self.data_table.item(i, 4).data(Qt.UserRole)
-            fwhm = self.data_table.item(i, 5).data(Qt.UserRole)
+            fwhm, fwhm_error = self.data_table.item(i, 5).data(Qt.UserRole)
 
             centroids.append(centroid)
             fwhms.append(fwhm)
+            fwhm_errors.append(fwhm_error)
         
         # Save current data
         self.current_energy_points = np.array(centroids)
         self.current_fwhm_points = np.array(fwhms)
+        self.current_fwhm_error_points = np.array(fwhm_errors)
         self.current_resolution_points = np.array([fwhm / e for fwhm, e in zip(fwhms, centroids)])
         
         # Fit
@@ -228,6 +245,8 @@ class ResolutionWindow(QDialog):
     
     def plot_data(self, mode: int):
         if getattr(self, "res_plot", None) is None: # Survive startup
+            return
+        if len(self.current_energy_points) == 0:
             return
         
         self.res_plot.clear()
@@ -249,7 +268,43 @@ class ResolutionWindow(QDialog):
             self.res_plot.getPlotItem().plot(1 / np.sqrt(x_axis), y_axis * 100)
             self.res_plot.getPlotItem().setLabel("left", "Resolution [%]")
             self.res_plot.getPlotItem().setLabel("bottom", "1 / √(E) [1/√(keV)]")
+            
+    def assign_to_instruments(self, include_all_of_model: bool = False):
+        data_dict = {
+            "resolution_fn": "k/sqrt(E)",
+            "resolution_params": list(self.current_params),
+            "resolution_E_points": list(self.current_energy_points),
+            "resolution_FWHM_points": list(self.current_fwhm_points),
+            "resolution_FWHM_uncert_points": list(self.current_fwhm_error_points),
+            "resolution_created": datetime.now()
+            }
         
+        # Get the instrument key
+        instrument_key = self.instrument_combo.currentData()
+        
+        # Check if it matches a generic instrument, if so, update it
+        if instrument_key in SpectrumManager.GenericInstrumentLibrary.instrument_registry:
+            self.sigUpdateGenericInstrument.emit(instrument_key, data_dict)
+            base_instrument = SpectrumManager.GenericInstrumentLibrary.instrument_registry[instrument_key]
+        
+        # Check if it matches a unique instrument, if so, update it
+        elif instrument_key in SpectrumManager.UniqueInstrumentLibrary.instrument_registry:
+            self.sigUpdateUniqueInstrument.emit(instrument_key, data_dict)
+            base_instrument = SpectrumManager.UniqueInstrumentLibrary.instrument_registry[instrument_key]
+            
+        else:
+            # Bugger
+            raise KeyError(f"No instrument matches {instrument_key}")
+        
+        if include_all_of_model:
+            # Find all instruments of the same model
+            for key, instr in SpectrumManager.UniqueInstrumentLibrary.instrument_registry.items():
+                if instr.model == base_instrument.model:
+                    self.sigUpdateUniqueInstrument.emit(key, data_dict)
+                    
+            for key, instr in SpectrumManager.GenericInstrumentLibrary.instrument_registry.items():
+                if instr.model == base_instrument.model:
+                    self.sigUpdateGenericInstrument.emit(key, data_dict)
 if __name__ == "__main__":
     import sys
     from PySide6.QtWidgets import QApplication

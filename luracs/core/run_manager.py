@@ -67,7 +67,10 @@ class SpectrumResult:
     timestamp: float
 
 
-class RunManagerBase(QObject):
+class _RunManager(QObject):
+    """
+    The run manager is core singleton that manages connected devices and spectrogram, since they are tightly connected to the devices. All communications with Bluetooth or USB goes through this class.
+    """
     # ---- data signals ----
     currentUpdated = Signal(str, object)
     statusUpdated = Signal(str, object)
@@ -400,4 +403,4 @@ class RunManagerBase(QObject):
             gui_logger.info(f"[Spectrogram Closed] name = {name}")
 
 
-RunManager = RunManagerBase()
+RunManager = _RunManager()

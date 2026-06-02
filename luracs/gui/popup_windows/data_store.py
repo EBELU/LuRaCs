@@ -21,30 +21,30 @@ from PySide6.QtWidgets import (
     QMenu
 )
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 
 from ..misc.idx_table import StrIdxTable
-from utils.file_io import io_dispatcher, xml_parser
-from core import Settings, SpectrumManager
+from utils.file_io import io_dispatcher
+from core import Settings, SpectrumManager, IOManager
 from containers.spectrogram import restart_spectrogram
 from .data_store_edit_dialogs import InstrumentDialog, SpectrumEditDialog
 from containers.instrument_classes import UniqueInstrument, GenericInstrument
 
-import os
 import shutil
 from pathlib import Path
-from glob import glob
-from datetime import timedelta, datetime
+from datetime import timedelta
 import utils.file_io as file_io
-from gui.import_export import save_instrument
 
 
 class DataLibrary(QWidget):
+    sigRunIndex = Signal()
     def __init__(self, title="", parent=None):
         super().__init__(parent)
         self.setWindowTitle(title)
         self.setMinimumWidth(700)
         self.setMinimumHeight(500)
+        
+        self.sigRunIndex.connect(IOManager.FileIndex.run_index_all)
 
         # Main layout for the dialog
         main_layout = QVBoxLayout(self)
@@ -57,14 +57,14 @@ class DataLibrary(QWidget):
         self.spectrum_tab = SpectrumTab(self)
         self.roi_tab = ROIsTab(self)
         self.spectrogram_tab = SpectrogramTab(self)
-        self.instruments_tab = InstrumentsTab(self)
+        self.unique_instruments_tab = InstrumentsTab(self)
         self.generic_instruments_tab = GenericInstrumentsTab(self)
 
-        # Add tabs in the desired order
+        # Add tabs
         self.tabs.addTab(self.spectrum_tab, "Spectrum Library")
         self.tabs.addTab(self.spectrogram_tab, "Spectrogram Library")
         self.tabs.addTab(self.roi_tab, "ROI Library")
-        self.tabs.addTab(self.instruments_tab, "Instruments")
+        self.tabs.addTab(self.unique_instruments_tab, "Instruments")
         self.tabs.addTab(self.generic_instruments_tab, "Generic Instruments")
 
         main_layout.addWidget(self.tabs)
@@ -72,10 +72,12 @@ class DataLibrary(QWidget):
         self.adjustSize()
 
     def show(self):
-        self.spectrum_tab.run_index()
-        self.spectrogram_tab.run_index()
-        self.roi_tab.run_index()
-        self.instruments_tab.run_index()
+        self.sigRunIndex.emit()
+        self.spectrum_tab.set_table()
+        self.spectrogram_tab.set_table()
+        self.roi_tab.set_table()
+        self.unique_instruments_tab.set_table()
+        self.generic_instruments_tab.set_table()
         super().show()
 
 
@@ -85,7 +87,8 @@ class LibraryTab(QWidget):
 
         self.file_index = {}
         self.path = ""
-
+        self.delete_fn = None
+        
         main_layout = QVBoxLayout(self)
 
         self.table = StrIdxTable()
@@ -156,7 +159,7 @@ class LibraryTab(QWidget):
 
     def _get_selection(self) -> list[Path]:
         rows = [
-            Path(self.table.get_key_from_index(index.row()))
+            self.table.get_key_from_index(index.row())
             for index in self.table.table.selectionModel().selectedRows()
         ]
 
@@ -192,6 +195,10 @@ class LibraryTab(QWidget):
 
             shutil.copy(selection[0], new_path.with_suffix(selection[0].suffix))
 
+
+    def show_info(self):
+        raise NotImplementedError("Info button not implemented")
+    
     def delete_selected(self):
         selection = self._get_selection()
         if selection is None:
@@ -205,18 +212,10 @@ class LibraryTab(QWidget):
 
         if reply == QMessageBox.Yes:
             for file in selection:
-                self.file_index.pop(file)
+                self.delete_fn(file)
                 self.table.delete_row(file)
-                os.remove(file)
-            self.run_index()
-
-    def show_info(self):
-        raise NotImplementedError("Info button not implemented")
+        self.set_table()   
     
-    def remove_old_item(self, index_key):
-        del self.file_index[index_key]
-        self.table.delete_row(index_key)
-        os.remove(str(index_key))
 
 
 class SpectrumTab(LibraryTab):
@@ -227,7 +226,6 @@ class SpectrumTab(LibraryTab):
             [150, 140, 75, 95, 50, 100],
             True,
         )
-        self.run_index()
         self.include_instrument_check.setChecked(True)
         self.btn_load.clicked.connect(self.load)
         self.table.table.cellDoubleClicked.connect(self.load)
@@ -237,17 +235,11 @@ class SpectrumTab(LibraryTab):
             lambda: self.export_same("LuRaCs spectrum file, n42 compatible (*.xml)")
         )
         export_csv = self.export_menu.addAction("CSV (*.csv)")
-        export_xlsx = self.export_menu.addAction("Exel Workbook (*.xlsx)")
+        export_xlsx = self.export_menu.addAction("Excel Workbook (*.xlsx)")
 
-    def run_index(self):
-        for file in glob(str(Settings.Paths.spectrum_library / "*.xml")):
-            if file not in self.file_index:
-                self.file_index[str(file)] = io_dispatcher(file, True)
-
-        self.set_table()
-
+        self.delete_fn = IOManager.FileIndex.spectrum_index.delete_file
     def set_table(self):
-        for key, parser in self.file_index.items():
+        for key, parser in IOManager.FileIndex.spectrum_index.get_index().items():
             name = parser.data.get("name")
             fg = parser.data.get("foreground")
             if fg is not None:
@@ -281,7 +273,7 @@ class SpectrumTab(LibraryTab):
                 parser.data.pop("instrument", None)
                 
             SpectrumManager.import_spectrum(parser.data)
-
+            
 
 class SpectrogramTab(LibraryTab):
     def __init__(self, parent):
@@ -292,7 +284,6 @@ class SpectrogramTab(LibraryTab):
             True,
         )
         self.file_index: dict[str, db_parser] = {}
-        self.run_index()
         self.btn_load.clicked.connect(self.load)
         self.table.table.cellDoubleClicked.connect(self.load)
 
@@ -307,25 +298,11 @@ class SpectrogramTab(LibraryTab):
 
         export_xlsx = self.export_menu.addAction("Exel Workbook (*.xlsx)")
         export_xlsx.triggered.connect(self.export_xlsx)
-
-    def run_index(self):
-        for file in glob(str(Settings.Paths.spectrogram_library / "**.db")):
-            file = Path(file)
-            if file not in self.file_index:
-                self.file_index[file] = io_dispatcher(file, True)
-
-        self.set_table()
-
-    def load(self):
-        selection = self._get_selection()
-        if selection is None:
-            return
-
-        for file in selection:
-            restart_spectrogram(Path(file).name)
-
+        
+        self.delete_fn = IOManager.FileIndex.spectrogram_index.delete_file
+        
     def set_table(self):
-        for key, parser in self.file_index.items():
+        for key, parser in IOManager.FileIndex.spectrogram_index.get_index().items():
             header, summary = parser.get_header(), parser.get_summary()
 
             start_date = header.get("created")
@@ -334,8 +311,18 @@ class SpectrogramTab(LibraryTab):
             instrument = header.get("device_id")
 
             self.table.write_row(
-                key, [key.stem, start_date, end_date, duration, instrument]
+                key, [Path(key).stem, start_date, end_date, duration, instrument]
             )
+            
+    def load(self):
+        selection = self._get_selection()
+        if selection is None:
+            return
+
+        for file in selection:
+            restart_spectrogram(Path(file).name)
+            
+
 
     def export_xlsx(self):
         selection = self._get_selection()
@@ -375,23 +362,17 @@ class SpectrogramTab(LibraryTab):
 class ROIsTab(LibraryTab):
     def __init__(self, parent):
         super().__init__(parent, ["Name", "ROIs", "Regions"], [150, 50, 400])
-        self.run_index()
         self.btn_load.clicked.connect(self.load)
         self.table.table.cellDoubleClicked.connect(self.load)
         export_xml = self.export_menu.addAction("LuRaCs ROI File (*.xml)")
         export_xml.triggered.connect(
             lambda: self.export_same("LuRaCs ROI file (*.xml)")
         )
-
-    def run_index(self):
-        for file in glob(str(Settings.Paths.roi_library / "**.xml")):
-            if file not in self.file_index:
-                self.file_index[str(file)] = io_dispatcher(file, True)
-
-        self.set_table()
+        
+        self.delete_fn = IOManager.FileIndex.roi_index.delete_file
 
     def set_table(self):
-        for key, parser in self.file_index.items():
+        for key, parser in IOManager.FileIndex.roi_index.get_index().items():
             rois = parser.get_rois()
             regions = ", ".join([str([round(rb) for rb in r.roi_bound]) for r in rois])
             self.table.write_row(key, [Path(key).stem, len(rois), str(regions)])
@@ -413,36 +394,22 @@ class ROIsTab(LibraryTab):
                 SpectrumManager.ROIManager.add_roi(*peak.roi_bound, **extented_kwargs)
 
 
+
 class InstrumentsTab(LibraryTab):
     def __init__(self, parent):
         super().__init__(
             parent,
-            [
-                "Name",
-                "Model",
-                "Calibration",
-                "Resolution",
-                "Efficiency",
-            ],
+            ["Name", "Model", "Calibration", "Resolution", "Efficiency"],
+            [200, 200, 100, 100, 100]
         )
-        self.file_index = SpectrumManager.UniqueInstrumentLibrary.instrument_registry
         self.btn_load.setText("New")
         self.btn_load.clicked.connect(self.new)
-        self.run_index()
         self.btn_info.clicked.connect(self.edit)
         SpectrumManager.Signals.newInstrumentLoaded.connect(self.new_instrument_from_spectrum)
-        
-    def run_index(self):
-        for file in glob(str(Settings.Paths.unique_instrument_library / "**.xml")):
-            file = Path(file)
-            if file not in self.file_index:
-                self.file_index[file] = io_dispatcher(file, True).get_instrument()
-
-        self.set_table()
+        self.delete_fn = SpectrumManager.UniqueInstrumentLibrary.remove_instrument
         
     def set_table(self):
-        for key, instr in self.file_index.items():
-
+        for key, instr in SpectrumManager.UniqueInstrumentLibrary.instrument_registry.items():
             calibration = str(instr.calibration_coefficients is not None)
             resolution = str(instr.resolution_fn is not None)
             efficiency = str(instr.int_efficiency_fn is not None)
@@ -455,6 +422,7 @@ class InstrumentsTab(LibraryTab):
                 [name, instr.model, calibration, resolution, efficiency,],
             )
             
+            
     def edit(self):
         selection = self._get_selection()
         if not selection:
@@ -464,19 +432,19 @@ class InstrumentsTab(LibraryTab):
             QMessageBox.warning(self, "Selection error", "Only one item may be edited simultaneously")
             return
         
-        edit_dialog = InstrumentDialog(**self.file_index[selection[0]].__dict__)
+        edit_dialog = InstrumentDialog(**SpectrumManager.UniqueInstrumentLibrary.instrument_registry[selection[0]].__dict__)
         res = edit_dialog.exec()
         
         if res != InstrumentDialog.Accepted:
             return
         
         
-        self.remove_old_item(selection[0])
+        self.table.delete_row(selection[0])
         
         new_instrument = UniqueInstrument(**edit_dialog.get_data(), detector_type="Gamma Spectrometer")
         
-        save_instrument(new_instrument, edit_dialog.get_data()["name"])
-        self.run_index()
+        SpectrumManager.UniqueInstrumentLibrary.rename_instrument(selection[0], new_instrument)
+        self.set_table()
         
     def new(self):
         edit_dialog = InstrumentDialog()
@@ -485,35 +453,27 @@ class InstrumentsTab(LibraryTab):
             return
         new_instrument = UniqueInstrument(**edit_dialog.get_data(), detector_type="Gamma Spectrometer")
         
-        save_instrument(new_instrument, edit_dialog.get_data()["name"])
-        self.run_index()
+        SpectrumManager.UniqueInstrumentLibrary.add_instrument(new_instrument)
+        self.set_table()
         
     def new_instrument_from_spectrum(self, instrument_file_path):
-        self.run_index()
         QMessageBox.information(self, "New Instrument Loaded", f"A new instrument was found when loading a spectrum\nInstrument '{SpectrumManager.UniqueInstrumentLibrary.instrument_registry[instrument_file_path].name}' has been added")
+        
         
 
 class GenericInstrumentsTab(LibraryTab):
     def __init__(self, parent):
         super().__init__(
-            parent, ["Model", "Resolution", "Efficiency"]
+            parent, ["Model", "Resolution", "Efficiency"], [200, 100, 100]
         )
-        self.file_index = SpectrumManager.GenericInstrumentLibrary.instrument_registry
         self.btn_load.setText("New")
         self.btn_load.clicked.connect(self.new)
         self.btn_info.clicked.connect(self.edit)
-        self.run_index()
-
-    def run_index(self):
-        for file in glob(str(Settings.Paths.generic_instrument_library / "**.xml")):
-            file = Path(file)
-            if file not in self.file_index:
-                self.file_index[file] = io_dispatcher(file, True).get_instrument()
-
-        self.set_table()
+        
+        self.delete_fn = SpectrumManager.GenericInstrumentLibrary.remove_instrument
         
     def set_table(self):
-        for key, instr in self.file_index.items():
+        for key, instr in SpectrumManager.GenericInstrumentLibrary.instrument_registry.items():
 
             resolution = str(instr.resolution_fn is not None)
             efficiency = str(instr.int_efficiency_fn is not None)
@@ -533,23 +493,22 @@ class GenericInstrumentsTab(LibraryTab):
             QMessageBox.warning(self, "Selection error", "Only one item may be edited simultaneously")
             return
         
-        edit_dialog = InstrumentDialog(**self.file_index[selection[0]].__dict__)
+        edit_dialog = InstrumentDialog(**SpectrumManager.GenericInstrumentLibrary.instrument_registry[selection[0]].__dict__)
         edit_dialog.name_input.setEnabled(False)
         res = edit_dialog.exec()
         
         if res != InstrumentDialog.Accepted:
             return
         
-        
-        self.remove_old_item(selection[0])
+        self.table.delete_row(selection[0])
         
         dialog_data = edit_dialog.get_data()
         del dialog_data["name"]
         
         new_instrument = GenericInstrument(**dialog_data, detector_type="Gamma Spectrometer")
 
-        save_instrument(new_instrument, dialog_data["model"])
-        self.run_index()
+        SpectrumManager.GenericInstrumentLibrary.rename_instrument(selection[0], new_instrument)
+        self.set_table()
         
     def new(self):
         edit_dialog = InstrumentDialog()
@@ -563,6 +522,5 @@ class GenericInstrumentsTab(LibraryTab):
         
         new_instrument = GenericInstrument(**dialog_data, detector_type="Gamma Spectrometer")
 
-        save_instrument(new_instrument, dialog_data["model"])
-        self.run_index()
-        
+        SpectrumManager.GenericInstrumentLibrary.add_instrument(new_instrument)
+        self.set_table()

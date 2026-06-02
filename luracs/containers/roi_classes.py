@@ -75,6 +75,7 @@ class ROI:
     "A dataclass representing a region of interest in spectrum. The region might contain a fitted peak."
     tag: str # Internal tag
     alias: str # Given name
+    spectrum: str # Name of the spectrum the roi was fitted to
     roi_bound: tuple # Bounds of this roi
     region_bound: tuple # Bounds of the roi group
     fit_type: str # Can be "None" or "Gaussain", possible more in the future
@@ -147,7 +148,7 @@ class ROIEditor(QDialog):
         form.addRow("ROI Name:", self.roi_name)
 
         self.lower_bound = QDoubleSpinBox()
-        self.lower_bound.setRange(0.0, 1e6)  # adjust as needed
+        self.lower_bound.setRange(0.0, 1e6)
         self.lower_bound.setDecimals(2)
         self.lower_bound.setSuffix(" keV")
         self.lower_bound.setValue(round(low))

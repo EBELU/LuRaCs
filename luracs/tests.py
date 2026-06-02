@@ -5,6 +5,10 @@ from dataclasses import dataclass
 from datetime import datetime
 import numpy as np
 import copy
+import logging
+logging.basicConfig(level=logging.DEBUG)
+
+from core import SpectrumManager, IOManager
 
 # --- Example GenericInstrument ---
 generic = GenericInstrument(
@@ -27,9 +31,6 @@ generic = GenericInstrument(
     int_efficiency_uncert_points=[0.01, 0.01, 0.01, 0.01],
     int_efficiency_E_points=[356, 662, 1173, 1132],
     int_efficiency_description="Estimated from calibration sources (Cs-137, Co-60)",
-    # Response matrix (example: 10x10 mock matrix)
-    response_matrix=(np.arange(100, 100) * 1000).astype(np.int32),
-    response_matrix_shape=[100, 100],
 )
 
 # --- Example UniqueInstrument ---
@@ -45,7 +46,7 @@ unique = UniqueInstrument(
 
 
 def test_xml_io():
-    outpt = io_dispatcher("debug/xml/Raysid-GRF-Ba133.xml", meta_parsing=True)
+    outpt = io_dispatcher("dev/debug/xml/Raysid-GRF-Ba133.xml", meta_parsing=True)
 
     new_spect = Spectrum(
         len(outpt.get_background_spectrum().y_axis), outpt.data["name"]
@@ -58,7 +59,17 @@ def test_xml_io():
 
     xml_writer(new_spect, "/home/eewa/Documents/git/MySpect/debug")
     print(io_dispatcher("/home/eewa/Documents/git/MySpect/debug.xml", meta_parsing=False).__dict__)
-
+    
+    
 
 if __name__ == "__main__":
-    test_xml_io()
+    # import sys
+    # from PySide6.QtWidgets import QApplication
+    # app = QApplication.instance() or QApplication(sys.argv)
+
+
+    print(IOManager.FileIndex.spectrum_index.get_item_from_attr("name", "Cyklotron_Co"))
+    print(SpectrumManager.UniqueInstrumentLibrary.instrument_registry)
+
+    # sys.exit(app.exec())
+

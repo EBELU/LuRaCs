@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from main import MainWindow
+    from containers.roi_classes import ROI
     
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QStackedWidget, QTabWidget, QMessageBox
 from PySide6.QtCore import Signal
@@ -62,6 +63,8 @@ class SpectrumPlotContainer(QWidget):
 
         main_layout = QVBoxLayout(self)
         main_layout.addWidget(self.stack)    
+        
+        SpectrumManager.Signals.spectrumRenamed.connect(self.re_add_rois)
     
     # --- View modes ---
     def set_combined_mode(self):
@@ -97,7 +100,7 @@ class SpectrumPlotContainer(QWidget):
             SpectrumManager.ROIManager.remove_roi(roi_tag, update_state=False) # Everything is going, dont waste time on updating
 
     # --- Communication with plots ---
-    def add_roi_to_plot(self, roi):
+    def add_roi_to_plot(self, roi: ROI):
         if Settings.Appearance.tabbed_spectrum_view:
             if roi.owner_spectrum is None:
                 current_plot = self.tabs.currentWidget()
@@ -113,6 +116,11 @@ class SpectrumPlotContainer(QWidget):
             self.single_plot.plot_widget.addItem(roi)
         
         SpectrumManager.ROIManager.on_roi_change(roi_tag=roi.tag)
+        
+    def re_add_rois(self, spectrum_name: str):
+        for roi in SpectrumManager.ROIManager.roi_registry.values():
+            if roi.owner_spectrum == spectrum_name:
+                self.add_roi_to_plot(roi)
         
     def request_redraw(self):
         self._sigRedraw.emit()

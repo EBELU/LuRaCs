@@ -151,8 +151,11 @@ class EfficiencyWindow(QDialog):
         
     def set_instrument_combo(self):
         self.instrument_combo.clear()
-        for key, i in SpectrumManager.GenericInstrumentLibrary.instrument_registry.items():
+        for key, i in sorted(SpectrumManager.GenericInstrumentLibrary.instrument_registry.items(), key=lambda x: x[1].model):
             self.instrument_combo.addItem(i.model, key)
+        self.instrument_combo.insertSeparator(self.instrument_combo.count())
+        for key, i in sorted(SpectrumManager.UniqueInstrumentLibrary.instrument_registry.items(), key=lambda x: x[1].name):
+            self.instrument_combo.addItem(i.name, key)
         
     def set_source_activity_table(self):
         table = self.source_activity_table
@@ -243,7 +246,7 @@ class EfficiencyWindow(QDialog):
             roi_item.setData(Qt.UserRole, roi)
             table.setItem(row, 1, roi_item)
             
-            spectrum_item = QTableWidgetItem(str(roi.meta["spectrum_name"]))
+            spectrum_item = QTableWidgetItem(str(roi.spectrum))
             spectrum_item.setData(Qt.UserRole, roi)
             table.setItem(row, 2, spectrum_item)
 
@@ -387,15 +390,35 @@ class EfficiencyWindow(QDialog):
             "int_efficiency_fn": "exp_polynomial",
             "int_efficiency_params": list(self.fit_params),
             "int_efficiency_E_points": list(self.energies),
-            "int_efficiency_eff_points": list(self.efficiencies),
+            "int_efficiency_eff_points": [v.n for v in self.efficiencies],
+            "int_efficiency_uncert_points": [v.s for v in self.efficiencies],
             "int_efficiency_created": datetime.now()
             }
         
-        self.sigUpdateGenericInstrument.emit(self.instrument_combo.currentData(), data_dict)
-
+        # Get the instrument key
+        instrument_key = self.instrument_combo.currentData()
+        
+        # Check if it matches a generic instrument, if so, update it
+        if instrument_key in SpectrumManager.GenericInstrumentLibrary.instrument_registry:
+            self.sigUpdateGenericInstrument.emit(instrument_key, data_dict)
+            base_instrument = SpectrumManager.GenericInstrumentLibrary.instrument_registry[instrument_key]
+        
+        # Check if it matches a unique instrument, if so, update it
+        elif instrument_key in SpectrumManager.UniqueInstrumentLibrary.instrument_registry:
+            self.sigUpdateUniqueInstrument.emit(instrument_key, data_dict)
+            base_instrument = SpectrumManager.UniqueInstrumentLibrary.instrument_registry[instrument_key]
+            
+        else:
+            # Bugger
+            raise KeyError(f"No instrument matches {instrument_key}")
+        
         if include_all_of_model:
-            generic_instr = SpectrumManager.GenericInstrumentLibrary.instrument_registry[self.instrument_combo.currentData()]
+            # Find all instruments of the same model
             for key, instr in SpectrumManager.UniqueInstrumentLibrary.instrument_registry.items():
-                if instr.model == generic_instr.model:
+                if instr.model == base_instrument.model:
                     self.sigUpdateUniqueInstrument.emit(key, data_dict)
+                    
+            for key, instr in SpectrumManager.GenericInstrumentLibrary.instrument_registry.items():
+                if instr.model == base_instrument.model:
+                    self.sigUpdateGenericInstrument.emit(key, data_dict)
             

@@ -1,3 +1,9 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from .spectrum_manager import _SpectrumManager
+    from pyqtgraph import PlotWidget
+    
 from PySide6.QtCore import Signal, QObject
 from PySide6.QtGui import QColor
 from containers.roi_classes import DeletableROI, Fit, ROI
@@ -12,11 +18,7 @@ from utils.numerics import (
 )
 import pyqtgraph as pg
 from containers.spectrum_classes import Spectrum
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from .spectrum_manager import SpectrumManagerBase
-    from pyqtgraph import PlotWidget
 
 pastel_colors = [
     "#FFB3BA",  # soft pink
@@ -176,6 +178,9 @@ def fit_gaussians(
 
 
 class ROIManager(QObject):
+    """
+    The roi manager manages roi-objects in the spectrum view. It is the owner of all roi objects, a spectrum can only 'borrow' it for display. Hit handles all calculations required for getting the desired data from rois. Spectrogram rois are not handled by this roi manager.
+    """
     sigROICreated = Signal(object)
     sigROIUpdated = Signal(str, str, object)
     sigROIDeleted = Signal(object)
@@ -183,7 +188,7 @@ class ROIManager(QObject):
 
     def __init__(self, spectrum_manager, title="", parent=None):
         super().__init__(parent=parent)
-        self.spectrum_manager: SpectrumManagerBase = (
+        self.spectrum_manager: _SpectrumManager = (
             spectrum_manager  # Keep a reference
         )
 
@@ -471,7 +476,6 @@ class ROIManager(QObject):
 
         meta_data = {
             "background_subtracted": self.spectrum_is_bkg_sub,
-            "spectrum_name": spectrum.name,
             "chi2_weighted_err": Settings.Advanced.optimizer_use_chi2_weight,
         }
 
@@ -480,6 +484,7 @@ class ROIManager(QObject):
             "fit_type": fit_type,
             "bkg_type": bkg_type,
             "live_time": spectrum.foreground.live_time,
+            "spectrum": spectrum.name
         }
 
         if converged and fit_type != "None":

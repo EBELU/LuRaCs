@@ -35,7 +35,8 @@ class WrappedStatusPackage:
 @dataclass(frozen=True)
 class WrappedSpectrumPackage:
     y_axis: np.ndarray
-    uptime: float
+    live_time: float
+    real_time: float
     calib_coeff: list
     timestamp: float
 
@@ -192,6 +193,7 @@ class MockClientWrapper(DeviceWrapper):
             return WrappedSpectrumPackage(
                 getattr(latestSpectrum, "spectrum"),
                 getattr(latestSpectrum, "uptime"),
+                None,
                 getattr(latestSpectrum, "calib_coeff", None),
                 getattr(latestSpectrum, "timestamp", time.time()),
             )
@@ -248,6 +250,7 @@ class RadiacodeWrapper(DeviceWrapper):
             return WrappedSpectrumPackage(
                 getattr(latestSpectrum, "spectrum"),
                 getattr(latestSpectrum, "uptime"),
+                None,
                 getattr(latestSpectrum, "calib_coeff", None),
                 getattr(latestSpectrum, "timestamp", time.time()),
             )
@@ -306,6 +309,7 @@ class RaysidWrapper(DeviceWrapper):
             return WrappedSpectrumPackage(
                 getattr(latestSpectrum, "spectrum"),
                 getattr(latestSpectrum, "uptime"),
+                None,
                 getattr(latestSpectrum, "calib_coeff", None),
                 getattr(latestSpectrum, "timestamp", time.time()),
             )

@@ -27,9 +27,9 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal
 import pyqtgraph as pg
 import numpy as np
-from gui.import_export import FileDialogs
 
-from core import SpectrumManager
+from core import SpectrumManager, IOManager
+from utils.numerics import resolution, exp_polynomial
 
 class InstrumentDialog(QDialog):
     def __init__(self, parent=None, **kwargs):
@@ -44,101 +44,100 @@ class InstrumentDialog(QDialog):
         form_layout = QFormLayout()
         main_layout.addLayout(form_layout)
 
-        # Generic instruments as a base
+        # ------------------------------------------------------------------
+        # Generic instrument combo box
+        # ------------------------------------------------------------------
         self.generic_list = QComboBox()
         form_layout.addRow("Generic Instruments:", self.generic_list)
         self.generic_list.addItem("None")
-        for i in SpectrumManager.GenericInstrumentLibrary.instrument_registry.values():
-            self.generic_list.addItem(i.model, i)
+        for key, i in SpectrumManager.GenericInstrumentLibrary.instrument_registry.items():
+            self.generic_list.addItem(i.model, key)
         self.generic_list.setCurrentText("None")
-
-        # Name and model
+        self.generic_list.currentIndexChanged.connect(self.generic_instrument_selected)
+        if len(kwargs) != 0:
+            self.generic_list.setEnabled(False)
+            
+            
+        # ------------------------------------------------------------------
+        # Row with 2 lines, name and model
+        # ------------------------------------------------------------------
         model_name_row = QHBoxLayout()
 
+        # Name
         self.name_input = QLineEdit()
-        self.name_input.setText(kwargs.get("name"))
-
         model_name_row.addWidget(self.name_input)
         model_name_row.addWidget(QLabel("Instrument Model:"))
 
+        # Model
         self.model_input = QLineEdit()
-        self.model_input.setText(kwargs.get("model"))
         model_name_row.addWidget(self.model_input)
-
         form_layout.addRow("Instrument Name:", model_name_row)
 
-        # Manufacturer and material
+
+        # ------------------------------------------------------------------
+        # Row with 2 lines, Manufacturer and detector material
+        # ------------------------------------------------------------------
         manufacturer_material_row = QHBoxLayout()
-
+        
+        # Manufacturer
         self.manufacturer = QLineEdit()
-        self.manufacturer.setText(kwargs.get("manufacturer"))
         manufacturer_material_row.addWidget(self.manufacturer)
-
         manufacturer_material_row.addWidget(QLabel("Detector Material:"))
 
+        # Material
         self.detector_material = QLineEdit()
-        self.detector_material.setText(kwargs.get("detector_material"))
         manufacturer_material_row.addWidget(self.detector_material)
-
         form_layout.addRow("Manufacturer:", manufacturer_material_row)
 
         self.remarks = QTextEdit()
-        self.remarks.setPlainText(kwargs.get("remark", ""))
         form_layout.addRow("Remarks:", self.remarks)
 
-        # Shape combo
+
+        # ------------------------------------------------------------------
+        # Detector Shape, with uncertainty
+        # ------------------------------------------------------------------
+        
+        # --- Shape combo ---
         self.shape = QComboBox()
         self.shape.addItems(["Cuboid", "Cylinder", "Other"])
         self.shape.currentTextChanged.connect(self.update_spinboxes)
         form_layout.addRow("Shape:", self.shape)
 
-        dimensions = kwargs.get("detector_dimensions_cm")
-        dimensions_uncert = kwargs.get("detector_dimensions_uncert_cm")
-        # Dimensions spin boxes
+
+        # --- Dimension spin boxes ---
+        # Height
         self.height_spin = QDoubleSpinBox()
         self.height_spin.setRange(0, 500)
-        self.height_spin.setDecimals(3)
+        self.height_spin.setDecimals(2)
 
         self.height_uncert_spin = QDoubleSpinBox()
         self.height_uncert_spin.setRange(0, 500)
-        self.height_uncert_spin.setDecimals(3)
+        self.height_uncert_spin.setDecimals(2)
+        self.height_uncert_spin.setPrefix("± ")
 
-        if dimensions is not None:
-            self.height_spin.setValue(dimensions[0])
-
-        if dimensions_uncert is not None:
-            self.height_uncert_spin.setValue(dimensions_uncert[0])
-
-
+        # Width
         self.width_spin = QDoubleSpinBox()
         self.width_spin.setRange(0, 500)
-        self.width_spin.setDecimals(3)
+        self.width_spin.setDecimals(2)
 
         self.width_uncert_spin = QDoubleSpinBox()
         self.width_uncert_spin.setRange(0, 500)
-        self.width_uncert_spin.setDecimals(3)
+        self.width_uncert_spin.setDecimals(2)
+        self.width_uncert_spin.setPrefix("± ")
 
-        if dimensions is not None:
-            self.width_spin.setValue(dimensions[1])
-
-        if dimensions_uncert is not None:
-            self.width_uncert_spin.setValue(dimensions_uncert[1])
-
-
+        # Depth
         self.depth_spin = QDoubleSpinBox()
         self.depth_spin.setRange(0, 500)
-        self.depth_spin.setDecimals(3)
+        self.depth_spin.setDecimals(2)
 
         self.depth_uncert_spin = QDoubleSpinBox()
         self.depth_uncert_spin.setRange(0, 500)
-        self.depth_uncert_spin.setDecimals(3)
+        self.depth_uncert_spin.setDecimals(2)
+        self.depth_uncert_spin.setPrefix("± ")
 
-        if self.shape.currentText() != "Cylinder" and dimensions is not None:
-            self.depth_spin.setValue(dimensions[2])
 
-        if self.shape.currentText() != "Cylinder" and dimensions_uncert is not None:
-            self.depth_uncert_spin.setValue(dimensions_uncert[2])
-
+        # --- Build widgets for the spinboxes ---
+        
         # Layout for dimensions
         dim_layout = QHBoxLayout()
 
@@ -171,32 +170,78 @@ class InstrumentDialog(QDialog):
         dim_layout.addWidget(d_widget)
 
         form_layout.addRow("Dimensions:", dim_layout)
+        
+        # Layout for uncertainties
+        unc_layout = QHBoxLayout()
 
+        # Height uncert
+        h_unc_widget = QWidget()
+        h_unc_layout = QHBoxLayout(h_unc_widget)
+        h_unc_layout.setContentsMargins(0, 0, 0, 0)
+        h_unc_layout.addWidget(QLabel("Height:"))
+        h_unc_layout.addWidget(self.height_uncert_spin)
+        h_unc_layout.addWidget(QLabel("cm  "))
+        unc_layout.addWidget(h_unc_widget)
+
+        # Width uncert
+        w_unc_widget = QWidget()
+        w_unc_layout = QHBoxLayout(w_unc_widget)
+        w_unc_layout.setContentsMargins(0, 0, 0, 0)
+        self.W_uncert_label = QLabel("Width:")
+        w_unc_layout.addWidget(self.W_uncert_label)
+        w_unc_layout.addWidget(self.width_uncert_spin)
+        w_unc_layout.addWidget(QLabel("cm  "))
+        unc_layout.addWidget(w_unc_widget)
+
+        # Length uncert
+        d_unc_widget = QWidget()
+        d_unc_layout = QHBoxLayout(d_unc_widget)
+        d_unc_layout.setContentsMargins(0, 0, 0, 0)
+        d_unc_layout.addWidget(QLabel("Length:"))
+        d_unc_layout.addWidget(self.depth_uncert_spin)
+        d_unc_layout.addWidget(QLabel("cm  "))
+        unc_layout.addWidget(d_unc_widget)
+
+        form_layout.addRow("Uncertainties:", unc_layout)
+
+
+        # ------------------------------------------------------------------
         # Resolution
+        # ------------------------------------------------------------------
+        
+        # Line
         self.resolution = QLineEdit()
-        self.resolution.setEnabled(False)
+        self.resolution.setReadOnly(True)
         form_layout.addRow("Resolution: ", self.resolution)
 
         # Resolution Plot
         self.res_plot_widget = pg.PlotWidget()
+        self.res_plot_widget.setMinimumHeight(150)
         self.res_plot_widget.getPlotItem().layout.setContentsMargins(2, 13, 13, 2)
         self.res_plot_widget.setMouseEnabled(x=False, y=False)
         self.res_plot_widget.getPlotItem().setLabel(
             axis="bottom",
             text="Energy [keV]"
         )
+        self.res_plot_widget.getPlotItem().setLabel(
+            axis="left",
+            text="Resolution [%]"
+        )
         form_layout.addRow("", self.res_plot_widget)
 
-        # Example data
-        self.res_plot_widget.plot([1, 2, 3, 4], [10, 20, 15, 30])
 
-        # Efficiency
+        # ------------------------------------------------------------------
+        # Intrinsic efficiency
+        # ------------------------------------------------------------------
+        
+        # Line
         self.efficiency = QLineEdit()
-        self.efficiency.setEnabled(False)
+        self.efficiency.setReadOnly(True)
         form_layout.addRow("Efficiency: ", self.efficiency)
 
         # Efficiency plot
         self.eff_plot_widget = pg.PlotWidget()
+        self.eff_plot_widget.setMinimumHeight(150)
         self.eff_plot_widget.getPlotItem().layout.setContentsMargins(2, 13, 13, 2)
         self.eff_plot_widget.setMouseEnabled(x=False, y=False)
         self.eff_plot_widget.getPlotItem().setLabel(
@@ -205,10 +250,9 @@ class InstrumentDialog(QDialog):
         )
         form_layout.addRow("", self.eff_plot_widget)
 
-        # Example data
-        self.eff_plot_widget.plot([1, 2, 3, 4], [10, 20, 15, 30])
-
-        # Response Matrix
+        # ------------------------------------------------------------------
+        # Response matrix, not implemented
+        # ------------------------------------------------------------------
         response_matrix_row = QHBoxLayout()
         self.response_matrix = QLineEdit()
         self.response_matrix.setEnabled(False)
@@ -217,11 +261,10 @@ class InstrumentDialog(QDialog):
         self.load_matrix = QPushButton()
         self.load_matrix.setText("Import")
         response_matrix_row.addWidget(self.load_matrix)
-        form_layout.addRow("Response Matrix: ", response_matrix_row)
+        # form_layout.addRow("Response Matrix: ", response_matrix_row)
 
-        # Buttons
-        bottom_box = QGroupBox()
 
+        # --- Bottom Buttons ---
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
@@ -229,18 +272,97 @@ class InstrumentDialog(QDialog):
 
         # Initialize spinboxes
         self.update_spinboxes(self.shape.currentText())
+        
+        # Set values from an entered instrument
+        self.set_values(**kwargs)
 
     def update_spinboxes(self, shape_text):
-        """Disable depth spinbox for Cylinder, enable otherwise."""
+        """Disable depth spinboxes for Cylinder, enable otherwise."""
         if shape_text == "Cylinder":
+            # Normal
             self.depth_spin.setDisabled(True)
-            self.W_label.setText("Diameter: ")
+            self.depth_uncert_spin.setDisabled(True)
+
+            # Uncertainty
+            self.W_label.setText("Diameter:")
+            self.W_uncert_label.setText("Diameter:")
         else:
+            # Normal
             self.depth_spin.setEnabled(True)
-            self.W_label.setText("Width: ")
+            self.depth_uncert_spin.setEnabled(True)
+
+            # Uncertainty
+            self.W_label.setText("Width:")
+            self.W_uncert_label.setText("Width:")
             
-    def generic_instrument_selected(self):
-        instr = self.generic_list.currentData()
+    def set_values(self, **kwargs):
+        # --- Basic Info ---
+        self.name_input.setText(kwargs.get("name", ""))
+        self.model_input.setText(kwargs.get("model", ""))
+        self.manufacturer.setText(kwargs.get("manufacturer", ""))
+        self.detector_material.setText(kwargs.get("detector_material", ""))
+        self.remarks.setPlainText(kwargs.get("remark", ""))
+        
+        # --- Detector shape ---
+        dimensions = kwargs.get("detector_dimensions_cm")
+        dimensions_uncert = kwargs.get("detector_dimensions_uncert_cm")
+        
+        # Height
+        if dimensions is not None:
+            self.height_spin.setValue(dimensions[0])            
+        if dimensions_uncert is not None:
+            self.height_uncert_spin.setValue(dimensions_uncert[0])
+        
+        # Width
+        if dimensions is not None:
+            self.width_spin.setValue(dimensions[1])
+        if dimensions_uncert is not None:
+            self.width_uncert_spin.setValue(dimensions_uncert[1])
+            
+        # Depth
+        if self.shape.currentText() != "Cylinder" and dimensions is not None:
+            self.depth_spin.setValue(dimensions[2])
+        if self.shape.currentText() != "Cylinder" and dimensions_uncert is not None:
+            self.depth_uncert_spin.setValue(dimensions_uncert[2])
+        
+        # --- Resolution ---
+        # Line
+        res_created = kwargs.get("resolution_created")
+        if res_created is not None:
+            res_created = res_created.strftime("%Y-%m-%d %H:%M")
+        self.resolution.setText(f"[{res_created}] fn = {kwargs.get("resolution_fn", "")}, params = {kwargs.get("resolution_params", "")}")
+        
+        # Resolution plot
+        self.res_plot_widget.getPlotItem().clear()
+        if kwargs.get("resolution_E_points") is not None and kwargs.get("resolution_FWHM_points") is not None:
+            self.res_plot_widget.plot(kwargs.get("resolution_E_points"), np.array(kwargs.get("resolution_FWHM_points")) * 100 / np.array(kwargs.get("resolution_E_points")), pen=None, symbol = "o")
+            res_x = np.linspace(25, max(kwargs.get("resolution_E_points")) + 500, 1000)
+            res_y = resolution(res_x, np.array(kwargs.get("resolution_params"))) * 100
+            self.res_plot_widget.plot(res_x, res_y)
+        
+        # --- Intrinsic efficiency ---
+        # Line
+        eff_created = kwargs.get("int_efficiency_created")
+        if eff_created is not None:
+            eff_created = eff_created.strftime("%Y-%m-%d %H:%M")
+        self.efficiency.setText(f"[{eff_created}] fn = {kwargs.get("int_efficiency_fn", "")}, params = {kwargs.get("int_efficiency_params", "")}")
+
+        
+        # Efficiency plot
+        self.eff_plot_widget.getPlotItem().clear()
+        if kwargs.get("int_efficiency_E_points") is not None and kwargs.get("int_efficiency_eff_points") is not None:
+            self.eff_plot_widget.plot(kwargs.get("int_efficiency_E_points"), np.array(kwargs.get("int_efficiency_eff_points")) * 100, pen=None, symbol = "o")
+            res_x = np.linspace(25, max(kwargs.get("int_efficiency_E_points")) + 500, 1000)
+            res_y = exp_polynomial(res_x, np.array(kwargs.get("int_efficiency_params"))) * 100
+            self.eff_plot_widget.plot(res_x, res_y)
+            
+    def generic_instrument_selected(self, index: int):
+        instrument_key = self.generic_list.itemData(index)
+        if instrument_key is None:
+            self.set_values(detector_dimensions_cm = [0, 0, 0], detector_dimensions_uncert_cm = [0, 0, 0],)
+        else:
+            instrument = SpectrumManager.GenericInstrumentLibrary.instrument_registry[instrument_key]
+            self.set_values(**instrument.__dict__)
 
     def get_data(self):
         """Collect data from the dialog and return as a dictionary."""
@@ -255,6 +377,11 @@ class InstrumentDialog(QDialog):
                 self.width_spin.value(),
                 self.depth_spin.value(),
             ],
+            "detector_dimensions_uncert_cm": [
+                self.height_uncert_spin.value(),
+                self.width_uncert_spin.value(),
+                self.depth_uncert_spin.value(),
+            ],
             "remark": self.remarks.toPlainText(),
         }
         return data
@@ -263,8 +390,7 @@ class InstrumentDialog(QDialog):
 class SpectrumEditDialog(QDialog):
     def __init__(self, parent=None, 
                  spectrum: Spectrum = None, 
-                 spectrum_is_connected: bool = False, 
-                 spectrum_index = None):
+                 spectrum_is_connected: bool = False):
         super().__init__(parent)
         self.setWindowTitle("Spectrum Edit Dialog")
         self.resize(400, 300)
@@ -313,11 +439,14 @@ class SpectrumEditDialog(QDialog):
         
         # form_layout.addRow("", self.calibration_plot)
         
+        # --- Background ---
+        # Background name
         self.background_line = QLineEdit()
         self.background_line.setText(spectrum.background.spectrum_name if spectrum and spectrum.background is not None else "")
         self.background_line.setReadOnly(True)
         form_layout.addRow("Background", self.background_line)
         
+        # Buttons
         bkg_btns = QHBoxLayout()
         
         bkg_btn_select = QPushButton("Select")
@@ -333,20 +462,22 @@ class SpectrumEditDialog(QDialog):
         
         form_layout.addRow("", bkg_btns)
         
+        # Internal spectra list
         self.spectrum_list = QListWidget()
         form_layout.addRow("", self.spectrum_list)
-
-
-        if spectrum_index is not None:
-            for path, parser in spectrum_index.items():
-                item = QListWidgetItem(str(parser.data["name"]))
-                item.setData(Qt.ItemDataRole.UserRole, path)
-                self.spectrum_list.addItem(item)
         
+        for path, parser in sorted(IOManager.FileIndex.spectrum_index.get_index().items(), key=lambda item: item[0]):
+            item = QListWidgetItem(str(parser.data["name"]))
+            item.setData(Qt.ItemDataRole.UserRole, path)
+            self.spectrum_list.addItem(item)
+        
+        # --- Instrument ---
+        # Name
         self.instrument_line = QLineEdit()
         self.instrument_line.setReadOnly(True)
         form_layout.addRow("Instrument", self.instrument_line)
         
+        # Buttons
         instrument_btns = QHBoxLayout()
         instrument_btn_select = QPushButton("Select")
         instrument_btn_select.clicked.connect(self.select_instrument)
@@ -356,29 +487,30 @@ class SpectrumEditDialog(QDialog):
         instrument_btns.addWidget(instrument_btn_clear)
         form_layout.addRow("", instrument_btns)
         
+        # Instrument list from instrument libraries
         self.instrument_list = QListWidget()
         self.instrument_line.setText(spectrum.instrument.name if spectrum.instrument is not None else "")
         form_layout.addRow("", self.instrument_list)
         
-
-        for path, instr in SpectrumManager.UniqueInstrumentLibrary.instrument_registry.items():
+        for path, instr in sorted(SpectrumManager.UniqueInstrumentLibrary.instrument_registry.items(), key=lambda item: item[0]):
             item = QListWidgetItem(instr.name)
             item.setData(Qt.ItemDataRole.UserRole, instr)
             self.instrument_list.addItem(item)
         
-        # Buttons
+        # --- Bottom buttons ---
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         main_layout.addWidget(buttons)
         
         
-        # Flags
+        # --- Flags ---
+        # These set the response of things handled outside of this dialog 
         self.flag_clear_bkg = False
         self.flag_clear_instrument = False
         self.flag_change_bkg = False
         self.flag_change_instrument = False
-        self.flag_can_change_name = not spectrum_is_connected
+        self.flag_can_change_name = not spectrum_is_connected # A spectrum with a connection is not allowed to change its name, it would mess with receiving now data from the the connected device
         
         self.selected_background = None
         self.selected_instrument = None
@@ -413,8 +545,7 @@ class SpectrumEditDialog(QDialog):
         self.flag_change_bkg = True
     
     def import_background(self):
-        file_dialog = FileDialogs()
-        path, _ = file_dialog.import_file(file_dialog.import_filters["spectrum"])
+        path, _ = IOManager.Importer.import_file(IOManager.Importer.import_filters["spectrum"])
         
         if path is not None:
             self.background_line.setText(path.name)
@@ -431,6 +562,7 @@ class SpectrumEditDialog(QDialog):
         if len(item) > 0:
             item = item[0]
         else:
+            # If none is selected sod off
             return
         name = item.text()
         instr = item.data(Qt.ItemDataRole.UserRole)

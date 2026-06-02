@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 )
 import numpy as np
 from PySide6.QtCore import Signal
-from core import SpectrumManager
+from core import SpectrumManager, IOManager
 from ..misc.idx_table import StrIdxTable
 
 
@@ -82,6 +82,7 @@ class RoiInfoDialog(QDialog):
                     title,
                     sep,
                     f"Tag: {roi.tag}",
+                    f"Spectrum: {roi.spectrum}",
                     f"Alias: {roi.alias}",
                     f"ROI Bound: {roi.roi_bound}",
                     f"Region Bound: {roi.region_bound}",
@@ -177,10 +178,14 @@ class ROIInfoTab(QWidget):
         btn_roi_cps.setCheckable(True)
         btn_roi_cps.toggled.connect(SpectrumManager.ROIManager.set_cps)
         SpectrumManager.ROIManager.sigCpsChanged.connect(self.rebuild_table)
+        
+        btn_export_to_csv = QPushButton("Export to CSV")
+        btn_export_to_csv.clicked.connect(IOManager.Exporter.export_roi_dialog)
 
         options_bar.addWidget(btn_clear)
         options_bar.addWidget(btn_view_info)
         options_bar.addWidget(btn_roi_cps)
+        options_bar.addWidget(btn_export_to_csv)
         options_bar.addStretch()
         options_widget.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Preferred)
 
@@ -192,6 +197,7 @@ class ROIInfoTab(QWidget):
 
         # Initial build
         self.rebuild_table()
+        SpectrumManager.Signals.spectrumRenamed.connect(lambda : self.rebuild_table())
 
     # --------------------------------------------------
     # Core logic
