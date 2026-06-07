@@ -81,6 +81,8 @@ class _Paths:
         self.BASE = get_runtime_base()
 
         self.nuclide_data = self.BASE / "resources" / "nuclide_data"
+        self.bibliography = self.BASE  / "resources" / "docs" / "bibliography.md"
+        self.documentation_dir = self.BASE  / "resources" / "docs" / "documentation"
 
         # Initialize all dependent paths relative to appdata
         self.spectrum_library = self.appdata / "spectrum_library"

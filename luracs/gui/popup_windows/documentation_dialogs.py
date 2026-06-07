@@ -1,26 +1,34 @@
-from PySide6.QtWidgets import QTextBrowser, QListView, QDialog, QHBoxLayout, QFileSystemModel, QTreeView, QWidget
-from PySide6.QtCore import QUrl, Qt
-from PySide6.QtGui import QFont, QStandardItem, QStandardItemModel
+from PySide6.QtWidgets import QTextBrowser, QListView, QDialog, QHBoxLayout, QVBoxLayout, QFileSystemModel, QTreeView, QWidget, QPushButton
 import markdown
 from pathlib import Path
-from glob import glob
+
 
 class SmallDocumentationDialog(QDialog):
     def __init__(self, md_file: str, parent=None):
         super().__init__(parent)
 
         self.setWindowTitle("Documentation")
-        
-        width = 600
-        height = int(width * 1.414)
-        self.resize(width, height)
-        main_layout = QHBoxLayout(self)
-        
+
+        self.resize(800, 600)
+
+        main_layout = QVBoxLayout(self)
+
         self.text_browser = QTextBrowser()
-        self.text_browser.document().setDefaultFont(QFont("Arial", 12))
-        
+        self.text_browser.setOpenExternalLinks(True)
+
         main_layout.addWidget(self.text_browser)
-        
+
+        # Bottom button row
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+
+        close_button = QPushButton("Close")
+        close_button.clicked.connect(self.accept)
+
+        button_layout.addWidget(close_button)
+
+        main_layout.addLayout(button_layout)
+
         self.load_markdown(md_file)
         
     def load_markdown(self, path: str | Path):
@@ -65,31 +73,56 @@ class DocumentationDialog(QWidget):
 
         self.setWindowTitle("Documentation")
         self.resize(800, 600)
-        main_layout = QHBoxLayout(self)
-        
+
+        # Main vertical layout
+        main_layout = QVBoxLayout(self)
+
+        # Content area
+        content_layout = QHBoxLayout()
+
         self.doc_list = QListView()
         self.text_browser = QTextBrowser()
-        
+        self.text_browser.setOpenExternalLinks(True)
+
         self.model = QFileSystemModel()
         self.model.setRootPath(str(doc_dir))
 
-        # Only show markdown files
         self.model.setNameFilters(["*.md"])
         self.model.setNameFilterDisables(False)
-        
+
         self.doc_tree = QTreeView()
-        main_layout.addWidget(self.doc_tree, 3)
-        main_layout.addWidget(self.text_browser, 7)
+
+        content_layout.addWidget(self.doc_tree, 3)
+        content_layout.addWidget(self.text_browser, 7)
+
+        main_layout.addLayout(content_layout)
 
         self.doc_tree.setModel(self.model)
         self.doc_tree.setRootIndex(self.model.index(str(doc_dir)))
 
-        self.doc_tree.selectionModel().selectionChanged.connect(self.on_selection_changed)
-        
+        self.doc_tree.selectionModel().selectionChanged.connect(
+            self.on_selection_changed
+        )
+
         self.model.directoryLoaded.connect(self.on_directory_loaded)
+
         for i in range(1, self.model.columnCount()):
             self.doc_tree.hideColumn(i)
+
+        # Bottom button row
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+
+        close_button = QPushButton("Close")
+        close_button.clicked.connect(self.close)
+
+        button_layout.addWidget(close_button)
+
+        main_layout.addLayout(button_layout)
+
         self.load_markdown(doc_dir / "Welcome.md")
+        
+        
         
     def load_markdown(self, path: str | Path):
         path = Path(path)

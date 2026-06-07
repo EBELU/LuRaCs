@@ -28,15 +28,18 @@ def save_spectrum_to_library_dialog(spectrum: Spectrum):
 
             if reply == QMessageBox.No:
                 return
+            
+            IOManager.FileIndex.spectrum_index.update_file(
+            IOManager.FileIndex.spectrum_index.get_key_from_attr("name", spectrum.name), 
+            spectrum)
+        
+        else:
+            if spectrum.connection is None and spectrum.name != save_diag.get_name():
+                SpectrumManager.rename_spectrum(spectrum.name, save_diag.get_name())
 
-    else:
-        return
+            IOManager.FileIndex.spectrum_index.save_file(spectrum)
     
     # Dont rename, it breaks data signalling from device
-    if spectrum.connection is None and spectrum.name != save_diag.get_name():
-        SpectrumManager.rename_spectrum(spectrum.name, save_diag.get_name())
+
     
-    print("UPDATE")
-    IOManager.FileIndex.spectrum_index.update_file(
-        IOManager.FileIndex.spectrum_index.get_key_from_attr("name", spectrum.name), 
-        new_file.name)
+

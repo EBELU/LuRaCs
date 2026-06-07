@@ -154,10 +154,10 @@ class Spectrum:
             return data
 
     # --- ROI management ---
-    def set_roi(self, roi_data):
+    def set_roi(self, roi_data: ROI):
         self.ROIs[roi_data.tag] = roi_data
 
-    def remove_roi(self, roi_tag):
+    def remove_roi(self, roi_tag: str):
         self.ROIs.pop(roi_tag, None)
 
     # -- Instrument management ---

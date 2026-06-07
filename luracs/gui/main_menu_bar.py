@@ -6,7 +6,6 @@ if TYPE_CHECKING:
 from PySide6.QtWidgets import QMenuBar, QMessageBox
 from PySide6.QtGui import QAction, QActionGroup
 from PySide6.QtCore import Signal
-from dataclasses import dataclass
 import asyncio
 
 from core import RunManager, Settings, IOManager
@@ -14,8 +13,6 @@ from core import RunManager, Settings, IOManager
 from .save_to_internal import save_roi_references
 
 from gui.popup_windows.settings_dialog import edit_settings, edit_advanced_settings
-from gui.popup_windows.efficiency_dialog import EfficiencyWindow
-
 
 class MainMenuBar(QMenuBar):
     sigSetSpectrumViewToTabs = Signal()
@@ -54,15 +51,14 @@ class MainMenuBar(QMenuBar):
         device_menu_disconnect.triggered.connect(
             lambda x: RunManager.remove_all_devices()
         )
-        # device_menu_info.triggered.connect(lambda x: RunManager.start_logger())
 
         calculate_menu = self.addMenu("&Gamma Tools")
         calculate_menu_photoCalibration = calculate_menu.addAction("Calibration")
-        calculate_menu_photoCalibration.triggered.connect(lambda: parent.calculate_windows["calibration"].show())
+        calculate_menu_photoCalibration.triggered.connect(parent.calc_win_calibration.show)
         calculate_menu_photoEff = calculate_menu.addAction("Efficiency")
-        calculate_menu_photoEff.triggered.connect(lambda: parent.calculate_windows["efficiency"].show())
+        calculate_menu_photoEff.triggered.connect(parent.calc_win_efficiency.show)
         calculate_menu_photoResolution = calculate_menu.addAction("Resolution")
-        calculate_menu_photoResolution.triggered.connect(lambda: parent.calculate_windows["resolution"].show())
+        calculate_menu_photoResolution.triggered.connect(parent.calc_win_resolution.show)
 
         
         #calculate_menu = self.addMenu("&MRI Tools")

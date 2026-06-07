@@ -137,10 +137,13 @@ class CalibrationWindow(QDialog):
 
         rois = SpectrumManager.ROIManager.get_data_from_spectrum(self.combo_spectrum.currentText())
 
+        skipped = 0
         for row, roi in enumerate(rois.values()):
             if not roi.fit:
+                skipped += 1
                 continue
             
+            row -= skipped
             table.insertRow(row)
 
             # --- Column 0: checkbox ---
@@ -170,6 +173,7 @@ class CalibrationWindow(QDialog):
             ref_box = QDoubleSpinBox()
             ref_box.setRange(0, 1e5)
             ref_box.setValue(roi.emission.energy_keV if roi.emission else 0)
+            ref_box.valueChanged.connect(lambda _, row=row: self.recalculate_difference(row))
             table.setCellWidget(row, 4, ref_box)
             
             # --- Column 5: Diff ---
@@ -212,6 +216,8 @@ class CalibrationWindow(QDialog):
             centroids.append(centroid)
             reference_energies.append(reference_energy)
         
+        if len(centroids) == 0:
+            return
         new_x_axis, new_coeff, ref_points = calibrate_x_axis(centroids, 
                                         reference_energies, 
                                         self.spin_poly_degree.value(), 
@@ -239,6 +245,11 @@ class CalibrationWindow(QDialog):
         SpectrumManager.calibrate_spectrum(spectrum_name, self.current_new_coeff)
         
         self.set_table(spectrum_name)
+        
+    def recalculate_difference(self, row_index: int):
+        centre_value = float(self.roi_table.item(row_index, 3).text())
+        ref_box = self.roi_table.cellWidget(row_index, 4)
+        self.roi_table.setItem(row_index, 5, QTableWidgetItem(str(round(ref_box.value() - centre_value, 2))))
             
 if __name__ == "__main__":
     import sys

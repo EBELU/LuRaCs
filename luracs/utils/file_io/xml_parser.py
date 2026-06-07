@@ -75,7 +75,7 @@ def _safe_iso(value: str):
 
 def _build_roi(general_kwargs: dict, fit_kwargs: dict):
     if fit_kwargs is not None:
-        fit = Fit(region_lower=None, region_upper=None, G=0, B=0, N=0, **fit_kwargs)
+        fit = Fit(region_lower=None, region_upper=None, **fit_kwargs)
     else:
         fit = None
     
@@ -457,6 +457,9 @@ class xml_parser:
                 amp, amp_err = _parse_pair(peak, ".//n42:Amplitude", ns)
 
                 counts_res = peak.xpath(".//n42:PeakCounts", namespaces=ns)
+                N = peak.xpath(".//n42:NetCounts", namespaces=ns)
+                B = peak.xpath(".//n42:BkgCounts", namespaces=ns)
+                G = peak.xpath(".//n42:GrossCounts", namespaces=ns)
                 counts = float(counts_res[0].text) if counts_res and counts_res[0].text else 0.0
                 peak_kwargs = { "lower": e_low,
                                 "upper": e_high,
@@ -464,6 +467,10 @@ class xml_parser:
                                 "param_errs": fit_params_err,
                                 "peak_counts": counts,
                                 "bkg_params": bkg_params,
+                                "N": N if N is not None else 0,
+                                "B": B if B is not None else 0,
+                                "G": G if G is not None else 0,
+                                
                 }
                 
                 # The data of a roi, idk what to do with this

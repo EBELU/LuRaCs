@@ -5,9 +5,8 @@ import os
 
 def startup_script():
     for path in Settings.Paths.__dict__.values():
-        if not str(path).endswith(".json"):
-            if isinstance(path, Path) and not os.path.isdir(path):
-                os.makedirs(path)
+        if isinstance(path, Path) and not path.is_dir() and "_library" in path.name:
+            os.makedirs(path)
 
     if os.path.isfile(Settings.Paths.settings_file):
         Settings.load_settings()

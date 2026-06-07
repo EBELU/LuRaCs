@@ -9,6 +9,7 @@ from .script_engine_components.commands import register_commands
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import NestedCompleter
+from .settings import Settings
 
 
 # --- Helpers ---
@@ -24,6 +25,7 @@ class ScriptEngine(QObject):
     sigCommandOutput = Signal(str)
     sigShutdown = Signal()
     sigCancelCurrent = Signal()
+    sigClearConsole = Signal(str)
 
     def __init__(self, parent=None, headless=False, program_version=""):
         super().__init__(parent)
@@ -40,9 +42,9 @@ class ScriptEngine(QObject):
         self.registry = CommandRegistry()
         register_commands(self.registry)
         self.auto_completer = None
+        self.console_cleared = True
         if self.headless:               
             self.auto_completer = self.make_autocompleter()
-            self.sigCommandOutput.connect(self.print_output)
             self.session = PromptSession(completer=self.auto_completer)
 
     # --- Startup ---
@@ -72,8 +74,12 @@ class ScriptEngine(QObject):
                     # Update the autocompleter
                     self.session.completer = self.make_autocompleter()
                     
+                    # await self.queue.join()
+                    
                     await asyncio.sleep(0.1) # Wait so the input is under the displayed output
                     cmd = await self.session.prompt_async("LuRaCs Console <<< ")
+
+
                 except KeyboardInterrupt:
                     # Cancel whatever is going on but dont lock up the program
                     self.sigCancelCurrent.emit()
@@ -88,6 +94,7 @@ class ScriptEngine(QObject):
 
                 if not cmd:
                     continue
+                
                 
                 await self.queue.put(cmd.strip())
 
@@ -114,10 +121,15 @@ class ScriptEngine(QObject):
                 if not cmd:
                     continue
                 
-                await self.command_parser(cmd)
+                try:
+                    await self.command_parser(cmd)
+                finally:
+                    self.queue.task_done()
 
         except asyncio.CancelledError:
             return
+        
+
 
     # --- Shutdown ---
     async def stop(self):
@@ -145,10 +157,17 @@ class ScriptEngine(QObject):
         if self.output_suppressed:
             return
         
-        if text:
-            clear_terminal()
+        if self.headless:
+            if text:
+                clear_terminal()
             
-        print(text)
+            print(text)
+        else:
+            if self.console_cleared:
+                self.sigClearConsole.emit("")
+                self.console_cleared = False
+
+            self.sigCommandOutput.emit(text if text else "")
 
 
     # --- Command handling ---
@@ -173,6 +192,8 @@ class ScriptEngine(QObject):
 
         if cmd_name == "clear":
             self.cancel_current_command()
+            self.sigClearConsole.emit("")
+            
 
         command = self.registry.get(cmd_name)
         if not command:
@@ -207,8 +228,10 @@ class ScriptEngine(QObject):
             self._current_command_task = None
 
         
-        self.sigCommandOutput.emit(res if res else "")
+        self.print_output(res)
             
+        if cmd_name == "clear":
+            self.console_cleared = True
             
     def cancel_current_command(self):
         if self._current_command_task and not self._current_command_task.done():

@@ -268,6 +268,10 @@ def write_ROI_data(ROIs: dict[str, ROI], peaks_section):
 
             write_text_to_SubElement(peak, "PeakCounts", roi.fit.peak_counts)
             
+            write_text_to_SubElement(peak, "NetCounts", roi.fit.N)
+            write_text_to_SubElement(peak, "BkgCounts", roi.fit.B)
+            write_text_to_SubElement(peak, "GrossCounts", roi.fit.G)
+            
         # ------------------------------------------------------------------
         # ROI nuclide and associated energy
         # ------------------------------------------------------------------

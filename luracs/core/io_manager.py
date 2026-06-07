@@ -1,17 +1,18 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, Callable
 if TYPE_CHECKING:
-    from containers.spectrum_classes import Spectrum
+    pass
+from containers.spectrum_classes import Spectrum
 
 from pathlib import Path
 from glob import glob
 import os
 from PySide6.QtCore import QObject, Signal
-from PySide6.QtWidgets import QFileDialog, QMessageBox, QWidget
+from PySide6.QtWidgets import QFileDialog, QMessageBox
 
 from utils.file_io import db_parser, xml_parser, io_dispatcher
 from utils import file_io
-from gui.save_to_internal import save_instrument_to_library, save_roi_references, save_spectrum_to_library
+from gui.save_to_internal import save_instrument_to_library, save_spectrum_to_library
 
 from .settings import Settings
 from .gui_logger import gui_logger
@@ -42,7 +43,7 @@ class _FileIndex(QObject):
         # Build the indexes
         self.spectrum_index = Indexer(self, Settings.Paths.spectrum_library / "*.xml", {"meta_only": True}, save_spectrum_to_library, xml_parser)
         self.spectrogram_index = Indexer(self, Settings.Paths.spectrogram_library / "*.db", {}, None, db_parser)
-        self.roi_index = Indexer(self, Settings.Paths.roi_library / "*.xml", {"meta_only": True}, save_roi_references, xml_parser)
+        self.roi_index = Indexer(self, Settings.Paths.roi_library / "*.xml", {"meta_only": True}, None, xml_parser)
         self.unique_instrument_index = Indexer(self, Settings.Paths.unique_instrument_library / "*.xml", {"meta_only": True}, save_instrument_to_library, xml_parser)
         self.generic_instrument_index = Indexer(self, Settings.Paths.generic_instrument_library / "*.xml", {"meta_only": True}, save_instrument_to_library, xml_parser)
         
@@ -64,6 +65,10 @@ class _FileIndex(QObject):
         SpectrumManager.UniqueInstrumentLibrary.sigNewInstrumentAdded.connect(self.unique_instrument_index.save_file)
         SpectrumManager.GenericInstrumentLibrary.sigNewInstrumentAdded.connect(self.generic_instrument_index.save_file)
         
+        # Rename
+        SpectrumManager.UniqueInstrumentLibrary.sigInstrumentRenamed.connect(self.unique_instrument_index.rename_file)
+        SpectrumManager.GenericInstrumentLibrary.sigInstrumentRenamed.connect(self.generic_instrument_index.rename_file)
+        
         # Index everything at startup
         self.run_index_all()
 
@@ -71,9 +76,12 @@ class _FileIndex(QObject):
         "Re-Index all indexes"
         for indexer in [self.spectrum_index, self.spectrogram_index, self.roi_index, self.unique_instrument_index, self.generic_instrument_index]:
             indexer.run_index()
-            gui_logger.debug(f"{indexer.__class__}:{len(indexer.index_registry)} files found in {indexer.path}")
+            gui_logger.debug(f"{indexer.__class__}: {len(indexer.index_registry)} files found in {indexer.path}")
 
 class Indexer(QObject):
+    """
+    Tracks the storage, updates and indexing of internally stored .xml-files for access through the data store. Requires a special connection with the instrument library since they are always loaded and mutable.
+    """
     sigIndexUpdated = Signal()
     sigItemAdded = Signal(str, object)
     def __init__(self, parent, glob_path: Path, parser_kwargs: dict, save_fn: Callable, parser: xml_parser | db_parser):
@@ -92,35 +100,51 @@ class Indexer(QObject):
                 nr_changed += 1
                 self.index_registry[file] = self.parser(file, **self.parser_kwargs)
                 self.sigItemAdded.emit(file, self.index_registry[file])
-                
         
         if nr_changed > 0:
             self.sigIndexUpdated.emit()
     
-    def rename_file(self, old_name: str, new_name: str):
+    def rename_file(self, old_name: str, new_name: str):       
         del self.index_registry[old_name]
+        if new_name in self.index_registry:
+            del self.index_registry[new_name]
+            os.remove(new_name)
+            gui_logger.debug(f"{self.__class__} File {new_name} removed to rename {old_name}")
         os.rename(old_name, new_name)
         gui_logger.debug(f"{self.__class__} File {old_name} renamed to {new_name}")
         self.run_index()
                 
     def update_file(self, key: str, new_item):
         # Not needed?
+        assert isinstance(key, str)
         # self.blockSignals(True)
         # self.delete_file(key)
         # self.blockSignals(False)
-        
-        del self.index_registry[key]
+        gui_logger.debug(f"In Update {key}" )
+        gui_logger.debug(f"Current Registry {self.index_registry.keys()}")
+        if key in self.index_registry:
+            del self.index_registry[key]
         # Save the updated file
         self.save_file(new_item)
+        gui_logger.debug(f"{self.__class__} Update completed! Key: {key}, item {new_item}")
+        self.sigIndexUpdated.emit()
+        
         
     
     def save_file(self, item):
         if self.save_fn is None:
             raise NotImplementedError()
         
-        self.save_fn(item)
+        new_file = str(self.save_fn(item))
+        gui_logger.debug(f"New file created {new_file}")
+        if new_file in self.index_registry:
+            del self.index_registry[new_file]
+            gui_logger.debug(f"File removed from registry {new_file}")
+            
         self.run_index()
         gui_logger.debug(f"{self.__class__} File {item} saved")
+        return new_file
+
                 
     def delete_file(self, key: str):
         del self.index_registry[key]
@@ -155,7 +179,7 @@ class Indexer(QObject):
         
 class _Importer(QObject):
     """ 
-    All functionality needed for importing data to the application gathered in place. 
+    Provides functionality needed for importing data to the application gathered in place. 
     """
     sigImportSpectrum = Signal(dict, bool)
     sigImportSpectrumAsBackground = Signal(str, dict)
@@ -242,10 +266,37 @@ class _Importer(QObject):
         spectrum_parser = file_io.io_dispatcher(file_path)
         if spectrum_parser is not None:
             self.sigImportSpectrumAsBackground.emit(spectrum_name, spectrum_parser.data)
+            
+    def build_spectrum_from_parser_data(self, data_dict: dict) -> Spectrum:
+        if "foreground" not in data_dict:
+            gui_logger.warning("File contains no spectrum")
+            return
+        new_spectrum = Spectrum(data_dict["foreground"].channels, data_dict["name"])
+        new_spectrum.set_foreground(data_dict["foreground"])
+
+        if "background" in data_dict:
+            new_spectrum.set_background(data_dict["background"])
+
+        if "calibration" in data_dict:
+            new_spectrum.apply_calibration(data_dict["calibration"])
+        
+
+        if "peaks" in data_dict:
+            for i, peak in enumerate(data_dict["peaks"]):
+                peak.tag = f"ROI_{i}"
+                new_spectrum.set_roi(peak)
+                
+        if "instrument" in data_dict:
+            new_spectrum.instrument = data_dict["instrument"]
+        
+        if "remark" in data_dict:
+            new_spectrum.remark = data_dict["remark"]
+            
+        return new_spectrum
     
 class _Exporter(QObject):
     """ 
-    All functionality needed for export data from the application gathered in place. 
+    Provides functionality needed for export data from the application gathered in place. 
     """
     export_filters = {
         "spectrum": "XML/n42 (*xml);; CSV (*.csv);; Excel Workbook (*.xlsx)",
@@ -281,7 +332,7 @@ class _Exporter(QObject):
         if "xml" in filter.lower():
             file_io.xml_writer(spectrum, file_path)
         elif "csv" in filter.lower():
-            file_io.export_csv(spectrum, str(file_path))
+            file_io.csv_writer.export_spectrum(spectrum, str(file_path))
             
     # --- ROIs ---
     def export_roi_dialog(self):
@@ -299,8 +350,25 @@ class _Exporter(QObject):
         if not file_path:
             return None
 
-        file_path = Path(file_path).with_suffix("")
-        if file_path is None:
-            raise RuntimeWarning(f"Invalid file path {file_path}")
+        file_path = Path(file_path).with_suffix(".csv")
+        
+        if file_path.exists():
+            reply = QMessageBox.question(
+                None,
+                "Overwrite File?",
+                f"The file '{file_path.name}' already exists. Do you want to overwrite it?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+
+            if reply == QMessageBox.No:
+                return
+        
+        rois = []
+        
+        for spectrum in SpectrumManager.spectrum_registry:
+            rois.extend(SpectrumManager.ROIManager.get_data_from_spectrum(spectrum).values())
+        
+        file_io.csv_writer.export_rois(rois, file_path)
         
 IOManager = _IOManager()

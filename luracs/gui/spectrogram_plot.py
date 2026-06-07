@@ -78,7 +78,7 @@ class StartSpectrogramDialog(QDialog):
 
         # File name (default = timestamp)
         self.filename_edit = QLineEdit()
-        default_name = f"Spectrogram-{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        default_name = f"Spectrogram_{datetime.now().replace(microsecond=0).isoformat()}"
         self.filename_edit.setText(default_name)
         form.addRow("File name:", self.filename_edit)
 

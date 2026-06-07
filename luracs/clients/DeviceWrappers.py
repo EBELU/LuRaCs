@@ -40,11 +40,16 @@ class WrappedSpectrumPackage:
     calib_coeff: list
     timestamp: float
 
-WRAPPER_METHODS = {
+OPTIONAL_WRAPPER_METHODS = {
     "get_calibration",
     "set_calibration",
     "set_hv",
     "get_hv",
+    "set_gain",
+    "get_gain",
+    "set_energy_range",
+    "get_energy_range"
+    "clear_accumulation"
 }
 
 class DeviceWrapper(QObject):
@@ -93,6 +98,12 @@ class DeviceWrapper(QObject):
     @classmethod
     def get_registry(cls):
         return cls._registry
+    
+    @classmethod
+    def match_model_to_str(cls, name_string: str):
+        for key, obj in cls._registry.items():
+            if key in name_string:
+                return obj
 
     def set_state(self, state):
         assert isinstance(state, self.DeviceState)
@@ -152,8 +163,6 @@ class DeviceWrapper(QObject):
     async def stop(self):
         raise CriticalNotImplementedError("stop")
 
-    def clear_accumulation(self):
-        pass
 
 class MockClientWrapper(DeviceWrapper):
     type = "mock"

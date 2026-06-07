@@ -13,7 +13,7 @@ from datetime import timedelta, datetime
 from glob import glob
 
 from utils.file_io import xml_parser, db_parser
-from core import RunManager, SpectrumManager, Settings
+from core import RunManager, SpectrumManager, Settings, IOManager
 from .helpers import print_table, TableFormatter, plot_spectrum, print_rois, ArgumentParser
 from .exceptions import ArgumentError, ActiveGUIError, InvalidCommandError
 
@@ -67,28 +67,121 @@ class ClearCommand(Command):
 
 class HelpCommand(Command):
     name = "help"
+
     async def run(self, engine, *args):
-        help_text = (
-            "Available commands:\n"
-            "- help: Show this message\n"
-            "- exit: Quit the application\n"
-            "- clear: Clear the console and stop watching\n"
-            "- list: \n"
-            "   - list devices: List connected devices\n"
-            "   - list spectra: List loaded spectra\n"
-            "- scan: \n"
-            "   - scan bt [device_name]: Scan for Bluetooth devices\n"
-            "   - scan usb [device_name]: Scan for USB devices\n"
-            "- view: \n"
-            "   - view spectrum <spectrum_name | spectrum number>: Display a loaded spectrum\n"
-            "   - view device <device_name | device number>: Display information about a connected device\n"
-            "   - view logs [lines = 50]: Display recent log entries\n"
-            # "- watch: \n"
-            # "   - watch spectrum <spectrum_name | spectrum number>: Continuously display updates for a spectrum\n"
-            # "   - watch device <device_name | device number>: Continuously display updates for a device\n"
-            # "   - watch logs: Continuously display new log entries\n"
-        )
-        return help_text
+        return """
+Available commands
+==================
+
+General
+-------
+help
+    Show this help message
+
+clear
+    Clear the console
+
+exit | quit | shutdown
+    Exit the application
+
+
+Device Management
+-----------------
+device scan usb
+    Scan for USB devices
+
+device scan ble
+    Scan for Bluetooth LE devices
+
+device connect <device1> [device2 ...]
+    Connect to one or more BLE devices
+
+device disconnect <device>
+    Disconnect a device
+
+device disconnect all
+    Disconnect all devices
+
+
+Listing Resources
+-----------------
+list devices
+    Show connected devices
+
+list spectra
+    Show loaded spectra
+
+list spectrogram
+    Show loaded spectrograms
+
+list rois
+    Show active ROIs
+
+
+Indexes
+-------
+index spectrum
+    Show indexed spectrum files
+
+index spectrogram
+    Show indexed spectrogram files
+
+index roi
+    Show indexed ROI files
+
+
+Viewing Data
+------------
+view spectrum <name>
+    Display a spectrum
+
+view rois
+    Display loaded ROIs
+
+view log
+    Display recent log entries
+
+
+ROI Management
+--------------
+roi <lower> <upper>
+    Add an ROI
+
+roi -c
+    Clear all ROIs
+
+
+Spectrograms
+------------
+spectrogram start <device>
+    Start a spectrogram
+
+spectrogram start all
+    Start spectrograms on all connected devices
+
+Options:
+    -n <name>     Custom name
+    -i <seconds>  Save interval
+    -c <count>    Concatenation factor
+
+spectrogram pause <name>
+spectrogram unpause <name>
+spectrogram load <name>
+spectrogram unload <name>
+
+
+Monitoring
+----------
+watch
+    Continuously display live device information
+    Press Ctrl+C to stop
+
+
+Automation
+----------
+exec <script_file>
+    Execute a command script
+"""
 
 class ListCommand(Command):
     name = "list"
@@ -147,6 +240,8 @@ class ListCommand(Command):
 class IndexCommand(Command):
     name = "index"
     async def run(self, engine, *args):
+        if not args:
+            return self.help
         if len(args) == 0:
             raise ArgumentError("View must be followed by 'spectrum', 'spectrogram' or 'rois'")
         
@@ -233,7 +328,7 @@ class ROICommand(Command):
     
     async def run(self, engine, *args):
         if len(args) < 1:
-            raise ArgumentError(f"Too few arguments")
+            raise ArgumentError("Too few arguments")
         
         if "-c" in args:
             SpectrumManager.ROIManager.clear_all()
@@ -241,7 +336,7 @@ class ROICommand(Command):
 
         try:
             lower, upper = float(args[-2]), float(args[-1])
-        except:
+        except ValueError:
             raise ArgumentError("Arguments could not converted to float")
         
         SpectrumManager.ROIManager.add_roi(lower, upper)
@@ -250,7 +345,6 @@ class ROICommand(Command):
     
 class SpectrogramCommand(Command):
     name = "spectrogram"
-    index = []
     
     async def run(self, engine, *args):
         if len(args) < 2:
@@ -267,13 +361,13 @@ class SpectrogramCommand(Command):
                 
                 for device in RunManager.device_registry:
                     start_spectrogram(
-                        db_name = f"Spectrogram-{device}-{datetime.now()}", 
+                        db_name = f"Spectrogram_{device}_{datetime.now().replace(microsecond=0).isoformat()}", 
                         device = device, 
                         save_interval = int(parsed_args["-i"]), 
                         concat = int(parsed_args["-c"]))
             else:
                 start_spectrogram(
-                    db_name = f"Spectrogram-{pos_args[0]}-{datetime.now()}" if parsed_args["-n"] is None else parsed_args["-n"], 
+                    db_name = f"Spectrogram_{pos_args[0]}_{datetime.now().replace(microsecond=0).isoformat()}" if parsed_args["-n"] is None else parsed_args["-n"], 
                     device = pos_args[0], 
                     save_interval = int(parsed_args["-i"]), 
                     concat = int(parsed_args["-c"])
@@ -281,14 +375,45 @@ class SpectrogramCommand(Command):
             
             return
         
-        elif args[0] == "stop":
-            return 
+        # --- Pause a spectrogram ---
+        elif args[0] == "pause":
+            if args[1] not in RunManager.loaded_spectrogram:
+                raise ArgumentError(f"'{args[1]}' does not match a loaded spectrogram")
+            
+            sg = RunManager.loaded_spectrogram[args[1]]
+            if  sg.paused:
+                return f"'{args[1]}' is already paused"
+            else:
+                sg.pause_unpause()
+                return f"'{args[1]}' paused"
         
+        # --- Unpause a spectrum ---
+        elif args[0] == "unpause":
+            if args[1] not in RunManager.loaded_spectrogram:
+                raise ArgumentError(f"'{args[1]}' does not match a loaded spectrogram")
+            
+            sg = RunManager.loaded_spectrogram[args[1]]
+            if not sg.paused:
+                return f"'{args[1]}' is already running"
+            else:
+                sg.pause_unpause()
+                return f"'{args[1]}' unpaused"
+        
+        # --- Load a spectrogram form index ---
         elif args[0] == "load":
-            return 
+            if args[1] not in IOManager.FileIndex.spectrogram_index.index_registry:
+                raise ArgumentError(f"'{args[1]}' does not match an indexed spectrogram")
+                
+            restart_spectrogram(args[1])
+            return f"'{args[1]}' loaded"
         
+        # --- Unload a spectrogram from active ---
         elif args[0] == "unload":
-            return 
+            if args[1] not in RunManager.loaded_spectrogram:
+                raise ArgumentError(f"'{args[1]}' does not match a loaded spectrogram")
+            
+            RunManager.close_spectrogram(args[1])
+            return f"'{args[1]}' closed"
         
         else:
             raise InvalidCommandError(args[0])
@@ -297,17 +422,85 @@ class SpectrogramCommand(Command):
         return {"start": {"all": None} | {key: None for key in RunManager.device_registry.keys()},
                 "pause": {"all": None} | {key: None for key, sg in RunManager.loaded_spectrogram.items() if not sg.paused},
                 "unpause": {"all": None} | {key: None for key, sg in RunManager.loaded_spectrogram.items() if sg.paused},
-                "load": {"all": None} |{file: None for file in self.index},
+                "load": {"all": None} |{file: None for file in IOManager.FileIndex.spectrogram_index.index_registry},
                 "unload": {"all": None} | {key: None for key in RunManager.loaded_spectrogram.keys()}}
     
 class DeviceCommand(Command):
     name = "device"
     async def run(self, engine, *args):
-        pass
+        if args[0] == "scan":
+            if args[1] == "usb":
+                table = TableFormatter(["Serial", "Type"] , title = "Detected USB Devices")
+                for device in RunManager.scan_all_usb():
+                    table.add_row([str(device.get("serial_number")), str(device.get("product", "Unknown"))])
+                
+                return table.get_table()
+            
+            elif args[1] == "ble":
+                table = TableFormatter(["Device"] , title = "Detected BLE Devices")
+                engine.print_output(f"Starting bluetooth scan, duration {Settings.Advanced.headless_scan_length}s. Please stand by for results.")
+                devices = await RunManager._scan_bluetooth(Settings.Advanced.headless_scan_length)
+                if devices is None:
+                    return "BLE scan failed found, see log (Check if bluetooth is on)"
+                for device in devices:
+                    table.add_row([str(device)])
+                if devices:
+                    engine.print_output("\n\n")
+                    engine.print_output(table.get_table())
+                    if engine.headless:
+                        engine.print_output("Press Enter to return...")
+                return ""
 
+            else:
+                raise InvalidCommandError(f"{args[1]} is not a valid argument! Valid arguments are 'ble' | 'usb'")
+    
+        elif args[0] == "connect":
+            if args[1] == "usb":
+                connected_usb = RunManager.scan_all_usb()
+                loop = asyncio.get_event_loop()
+
+                connections_found = []
+                for conn_device in connected_usb:
+                    for target_device in args[2:]:
+                        if target_device.lower() in conn_device.get("product").lower():
+                            loop.create_task(
+                                RunManager.add_device(
+                                    conn_device.get("serial_number"), "radiacode", True
+                                )
+                            )
+                            connections_found.append(conn_device.get("product"))
+                
+                if len(connections_found) > 0:
+                    devices_str = '\n'.join(connections_found)
+                    return f"USB devices connected:\n{devices_str}"
+                
+                else:
+                    return f"No USB devices matching {args[2:]}"
+                
+            elif args[1] == "ble":
+                engine.print_output(f"Attempting connection to {len(args[2:])} devices...")
+                await RunManager.connect_bluetooth_list(args[2:])
+                return
+            
+            else:
+                raise InvalidCommandError(f"{args[1]} is not a valid argument! Valid arguments are 'ble' | 'usb'")
+
+        elif args[0] == "disconnect":
+            if args[1] == "all":
+                RunManager.remove_all_devices()
+                return "Disconnecting all devices"
+            
+            if args[1] not in  RunManager.device_registry:
+                raise ArgumentError(f"'{args[1]}' was not found in the device registry!")
+            RunManager.remove_device(args[1])
+            return f"Disconnected device '{args[1]}'"
+        else:
+            raise InvalidCommandError(f"{args[1]} is not a valid argument! Valid arguments are 'connect' | 'disconnect' | 'scan'")
+        
     def get_auto_complete(self):
-        return {"connect": {"bt": None, "usb": None}, 
-                "disconnect": {"all": None} | {key: None for key in RunManager.device_registry.keys()}}
+        return {"connect": {"usb": None, "ble": None}, 
+                "disconnect": {"all": None} | {key: None for key in RunManager.device_registry.keys()},
+                "scan": {"usb": None, "ble": None}}
     
 class WatchCommand(Command):
     name = "watch"
@@ -330,7 +523,7 @@ class WatchCommand(Command):
             print_table("\033[2J\033[H")
 
             while self.is_watching:
-                table = TableFormatter(["Device", "Count Rate [/s]", "Dose Rate [uSv/s]", "Battery [%]"])
+                table = TableFormatter(["Device", "Count Rate [/s]", "Dose Rate [uSv/s]", "Battery [%]", "Temp [deg C]"])
 
                 for device, realtime_values in self.realtime_values_buffer.items():
                     device_state = self.device_states_buffer.get(device)
@@ -341,7 +534,8 @@ class WatchCommand(Command):
                         device,
                         round(realtime_values.CPS, 2),
                         round(realtime_values.DR, 3),
-                        device_state.battery
+                        device_state.battery,
+                        device_state.temperature
                     ])
 
                 print_table(table.get_table())
@@ -367,7 +561,7 @@ class ExecCommand(Command):
     
     async def run(self, engine: ScriptEngine, *args):
         if len(args) != 1:
-            raise ArgumentError("exec requires exactly one argument corresponding to a filepath")
+            raise ArgumentError("'exec' requires exactly one argument corresponding to a filepath")
         
         pth = Path.home() / Path(args[0])
         

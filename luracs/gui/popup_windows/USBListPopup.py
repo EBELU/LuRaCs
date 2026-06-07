@@ -3,11 +3,11 @@ from PySide6.QtCore import Signal, QTimer, Qt
 from PySide6.QtWidgets import QListWidgetItem, QPushButton
 
 from .ListPopupBase import ListPopupNonBlocking
-from core import RunManager
+from core import RunManager, Log
 
 
 def _on_usb_device_selected(device: dict):
-    print("Selected USB device:", device)
+    Log.debug("Selected USB device:", device)
 
     serial = device.get("serial_number")
     product = (device.get("product") or "").lower()
@@ -16,16 +16,8 @@ def _on_usb_device_selected(device: dict):
         print("Device has no serial number")
         return
 
-    if "radiacode" in product:
-        device_type = "radiacode"
-    elif "raysid" in product:
-        device_type = "raysid"
-    else:
-        print(f"Unknown device type: {product}")
-        return
-
     # Adjust if your RunManager function name differs
-    asyncio.create_task(RunManager.add_device(serial, device_type, True))
+    asyncio.create_task(RunManager.add_device(serial, product, True))
 
 
 class USBListPopup(ListPopupNonBlocking):

@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QFileDialog, QMessageBox, QWidget
 
-from core import SpectrumManager, Settings
+from core import SpectrumManager, Settings, Log
 from containers.roi_classes import ROI
 from containers.spectrum_classes import Spectrum
 from gui.popup_windows.save_dialog import SaveNamingDialog
@@ -65,41 +65,19 @@ def save_roi_references():
     xml_writer(
         dummy_spectrum, new_file, export_spectrum=False, export_instrument=False
     )
+    Log.debug(f"ROI References saved to library: {new_file}")
+    return new_file.with_suffix(".xml")
 
 
 def save_spectrum_to_library(spectrum: Spectrum):
-    save_diag = SaveNamingDialog(spectrum.name)
-    save_diag.remark_edit.setText(spectrum.remark)
-    res = save_diag.exec()
-    
-    spectrum.remark = save_diag.get_remark()
-
-    if res == SaveNamingDialog.Accepted:
-        new_file = (Settings.Paths.spectrum_library / save_diag.get_name()).with_suffix(".xml")
-
-        # Check if the file already exists
-        if new_file.exists():
-            reply = QMessageBox.question(
-                None,
-                "Overwrite File?",
-                f"The file '{new_file.name}' already exists. Do you want to overwrite it?",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No,
-            )
-
-            if reply != QMessageBox.No:
-                return
-
-    else:
-        return
-    
-    # Dont rename, it breaks data signalling from device
-    if spectrum.connection is None and spectrum.name != save_diag.get_name():
-        SpectrumManager.rename_spectrum(spectrum.name, save_diag.get_name())
-    
+    new_file = Settings.Paths.spectrum_library / spectrum.name
     xml_writer(
         spectrum, new_file
     )
+    
+    Log.debug(f"Spectrum saved to library: {new_file}")
+    return new_file.with_suffix(".xml")
+
     
 def save_instrument_to_library(instrument: UniqueInstrument | GenericInstrument):
     # Build dummy spectrum for the xml writer
@@ -108,10 +86,15 @@ def save_instrument_to_library(instrument: UniqueInstrument | GenericInstrument)
     
     # Check so im not doing anything dumb
     if isinstance(instrument, UniqueInstrument):
-        file_path = Settings.Paths.unique_instrument_library / instrument.name
+        new_file = Settings.Paths.unique_instrument_library / instrument.name
     elif isinstance(instrument, GenericInstrument):
-        file_path = Settings.Paths.generic_instrument_library / instrument.model
+        new_file = Settings.Paths.generic_instrument_library / instrument.model
     else:
         raise ValueError(f"Invalid instrument type! {type(instrument)}")
     
-    xml_writer(dummy_spectrum, file_path, export_spectrum=False, export_rois=False)
+    xml_writer(
+        dummy_spectrum, new_file, export_spectrum=False, export_rois=False
+    )
+    
+    Log.debug(f"Instrument saved to library: {new_file}")
+    return new_file.with_suffix(".xml")

@@ -28,7 +28,7 @@ from gui.misc.table_menu_button import MenuButton
 from PySide6.QtGui import QColor, QPainter, QBrush
 
 
-from gui.save_to_internal import save_spectrum_to_library
+from gui.save_to_internal_dialogs import save_spectrum_to_library_dialog
 from gui.popup_windows.data_store_edit_dialogs import SpectrumEditDialog
 
 
@@ -185,7 +185,7 @@ class SpectrumInfoTab(QWidget):
             )
             
             save = menu_button.add_action("Save")
-            save.triggered.connect(lambda : save_spectrum_to_library(spectrum))
+            save.triggered.connect(lambda : save_spectrum_to_library_dialog(spectrum))
 
             self.hide_show_btn[spectrum.name] = menu_button.add_action("Hide")
             self.hide_show_btn[spectrum.name].triggered.connect(

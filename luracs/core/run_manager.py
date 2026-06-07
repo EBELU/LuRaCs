@@ -184,8 +184,8 @@ class _RunManager(QObject):
         except Exception as e:
             gui_logger.critical("Polling crashed:", e)
 
-    async def add_device(self, device_address, device_type, usb=False):
-        client_wrapper = DeviceWrapper.get_registry().get(device_type, None)
+    async def add_device(self, device_address: str, device_type: str, usb: bool =False):
+        client_wrapper = DeviceWrapper.match_model_to_str(device_type)
         if client_wrapper is None:
             gui_logger.error(f"Invald device type! {device_type}")
             return
@@ -331,7 +331,25 @@ class _RunManager(QObject):
 
         if connections_made == 0:
             gui_logger.warning(f"No BLE devices matching {names} were found!")
-
+            
+            
+    async def _scan_bluetooth(self, timeout):
+        async with self._scan_lock:
+            try:
+                gui_logger.info(f"Started bluetooth scan: scan_time={timeout}")
+                devices = await BleakScanner.discover(timeout)
+                self.bluetoothFound.emit(devices)
+                return devices
+            except asyncio.CancelledError:
+                gui_logger.info("Bluetooth scan cancelled")
+                self.bluetoothFound.emit([])
+            # Include handling for missing connector
+            except Exception as e:
+                gui_logger.error(f"Bluetooth scan error: {e}")
+                self.bluetoothError.emit(str(e))
+            finally:
+                self._scan_task = None
+                
     async def find_bluetooth(self, timeout=5):
         # Cancel any previous scan
         if self._scan_task and not self._scan_task.done():
@@ -342,23 +360,7 @@ class _RunManager(QObject):
             except asyncio.CancelledError:
                 gui_logger.debug("Previous scan cancelled")
 
-        async def _scan():
-            async with self._scan_lock:
-                try:
-                    gui_logger.info(f"Started bluetooth scan: scan_time={timeout}")
-                    devices = await BleakScanner.discover(timeout)
-                    self.bluetoothFound.emit(devices)
-                except asyncio.CancelledError:
-                    gui_logger.info("Bluetooth scan cancelled")
-                    self.bluetoothFound.emit([])
-                # Include handling for missing connector
-                except Exception as e:
-                    gui_logger.error(f"Bluetooth scan error: {e}")
-                    self.bluetoothError.emit(str(e))
-                finally:
-                    self._scan_task = None
-
-        self._scan_task = asyncio.create_task(_scan())
+        self._scan_task = asyncio.create_task(self._scan_bluetooth(timeout))
 
     def scan_all_usb(self):
         devices = usb.core.find(find_all=True)
@@ -392,7 +394,7 @@ class _RunManager(QObject):
         self.loaded_spectrogram[device_name] = new_log
         self.spectrogramStarted.emit(device_name)
         gui_logger.info(
-            f"[Spectrogram Opened] db_name = {new_log.db_name}, device = {new_log.device_id}"
+            f"Spectrogram Opened: db_name = {new_log.db_name}, device = {new_log.device_id}"
         )
 
     def close_spectrogram(self, name: str):
@@ -400,7 +402,7 @@ class _RunManager(QObject):
         if spectrogram:
             spectrogram.close()
             self.spectrogramClosed.emit(name)
-            gui_logger.info(f"[Spectrogram Closed] name = {name}")
+            gui_logger.info(f"Spectrogram Closed: name = {name}")
 
 
 RunManager = _RunManager()

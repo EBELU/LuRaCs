@@ -49,7 +49,7 @@ class InstrumentDialog(QDialog):
         # ------------------------------------------------------------------
         self.generic_list = QComboBox()
         form_layout.addRow("Generic Instruments:", self.generic_list)
-        self.generic_list.addItem("None")
+        self.generic_list.addItem("None", None)
         for key, i in SpectrumManager.GenericInstrumentLibrary.instrument_registry.items():
             self.generic_list.addItem(i.model, key)
         self.generic_list.setCurrentText("None")
@@ -248,6 +248,10 @@ class InstrumentDialog(QDialog):
             axis="bottom",
             text="Energy [keV]"
         )
+        self.res_plot_widget.getPlotItem().setLabel(
+            axis="left",
+            text="Int. Eff. [%]"
+        )
         form_layout.addRow("", self.eff_plot_widget)
 
         # ------------------------------------------------------------------
@@ -330,7 +334,7 @@ class InstrumentDialog(QDialog):
         res_created = kwargs.get("resolution_created")
         if res_created is not None:
             res_created = res_created.strftime("%Y-%m-%d %H:%M")
-        self.resolution.setText(f"[{res_created}] fn = {kwargs.get("resolution_fn", "")}, params = {kwargs.get("resolution_params", "")}")
+        self.resolution.setText(f"[{res_created}] fn = {kwargs.get('resolution_fn', '')}, params = {kwargs.get('resolution_params', '')}")
         
         # Resolution plot
         self.res_plot_widget.getPlotItem().clear()
@@ -345,7 +349,7 @@ class InstrumentDialog(QDialog):
         eff_created = kwargs.get("int_efficiency_created")
         if eff_created is not None:
             eff_created = eff_created.strftime("%Y-%m-%d %H:%M")
-        self.efficiency.setText(f"[{eff_created}] fn = {kwargs.get("int_efficiency_fn", "")}, params = {kwargs.get("int_efficiency_params", "")}")
+        self.efficiency.setText(f"[{eff_created}] fn = {kwargs.get('int_efficiency_fn', '')}, params = {kwargs.get('int_efficiency_params', '')}")
 
         
         # Efficiency plot
@@ -384,7 +388,7 @@ class InstrumentDialog(QDialog):
             ],
             "remark": self.remarks.toPlainText(),
         }
-        return data
+        return data, self.generic_list.currentData()
 
 
 class SpectrumEditDialog(QDialog):

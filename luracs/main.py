@@ -84,19 +84,17 @@ class MainWindow(QMainWindow):
         self.bt_window = BluetoothListPopup()
 
         self.usb_window = USBListPopup()
-        print_progress("Indexing Data Store", 8)
+        print_progress("Building GUI", 8)
         self.data_store = DataLibrary("Data Store", None)
         
-        self.bibliography_dialog = SmallDocumentationDialog(Path("luracs/resources/docs/bibliography.md"))
-        self.documentation_dialog = DocumentationDialog(Path("luracs/resources/docs/documentation"), parent=None)
+        self.bibliography_dialog = SmallDocumentationDialog(Settings.Paths.bibliography)
+        self.documentation_dialog = DocumentationDialog(Settings.Paths.documentation_dir, parent=None)
         
         self.settings_dialog = SettingsDialog()
         
-        self.calculate_windows = {
-            "efficiency": EfficiencyWindow(),
-            "calibration": CalibrationWindow(),
-            "resolution": ResolutionWindow()
-        }
+        self.calc_win_efficiency = EfficiencyWindow()
+        self.calc_win_calibration = CalibrationWindow()
+        self.calc_win_resolution = ResolutionWindow()
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -170,6 +168,9 @@ class MainWindow(QMainWindow):
         self.theme.register_plot(self.current_value_tab.dose_plot_widget)
         self.theme.register_plot(self.spectrogram.plot)
         self.theme.register_plot(self.spectrogram.top_spectrum_plot)
+        self.theme.register_plot(self.calc_win_efficiency.demo_plot)
+        self.theme.register_plot(self.calc_win_calibration.calibration_plot)
+        self.theme.register_plot(self.calc_win_resolution.res_plot)
 
         self.theme.register_legend(self.current_value_tab.legends)
 
@@ -247,7 +248,8 @@ def main():
 
     win.console_tab.sigCommandEntered.connect(script_engine.submit_from_sync)
     script_engine.sigCommandAppendOutput.connect(win.console_tab.append_output)
-    script_engine.sigCommandOutput.connect(win.console_tab.set_output)
+    script_engine.sigCommandOutput.connect(win.console_tab.append_output)
+    script_engine.sigClearConsole.connect(win.console_tab.set_output)
     script_engine.sigShutdown.connect(lambda: asyncio.create_task(win._async_close()))
     script_engine.connect_log_buffer(win.log_tab.get_buffered_logs)
 

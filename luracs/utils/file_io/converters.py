@@ -53,7 +53,7 @@ def _write_logged_data_to_xlsx(ws, data: dict, include_spectrogram_data: bool):
         # ----------------------------
         if key == "spectrum":
             if not include_spectrogram_data:
-                continue  # ✅ skip entirely if not requested
+                continue  # skip entirely if not requested
 
             arr = np.asarray(values)
 
@@ -66,7 +66,7 @@ def _write_logged_data_to_xlsx(ws, data: dict, include_spectrogram_data: bool):
                 headers.append(f"Ch{ch}")
                 columns.append(arr[:, ch].tolist())
 
-            continue  # ✅ IMPORTANT: prevent falling into normal handling
+            continue 
 
         # ----------------------------
         # NORMAL COLUMNS
@@ -79,7 +79,7 @@ def _write_logged_data_to_xlsx(ws, data: dict, include_spectrogram_data: bool):
         elif isinstance(values, (list, tuple)):
             values = list(values)
         else:
-            values = [values]  # ✅ handle scalars safely
+            values = [values]
 
         columns.append(values)
 
@@ -101,6 +101,8 @@ def spectrogram_exporter(
     new_name: str,
     include_spectrogram_data: bool = False,
 ):
+    "Converts a spectrogram to xlsx (currently)"
+    # This is used!
     assert file_type in ("xlsx"), f"{file_type} can not be export target"
 
     wb = pyxl.Workbook()
