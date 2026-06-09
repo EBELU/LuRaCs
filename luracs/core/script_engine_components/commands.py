@@ -272,11 +272,11 @@ class IndexCommand(Command):
                     
                 table.add_row(
                     [Path(file).name, 
-                     header["created"],
-                     summary["last_update"],
-                     timedelta(seconds = round(summary["total_duration"])),
-                     round(summary["total_dose"], 3),
-                     header["device_id"]
+                     header.created,
+                     summary.last_update,
+                     timedelta(seconds = round(summary.total_duration)),
+                     round(summary.total_dose, 3),
+                     header.device_id
                      ])
         
             return table.get_table()

@@ -55,6 +55,8 @@ class _Advanced:
     optimizer_use_chi2_weight: bool = True
 
     log_buffer_length: int = 1024
+    
+    spectrogram_deque_length: int = 256
 
 def get_runtime_base() -> Path:
     if hasattr(sys, "_MEIPASS"):

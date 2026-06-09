@@ -23,9 +23,9 @@ from PySide6.QtCore import Qt, Signal
 
 from ..misc.idx_table import StrIdxTable
 from utils.file_io import io_dispatcher
-from core import Settings, SpectrumManager, IOManager
+from core import SpectrumManager, IOManager
 from containers.spectrogram import restart_spectrogram
-from .data_store_edit_dialogs import InstrumentDialog, SpectrumEditDialog
+from .data_store_edit_dialogs import InstrumentDialog
 from containers.instrument_classes import UniqueInstrument, GenericInstrument
 
 import shutil
@@ -83,7 +83,6 @@ class LibraryTab(QWidget):
     def __init__(self, parent, columns, widths=None, include_checks=False):
         super().__init__(parent=parent)
 
-        self.file_index = {}
         self.path = ""
         self.delete_fn = None
         
@@ -189,7 +188,7 @@ class LibraryTab(QWidget):
                 return
             new_path = Path(new_path)
 
-            shutil.copy(selection[0], new_path.with_suffix(selection[0].suffix))
+            shutil.copy(selection[0], str(new_path.with_suffix(Path(selection[0]).suffix)))
 
 
     def show_info(self):
@@ -352,7 +351,7 @@ class SpectrogramTab(LibraryTab):
             (230, 150, 150, 65, 130),
             True,
         )
-        self.file_index: dict[str, db_parser] = {}
+
         self.btn_load.clicked.connect(self.load)
         self.table.table.cellDoubleClicked.connect(self.load)
 
@@ -374,10 +373,10 @@ class SpectrogramTab(LibraryTab):
         for key, parser in IOManager.FileIndex.spectrogram_index.get_index().items():
             header, summary = parser.get_header(), parser.get_summary()
 
-            start_date = header.get("created")
-            end_date = summary.get("last_update")
-            duration = timedelta(seconds=round(summary.get("total_duration")))
-            instrument = header.get("device_id")
+            start_date = header.created
+            end_date = summary.last_update
+            duration = timedelta(seconds=round(summary.total_duration))
+            instrument = header.device_id
 
             self.table.write_row(
                 key, [Path(key).stem, start_date, end_date, duration, instrument]
@@ -406,8 +405,8 @@ class SpectrogramTab(LibraryTab):
             folder = Path(folder)
             for file in selection:
                 parser = file_io.db_parser(file)
-                file_io.spectrogram_exporter(
-                    parser, "xlsx", (folder / Path(file).stem).with_suffix(".xlsx")
+                file_io.db_writer.export_full_xlsx(
+                    parser, (folder / Path(file).stem).with_suffix(".xlsx")
                 )
 
         else:
@@ -420,9 +419,8 @@ class SpectrogramTab(LibraryTab):
                 return
 
             parser = file_io.db_parser(selection[0])
-            file_io.spectrogram_exporter(
+            file_io.db_writer.export_full_xlsx(
                 parser,
-                "xlsx",
                 Path(new_path).with_suffix(".xlsx"),
                 include_spectrogram_data=self.include_roi_check.isChecked(),
             )
@@ -474,6 +472,10 @@ class InstrumentsTab(LibraryTab):
         self.btn_load.setText("New")
         self.btn_load.clicked.connect(self.new)
         self.btn_info.clicked.connect(self.edit)
+        export_instrument = self.export_menu.addAction("LuRaCs Instrument File (*.xml)")
+        export_instrument.triggered.connect(
+            lambda: self.export_same("LuRaCs Instrument File (*.xml)")
+        )
         SpectrumManager.Signals.newInstrumentLoaded.connect(self.new_instrument_from_spectrum)
         self.delete_fn = SpectrumManager.UniqueInstrumentLibrary.remove_instrument
         
@@ -482,7 +484,7 @@ class InstrumentsTab(LibraryTab):
             calibration = str(instr.calibration_coefficients is not None)
             resolution = str(instr.resolution_fn is not None)
             efficiency = str(instr.int_efficiency_fn is not None)
-            response_matrix = str(instr.response_matrix is not None)
+            # response_matrix = str(instr.response_matrix is not None)
 
             name = getattr(instr, "name", "Generic")
 
@@ -569,6 +571,11 @@ class GenericInstrumentsTab(LibraryTab):
         self.btn_load.setText("New")
         self.btn_load.clicked.connect(self.new)
         self.btn_info.clicked.connect(self.edit)
+        
+        export_instrument = self.export_menu.addAction("LuRaCs Instrument File (*.xml)")
+        export_instrument.triggered.connect(
+            lambda: self.export_same("LuRaCs Instrument File (*.xml)")
+        )
         
         self.delete_fn = SpectrumManager.GenericInstrumentLibrary.remove_instrument
         

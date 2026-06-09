@@ -87,9 +87,14 @@ class NuclideLibrary(QObject):
         "Get one nuclide based on the nn-iii key"
         return self.nuclides.get(name, None)
     
-    def get_sorted_nuclide_names(self) -> list[str]:
+    def get_sorted_nuclide_names(self, require_photon_emissions: bool = False) -> list[str]:
         "Get a list of all nuclides sorted by atomic mass number"
-        return sorted(self.nuclides.keys(), key = lambda n: int(n.split("-")[-1].removesuffix("m")))
+        if require_photon_emissions:
+            photon_nuclides = [k for k, v in self.nuclides.items() if len(v.emissions) > 0]
+            return sorted(photon_nuclides, key = lambda n: int(n.split("-")[-1].removesuffix("m")))
+        
+        else:
+            return sorted(self.nuclides.keys(), key = lambda n: int(n.split("-")[-1].removesuffix("m")))
     
     def match_energy_to_nuclide(self, energy: float, match_only_shown = True, window: float = 50) -> Emission:
         "Matches and energy to the closes emission within a window surrounding the given energy. All units are keV."

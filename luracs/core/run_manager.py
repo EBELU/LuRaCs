@@ -2,19 +2,16 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from luracs.containers.spectrum_classes import Spectrum
     from luracs.containers.spectrogram import Spectrogram
 
 import asyncio
 from PySide6.QtCore import QObject, Signal
-from qasync import QEventLoop
 from dataclasses import dataclass
 import numpy as np
 from .settings import Settings
 
 from bleak import BleakScanner
 import sys
-from pathlib import Path
 import time
 
 
@@ -38,7 +35,6 @@ else:
     import usb.util
 
 
-from PySide6.QtCore import QObject, Signal
 from .gui_logger import gui_logger
 
 from clients.DeviceWrappers import DeviceWrapper, CriticalNotImplementedError
@@ -71,6 +67,7 @@ class _RunManager(QObject):
     """
     The run manager is core singleton that manages connected devices and spectrogram, since they are tightly connected to the devices. All communications with Bluetooth or USB goes through this class.
     """
+
     # ---- data signals ----
     currentUpdated = Signal(str, object)
     statusUpdated = Signal(str, object)
@@ -89,6 +86,7 @@ class _RunManager(QObject):
 
     spectrogramStarted = Signal(str)
     spectrogramClosed = Signal(str)
+    spectrogramDequeResized = Signal()
 
     shutdownStarted = Signal()
     shutdownFinished = Signal()
@@ -176,15 +174,19 @@ class _RunManager(QObject):
 
         except asyncio.CancelledError:
             raise
-        
+
         except CriticalNotImplementedError as e:
-            gui_logger.error(f"Wrapper for device {name} has critical method '{e}' not implemented! Removing device.")
+            gui_logger.error(
+                f"Wrapper for device {name} has critical method '{e}' not implemented! Removing device."
+            )
             self.remove_device(name)
-        
+
         except Exception as e:
             gui_logger.critical("Polling crashed:", e)
 
-    async def add_device(self, device_address: str, device_type: str, usb: bool =False):
+    async def add_device(
+        self, device_address: str, device_type: str, usb: bool = False
+    ):
         client_wrapper = DeviceWrapper.match_model_to_str(device_type)
         if client_wrapper is None:
             gui_logger.error(f"Invald device type! {device_type}")
@@ -205,18 +207,22 @@ class _RunManager(QObject):
         except asyncio.CancelledError:
             gui_logger.error(f"Deive was cancelled {new_device.name}")
             self.deviceCancelled.emit(new_device.name)
-        
+
         except CriticalNotImplementedError as e:
-            gui_logger.error(f"Wrapper for device {new_device.name} has critical method '{e}' not implemented! Aborting!")
+            gui_logger.error(
+                f"Wrapper for device {new_device.name} has critical method '{e}' not implemented! Aborting!"
+            )
 
         except Exception as e:
             gui_logger.error(f"Device start threw exception {e}. Start failed!")
             new_device.set_state(DeviceWrapper.DeviceState.CONNECTION_FAILED)
             return
-        
+
         try:
             if new_device.is_running():
-                gui_logger.info(f"Device connected: name={new_device.name}, type={device_type}, connection_type={"USB" if usb else "BLE"}")
+                gui_logger.info(
+                    f"Device connected: name={new_device.name}, type={device_type}, connection_type={'USB' if usb else 'BLE'}"
+                )
                 self.deviceConnected.emit(new_device.name)
                 new_device.set_state(DeviceWrapper.DeviceState.CONNECTED)
                 self.createDeviceSpectrum.emit(
@@ -228,7 +234,9 @@ class _RunManager(QObject):
                 new_device.set_state(DeviceWrapper.DeviceState.CONNECTION_FAILED)
                 gui_logger.error(f"Device failed to start properly {new_device.name}")
         except CriticalNotImplementedError as e:
-            gui_logger.error(f"Wrapper for device {new_device.name} has critical method '{e}' not implemented! Aborting!")
+            gui_logger.error(
+                f"Wrapper for device {new_device.name} has critical method '{e}' not implemented! Aborting!"
+            )
 
         if not self._polling:
             self._polling = True
@@ -285,7 +293,8 @@ class _RunManager(QObject):
                 gui_logger.error(f"{device.name} stop failed: {e}")
 
         tasks = [
-            asyncio.create_task(stop_device(device)) for device in self.device_registry.values()
+            asyncio.create_task(stop_device(device))
+            for device in self.device_registry.values()
         ]
 
         await asyncio.gather(*tasks, return_exceptions=True)
@@ -331,8 +340,7 @@ class _RunManager(QObject):
 
         if connections_made == 0:
             gui_logger.warning(f"No BLE devices matching {names} were found!")
-            
-            
+
     async def _scan_bluetooth(self, timeout):
         async with self._scan_lock:
             try:
@@ -349,7 +357,7 @@ class _RunManager(QObject):
                 self.bluetoothError.emit(str(e))
             finally:
                 self._scan_task = None
-                
+
     async def find_bluetooth(self, timeout=5):
         # Cancel any previous scan
         if self._scan_task and not self._scan_task.done():
@@ -404,5 +412,10 @@ class _RunManager(QObject):
             self.spectrogramClosed.emit(name)
             gui_logger.info(f"Spectrogram Closed: name = {name}")
 
+    def resize_spectrogram_deque(self, new_len: str):
+        for spectrogram in self.loaded_spectrogram.values():
+            spectrogram.resize_deque(new_len)
+
+        self.spectrogramDequeResized.emit()
 
 RunManager = _RunManager()

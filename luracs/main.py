@@ -173,6 +173,7 @@ class MainWindow(QMainWindow):
         self.theme.register_plot(self.calc_win_resolution.res_plot)
 
         self.theme.register_legend(self.current_value_tab.legends)
+        self.theme.register_legend(self.spectrum_plot_container.single_plot.legend)
 
         self.theme.apply()
 
@@ -204,16 +205,15 @@ class MainWindow(QMainWindow):
         Log.info("Disconnecting devices and shutting down application...")
         event.ignore()
         self.hide()
+        Settings.save_settings()
         asyncio.create_task(self._async_close())
 
     async def _async_close(self):
         if self._closing:
             return
         self._closing = True
-
         try:
             await RunManager.shutdown()
-            Settings.save_settings()
         finally:
             QApplication.quit()
 

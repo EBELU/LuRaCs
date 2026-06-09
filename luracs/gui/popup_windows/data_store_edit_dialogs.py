@@ -2,12 +2,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from containers.spectrum_classes import Spectrum
-    from gui.popup_windows.data_store import DataLibrary
 
 from PySide6.QtWidgets import QApplication, QWidget
 from PySide6.QtWidgets import (
-    QWidget,
-    QGroupBox,
     QVBoxLayout,
     QHBoxLayout,
     QDialog,
@@ -17,14 +14,13 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QDialogButtonBox,
     QPushButton,
-    QDoubleSpinBox,
     QLabel,
     QDoubleSpinBox,
     QListWidget,
     QListWidgetItem,
 )
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt
 import pyqtgraph as pg
 import numpy as np
 

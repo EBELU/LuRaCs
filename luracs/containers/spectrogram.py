@@ -4,9 +4,9 @@ import sqlite3 as sql
 import zlib
 import time
 from enum import Enum, auto
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from collections import deque
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from PySide6.QtCore import Signal, QObject
 
@@ -48,7 +48,7 @@ def start_spectrogram(db_name, device: str, save_interval: int = 1, concat: int 
     if not device_wrapper:
         Log.warning(f"Logging could not be started as {device} does not exist")
         return
-    
+
     calibration_coeff = None
     for spectrum in SpectrumManager.get_spectra_dict().values():
         if device == spectrum.connection:
@@ -59,11 +59,12 @@ def start_spectrogram(db_name, device: str, save_interval: int = 1, concat: int 
         db_name,
         save_interval=save_interval,
         spect_channels=device_wrapper.channels,
-        device_id=spectrum.instrument.name if spectrum.instrument else device_wrapper.name,
+        device_id=spectrum.instrument.name
+        if spectrum.instrument
+        else device_wrapper.name,
         calibration_coeff=calibration_coeff if calibration_coeff is not None else [],
         channel_concat_factor=concat,
     )
-    
 
     RunManager.currentUpdated.connect(new_log.receive_current)
     RunManager.statusUpdated.connect(new_log.receive_status)
@@ -85,6 +86,7 @@ class WrappedSpectrogramData:
     save_interval: int
     latest_spectrum: np.array
     spectrogram: deque
+    timestamp_deque: deque
     time_delta: float
     estimated_dose: float
     status: object
@@ -118,12 +120,14 @@ class Spectrogram(QObject):
     def __init__(self, db_name: str, resume: bool = False, **kwargs):
         super().__init__(parent=None)
         self.db_name = db_name
-        self.db_path = str((Settings.Paths.spectrogram_library / self.db_name).with_suffix(".db"))
+        self.db_path = str(
+            (Settings.Paths.spectrogram_library / self.db_name).with_suffix(".db")
+        )
         self.connection = sql.connect(self.db_path)
         self.buffers = Buffers(
-            spectrum_view_queue=deque([], 256),
-            timestamp_queue=deque([], 256),
-            timedelta_queue=deque([], 256),
+            spectrum_view_queue=deque([], Settings.Advanced.spectrogram_deque_length),
+            timestamp_queue=deque([], Settings.Advanced.spectrogram_deque_length),
+            timedelta_queue=deque([], Settings.Advanced.spectrogram_deque_length),
         )
 
         self.paused = True if resume else False
@@ -152,20 +156,22 @@ class Spectrogram(QObject):
 
             else:
                 self.init_database()
+
             self.data_wrapper = WrappedSpectrogramData(
-                db_name,
-                self.device_id,
-                self.calibration_coeff,
-                self.start_date,
-                0,
-                self.concat_factor,
-                self.spect_channels,
-                self.save_interval,
-                None,
-                self.buffers.spectrum_view_queue,
-                0,
-                0,
-                self.State.ACTIVE,
+                db_name=db_name,
+                instrument=self.device_id,
+                calibration_coefficients=self.calibration_coeff,
+                start_date=self.start_date,
+                duration=0,
+                concat=self.concat_factor,
+                spect_channels=self.spect_channels,
+                save_interval=self.save_interval,
+                latest_spectrum=None,
+                spectrogram=self.buffers.spectrum_view_queue,
+                timestamp_deque=self.buffers.timestamp_queue,
+                time_delta=0,
+                estimated_dose=0,
+                status=self.State.ACTIVE,
             )
 
             self.state = self.State.ACTIVE
@@ -211,8 +217,8 @@ class Spectrogram(QObject):
                 avg_cps INTEGER NOT NULL,
                 avg_dr INTEGER NOT NULL,
                 temperature REAL,
-                lat REAL,
-                long REAL,
+                latitude REAL,
+                longitude REAL,
                 spectrum BLOB NOT NULL
             )
         """)
@@ -320,19 +326,20 @@ class Spectrogram(QObject):
             self.buffers.timestamp_queue.append(ts)
 
         self.data_wrapper = WrappedSpectrogramData(
-            self.db_name,
-            self.device_id,
-            self.calibration_coeff,
-            self.start_date,
-            self.buffers.duration,
-            self.concat_factor,
-            self.spect_channels,
-            self.save_interval,
-            self.buffers.accumulated_spectrum,
-            self.buffers.spectrum_view_queue,
-            1,
-            self.buffers.accumulated_dose_estimate,
-            self.State.LOADED,
+            db_name=self.db_name,
+            instrument=self.device_id,
+            calibration_coefficients=self.calibration_coeff,
+            start_date=self.start_date,
+            duration=self.buffers.duration,
+            concat=self.concat_factor,
+            spect_channels=self.spect_channels,
+            save_interval=self.save_interval,
+            latest_spectrum=self.buffers.accumulated_spectrum,
+            spectrogram=self.buffers.spectrum_view_queue,
+            timestamp_deque=self.buffers.timestamp_queue,
+            time_delta=1,
+            estimated_dose=self.buffers.accumulated_dose_estimate,
+            status=self.State.LOADED,
         )
 
     def receive_current(self, name: str, current: WrappedRealTimePackage):
@@ -362,16 +369,17 @@ class Spectrogram(QObject):
             self.buffers.latest_timestamp = time.time()
             return
 
-        new_ts = int(time.time())
+        new_ts = time.time()
 
         if not round(new_ts) >= round(
             self.buffers.latest_timestamp + self.save_interval
         ):
             return
-
+        
+        # Make the timestamp first and then do calculations
         dt = new_ts - self.buffers.latest_timestamp
         self.buffers.latest_timestamp = new_ts
-
+        self.buffers.timestamp_queue.append(new_ts)
         processed_spectrum = self.process_spectrum(spectrum)
 
         if self.buffers.accumulated_spectrum is None:
@@ -385,6 +393,7 @@ class Spectrogram(QObject):
 
         # Update buffers
         self.buffers.timedelta_queue.append(dt)
+        # print(self.buffers.timedelta_queue, np.mean(np.array(self.buffers.timedelta_queue)))
         self.buffers.duration += dt
         self.buffers.accumulated_dose_estimate += (
             (self.buffers.dose_rate / max(self.buffers.recieved_values, 1)) / 3600 * dt
@@ -423,7 +432,7 @@ class Spectrogram(QObject):
         cursor.execute(
             """
             INSERT INTO spectrogram
-            (timestamp, avg_cps, avg_dr, temperature, lat, long, spectrum)
+            (timestamp, avg_cps, avg_dr, temperature, latitude, longitude, spectrum)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
             (
@@ -490,3 +499,22 @@ class Spectrogram(QObject):
         new = arr.reshape(-1, self.concat_factor).sum(axis=1)
 
         return new
+    
+    def resize_deque(self, new_len: int):
+        try:
+            self.blockSignals(True)
+            new_spectrum_view_queue=deque(self.buffers.spectrum_view_queue, new_len)
+            new_timestamp_queue=deque(self.buffers.timestamp_queue, new_len)
+            new_timedelta_queue=deque(self.buffers.timestamp_queue, new_len)
+            
+            self.buffers.spectrum_view_queue = new_spectrum_view_queue
+            self.buffers.timestamp_queue = new_timestamp_queue
+            self.buffers.timedelta_queue = new_timedelta_queue
+            
+            self.data_wrapper.spectrogram = self.buffers.spectrum_view_queue
+            self.data_wrapper.timestamp_deque = self.buffers.timestamp_queue
+            
+            Log.debug(f"Spectrogram deque updated {self.db_name} -> {new_len}")
+        finally:
+            self.blockSignals(False)
+

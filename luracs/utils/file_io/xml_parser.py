@@ -14,7 +14,6 @@ from containers.spectrum_classes import SpectrumData
 from containers.nuclide_classes import Emission
 from containers.roi_classes import ROI, Fit
 from containers.instrument_classes import UniqueInstrument, GenericInstrument
-from utils.numerics.compression import decode_base64, decompress_spectrum
 
 
 # --- Helper Functions ---
@@ -406,7 +405,7 @@ class xml_parser:
         for roi in ext_root.xpath(".//n42:Roi", namespaces=self.N42_NS):
             # Misc info
             # roi_id is the internal tag and should not be used again
-            roi_id, alias, spectrum = (
+            _, alias, spectrum = (
                 roi.get("id"),
                 roi.get("alias"),
                 roi.get("spectrum_ref"),

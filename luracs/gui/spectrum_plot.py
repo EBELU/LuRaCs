@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QComboBox,
 )
-from PySide6.QtCore import Qt, QObject, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtWidgets
@@ -37,13 +37,11 @@ class SpectrumPlot(QWidget):
     def __init__(self, xlabel="Energy [keV]", ylabel="Counts", parent=None, owned_spectrum=None):
         super().__init__(parent)
 
-
-
         # Spectrum manager
         SpectrumManager.Signals.spectrumUpdated.connect(self.update_plot)
         SpectrumManager.Signals.spectrumRemoved.connect(self.remove_plot)
-        SpectrumManager.Signals.backgroundRemoved.connect(lambda *args: self._redraw())
-        SpectrumManager.Signals.visibilityChanged.connect(lambda *args: self._redraw())
+        SpectrumManager.Signals.backgroundRemoved.connect(self._redraw)
+        SpectrumManager.Signals.visibilityChanged.connect(self._redraw)
 
         
         # ROI manager
@@ -89,6 +87,10 @@ class SpectrumPlot(QWidget):
             maxYRange=1e6,
         )
         self.plot_widget.getPlotItem().layout.setContentsMargins(2, 13, 13, 2)
+        
+        if owned_spectrum is None:
+            self.legend = self.plot_widget.addLegend()
+            self.legend.setOffset((-1, 1))
 
         self.plot_widget.getViewBox().setMouseEnabled(x=True, y=False)
         self.plot_widget.enableAutoRange()
@@ -204,7 +206,7 @@ class SpectrumPlot(QWidget):
             
     def change_lin_log(self):
         """Change lin log at data retrieval"""
-        if self.log == False:
+        if not self.log:
             self.log = True
             self.plot_widget.plotItem.setLogMode(y=True)
             self.plot_widget.setLimits(yMin=-10, yMax=1e6)
@@ -231,7 +233,7 @@ class SpectrumPlot(QWidget):
             self.y_axis_locked = True
             self.btn_y_axis_lock.setText("Unlock y-axis")
 
-    def _redraw(self):
+    def _redraw(self, *_):
         """Redraw everything on the plot"""
         self.plot_widget.clear()
         self.primary_lines.clear()
@@ -453,7 +455,7 @@ class SpectrumPlot(QWidget):
 
         x_high = float(x_min) + diff * 0.45
             
-        new_roi = SpectrumManager.ROIManager.add_roi(x_low=x_low, x_high=x_high, movable=True, owner_spectrum=self.owned_spectrum)
+        SpectrumManager.ROIManager.add_roi(x_low=x_low, x_high=x_high, movable=True, owner_spectrum=self.owned_spectrum)
         
             
 
@@ -478,7 +480,7 @@ class SpectrumPlot(QWidget):
                 color=QColor("#BAFFC9") if Settings.Appearance.theme == "dark" else QColor("#000080"), 
                 width=1.3
                 )
-            line = self.plot_widget.plot([], [], pen=pen, name=roi_tag)
+            line = self.plot_widget.plot([], [], pen=pen)
             self.ROI_lines_gaussian[roi_tag][spectrum_name] = line
 
         # --- Linear background line ---
@@ -487,7 +489,7 @@ class SpectrumPlot(QWidget):
                 color=QColor("#BAFFC9") if Settings.Appearance.theme == "dark" else QColor("#000080"), 
                 width=1, 
                 style=Qt.DashLine)
-            line = self.plot_widget.plot([], [], pen=pen, name=roi_tag)
+            line = self.plot_widget.plot([], [], pen=pen)
             self.ROI_lines_linear[roi_tag][spectrum_name] = line
 
         # --- Get data ---        

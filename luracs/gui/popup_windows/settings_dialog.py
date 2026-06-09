@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
     QMessageBox
 )
 
-from core import Settings
+from core import Settings, RunManager
 
 class SettingsDialog(QDialog):
     def __init__(self, name="", title="Settings", parent=None):
@@ -241,13 +241,19 @@ class AdvancedSettingsDialog(QDialog):
         form.addRow("Use Chi² Weight:", self.optimizer_use_chi2_weight)
 
         # --- Buffer ---
-        label = QLabel("Headless Mode")
+        label = QLabel("Buffers")
         label.setStyleSheet("font-weight: bold; margin-top: 10px;")
         form.addRow(label)
+        
         self.log_buffer_length = QSpinBox()
         self.log_buffer_length.setRange(10, 100000)
         self.log_buffer_length.setValue(Settings.Advanced.log_buffer_length)
         form.addRow("Headless Log Buffer Length:", self.log_buffer_length)
+        
+        self.spectrogram_deque_length = QSpinBox()
+        self.spectrogram_deque_length.setRange(32, 100000)
+        self.spectrogram_deque_length.setValue(Settings.Advanced.spectrogram_deque_length)
+        form.addRow("Spectrogram View Buffer:", self.spectrogram_deque_length)
 
         main_layout.addLayout(form)
 
@@ -267,6 +273,7 @@ class AdvancedSettingsDialog(QDialog):
             "optimizer_tolerance": self.optimizer_tolerance.value(),
             "optimizer_use_chi2_weight": self.optimizer_use_chi2_weight.isChecked(),
             "log_buffer_length": self.log_buffer_length.value(),
+            "spectrogram_deque_length": self.spectrogram_deque_length.value()
         }
         
 def edit_advanced_settings(main_window: MainWindow):
@@ -284,6 +291,9 @@ def edit_advanced_settings(main_window: MainWindow):
         if getattr(Settings.Advanced, key) != value:
             setattr(Settings.Advanced, key, value)
             changed_settings.add(key)
+            
+            if key == "spectrogram_deque_length":
+                RunManager.resize_spectrogram_deque(value)
 
     if len(changed_settings & require_restart):
         restart_message = QMessageBox.information(

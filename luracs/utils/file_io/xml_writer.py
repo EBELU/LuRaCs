@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from containers.spectrum_classes import Spectrum, SpectrumData
-    from containers.roi_classes import ROI, Fit
+    from containers.roi_classes import ROI
 
 from containers.instrument_classes import GenericInstrument, UniqueInstrument
 from lxml import etree

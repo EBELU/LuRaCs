@@ -205,7 +205,7 @@ class ThemeManager:
                 ax.setPen(axis_pen)
                 ax.setTextPen(axis_pen)
 
-        pw.showGrid(x=True, y=True, alpha=0.3 if self.mode == self.DARK else 0.4)
+        pw.showGrid(x=True, y=True, alpha=0.2 if self.mode == self.DARK else 0.3)
         pw.enableAutoRange()
 
     def _style_legend(self, legend: pg.LegendItem):
