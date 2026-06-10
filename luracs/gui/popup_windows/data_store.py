@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from utils.file_io.db_parser import db_parser
+    pass
 
 from PySide6.QtWidgets import (
     QWidget,
@@ -76,6 +76,7 @@ class DataLibrary(QWidget):
         self.roi_tab.set_table()
         self.unique_instruments_tab.set_table()
         self.generic_instruments_tab.set_table()
+        self.dwad
         super().show()
 
 

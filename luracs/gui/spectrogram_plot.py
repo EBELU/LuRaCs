@@ -7,7 +7,6 @@ from PySide6.QtWidgets import (
     QPushButton,
     QHBoxLayout,
     QComboBox,
-    QLabel,
     QTextEdit,
     QLineEdit,
     QDoubleSpinBox,
@@ -121,6 +120,8 @@ class StartSpectrogramDialog(QDialog):
 
 
 class SpectrogramWidget(QWidget):
+    "Main spectrogram widget and functionality to interact with it from the GUI"
+
     sigStartSpectrogram = Signal(
         str, str, int, int, bool
     )  # Signal to the start logger function
@@ -151,7 +152,8 @@ class SpectrogramWidget(QWidget):
 
         main_layout = QHBoxLayout(self)
 
-        # Right layout contains buttons and infobox
+        # --- Right layout ---
+        # Contains buttons and infobox
         right_layout = QVBoxLayout()
         right_layout.setSpacing(0)
 
@@ -192,7 +194,7 @@ class SpectrogramWidget(QWidget):
         btn_menu = QPushButton("...")
         btn_menu.setMaximumWidth(40)
 
-        # Dropdown menu
+        # --- Dropdown menu ---
         self.menu = QMenu(btn_menu)
 
         self.action_pause_visual_updates = QAction(
@@ -222,6 +224,7 @@ class SpectrogramWidget(QWidget):
 
         btn_menu.setMenu(self.menu)
 
+        # Add bottom row widgets
         self.stop_resume.addWidget(self.btn_stop)
         self.stop_resume.addWidget(self.btn_resume)
         self.stop_resume.addWidget(btn_menu)
@@ -310,10 +313,16 @@ class SpectrogramWidget(QWidget):
         )
         self.img.setLevels((0, 5))
 
+        # Time selector, with connection
         self.time_selector = pg.LinearRegionItem([1, 9], orientation="horizontal")
         self.time_selector.sigRegionChanged.connect(self.time_selector_changed)
 
+    # ------------------------------------------------------------------
+    # Spectrogram state options
+    # ------------------------------------------------------------------
+
     def start_logger(self, *_):
+        "Open the dialog to start a new spectrogram and send an accepted result off to be started"
         devices = list(RunManager.device_registry.keys())
         dialog = StartSpectrogramDialog(devices)
         if dialog.exec():
@@ -337,6 +346,7 @@ class SpectrogramWidget(QWidget):
                 self.break_lines.clear()
 
     def restart_logger(self):
+        "Restart a loaded spectrogram"
         current_spectrogram_name = self.spectrogram_selection.currentData()
 
         current_spectrogram = RunManager.loaded_spectrogram.get(
@@ -344,6 +354,7 @@ class SpectrogramWidget(QWidget):
         )
         if (
             current_spectrogram is not None
+            # Check if the device used to measure the spectrogram is connected, else panic
             and current_spectrogram.device_id not in RunManager.device_registry
         ):
             QMessageBox.warning(
@@ -360,6 +371,7 @@ class SpectrogramWidget(QWidget):
             current_spectrogram.request_data()
 
     def pause_logger(self):
+        "Pause the data accumulation on the logger level"
         current_spectrogram_name = self.spectrogram_selection.currentData()
         current_spectrogram = RunManager.loaded_spectrogram.get(
             current_spectrogram_name
@@ -371,123 +383,30 @@ class SpectrogramWidget(QWidget):
             self.btn_stop.setEnabled(False)
             current_spectrogram.request_data()
 
+    def unload_logger(self):
+        "Unload a spectrogram, can be ignored but nice to avoid clutter"
+        index = self.spectrogram_selection.currentIndex()
+        if index != -1:
+            self.spectrogram_selection.removeItem(index)
+
+            if self.spectrogram_selection.count() == 0:
+                self.img.clear()
+                self.bar.setOpts(height=np.zeros(self.x_len))
+                self.info_label.setText("")
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
     def show_data_store(self):
         self.sigShowDataStore.emit(1)
 
-    def update_x_len(self, new_len: int, calib_coeff: list, concat_factor: int):
-        if (
-            new_len != self.x_len
-            or len(calib_coeff) != len(self.current_calibration)
-            or any(
-                cc != nc
-                for cc, nc in zip(self.current_calibration, calib_coeff)
-                or self.current_concat_factor != concat_factor
-            )
-        ):
-            self.x_len = new_len
-            self.current_calibration = calib_coeff
-            self.current_concat_factor = concat_factor
-
-            self.x = np.arange(self.x_len)
-            y = np.zeros(self.x_len)
-            bar_width = np.mean(np.diff(self.x))
-
-            self.top_spectrum_plot.removeItem(self.bar)
-            self.bar = pg.BarGraphItem(x=self.x, height=y, width=bar_width, brush="y")
-            self.top_spectrum_plot.addItem(self.bar)
-
-            self.top_spectrum_plot.setLimits(xMax=np.max(self.x))
-            self.plot.setLimits(xMin=self.x[0], xMax=self.x[-1])
-            self.plot.setRange(xRange=[self.x[0], self.x[-1]])
-
-            x_calib = np.polyval(calib_coeff, np.arange(self.x_len) * concat_factor)
-
-            step = self.x_len // 15
-            ticks = [(i * step, f"{x_c:.0f}") for i, x_c in enumerate(x_calib[::step])]
-
-            self.top_spectrum_plot.getAxis("bottom").setTicks([ticks])
-            self.plot.getAxis("bottom").setTicks([ticks])
-
-    def update_spectrogram_y(self, timestamp_queue):
-        self.y_axis[: len(timestamp_queue)] = np.asarray(timestamp_queue)[::-1]
-
-        ymin, ymax = self.plot.getViewBox().viewRange()[1]
-
-        n_ticks = 10
-        positions = np.linspace(ymin, ymax, n_ticks)
-
-        time_str = "%H:%M:%S\n%m-%d" if self.show_date_on_y else "%H:%M:%S"
-
-        ticks = []
-        for pos in positions:
-            idx = int(np.clip(round(pos), 0, len(self.y_axis) - 1))
-            ts = self.y_axis[idx]
-
-            ticks.append(
-                (pos, datetime.fromtimestamp(ts).strftime(time_str) if ts else "")
-            )
-
-        self.plot.getAxis("left").setTicks([ticks])
-
-    def draw_y_break_lines(self, expected_dt: float):
-        if not self.action_show_break_lines.isChecked():
-            return
-        dt = np.abs(np.diff(self.y_axis[self.y_axis > 0]))
-
-        break_indices = np.where(dt > expected_dt * 1.5 + 1)[0]
-
-        if len(break_indices) != self.break_lines:
-            # remove old lines
-            for line in self.break_lines:
-                self.plot.removeItem(line)
-            self.break_lines.clear()
-
-            # add new lines
-            for y in break_indices:
-                line = pg.InfiniteLine(
-                    pos=y,
-                    angle=0,
-                    pen=pg.mkPen((255, 0, 0, 180), width=2, style=Qt.DashLine),
-                )
-                self.plot.addItem(line)
-                self.break_lines.append(line)
-
-    def on_x_range_changed(self, viewbox, x_range):
-        xmin, xmax = x_range
-
-        n_ticks = 10
-        positions = np.linspace(xmin, xmax, n_ticks)
-
-        ticks = []
-        for pos in positions:
-            idx = int(np.clip(pos, 0, self.x_len - 1))
-            calib_val = np.polyval(
-                self.current_calibration, idx * self.current_concat_factor
-            )
-            ticks.append((pos, f"{calib_val:.0f}"))
-
-        self.plot.getAxis("bottom").setTicks([ticks])
-        self.top_spectrum_plot.getAxis("bottom").setTicks([ticks])
-
-    def on_y_range_changed(self, viewbox, y_range):
-        ymin, ymax = y_range
-
-        n_ticks = 10
-        positions = np.linspace(ymin, ymax, n_ticks)
-
-        ticks = []
-        for pos in positions:
-            idx = int(np.clip(round(pos), 0, len(self.y_axis) - 1))
-
-            ts = self.y_axis[idx]
-            time_str = "%H:%M:%S\n%m-%d" if self.show_date_on_y else "%H:%M:%S"
-            ticks.append(
-                (pos, datetime.fromtimestamp(ts).strftime(time_str) if ts else "")
-            )
-
-        self.plot.getAxis("left").setTicks([ticks])
+    def connect_logger(self):
+        for logger in list(RunManager.loaded_spectrogram.values()):
+            logger.sigDataUpdated.connect(self.receive_data)
 
     def update_on_spectrogram_selection(self):
+        "Update the spectrogram selected, when changing the combo box or toggling break lines"
         db_name = self.spectrogram_selection.currentData()
         logger = RunManager.loaded_spectrogram.get(db_name)
         self.y_axis = np.zeros_like(self.y_axis)  # Reset the y-axis
@@ -506,21 +425,12 @@ class SpectrogramWidget(QWidget):
                 self.btn_stop.setEnabled(True)
             logger.request_data()
 
-    def connect_logger(self):
-        for logger in list(RunManager.loaded_spectrogram.values()):
-            logger.sigDataUpdated.connect(self.receive_data)
-
-    def unload_logger(self):
-        index = self.spectrogram_selection.currentIndex()
-        if index != -1:
-            self.spectrogram_selection.removeItem(index)
-
-            if self.spectrogram_selection.count() == 0:
-                self.img.clear()
-                self.bar.setOpts(height=np.zeros(self.x_len))
-                self.info_label.setText("")
+    # ------------------------------------------------------------------
+    # Data socket
+    # ------------------------------------------------------------------
 
     def receive_data(self, logger_name: str, data_packet: WrappedSpectrogramData):
+        "Socket for receiving data emitted from the spectrogram upon update"
         if self.action_pause_visual_updates.isChecked():
             return
         index = find_index_by_data(self.spectrogram_selection, logger_name)
@@ -591,6 +501,129 @@ class SpectrogramWidget(QWidget):
             )  # Update bar plot above the waterfall
         self.update_spectrogram_img(data_packet.spectrogram)
 
+    # ------------------------------------------------------------------
+    # GUI Updaters
+    # ------------------------------------------------------------------
+
+    # --- Axes ---
+    def update_x_len(self, new_len: int, calib_coeff: list, concat_factor: int):
+        "Update the x-axes from receive data"
+        if (
+            new_len != self.x_len
+            or len(calib_coeff) != len(self.current_calibration)
+            or any(
+                cc != nc
+                for cc, nc in zip(self.current_calibration, calib_coeff)
+                or self.current_concat_factor != concat_factor
+            )
+        ):
+            self.x_len = new_len
+            self.current_calibration = calib_coeff
+            self.current_concat_factor = concat_factor
+
+            self.x = np.arange(self.x_len)
+            y = np.zeros(self.x_len)
+            bar_width = np.mean(np.diff(self.x))
+
+            self.top_spectrum_plot.removeItem(self.bar)
+            self.bar = pg.BarGraphItem(x=self.x, height=y, width=bar_width, brush="y")
+            self.top_spectrum_plot.addItem(self.bar)
+
+            self.top_spectrum_plot.setLimits(xMax=np.max(self.x))
+            self.plot.setLimits(xMin=self.x[0], xMax=self.x[-1])
+            self.plot.setRange(xRange=[self.x[0], self.x[-1]])
+
+            x_calib = np.polyval(calib_coeff, np.arange(self.x_len) * concat_factor)
+
+            step = self.x_len // 15
+            ticks = [(i * step, f"{x_c:.0f}") for i, x_c in enumerate(x_calib[::step])]
+
+            self.top_spectrum_plot.getAxis("bottom").setTicks([ticks])
+            self.plot.getAxis("bottom").setTicks([ticks])
+
+    def update_spectrogram_y(self, timestamp_queue):
+        "Spectrogram y-axis updated from receive data"
+        self.y_axis[: len(timestamp_queue)] = np.asarray(timestamp_queue)[::-1]
+
+        ymin, ymax = self.plot.getViewBox().viewRange()[1]
+
+        n_ticks = 10
+        positions = np.linspace(ymin, ymax, n_ticks)
+
+        time_str = "%H:%M:%S\n%m-%d" if self.show_date_on_y else "%H:%M:%S"
+
+        ticks = []
+        for pos in positions:
+            idx = int(np.clip(round(pos), 0, len(self.y_axis) - 1))
+            ts = self.y_axis[idx]
+
+            ticks.append(
+                (pos, datetime.fromtimestamp(ts).strftime(time_str) if ts else "")
+            )
+
+        self.plot.getAxis("left").setTicks([ticks])
+
+    def draw_y_break_lines(self, expected_dt: float):
+        "Draws break lines, where the data collection was interrupted so that the timestamps do not match, on the y-axis of the spectrogram image"
+        if not self.action_show_break_lines.isChecked():
+            return
+        dt = np.abs(np.diff(self.y_axis[self.y_axis > 0]))
+
+        break_indices = np.where(dt > expected_dt * 1.5 + 1)[0]
+
+        if len(break_indices) != self.break_lines:
+            # remove old lines
+            for line in self.break_lines:
+                self.plot.removeItem(line)
+            self.break_lines.clear()
+
+            # add new lines
+            for y in break_indices:
+                line = pg.InfiniteLine(
+                    pos=y,
+                    angle=0,
+                    pen=pg.mkPen((255, 0, 0, 180), width=2, style=Qt.DashLine),
+                )
+                self.plot.addItem(line)
+                self.break_lines.append(line)
+
+    def on_x_range_changed(self, viewbox, x_range):
+        "Updates the x-axis of both plots"
+        xmin, xmax = x_range
+
+        n_ticks = 10
+        positions = np.linspace(xmin, xmax, n_ticks)
+
+        ticks = []
+        for pos in positions:
+            idx = int(np.clip(pos, 0, self.x_len - 1))
+            calib_val = np.polyval(
+                self.current_calibration, idx * self.current_concat_factor
+            )
+            ticks.append((pos, f"{calib_val:.0f}"))
+
+        self.plot.getAxis("bottom").setTicks([ticks])
+        self.top_spectrum_plot.getAxis("bottom").setTicks([ticks])
+
+    def on_y_range_changed(self, viewbox, y_range):
+        "Updates the y-axis of the spectrogram image when zooming"
+        ymin, ymax = y_range
+
+        n_ticks = 10
+        positions = np.linspace(ymin, ymax, n_ticks)
+
+        ticks = []
+        for pos in positions:
+            idx = int(np.clip(round(pos), 0, len(self.y_axis) - 1))
+
+            ts = self.y_axis[idx]
+            time_str = "%H:%M:%S\n%m-%d" if self.show_date_on_y else "%H:%M:%S"
+            ticks.append(
+                (pos, datetime.fromtimestamp(ts).strftime(time_str) if ts else "")
+            )
+
+        self.plot.getAxis("left").setTicks([ticks])
+
     def update_spectrogram_img(self, view_buf):
         # Flip the view buffer so the earlist is at the top
         current_spectrogram = np.array(view_buf)[::-1]
@@ -604,8 +637,10 @@ class SpectrogramWidget(QWidget):
         self.time_selector_changed()
 
     def set_info_text(self):
+        "Set the info textbox, so it can be updated from both receive data and time selector change"
         self.info_label.setText(self.info_text_total + "\n\n" + self.info_text_selector)
 
+    # --- Selector sockets ---
     def time_selector_changed(self):
         if (
             self.current_packet_buffer is None
@@ -643,6 +678,10 @@ class SpectrogramWidget(QWidget):
             if len(self.current_packet_buffer.spectrogram) > 0:
                 self.bar.setOpts(height=self.current_packet_buffer.spectrogram[0])
 
+    # ------------------------------------------------------------------
+    # Exporters
+    # ------------------------------------------------------------------
+
     def export_to_spectrum(self):
         "Export the total accumulated spectrum in a spectrogram to a spectrum"
 
@@ -677,7 +716,7 @@ class SpectrogramWidget(QWidget):
             Log.info(
                 f"Spectrum Exported from spectrogram: spectrogram={current_spectrogram.db_name}, spectrum={new_spectrum.name}"
             )
-        
+
         else:
             QMessageBox.warning(self, "Error", "No spectrogram to export")
 
@@ -685,9 +724,7 @@ class SpectrogramWidget(QWidget):
         "Export the spectrum created within the time selector to  to a spectrum"
 
         if not self.action_time_selector.isChecked():
-            QMessageBox.warning(
-                self, "Error", "No spectrogram section is selected"
-            )
+            QMessageBox.warning(self, "Error", "No spectrogram section is selected")
             return
 
         current_spectrogram_name = self.spectrogram_selection.currentData()
@@ -722,13 +759,14 @@ class SpectrogramWidget(QWidget):
             new_spectrum = file_io.db_writer.build_spectrum_from_db(
                 parser, new_name, start_time, stop_time
             )
-            print(new_spectrum.foreground)
+
             IOManager.FileIndex.spectrum_index.save_file(new_spectrum)
             Log.info(
                 f"Spectrum Exported from spectrogram: spectrogram={current_spectrogram.db_name}, spectrum={new_spectrum.name}"
             )
         else:
             QMessageBox.warning(self, "Error", "No spectrogram to export")
+
 
 if __name__ == "__main__":
     pass

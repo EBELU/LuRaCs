@@ -1,11 +1,11 @@
-import os, sys
+import sys
 from PySide6.QtCore import QObject, Signal
 from dataclasses import dataclass, field
 from typing import Optional, Any
 import json
 from pathlib import Path
 from collections import deque
-import sys
+
 
 
 @dataclass
@@ -55,6 +55,9 @@ class _Advanced:
     optimizer_use_chi2_weight: bool = True
 
     log_buffer_length: int = 1024
+    log_catch_exceptions: bool = True
+    log_write_to_file: bool = False
+    log_write_to_console: bool = False
     
     spectrogram_deque_length: int = 256
 

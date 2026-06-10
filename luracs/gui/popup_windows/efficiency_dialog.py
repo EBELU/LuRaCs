@@ -1,5 +1,4 @@
 from PySide6.QtWidgets import (
-    QApplication,
     QDialog,
     QVBoxLayout,
     QFormLayout,
@@ -28,7 +27,7 @@ from uncertainties import ufloat
 import uncertainties.umath as umath
 from utils.numerics.efficiency import u_intrinsic_efficiency
 from utils.numerics import curve_fit
-from utils.numerics.approximation_fns import exp_atten, exp_polynomial
+from utils.numerics.approximation_fns import exp_polynomial
 
 def value_with_uncertainty(has_unit = False):
     container = QWidget()

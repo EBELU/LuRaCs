@@ -3,7 +3,6 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QPushButton,
     QHBoxLayout,
-    QMessageBox,
     QComboBox,
 )
 from PySide6.QtCore import Qt, Signal
@@ -80,11 +79,11 @@ class SpectrumPlot(QWidget):
             xMin=0,
             xMax=3500,
             yMin=0,
-            yMax=1e6,
+            yMax=1e16,
             minXRange=10,
             maxXRange=3500,
             minYRange=1e-4,
-            maxYRange=1e6,
+            maxYRange=1e16,
         )
         self.plot_widget.getPlotItem().layout.setContentsMargins(2, 13, 13, 2)
         
@@ -186,16 +185,16 @@ class SpectrumPlot(QWidget):
 
         if cps_bool:
             if self.log:
-                self.plot_widget.setLimits(yMin=-10, yMax=1e6)
+                self.plot_widget.setLimits(yMin=-10, yMax=1e16)
 
             else:
-                self.plot_widget.setLimits(yMin=0, yMax=1e6)
+                self.plot_widget.setLimits(yMin=0, yMax=1e16)
 
             self.cps = True
             self.plot_widget.setLabel("left", "CPS")
             self.btn_cps.setText("Counts")
         else:
-            self.plot_widget.setLimits(yMin=0, yMax=1e6)
+            self.plot_widget.setLimits(yMin=0, yMax=1e16)
             self.cps = False
             self.plot_widget.setLabel("left", "Counts")
             self.btn_cps.setText("CPS")
@@ -209,7 +208,7 @@ class SpectrumPlot(QWidget):
         if not self.log:
             self.log = True
             self.plot_widget.plotItem.setLogMode(y=True)
-            self.plot_widget.setLimits(yMin=-10, yMax=1e6)
+            self.plot_widget.setLimits(yMin=-10, yMax=1e16)
             self.btn_lin_log.setText("Lin")
 
         else:
@@ -218,7 +217,7 @@ class SpectrumPlot(QWidget):
             self.btn_lin_log.setText("Log")
             self.plot_widget.setLimits(
                 yMin=0,
-                yMax=1e6,
+                yMax=1e16,
             )
         self._redraw()
 

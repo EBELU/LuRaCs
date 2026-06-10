@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (QDialog,
                                QSpinBox,
                                QComboBox,
                                QMessageBox)
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt
 import pyqtgraph as pg
 import numpy as np
 

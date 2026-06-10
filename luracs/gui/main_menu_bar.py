@@ -32,7 +32,7 @@ class MainMenuBar(QMenuBar):
             lambda : IOManager.Importer.import_generic()
             )
         file_load = file_menu.addAction("Data Store")
-        file_load.triggered.connect(lambda: parent.data_store.show())
+        file_load.triggered.connect(parent.data_store.show)
         file_menu_saveRoi = file_menu.addAction("Save reference ROIs")
         file_menu_saveRoi.triggered.connect(save_roi_references)
         exit_action = file_menu.addAction("Exit")

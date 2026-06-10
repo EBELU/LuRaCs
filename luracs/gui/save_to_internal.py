@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QFileDialog, QMessageBox, QWidget
+from PySide6.QtWidgets import QMessageBox
 
 from core import SpectrumManager, Settings, Log
 from containers.roi_classes import ROI
@@ -8,6 +8,8 @@ from containers.instrument_classes import GenericInstrument, UniqueInstrument
 
 
 from utils.file_io.xml_writer import xml_writer
+
+
 def save_roi_references():
     "Export reference rois for the library to be loaded on any spectrum"
     save_diag = SaveNamingDialog()
@@ -15,7 +17,7 @@ def save_roi_references():
     if len(SpectrumManager.ROIManager.roi_registry) == 0:
         QMessageBox.warning(save_diag, "Warning Message", "No ROIs set")
         return
-    
+
     res = save_diag.exec()
 
     if res == SaveNamingDialog.Accepted:
@@ -43,16 +45,16 @@ def save_roi_references():
     for r in SpectrumManager.ROIManager.roi_registry.values():
         # Same as for the spectrum, make a dummy ROI
         dummy_roi = ROI(
-            tag = r.tag,
-            alias = r.alias,
-            roi_bound = r.getRegion(),
-            region_bound = (None, None),
-            fit_type = r.fit_type,
-            bkg_type = r.bkg_type,
-            fit = None,
-            roi_counts = 0,
-            live_time = 1,
-            emission = r.emission,
+            tag=r.tag,
+            alias=r.alias,
+            roi_bound=r.getRegion(),
+            region_bound=(None, None),
+            fit_type=r.fit_type,
+            bkg_type=r.bkg_type,
+            fit=None,
+            roi_counts=0,
+            live_time=1,
+            emission=r.emission,
             meta={
                 "movable": r.movable,
                 "poisson_weights": r.poisson_weights,
@@ -62,28 +64,24 @@ def save_roi_references():
 
         dummy_spectrum.set_roi(dummy_roi)
 
-    xml_writer(
-        dummy_spectrum, new_file, export_spectrum=False, export_instrument=False
-    )
+    xml_writer(dummy_spectrum, new_file, export_spectrum=False, export_instrument=False)
     Log.debug(f"ROI References saved to library: {new_file}")
     return new_file.with_suffix(".xml")
 
 
 def save_spectrum_to_library(spectrum: Spectrum):
     new_file = Settings.Paths.spectrum_library / spectrum.name
-    xml_writer(
-        spectrum, new_file
-    )
-    
+    xml_writer(spectrum, new_file)
+
     Log.debug(f"Spectrum saved to library: {new_file}")
     return new_file.with_suffix(".xml")
 
-    
+
 def save_instrument_to_library(instrument: UniqueInstrument | GenericInstrument):
     # Build dummy spectrum for the xml writer
     dummy_spectrum = Spectrum(1, "Dummy")
     dummy_spectrum.instrument = instrument
-    
+
     # Check so im not doing anything dumb
     if isinstance(instrument, UniqueInstrument):
         new_file = Settings.Paths.unique_instrument_library / instrument.name
@@ -91,10 +89,8 @@ def save_instrument_to_library(instrument: UniqueInstrument | GenericInstrument)
         new_file = Settings.Paths.generic_instrument_library / instrument.model
     else:
         raise ValueError(f"Invalid instrument type! {type(instrument)}")
-    
-    xml_writer(
-        dummy_spectrum, new_file, export_spectrum=False, export_rois=False
-    )
-    
+
+    xml_writer(dummy_spectrum, new_file, export_spectrum=False, export_rois=False)
+
     Log.debug(f"Instrument saved to library: {new_file}")
     return new_file.with_suffix(".xml")

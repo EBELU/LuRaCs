@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from main import MainWindow
 
@@ -7,9 +8,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QVBoxLayout,
     QFormLayout,
-    QLineEdit,
     QDialogButtonBox,
-    QPushButton,
     QComboBox,
     QRadioButton,
     QButtonGroup,
@@ -17,10 +16,13 @@ from PySide6.QtWidgets import (
     QWidget,
     QHBoxLayout,
     QApplication,
-    QMessageBox
+    QMessageBox,
 )
 
-from core import Settings, RunManager
+from PySide6.QtWidgets import QDoubleSpinBox, QCheckBox, QLabel
+
+from core import Settings, RunManager, log_utils
+
 
 class SettingsDialog(QDialog):
     def __init__(self, name="", title="Settings", parent=None):
@@ -59,13 +61,13 @@ class SettingsDialog(QDialog):
 
         button_widget = QWidget()
         button_widget.setLayout(button_layout)
-        
+
         if Settings.Appearance.pen and not Settings.Appearance.brush:
             pen.setChecked(True)
-            
+
         elif not Settings.Appearance.pen and Settings.Appearance.brush:
             brush.setChecked(True)
-        
+
         else:
             pen_and_brush.setChecked(True)
 
@@ -79,25 +81,29 @@ class SettingsDialog(QDialog):
         buttons.rejected.connect(self.reject)
 
         main_layout.addWidget(buttons)
-        
+
         self.font_size_spin = QSpinBox()
         self.font_size_spin.setValue(Settings.Appearance.font_size)
         self.font_size_spin.setRange(2, 48)
-        
+
         form.addRow("Font Size", self.font_size_spin)
-        
+
         self.verbose_calculation_logging = QCheckBox("Verbose Calculation Logging")
-        self.verbose_calculation_logging.setChecked(Settings.Appearance.verbose_calculation_logging)
+        self.verbose_calculation_logging.setChecked(
+            Settings.Appearance.verbose_calculation_logging
+        )
         form.addRow("", self.verbose_calculation_logging)
-        
+
         self.load_rois_on_import = QCheckBox("Load ROIs on import")
         self.load_rois_on_import.setChecked(Settings.Appearance.load_rois_on_import)
         form.addRow("", self.load_rois_on_import)
-        
+
         self.load_instrument_on_import = QCheckBox("Load instrument on import")
-        self.load_instrument_on_import.setChecked(Settings.Appearance.load_instrument_on_import)
+        self.load_instrument_on_import.setChecked(
+            Settings.Appearance.load_instrument_on_import
+        )
         form.addRow("", self.load_instrument_on_import)
-        
+
     def get_values(self):
         theme = self.theme_combo.currentText().lower()
 
@@ -130,17 +136,17 @@ class SettingsDialog(QDialog):
 def edit_settings(main_window: MainWindow):
     dialog = SettingsDialog()
     res = dialog.exec()
-    
+
     if res != QDialog.Accepted:
         return
-    
+
     new_settings = dialog.get_values()
-    
+
     app = QApplication.instance()
     for key, value in new_settings.items():
         if getattr(Settings.Appearance, key) != value:
             setattr(Settings.Appearance, key, value)
-            
+
             match key:
                 case "theme":
                     main_window.theme.mode = value
@@ -150,31 +156,17 @@ def edit_settings(main_window: MainWindow):
                     for w in app.allWidgets():
                         w.update()
                         w.repaint()
-                        
+
                 case "pen" | "brush":
                     main_window.spectrum_plot_container.request_redraw()
-                    
+
                 case "font_size":
                     font = app.font()
                     font.setPointSize(value)  # Change the font size
                     app.setFont(font)
-                    
+
                 case "verbose_calculation_logging":
                     Settings.Appearance.verbose_calculation_logging = value
-    
-    
-from PySide6.QtWidgets import (
-    QDialog,
-    QVBoxLayout,
-    QFormLayout,
-    QDialogButtonBox,
-    QSpinBox,
-    QDoubleSpinBox,
-    QCheckBox,
-    QLabel
-)
-
-from core import Settings
 
 
 class AdvancedSettingsDialog(QDialog):
@@ -182,7 +174,7 @@ class AdvancedSettingsDialog(QDialog):
         super().__init__(parent=parent)
 
         self.setWindowTitle(title)
-        self.setMinimumWidth(250)
+        self.setMinimumWidth(300)
 
         main_layout = QVBoxLayout(self)
         form = QFormLayout()
@@ -192,7 +184,7 @@ class AdvancedSettingsDialog(QDialog):
         label = QLabel("Device Running")
         label.setStyleSheet("font-weight: bold; margin-top: 10px;")
         form.addRow(label)
-        
+
         self.update_loop_delay = QDoubleSpinBox()
         self.update_loop_delay.setRange(0.5, 1024)
         self.update_loop_delay.setSingleStep(0.5)
@@ -237,22 +229,50 @@ class AdvancedSettingsDialog(QDialog):
         form.addRow("Optimizer Tolerance:", self.optimizer_tolerance)
 
         self.optimizer_use_chi2_weight = QCheckBox()
-        self.optimizer_use_chi2_weight.setChecked(Settings.Advanced.optimizer_use_chi2_weight)
+        self.optimizer_use_chi2_weight.setChecked(
+            Settings.Advanced.optimizer_use_chi2_weight
+        )
         form.addRow("Use Chi² Weight:", self.optimizer_use_chi2_weight)
 
         # --- Buffer ---
-        label = QLabel("Buffers")
+        label = QLabel("Logging")
         label.setStyleSheet("font-weight: bold; margin-top: 10px;")
         form.addRow(label)
+        
+
+        log_row = QWidget()
+        log_layout = QHBoxLayout(log_row)
+        log_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.log_catch_exceptions = QCheckBox("Log Exceptions")
+        self.log_catch_exceptions.setChecked(Settings.Advanced.log_catch_exceptions)
+
+        self.log_write_to_file = QCheckBox("Write logs to file")
+        self.log_write_to_file.setChecked(Settings.Advanced.log_write_to_file)
+
+        self.log_write_to_console = QCheckBox("Write logs to console")
+        self.log_write_to_console.setChecked(Settings.Advanced.log_write_to_console)
+
+        log_layout.addWidget(self.log_catch_exceptions)
+        log_layout.addWidget(self.log_write_to_file)
+        log_layout.addWidget(self.log_write_to_console)
+
+        form.addRow("Handlers:", log_row)
         
         self.log_buffer_length = QSpinBox()
         self.log_buffer_length.setRange(10, 100000)
         self.log_buffer_length.setValue(Settings.Advanced.log_buffer_length)
         form.addRow("Headless Log Buffer Length:", self.log_buffer_length)
         
+        label = QLabel("Spectrogram")
+        label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+        form.addRow(label)
+
         self.spectrogram_deque_length = QSpinBox()
         self.spectrogram_deque_length.setRange(32, 100000)
-        self.spectrogram_deque_length.setValue(Settings.Advanced.spectrogram_deque_length)
+        self.spectrogram_deque_length.setValue(
+            Settings.Advanced.spectrogram_deque_length
+        )
         form.addRow("Spectrogram View Buffer:", self.spectrogram_deque_length)
 
         main_layout.addLayout(form)
@@ -273,9 +293,13 @@ class AdvancedSettingsDialog(QDialog):
             "optimizer_tolerance": self.optimizer_tolerance.value(),
             "optimizer_use_chi2_weight": self.optimizer_use_chi2_weight.isChecked(),
             "log_buffer_length": self.log_buffer_length.value(),
-            "spectrogram_deque_length": self.spectrogram_deque_length.value()
+            "log_catch_exceptions": self.log_catch_exceptions.isChecked(),
+            "log_write_to_file": self.log_write_to_file.isChecked(),       
+            "log_write_to_console": self.log_write_to_console.isChecked(),        
+            "spectrogram_deque_length": self.spectrogram_deque_length.value(),
         }
-        
+
+
 def edit_advanced_settings(main_window: MainWindow):
     dialog = AdvancedSettingsDialog()
 
@@ -283,7 +307,7 @@ def edit_advanced_settings(main_window: MainWindow):
         return
 
     new_settings = dialog.get_values()
-    
+
     require_restart = set(["log_buffer_length"])
     changed_settings = set()
 
@@ -291,15 +315,33 @@ def edit_advanced_settings(main_window: MainWindow):
         if getattr(Settings.Advanced, key) != value:
             setattr(Settings.Advanced, key, value)
             changed_settings.add(key)
-            
-            if key == "spectrogram_deque_length":
-                RunManager.resize_spectrogram_deque(value)
+
+            match key:
+                case "spectrogram_deque_length":
+                    RunManager.resize_spectrogram_deque(value)
+                    
+                case "log_catch_exceptions":
+                    if value:
+                        log_utils.attach_exception_handler()
+                    else:
+                        log_utils.detach_exception_handler()
+                
+                case "log_write_to_file":
+                    if value:
+                        log_utils.attach_file_handler()
+                    else:
+                        log_utils.detach_file_handler()
+
+                case "log_write_to_console":
+                    if value:
+                        log_utils.attach_console_handler()
+                    else:
+                        log_utils.detach_console_handler()
 
     if len(changed_settings & require_restart):
-        restart_message = QMessageBox.information(
+        QMessageBox.information(
             main_window,
             "Changed Settings Require Restart",
             f"The following settings require a restart of the program to take effect:\n"
-            f"{', '.join(changed_settings & require_restart)}"
+            f"{', '.join(changed_settings & require_restart)}",
         )
-        

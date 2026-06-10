@@ -1,7 +1,6 @@
 import sys
 import asyncio
 import logging
-from pathlib import Path
 
 
 def print_progress(text, progress):
@@ -39,7 +38,7 @@ from gui.tabs import (
     DevicesInfoTab,
     CurrentValuesPlot,
     IsotopicsTab,
-    ConsoleTab
+    ConsoleTab,
 )
 
 print_progress("Loading utils", 5)
@@ -48,12 +47,15 @@ from ThemeManager import ThemeManager
 from utils.arg_parser import parse_cli_args
 from utils.startup import startup_script
 
-from core import RunManager, Log, Settings, SpectrumManager
+from core import RunManager, Log, Settings, SpectrumManager, log_utils
 from utils.file_io.nuclide_dataloader import load_nuclide_data
 
 from gui.popup_windows.BluetoothListPopup import BluetoothListPopup
 from gui.popup_windows.USBListPopup import USBListPopup
-from gui.popup_windows.documentation_dialogs import SmallDocumentationDialog, DocumentationDialog
+from gui.popup_windows.documentation_dialogs import (
+    SmallDocumentationDialog,
+    DocumentationDialog,
+)
 from gui.popup_windows.settings_dialog import SettingsDialog
 from gui.popup_windows.efficiency_dialog import EfficiencyWindow
 from gui.popup_windows.calibration_dialog import CalibrationWindow
@@ -67,6 +69,7 @@ from core.script_engine import ScriptEngine
 RunManager.createDeviceSpectrum.connect(SpectrumManager.create_spectrum)
 RunManager.removeDeviceSpectrum.connect(SpectrumManager.remove_spectrum)
 RunManager.spectrumUpdated.connect(SpectrumManager.set_foreground_spectrum)
+
 
 # ===================== MAIN WINDOW =====================
 class MainWindow(QMainWindow):
@@ -86,12 +89,14 @@ class MainWindow(QMainWindow):
         self.usb_window = USBListPopup()
         print_progress("Building GUI", 8)
         self.data_store = DataLibrary("Data Store", None)
-        
+
         self.bibliography_dialog = SmallDocumentationDialog(Settings.Paths.bibliography)
-        self.documentation_dialog = DocumentationDialog(Settings.Paths.documentation_dir, parent=None)
-        
+        self.documentation_dialog = DocumentationDialog(
+            Settings.Paths.documentation_dir, parent=None
+        )
+
         self.settings_dialog = SettingsDialog()
-        
+
         self.calc_win_efficiency = EfficiencyWindow()
         self.calc_win_calibration = CalibrationWindow()
         self.calc_win_resolution = ResolutionWindow()
@@ -106,8 +111,7 @@ class MainWindow(QMainWindow):
         # ---------- SPECTRUM PLOT ----------
         self.spect_tab = QTabWidget()
         self.spect_tab.setTabPosition(QTabWidget.South)
-        
-        
+
         self.spectrum_plot_container = SpectrumPlotContainer(self)
         self.spect_tab.addTab(self.spectrum_plot_container, "Spectrum")
 
@@ -137,19 +141,33 @@ class MainWindow(QMainWindow):
         # Devices
         self.devices_tab = DevicesInfoTab()
         self.bottom_tabs.addTab(self.devices_tab, "Devices")
-        
+
         # Isotopics
-        self.isotopics_tab = IsotopicsTab(list(SpectrumManager.NuclideLibrary.get_sorted_nuclide_names()))
+        self.isotopics_tab = IsotopicsTab(
+            list(SpectrumManager.NuclideLibrary.get_sorted_nuclide_names())
+        )
         self.bottom_tabs.addTab(self.isotopics_tab, "Isotopics")
         # Isotopics connections
-        self.spectrum_plot_container.sigRedrawRequested.connect(self.isotopics_tab.request_line_data) # If spectrum plot redraws, get nuclide lines
-        self.spectrum_plot_container.sigTabChanged.connect(self.isotopics_tab.search_spect_combo.setCurrentText) # In tabbed mode change what spectrum is searched by selected tab
-        
-        self.isotopics_tab.sigColorChanged.connect(lambda : self.spectrum_plot_container.request_redraw()) # Redraw on color change
-        self.isotopics_tab.btn_assign_emissions.clicked.connect(self.spectrum_plot_container.match_nuclide_to_rois)
-        
-        self.main_menu_bar.tabbed_action.triggered.connect(self.isotopics_tab.set_search_combo) # Disable combo
-        self.main_menu_bar.combined_action.triggered.connect(self.isotopics_tab.set_search_combo) # Enable combo
+        self.spectrum_plot_container.sigRedrawRequested.connect(
+            self.isotopics_tab.request_line_data
+        )  # If spectrum plot redraws, get nuclide lines
+        self.spectrum_plot_container.sigTabChanged.connect(
+            self.isotopics_tab.search_spect_combo.setCurrentText
+        )  # In tabbed mode change what spectrum is searched by selected tab
+
+        self.isotopics_tab.sigColorChanged.connect(
+            lambda: self.spectrum_plot_container.request_redraw()
+        )  # Redraw on color change
+        self.isotopics_tab.btn_assign_emissions.clicked.connect(
+            self.spectrum_plot_container.match_nuclide_to_rois
+        )
+
+        self.main_menu_bar.tabbed_action.triggered.connect(
+            self.isotopics_tab.set_search_combo
+        )  # Disable combo
+        self.main_menu_bar.combined_action.triggered.connect(
+            self.isotopics_tab.set_search_combo
+        )  # Enable combo
 
         # Console
         self.console_tab = ConsoleTab()
@@ -178,19 +196,15 @@ class MainWindow(QMainWindow):
         self.theme.apply()
 
         # Run things that need the event loop active
-        if len(sys.argv) > 1:                
+        if len(sys.argv) > 1:
             QTimer.singleShot(0, lambda: parse_cli_args(self))
-            
+
         if Settings.Appearance.tabbed_spectrum_view:
             self.spectrum_plot_container.set_tabbed_mode()
         else:
             self.spectrum_plot_container.set_combined_mode()
 
-
         print_progress("Main window loaded", 9)
-        
-        
-        
 
     def show_data_store(self, tab_idx=None):
         if tab_idx is not None:
@@ -230,7 +244,7 @@ def main():
     asyncio.set_event_loop(loop)
 
     win = MainWindow()
-    
+
     # Check if headless
     if "--headless" in sys.argv:
         Settings.headless = True
@@ -238,14 +252,31 @@ def main():
         # If not headless, show the GUI
         win.show()
 
+    # --- Set Handlers for the logger ---
+    if Settings.Advanced.log_write_to_file:
+        log_utils.attach_file_handler()
+
+    if Settings.Advanced.log_catch_exceptions:
+        log_utils.attach_exception_handler()
+
+    if Settings.Advanced.log_write_to_console and not Settings.headless:
+        log_utils.attach_console_handler()
+
+    # --- Set the loop for the RunManager ---
     RunManager.set_loop(loop)
 
-    # Script engine
-    script_engine = ScriptEngine(program_version = __version__, headless=Settings.headless)
+    # --- Script engine ---
+    script_engine = ScriptEngine(
+        program_version=__version__, headless=Settings.headless
+    )
+
+    # Shutdown
     def on_quit():
         script_engine.submit_from_sync("__exit__")
+
     app.aboutToQuit.connect(on_quit)
 
+    # Signals
     win.console_tab.sigCommandEntered.connect(script_engine.submit_from_sync)
     script_engine.sigCommandAppendOutput.connect(win.console_tab.append_output)
     script_engine.sigCommandOutput.connect(win.console_tab.append_output)
@@ -253,21 +284,25 @@ def main():
     script_engine.sigShutdown.connect(lambda: asyncio.create_task(win._async_close()))
     script_engine.connect_log_buffer(win.log_tab.get_buffered_logs)
 
+    # --- Log welcome ---
     Log.info(
-f"""
+        f"""
 
  ======  ======  ======     
 |71    ||88    ||55    |    Version:  {__version__} \t [2026-04-14]
 |  Lu  ||  Ra  ||  Cs  |    Licence:  GNU General Public Licence v3.0
 | 177  || 226  || 137  |    
  ======  ======  ======     
-""")
+"""
+    )
     print_progress("Done!", 10)
     print()
-    # Start the event loop
+
+    # --- Start the event loop ---
     with loop:
         loop.create_task(script_engine.start())
         loop.run_forever()
+
 
 if __name__ == "__main__":
     main()
