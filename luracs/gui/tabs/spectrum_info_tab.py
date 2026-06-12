@@ -27,7 +27,7 @@ from PySide6.QtGui import QPainter, QBrush
 
 
 from luracs.gui.save_to_internal_dialogs import save_spectrum_to_library_dialog
-from luracs.gui.popup_windows.data_store_edit_dialogs import SpectrumEditDialog
+from luracs.gui.dialogs.data_store_edit_dialogs import SpectrumEditDialog
 
 
 class ColorCellWidget(QWidget):

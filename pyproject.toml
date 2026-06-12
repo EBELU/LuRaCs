@@ -44,5 +44,8 @@ full = [
 where = ["."]
 exclude = ["tests*"]
 
+[tool.setuptools.package-data]
+luracs = ["resources/**/*"]
+
 [project.scripts]
 LuRaCs = "luracs.main:main"

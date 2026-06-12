@@ -1,5 +1,4 @@
 import numpy as np
-from luracs.containers.roi_classes import Fit
 
 
 def multi_gaussian(x, params):

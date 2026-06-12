@@ -1,4 +1,4 @@
-from PySide6.QtCore import QObject, Signal, Qt
+from PySide6.QtCore import QObject, Signal
 import asyncio
 import shlex
 import traceback
@@ -9,7 +9,6 @@ from .script_engine_components.commands import register_commands
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import NestedCompleter
-from .settings import Settings
 
 
 # --- Helpers ---

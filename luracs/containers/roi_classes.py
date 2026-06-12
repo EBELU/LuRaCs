@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from luracs.core.nuclide_library import NuclideLibrary
+    from core.nuclide_library import NuclideLibrary
 
 from luracs.containers.nuclide_classes import Emission
 
@@ -9,8 +9,6 @@ from PySide6.QtCore import Signal, Qt
 from pyqtgraph import LinearRegionItem
 from dataclasses import dataclass
 import numpy as np
-
-from luracs.gui.popup_windows.roi_editor import ROIEditor
 
 
 @dataclass(frozen=True)
@@ -121,6 +119,10 @@ class DeletableROI(LinearRegionItem):
     sigDeleteRequested = Signal(str)
     sigSelected = Signal(str)
     sigSettingsUpdated = Signal(object)
+    
+    # Container components can not depend on gui components!
+    # Dialog is set during initialisation of main
+    roi_editor_dialog = None
 
     def __init__(
         self,
@@ -151,11 +153,15 @@ class DeletableROI(LinearRegionItem):
         self.owner_spectrum: str = owner_spectrum
 
         self.setToolTip(f"ROI: {self.alias}\nRight-click to edit")
+        
+        # Self check
+        if self.roi_editor_dialog is None:
+            raise NotImplementedError("ROI Edit dialog has not been set properly")
 
     def mouseClickEvent(self, ev):
         if ev.button() == Qt.RightButton:
             ev.accept()
-            editor = ROIEditor(
+            editor = self.roi_editor_dialog(
                 self.tag,
                 self.alias,
                 *self.getRegion(),
@@ -168,7 +174,7 @@ class DeletableROI(LinearRegionItem):
                 nuclide_lib_ref=self.nuclide_lib_ref,
             )
             res = editor.exec()
-            if res == ROIEditor.DELETE:
+            if res == self.roi_editor_dialog.DELETE:
                 self.sigDeleteRequested.emit(self.tag)
             elif res:
                 self.update_self(**editor.get_values())

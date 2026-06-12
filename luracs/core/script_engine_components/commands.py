@@ -17,7 +17,7 @@ from luracs.core import RunManager, SpectrumManager, Settings, IOManager
 from .helpers import print_table, TableFormatter, plot_spectrum, print_rois, ArgumentParser
 from .exceptions import ArgumentError, ActiveGUIError, InvalidCommandError
 
-from luracs.containers.spectrogram import start_spectrogram, restart_spectrogram
+from luracs.spectrogram import start_spectrogram, restart_spectrogram
 
 
 

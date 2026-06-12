@@ -12,7 +12,7 @@ from PySide6.QtWidgets import QFileDialog, QMessageBox
 
 from luracs.utils.file_io import db_parser, xml_parser, io_dispatcher
 from luracs.utils import file_io
-from luracs.gui.save_to_internal import save_instrument_to_library, save_spectrum_to_library
+from luracs.utils.save_to_internal import save_instrument_to_library, save_spectrum_to_library
 
 from .settings import Settings
 from .gui_logger import gui_logger

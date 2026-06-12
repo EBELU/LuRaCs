@@ -1,6 +1,16 @@
 import sys
 import asyncio
 import logging
+__version__ = "0.2.0"
+HAS_FULL_FEATURES = False
+try:
+    import sklearn
+    import scipy
+    import PySide6.QtWebEngineCore
+
+    HAS_FULL_FEATURES = True
+except ImportError:
+    HAS_FULL_FEATURES = False
 
 def print_progress(text, progress):
     print(
@@ -10,9 +20,10 @@ def print_progress(text, progress):
         flush=True,
     )
 
-
 logging.basicConfig(level=logging.INFO if "-db" in sys.argv else logging.INFO)
 
+
+# --- PySide6 Imports for main window ---
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QApplication,
@@ -26,9 +37,11 @@ from PySide6.QtCore import QTimer
 
 print_progress("Loading GUI", 0)
 
-from luracs.gui import MainMenuBar, SpectrumPlotContainer, SpectrogramWidget, DataLibrary
+# --- Perform standard internal imports ---
+from luracs.core import RunManager, Log, Settings, SpectrumManager, log_utils
+from luracs.core.script_engine import ScriptEngine # Not normally exposed in the api
 
-print_progress("Loading GUI", 2)
+from luracs.gui import MainMenuBar, SpectrumPlotContainer, SpectrogramWidget
 
 from luracs.gui.tabs import (
     ROIInfoTab,
@@ -40,53 +53,67 @@ from luracs.gui.tabs import (
     ConsoleTab,
 )
 
+from luracs.gui.windows import (
+    BluetoothListPopup,
+    USBListPopup,
+    DataLibrary,
+    SmallDocumentationDialog,
+    DocumentationDialog,
+    CalibrationWindow,
+    EfficiencyWindow,
+    ResolutionWindow,
+)
+
+from luracs.gui.dialogs.settings_dialog import SettingsDialog
+
+# --- Import heavy features excluded in the lightweight version ---
+if HAS_FULL_FEATURES:
+    pass
+
 print_progress("Loading luracs.utils.", 5)
 
-from .ThemeManager import ThemeManager
+from luracs.ThemeManager import ThemeManager
 from luracs.utils.arg_parser import parse_cli_args
 from luracs.utils.startup import startup_script
 
-from luracs.core import RunManager, Log, Settings, SpectrumManager, log_utils
-from luracs.utils.file_io.nuclide_dataloader import load_nuclide_data
-
-from .gui.popup_windows.BluetoothListPopup import BluetoothListPopup
-from .gui.popup_windows.USBListPopup import USBListPopup
-from .gui.popup_windows.documentation_dialogs import (
-    SmallDocumentationDialog,
-    DocumentationDialog,
-)
-
-from luracs.gui.popup_windows.settings_dialog import SettingsDialog
-from luracs.gui.popup_windows.efficiency_dialog import EfficiencyWindow
-from luracs.gui.popup_windows.calibration_dialog import CalibrationWindow
-from luracs.gui.popup_windows.resolution_dialog import ResolutionWindow
 
 
-from luracs.core.script_engine import ScriptEngine
+# ===================== IMPORTANT GUI CONNECTIONS =====================
 
-# ===================== IMPORTANT CONNECTIONS =====================
+# Connect the edit dialog from the GUI to the core ROI object
+# If its not done like this we have circular import hell!
+from luracs.gui.dialogs.roi_editor import ROIEditor
+from luracs.containers.roi_classes import DeletableROI
+
+DeletableROI.roi_editor_dialog = ROIEditor
+
+
+
+# ===================== IMPORTANT SIGNALS =====================
 
 RunManager.createDeviceSpectrum.connect(SpectrumManager.create_spectrum)
 RunManager.removeDeviceSpectrum.connect(SpectrumManager.remove_spectrum)
 RunManager.spectrumUpdated.connect(SpectrumManager.set_foreground_spectrum)
 
-__version__ = "0.2.0"
+
+
 # ===================== MAIN WINDOW =====================
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         print_progress("Initializing main window", 7)
-        self.setWindowTitle("LuRaCs")
+        self.setWindowTitle("LuRaCs" if HAS_FULL_FEATURES else "LuRaCs-H3")
 
         self.mock_running = True
         self._closing = False
 
         self.theme = ThemeManager(Settings.Appearance.theme)
         self.theme.apply()
-
+        
+        # Shown from main menu bar
         self.bt_window = BluetoothListPopup()
-
         self.usb_window = USBListPopup()
+        
         print_progress("Building GUI", 8)
         self.data_store = DataLibrary("Data Store", None)
 
@@ -276,7 +303,7 @@ def main():
 
     app.aboutToQuit.connect(on_quit)
 
-    # Signals
+    # Connect Signals
     win.console_tab.sigCommandEntered.connect(script_engine.submit_from_sync)
     script_engine.sigCommandAppendOutput.connect(win.console_tab.append_output)
     script_engine.sigCommandOutput.connect(win.console_tab.append_output)

@@ -10,9 +10,9 @@ import asyncio
 
 from luracs.core import RunManager, Settings, IOManager
 
-from .save_to_internal import save_roi_references
+from .save_to_internal_dialogs import save_roi_references
 
-from luracs.gui.popup_windows.settings_dialog import edit_settings, edit_advanced_settings
+from luracs.gui.dialogs.settings_dialog import edit_settings, edit_advanced_settings
 
 class MainMenuBar(QMenuBar):
     sigSetSpectrumViewToTabs = Signal()

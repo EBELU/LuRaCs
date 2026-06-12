@@ -24,8 +24,8 @@ from PySide6.QtCore import Qt, Signal
 from ..misc.idx_table import StrIdxTable
 from luracs.utils.file_io import io_dispatcher
 from luracs.core import SpectrumManager, IOManager
-from luracs.containers.spectrogram import restart_spectrogram
-from .data_store_edit_dialogs import InstrumentDialog
+from luracs.spectrogram import restart_spectrogram
+from ..dialogs.data_store_edit_dialogs import InstrumentDialog
 from luracs.containers.instrument_classes import UniqueInstrument, GenericInstrument
 
 import shutil

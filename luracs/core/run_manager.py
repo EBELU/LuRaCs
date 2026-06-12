@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from luracs.containers.spectrogram import Spectrogram
+    from luracs.spectrogram import Spectrogram
 
 import asyncio
 from PySide6.QtCore import QObject, Signal
@@ -37,7 +37,7 @@ else:
 
 from .gui_logger import gui_logger
 
-from ..clients.DeviceWrappers import DeviceWrapper, CriticalNotImplementedError
+from luracs.clients.DeviceWrappers import DeviceWrapper, CriticalNotImplementedError
 
 
 @dataclass(frozen=True)

@@ -6,11 +6,10 @@ import time
 from enum import Enum, auto
 from dataclasses import dataclass
 from collections import deque
-from datetime import datetime
 
 from PySide6.QtCore import Signal, QObject
 
-from ..clients.DeviceWrappers import (
+from luracs.clients.DeviceWrappers import (
     WrappedRealTimePackage,
     WrappedSpectrumPackage,
     WrappedStatusPackage,
