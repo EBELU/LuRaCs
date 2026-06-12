@@ -21,8 +21,8 @@ from PySide6.QtCore import Qt
 import pyqtgraph as pg
 import numpy as np
 
-from core import SpectrumManager
-from utils.numerics import calibrate_x_axis
+from luracs.core import SpectrumManager
+from luracs.utils.numerics import calibrate_x_axis
 
 class CalibrationWindow(QDialog):
     def __init__(self, parent=None):

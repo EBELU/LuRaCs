@@ -25,14 +25,14 @@ import pyqtgraph as pg
 
 from textwrap import dedent
 
-from core import RunManager, Settings, IOManager, Log
-from containers.spectrogram import (
+from luracs.core import RunManager, Settings, IOManager, Log
+from luracs.containers.spectrogram import (
     WrappedSpectrogramData,
     start_spectrogram,
     restart_spectrogram,
 )
-from utils import file_io
-from gui.popup_windows.save_dialog import SaveNamingDialog
+from luracs.utils import file_io
+from luracs.gui.popup_windows.save_dialog import SaveNamingDialog
 
 pg.setConfigOptions(antialias=True)
 

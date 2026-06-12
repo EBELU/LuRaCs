@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from clients.DeviceWrappers import WrappedRealTimePackage, WrappedStatusPackage
-    from core.script_engine import ScriptEngine
+    from luracs.core.script_engine import ScriptEngine
     from .registry import CommandRegistry
     
 from abc import ABC, abstractmethod
@@ -12,12 +12,12 @@ from pathlib import Path
 from datetime import timedelta, datetime
 from glob import glob
 
-from utils.file_io import xml_parser, db_parser
-from core import RunManager, SpectrumManager, Settings, IOManager
+from luracs.utils.file_io import xml_parser, db_parser
+from luracs.core import RunManager, SpectrumManager, Settings, IOManager
 from .helpers import print_table, TableFormatter, plot_spectrum, print_rois, ArgumentParser
 from .exceptions import ArgumentError, ActiveGUIError, InvalidCommandError
 
-from containers.spectrogram import start_spectrogram, restart_spectrogram
+from luracs.containers.spectrogram import start_spectrogram, restart_spectrogram
 
 
 

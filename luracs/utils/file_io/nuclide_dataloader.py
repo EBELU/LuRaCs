@@ -1,4 +1,4 @@
-from containers.nuclide_classes import Nuclide, Emission
+from luracs.containers.nuclide_classes import Nuclide, Emission
 import json
 import glob
 

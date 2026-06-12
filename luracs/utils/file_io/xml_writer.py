@@ -2,14 +2,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from containers.spectrum_classes import Spectrum, SpectrumData
-    from containers.roi_classes import ROI
+    from luracs.containers.spectrum_classes import Spectrum, SpectrumData
+    from luracs.containers.roi_classes import ROI
 
-from containers.instrument_classes import GenericInstrument, UniqueInstrument
+from luracs.containers.instrument_classes import GenericInstrument, UniqueInstrument
 from lxml import etree
 from uuid import uuid4
 from datetime import datetime, timezone
-from utils.numerics.compression import compress_spectrum, encode_base64
+from luracs.utils.numerics.compression import compress_spectrum, encode_base64
 from pathlib import Path
 import numpy as np
 

@@ -10,13 +10,13 @@ from datetime import datetime
 
 from PySide6.QtCore import Signal, QObject
 
-from clients.DeviceWrappers import (
+from ..clients.DeviceWrappers import (
     WrappedRealTimePackage,
     WrappedSpectrumPackage,
     WrappedStatusPackage,
 )
 
-from core import Settings, RunManager, Log, SpectrumManager
+from luracs.core import Settings, RunManager, Log, SpectrumManager
 
 
 def compress_spectrum(array: np.ndarray) -> bytes:

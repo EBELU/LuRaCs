@@ -2,7 +2,6 @@ import sys
 import asyncio
 import logging
 
-
 def print_progress(text, progress):
     print(
         "\r[" + "#" * progress + " " * (10 - progress) + "]",
@@ -12,7 +11,7 @@ def print_progress(text, progress):
     )
 
 
-logging.basicConfig(level=logging.DEBUG if "-db" in sys.argv else logging.INFO)
+logging.basicConfig(level=logging.INFO if "-db" in sys.argv else logging.INFO)
 
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
@@ -27,11 +26,11 @@ from PySide6.QtCore import QTimer
 
 print_progress("Loading GUI", 0)
 
-from gui import MainMenuBar, SpectrumPlotContainer, SpectrogramWidget, DataLibrary
+from luracs.gui import MainMenuBar, SpectrumPlotContainer, SpectrogramWidget, DataLibrary
 
 print_progress("Loading GUI", 2)
 
-from gui.tabs import (
+from luracs.gui.tabs import (
     ROIInfoTab,
     SpectrumInfoTab,
     LogWidget,
@@ -41,28 +40,29 @@ from gui.tabs import (
     ConsoleTab,
 )
 
-print_progress("Loading utils", 5)
+print_progress("Loading luracs.utils.", 5)
 
-from ThemeManager import ThemeManager
-from utils.arg_parser import parse_cli_args
-from utils.startup import startup_script
+from .ThemeManager import ThemeManager
+from luracs.utils.arg_parser import parse_cli_args
+from luracs.utils.startup import startup_script
 
-from core import RunManager, Log, Settings, SpectrumManager, log_utils
-from utils.file_io.nuclide_dataloader import load_nuclide_data
+from luracs.core import RunManager, Log, Settings, SpectrumManager, log_utils
+from luracs.utils.file_io.nuclide_dataloader import load_nuclide_data
 
-from gui.popup_windows.BluetoothListPopup import BluetoothListPopup
-from gui.popup_windows.USBListPopup import USBListPopup
-from gui.popup_windows.documentation_dialogs import (
+from .gui.popup_windows.BluetoothListPopup import BluetoothListPopup
+from .gui.popup_windows.USBListPopup import USBListPopup
+from .gui.popup_windows.documentation_dialogs import (
     SmallDocumentationDialog,
     DocumentationDialog,
 )
-from gui.popup_windows.settings_dialog import SettingsDialog
-from gui.popup_windows.efficiency_dialog import EfficiencyWindow
-from gui.popup_windows.calibration_dialog import CalibrationWindow
-from gui.popup_windows.resolution_dialog import ResolutionWindow
 
-__version__ = "0.2.0"
-from core.script_engine import ScriptEngine
+from luracs.gui.popup_windows.settings_dialog import SettingsDialog
+from luracs.gui.popup_windows.efficiency_dialog import EfficiencyWindow
+from luracs.gui.popup_windows.calibration_dialog import CalibrationWindow
+from luracs.gui.popup_windows.resolution_dialog import ResolutionWindow
+
+
+from luracs.core.script_engine import ScriptEngine
 
 # ===================== IMPORTANT CONNECTIONS =====================
 
@@ -70,7 +70,7 @@ RunManager.createDeviceSpectrum.connect(SpectrumManager.create_spectrum)
 RunManager.removeDeviceSpectrum.connect(SpectrumManager.remove_spectrum)
 RunManager.spectrumUpdated.connect(SpectrumManager.set_foreground_spectrum)
 
-
+__version__ = "0.2.0"
 # ===================== MAIN WINDOW =====================
 class MainWindow(QMainWindow):
     def __init__(self):

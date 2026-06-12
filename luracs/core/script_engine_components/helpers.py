@@ -2,14 +2,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from clients.DeviceWrappers import WrappedRealTimePackage, WrappedStatusPackage
-    from core.script_engine import ScriptEngine
+    from luracs.core.script_engine import ScriptEngine
     
 import plotext as plt
 import numpy as np
 from typing import Any
 import sys
 
-from core import SpectrumManager, Settings
+from luracs.core import SpectrumManager, Settings
 from .exceptions import ArgumentError, ActiveGUIError, InvalidCommandError
 
 

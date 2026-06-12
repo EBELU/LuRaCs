@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 
 from PySide6.QtWidgets import QDoubleSpinBox, QCheckBox, QLabel
 
-from core import Settings, RunManager, log_utils
+from luracs.core import Settings, RunManager, log_utils
 
 
 class SettingsDialog(QDialog):

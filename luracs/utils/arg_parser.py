@@ -6,9 +6,9 @@ import argparse
 import os
 import asyncio
 from pathlib import Path
-from core import Log, RunManager, SpectrumManager
-from utils.file_io import xml_parser
-from utils.file_io import io_dispatcher
+from luracs.core import Log, RunManager, SpectrumManager
+from luracs.utils.file_io import xml_parser
+from luracs.utils.file_io import io_dispatcher
 from PySide6.QtCore import QTimer
 
 

@@ -35,6 +35,11 @@ dev = [
     "odfpy",
 ]
 
+full = [
+    "Scikit-Learn",
+    "SciPy",
+]
+
 [tool.setuptools.packages.find]
 where = ["."]
 exclude = ["tests*"]

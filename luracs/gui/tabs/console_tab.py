@@ -1,12 +1,21 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QTextEdit, QPushButton, QHBoxLayout, QGroupBox, QLineEdit
+from PySide6.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QTextEdit,
+    QPushButton,
+    QHBoxLayout,
+    QLineEdit,
+)
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
 from collections import deque
+
 
 class CommandHistory:
     def __init__(self, maxlen=200):
         self.history = deque(maxlen=maxlen)
         self.index = 0
+
     def add(self, cmd: str):
         if cmd.strip():
             self.history.append(cmd)
@@ -19,7 +28,6 @@ class CommandHistory:
         self.index = max(0, self.index - 1)
         return self.history[self.index]
 
-
     def next(self):
         if not self.history:
             return ""
@@ -30,7 +38,7 @@ class CommandHistory:
             return ""
 
         return self.history[self.index]
-    
+
 
 class ConsoleTab(QWidget):
     sigCommandEntered = Signal(str)
@@ -75,7 +83,7 @@ class ConsoleTab(QWidget):
 
     def append_output(self, text):
         self.console_output.append(text)
-    
+
     def set_output(self, text):
         self.console_output.setText(text)
 

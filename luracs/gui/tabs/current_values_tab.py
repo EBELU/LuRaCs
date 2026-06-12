@@ -1,36 +1,27 @@
 from collections import deque
-from itertools import cycle
 
 from PySide6.QtWidgets import (
     QWidget,
-    QVBoxLayout,
     QHBoxLayout,
-    QPushButton,
-    QHBoxLayout,
-    QMessageBox,
-    QComboBox,
-    QTextEdit,
     QSizePolicy,
-    QLabel,
     QTableWidget,
     QTableWidgetItem,
 )
-from PySide6.QtGui import QFont
-from PySide6.QtCore import Qt, Signal
-from PySide6 import QtGui
 import pyqtgraph as pg
 
-pg.setConfigOptions(antialias=True)
+
 import numpy as np
+
+
+from luracs.utils.color_rotator import ColorRotator
+from luracs.core import RunManager
+
+pg.setConfigOptions(antialias=True)
 
 
 def write_row(table, row_index, values):
     for col_index, value in enumerate(values):
         table.setItem(row_index, col_index, QTableWidgetItem(str(value)))
-
-
-from utils.color_rotator import ColorRotator
-from core import RunManager
 
 
 class CurrentValuesPlot(QWidget):

@@ -3,7 +3,7 @@ from PySide6.QtCore import Signal, QTimer, Qt
 from PySide6.QtWidgets import QListWidgetItem, QPushButton
 
 from .ListPopupBase import ListPopupNonBlocking
-from core import RunManager, Log
+from luracs.core import RunManager, Log
 
 
 def _on_usb_device_selected(device: dict):

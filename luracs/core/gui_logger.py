@@ -5,7 +5,7 @@ gui_logger = logging.getLogger("Application")
 gui_logger.setLevel(logging.DEBUG)
 
 formatter = logging.Formatter(
-    fmt="%(asctime)s %(levelname)s %(message)s",
+    fmt="%(asctime)s | Application | %(levelname)s | %(message)s",
     datefmt="%H:%M:%S"
 )
 

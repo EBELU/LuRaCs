@@ -1,6 +1,6 @@
-from utils.file_io import xml_parser, xml_writer, io_dispatcher
-from containers.spectrum_classes import Spectrum
-from containers.instrument_classes import GenericInstrument, UniqueInstrument
+from luracs.utils.file_io import xml_parser, xml_writer, io_dispatcher
+from luracs.containers.spectrum_classes import Spectrum
+from luracs.containers.instrument_classes import GenericInstrument, UniqueInstrument
 from dataclasses import dataclass
 from datetime import datetime
 import numpy as np
@@ -8,7 +8,7 @@ import copy
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
-from core import SpectrumManager, IOManager
+from luracs.core import SpectrumManager, IOManager
 
 # --- Example GenericInstrument ---
 generic = GenericInstrument(

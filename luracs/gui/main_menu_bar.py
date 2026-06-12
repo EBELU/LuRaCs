@@ -8,11 +8,11 @@ from PySide6.QtGui import QAction, QActionGroup
 from PySide6.QtCore import Signal
 import asyncio
 
-from core import RunManager, Settings, IOManager
+from luracs.core import RunManager, Settings, IOManager
 
 from .save_to_internal import save_roi_references
 
-from gui.popup_windows.settings_dialog import edit_settings, edit_advanced_settings
+from luracs.gui.popup_windows.settings_dialog import edit_settings, edit_advanced_settings
 
 class MainMenuBar(QMenuBar):
     sigSetSpectrumViewToTabs = Signal()

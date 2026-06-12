@@ -1,4 +1,4 @@
-from core import Settings
+from luracs.core import Settings
 from pathlib import Path
 import os
 

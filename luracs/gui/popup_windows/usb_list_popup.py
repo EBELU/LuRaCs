@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal
 
-from core import RunManager
+from luracs.core import RunManager
 
 def _on_usb_device_selected(device: dict):
     Log.debug("Selected USB device:", device)

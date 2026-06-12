@@ -1,9 +1,16 @@
+
 from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from luracs.core.nuclide_library import NuclideLibrary
-    
-from luracs.containers.nuclide_classes import Emission
+    from core.nuclide_library import NuclideLibrary
+
+from .nuclide_classes import Emission
+
+from PySide6.QtCore import Signal, Qt
+from pyqtgraph import LinearRegionItem
+from dataclasses import dataclass
+import numpy as np
+
 
 
 from PySide6.QtWidgets import (
@@ -198,3 +205,110 @@ class ROIEditor(QDialog):
                 type="",
             ),
         }
+        
+        
+class DeletableROI(LinearRegionItem):
+    """Visual ROI selector modified to have a 'tag' and can be deleted by right clicking"""
+
+    sigDeleteRequested = Signal(str)
+    sigSelected = Signal(str)
+    sigSettingsUpdated = Signal(object)
+
+    def __init__(
+        self,
+        tag: str,
+        region: tuple,
+        nuclide_lib_ref: NuclideLibrary,  # keep a reference to avoid circular imports
+        alias: str | None = None,
+        fit_type: str = "Gaussian",  # Gaussian, None
+        bkg_type: str = "Linear",
+        merge: bool = True,
+        poisson_weights: bool = False,
+        movable: bool = True,
+        emission: Emission = None,
+        owner_spectrum: str = None,
+        **kwargs,
+    ):
+        super().__init__(values=region, orientation="vertical", movable=movable)
+        self.setZValue(25)
+        self.tag: str = tag
+        self.merge: bool = merge
+        self.perform_fit: bool = True
+        self.alias: str = alias if alias else tag
+        self.fit_type: str = fit_type
+        self.bkg_type: str = bkg_type
+        self.poisson_weights: bool = poisson_weights
+        self.emission: Emission = emission
+        self.nuclide_lib_ref = nuclide_lib_ref
+        self.owner_spectrum: str = owner_spectrum
+
+        self.setToolTip(f"ROI: {self.alias}\nRight-click to edit")
+
+    def mouseClickEvent(self, ev):
+        if ev.button() == Qt.RightButton:
+            ev.accept()
+            editor = ROIEditor(
+                self.tag,
+                self.alias,
+                *self.getRegion(),
+                fit_type=self.fit_type,
+                bkg_type=self.bkg_type,
+                merge=self.merge,
+                poisson_weights=self.poisson_weights,
+                movable=self.movable,
+                emission=self.emission,
+                nuclide_lib_ref=self.nuclide_lib_ref,
+            )
+            res = editor.exec()
+            if res == ROIEditor.DELETE:
+                self.sigDeleteRequested.emit(self.tag)
+            elif res:
+                self.update_self(**editor.get_values())
+
+        elif ev.button() == Qt.LeftButton:
+            ev.accept()
+            self.sigSelected.emit(self.tag)
+        else:
+            super().mouseClickEvent(ev)
+
+    def update_self(
+        self,
+        roi_name=None,
+        lower_bound=None,
+        upper_bound=None,
+        fit_type=None,
+        bkg_type=None,
+        merge=None,
+        poisson_weights=None,
+        movable=None,
+        emission=None,
+        signal_update=True,
+    ):
+        if roi_name is not None:
+            self.alias = roi_name
+
+        if lower_bound is not None and upper_bound is not None:
+            self.setRegion([lower_bound, upper_bound])
+
+        if fit_type is not None:
+            self.fit_type = fit_type
+
+        if bkg_type is not None:
+            self.bkg_type = bkg_type
+
+        if merge is not None:
+            self.merge = merge
+
+        if poisson_weights is not None:
+            self.poisson_weights = poisson_weights
+
+        if emission is not None:
+            self.emission = emission
+
+        if movable is not None:
+            self.setMovable(movable)
+
+        if signal_update:
+            self.sigSettingsUpdated.emit(self)
+
+        self.setToolTip(f"ROI: {self.alias}\nRight-click to edit or delete")

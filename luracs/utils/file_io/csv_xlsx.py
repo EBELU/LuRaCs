@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from luracs.containers.spectrum_classes import Spectrum
     from pathlib import Path
-    from containers.roi_classes import ROI
+    from luracs.containers.roi_classes import ROI
 
 class csv_writer:
     @classmethod

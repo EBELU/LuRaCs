@@ -4,6 +4,8 @@ build/
 dist/
 *egg*
 venv
+linuxVenv/*
+*Venv*
 dev/cleaned_nuclide_data/*
 dev/raw_nuclide_data/*
 dev/kartering.txt

@@ -2,22 +2,21 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .spectrum_manager import _SpectrumManager
-    from pyqtgraph import PlotWidget
     
 from PySide6.QtCore import Signal, QObject
 from PySide6.QtGui import QColor
-from containers.roi_classes import DeletableROI, Fit, ROI
-from core import Settings
+from luracs.containers.roi_classes import DeletableROI, Fit, ROI
+from luracs.core import Settings
 from .gui_logger import gui_logger as Log
 import numpy as np
-from utils.numerics import (
+from luracs.utils.numerics import (
     curve_fit,
     poisson_weights,
     multi_gaussian,
     multi_gaussian_jacobian,
 )
 import pyqtgraph as pg
-from containers.spectrum_classes import Spectrum
+from luracs.containers.spectrum_classes import Spectrum
 
 
 pastel_colors = [
@@ -231,7 +230,14 @@ class ROIManager(QObject):
         new_roi.sigSettingsUpdated.connect(self.propagrade_roi_settings_change)
         
         self.sigROICreated.emit(new_roi)
-        Log.info(f"ROI Added: alias={new_roi.alias}, bounds={[f"{int(v):4d}" for v in np.array(new_roi.getRegion()).round()]}, nuclide={new_roi.emission.parent_nuclide if new_roi.emission else "None"}, nuclide_energy={new_roi.emission.energy_keV if new_roi.emission else "None"} keV")
+        roi_bounds = [f"{int(v):4d}" for v in np.array(new_roi.getRegion()).round()]
+
+        Log.info(
+            f"ROI Added: alias={new_roi.alias}, "
+            f"bounds={roi_bounds}, "
+            f"nuclide={new_roi.emission.parent_nuclide if new_roi.emission else 'None'}, "
+            f"nuclide_energy={new_roi.emission.energy_keV if new_roi.emission else 'None'} keV"
+        )
         return new_roi
 
     def remove_roi(self, roi_tag: str, update_state: bool = True) -> None:

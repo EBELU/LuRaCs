@@ -30,7 +30,6 @@ a = Analysis(
         'PySide6.Qt3DRender',
         'PySide6.Qt3DExtras',
         'PySide6.QtMultimedia',
-        'scipy',
         'matplotlib',
         'numba',
         'setuptools',

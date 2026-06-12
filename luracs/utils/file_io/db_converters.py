@@ -8,7 +8,7 @@ import numpy as np
 from datetime import datetime
 from dataclasses import asdict, is_dataclass
 
-from containers.spectrum_classes import Spectrum, SpectrumData
+from luracs.containers.spectrum_classes import Spectrum, SpectrumData
 
 
 def _dict_to_xlsx(ws, data):

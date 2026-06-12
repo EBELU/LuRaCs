@@ -2,13 +2,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from main import MainWindow
-    from containers.roi_classes import ROI
+    from luracs.containers.roi_classes import ROI
     
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QStackedWidget, QTabWidget, QMessageBox
 from PySide6.QtCore import Signal
 from .spectrum_plot import SpectrumPlot
 
-from core import SpectrumManager, Settings
+from luracs.core import SpectrumManager, Settings
 
 import numpy as np
 

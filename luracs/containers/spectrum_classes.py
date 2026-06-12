@@ -8,7 +8,7 @@ import numpy as np
 from dataclasses import dataclass
 from PySide6.QtGui import QColor
 from datetime import datetime
-from containers.instrument_classes import UniqueInstrument
+from luracs.containers.instrument_classes import UniqueInstrument
 
 
 @dataclass

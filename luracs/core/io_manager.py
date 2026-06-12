@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Callable
 if TYPE_CHECKING:
     pass
-from containers.spectrum_classes import Spectrum
+from luracs.containers.spectrum_classes import Spectrum
 
 from pathlib import Path
 from glob import glob
@@ -10,9 +10,9 @@ import os
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 
-from utils.file_io import db_parser, xml_parser, io_dispatcher
-from utils import file_io
-from gui.save_to_internal import save_instrument_to_library, save_spectrum_to_library
+from luracs.utils.file_io import db_parser, xml_parser, io_dispatcher
+from luracs.utils import file_io
+from luracs.gui.save_to_internal import save_instrument_to_library, save_spectrum_to_library
 
 from .settings import Settings
 from .gui_logger import gui_logger
@@ -20,7 +20,7 @@ from .spectrum_manager import SpectrumManager
 
 class _IOManager(QObject):
     """
-    The io manager is a core singleton that manages the input and output of files. This includes both the loading of internally stored files for the data library and the import-export of external files.
+    The io manager is a luracs.core singleton that manages the input and output of files. This includes both the loading of internally stored files for the data library and the import-export of external files.
     
     The io manager contains the following services:\n
     

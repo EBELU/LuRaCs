@@ -1,8 +1,8 @@
 from PySide6.QtWidgets import QMessageBox
 
-from core import SpectrumManager, Settings, IOManager
-from containers.spectrum_classes import Spectrum
-from gui.popup_windows.save_dialog import SaveNamingDialog
+from luracs.core import SpectrumManager, Settings, IOManager
+from luracs.containers.spectrum_classes import Spectrum
+from luracs.gui.popup_windows.save_dialog import SaveNamingDialog
 
 
 def save_spectrum_to_library_dialog(spectrum: Spectrum):

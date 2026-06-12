@@ -3,7 +3,7 @@ from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QTextEdit, QWidget, QVBoxLayout
 
-from core import Settings
+from luracs.core import Settings
 from collections import deque
 
 class LogSignalEmitter(QObject):

@@ -1,13 +1,13 @@
 from PySide6.QtWidgets import QMessageBox
 
-from core import SpectrumManager, Settings, Log
-from containers.roi_classes import ROI
-from containers.spectrum_classes import Spectrum
-from gui.popup_windows.save_dialog import SaveNamingDialog
-from containers.instrument_classes import GenericInstrument, UniqueInstrument
+from luracs.core import SpectrumManager, Settings, Log
+from luracs.containers.roi_classes import ROI
+from luracs.containers.spectrum_classes import Spectrum
+from luracs.gui.popup_windows.save_dialog import SaveNamingDialog
+from luracs.containers.instrument_classes import GenericInstrument, UniqueInstrument
 
 
-from utils.file_io.xml_writer import xml_writer
+from luracs.utils.file_io.xml_writer import xml_writer
 
 
 def save_roi_references():

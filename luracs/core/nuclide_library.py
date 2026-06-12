@@ -2,13 +2,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from core.spectrum_manager import SpectrumManagerBase
+    from luracs.core.spectrum_manager import SpectrumManagerBase
     from PySide6.QtGui import QColor
 from PySide6.QtCore import QObject, Signal
-from containers.nuclide_classes import Nuclide, Emission
+from luracs.containers.nuclide_classes import Nuclide, Emission
 import numpy as np
 from collections import Counter
-from utils.file_io.nuclide_dataloader import load_nuclide_data
+from luracs.utils.file_io.nuclide_dataloader import load_nuclide_data
 from .settings import Settings
 
 class NuclideLibrary(QObject):

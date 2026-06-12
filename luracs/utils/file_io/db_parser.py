@@ -3,7 +3,7 @@ import numpy as np
 from datetime import datetime
 import json
 from dataclasses import dataclass
-from utils.numerics.compression import decompress_spectrum
+from luracs.utils.numerics.compression import decompress_spectrum
 
 @dataclass(frozen=True, kw_only=True)
 class dbHeader:

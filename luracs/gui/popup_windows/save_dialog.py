@@ -4,8 +4,7 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QLineEdit,
     QDialogButtonBox,
-    QPushButton,
-    QTextEdit
+    QTextEdit,
 )
 
 
@@ -51,6 +50,6 @@ class SaveNamingDialog(QDialog):
 
     def get_name(self):
         return self.name_edit.text().strip()
-    
+
     def get_remark(self):
         return self.remark_edit.toPlainText()

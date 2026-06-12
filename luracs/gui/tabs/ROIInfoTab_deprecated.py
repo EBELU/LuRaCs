@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 )
 import numpy as np
 from PySide6.QtCore import Signal
-from core import SpectrumManager
+from luracs.core import SpectrumManager
 from ..misc.idx_table import StrIdxTable
 
 

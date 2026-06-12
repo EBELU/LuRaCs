@@ -5,7 +5,7 @@ from PySide6.QtWidgets import QListWidgetItem, QPushButton
 
 from .ListPopupBase import ListPopupNonBlocking
 
-from core import RunManager
+from luracs.core import RunManager
 
 
 def _on_bt_device_selected(device):

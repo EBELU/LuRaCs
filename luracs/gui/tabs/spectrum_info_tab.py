@@ -2,9 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from luracs.containers.spectrum_classes import Spectrum, SpectrumData
-    from containers.spectrum_classes import Spectrum
-    from gui.popup_windows.data_store import DataLibrary
+    from luracs.containers.spectrum_classes import Spectrum
 
 from datetime import timedelta
 from PySide6.QtWidgets import (
@@ -13,23 +11,23 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QColorDialog,
     QHBoxLayout,
-    QMessageBox
+    QMessageBox,
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 
 
-from core import SpectrumManager, RunManager
-from gui.misc.idx_table import StrIdxTable
-from utils.file_io import io_dispatcher
-from gui.misc.table_menu_button import MenuButton
+from luracs.core import SpectrumManager, RunManager
+from luracs.gui.misc.idx_table import StrIdxTable
+from luracs.utils.file_io import io_dispatcher
+from luracs.gui.misc.table_menu_button import MenuButton
 
 
-from PySide6.QtGui import QColor, QPainter, QBrush
+from PySide6.QtGui import QPainter, QBrush
 
 
-from gui.save_to_internal_dialogs import save_spectrum_to_library_dialog
-from gui.popup_windows.data_store_edit_dialogs import SpectrumEditDialog
+from luracs.gui.save_to_internal_dialogs import save_spectrum_to_library_dialog
+from luracs.gui.popup_windows.data_store_edit_dialogs import SpectrumEditDialog
 
 
 class ColorCellWidget(QWidget):
@@ -80,7 +78,12 @@ class SpectrumInfoTab(QWidget):
 
     # spectrum_name, "foreground"/"background", color
 
-    def __init__(self, main_window, title="", parent=None, ):
+    def __init__(
+        self,
+        main_window,
+        title="",
+        parent=None,
+    ):
         super().__init__(parent)
         self.parent = parent
         self.main_window = main_window
@@ -94,8 +97,12 @@ class SpectrumInfoTab(QWidget):
         self.sigRemoveSpectrum.connect(SpectrumManager.remove_spectrum)
         self.sigToggleVisibility.connect(SpectrumManager.update_visibility)
         self.sigColorChanged.connect(SpectrumManager.set_color)
-        self.sigUpdateSpectrumInstrument.connect(SpectrumManager.set_spectrum_instrument)
-        self.sigClearSpectrumInstrument.connect(SpectrumManager.clear_spectrum_instrument)
+        self.sigUpdateSpectrumInstrument.connect(
+            SpectrumManager.set_spectrum_instrument
+        )
+        self.sigClearSpectrumInstrument.connect(
+            SpectrumManager.clear_spectrum_instrument
+        )
         self.sigDisconnectAndRemove.connect(RunManager.remove_device)
 
         self.group_box = QGroupBox(title)
@@ -123,37 +130,46 @@ class SpectrumInfoTab(QWidget):
 
         self.hide_show_btn = {}
         self.hide_show_states = {}
-        
+
     def edit_spectrum(self, spectrum: Spectrum):
         connected = True if spectrum.connection is not None else False
         dialog = SpectrumEditDialog(spectrum=spectrum, spectrum_is_connected=connected)
         res = dialog.exec()
-        
+
         if res != SpectrumEditDialog.Accepted:
             return
-        
+
         data = dialog.get_data()
-        if data["flag_can_change_name"] and data["name"] not in SpectrumManager.spectrum_registry:
+        if (
+            data["flag_can_change_name"]
+            and data["name"] not in SpectrumManager.spectrum_registry
+        ):
             SpectrumManager.rename_spectrum(spectrum.name, data["name"])
-        
-        if data["background_pth"] and not data["flag_clear_bkg"] and data["flag_change_bkg"]:
+
+        if (
+            data["background_pth"]
+            and not data["flag_clear_bkg"]
+            and data["flag_change_bkg"]
+        ):
             try:
-                SpectrumManager.import_spectrum_as_background(data["name"], io_dispatcher(data["background_pth"]).data)
+                SpectrumManager.import_spectrum_as_background(
+                    data["name"], io_dispatcher(data["background_pth"]).data
+                )
             except IndexError as e:
                 QMessageBox.warning(self, "Error", str(e))
-            
+
         elif data["flag_clear_bkg"]:
             SpectrumManager.clear_background(data["name"])
-            
+
         if data["remark"]:
             SpectrumManager.spectrum_registry[data["name"]].remark = data["remark"]
-            
+
         if data["instrument"] is not None:
             self.sigUpdateSpectrumInstrument.emit(data["name"], data["instrument"])
 
         if data["flag_clear_instrument"]:
             self.sigClearSpectrumInstrument.emit(data["name"])
-        
+
     def build_menu_button(
         self, spectrum: Spectrum, role: str, color: QColor, parent=None
     ) -> MenuButton:
@@ -164,48 +180,45 @@ class SpectrumInfoTab(QWidget):
         ):  # Has connected device
             disconnect = menu_button.add_action("Remove and Disconnect")
             disconnect.triggered.connect(
-                lambda : RunManager.remove_device(spectrum.name, True)
+                lambda: RunManager.remove_device(spectrum.name, True)
             )
-            
+
             save = menu_button.add_action("Save")
-            save.triggered.connect(lambda : save_spectrum_to_library(spectrum))
+            save.triggered.connect(lambda: save_spectrum_to_library_dialog(spectrum))
 
             self.hide_show_btn[spectrum.name] = menu_button.add_action("Hide")
             self.hide_show_btn[spectrum.name].triggered.connect(
-                lambda : self._show_hide_action(spectrum.name)
+                lambda: self._show_hide_action(spectrum.name)
             )
-            
+
             edit_action = menu_button.add_action("Edit")
-            edit_action.triggered.connect(lambda : self.edit_spectrum(spectrum))
+            edit_action.triggered.connect(lambda: self.edit_spectrum(spectrum))
 
         elif role == "foreground":
             remove = menu_button.add_action("Remove Spectrum")
             remove.triggered.connect(
-                lambda : SpectrumManager.remove_spectrum(spectrum.name)
+                lambda: SpectrumManager.remove_spectrum(spectrum.name)
             )
-            
+
             save = menu_button.add_action("Save")
-            save.triggered.connect(lambda : save_spectrum_to_library_dialog(spectrum))
+            save.triggered.connect(lambda: save_spectrum_to_library_dialog(spectrum))
 
             self.hide_show_btn[spectrum.name] = menu_button.add_action("Hide")
             self.hide_show_btn[spectrum.name].triggered.connect(
-                lambda : self._show_hide_action(spectrum.name)
+                lambda: self._show_hide_action(spectrum.name)
             )
-            
+
             edit_action = menu_button.add_action("Edit")
-            edit_action.triggered.connect(lambda : self.edit_spectrum(spectrum))
+            edit_action.triggered.connect(lambda: self.edit_spectrum(spectrum))
 
         else:  # Background
             rm_bkg = menu_button.add_action("Remove Background")
             rm_bkg.triggered.connect(
-                lambda : SpectrumManager.clear_background(spectrum.name)
+                lambda: SpectrumManager.clear_background(spectrum.name)
             )
 
         # export_btn = menu_button.add_action("Export")
         # export_btn.triggered.connect(lambda _:parent.file_import_export.export_spectrum(spectrum.name))
-
-        
-        
 
         wrapper = QWidget()
         layout = QHBoxLayout(wrapper)
@@ -246,9 +259,11 @@ class SpectrumInfoTab(QWidget):
 
     def recieve_update(self, name):
         new_spect = SpectrumManager.get_spectrum(name)
-        
+
         # Get instrument
-        instr = new_spect.instrument.name if new_spect.instrument is not None else "None"
+        instr = (
+            new_spect.instrument.name if new_spect.instrument is not None else "None"
+        )
 
         # --- Foreground ---
         if name + "f" not in self.table.get_all_keys():
@@ -257,13 +272,13 @@ class SpectrumInfoTab(QWidget):
             )
         else:
             foreground_menu_button = None
-            
+
         live_time = (
             timedelta(seconds=round(new_spect.foreground.live_time))
             if new_spect.foreground.live_time is not None
             else "None"
         )
-        
+
         real_time = (
             timedelta(seconds=round(new_spect.foreground.real_time))
             if new_spect.foreground.real_time is not None
@@ -278,7 +293,7 @@ class SpectrumInfoTab(QWidget):
                 live_time,
                 real_time,
                 str(new_spect.calibrated),
-                instr
+                instr,
             ],
             menu_button=foreground_menu_button,
         )

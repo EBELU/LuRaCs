@@ -22,16 +22,16 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal
 
 from ..misc.idx_table import StrIdxTable
-from utils.file_io import io_dispatcher
-from core import SpectrumManager, IOManager
-from containers.spectrogram import restart_spectrogram
+from luracs.utils.file_io import io_dispatcher
+from luracs.core import SpectrumManager, IOManager
+from luracs.containers.spectrogram import restart_spectrogram
 from .data_store_edit_dialogs import InstrumentDialog
-from containers.instrument_classes import UniqueInstrument, GenericInstrument
+from luracs.containers.instrument_classes import UniqueInstrument, GenericInstrument
 
 import shutil
 from pathlib import Path
 from datetime import timedelta
-import utils.file_io as file_io
+import luracs.utils.file_io as file_io
 
 
 class DataLibrary(QWidget):
@@ -76,7 +76,6 @@ class DataLibrary(QWidget):
         self.roi_tab.set_table()
         self.unique_instruments_tab.set_table()
         self.generic_instruments_tab.set_table()
-        self.dwad
         super().show()
 
 

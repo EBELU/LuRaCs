@@ -10,10 +10,10 @@ from datetime import datetime
 import numpy as np
 from lxml import etree
 
-from containers.spectrum_classes import SpectrumData
-from containers.nuclide_classes import Emission
-from containers.roi_classes import ROI, Fit
-from containers.instrument_classes import UniqueInstrument, GenericInstrument
+from luracs.containers.spectrum_classes import SpectrumData
+from luracs.containers.nuclide_classes import Emission
+from luracs.containers.roi_classes import ROI, Fit
+from luracs.containers.instrument_classes import UniqueInstrument, GenericInstrument
 
 
 # --- Helper Functions ---
@@ -69,6 +69,9 @@ def _parse_array(text: str):
 
 
 def _safe_iso(value: str):
+    if value is None:
+        return
+    value = value.removesuffix("Z")
     return datetime.fromisoformat(value).replace(tzinfo=None) if value else None
 
 

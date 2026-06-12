@@ -22,12 +22,12 @@ import numpy as np
 import warnings
 from datetime import datetime
 
-from core import SpectrumManager
+from luracs.core import SpectrumManager
 from uncertainties import ufloat
 import uncertainties.umath as umath
-from utils.numerics.efficiency import u_intrinsic_efficiency
-from utils.numerics import curve_fit
-from utils.numerics.approximation_fns import exp_polynomial
+from luracs.utils.numerics.efficiency import u_intrinsic_efficiency
+from luracs.utils.numerics import curve_fit
+from luracs.utils.numerics.approximation_fns import exp_polynomial
 
 def value_with_uncertainty(has_unit = False):
     container = QWidget()

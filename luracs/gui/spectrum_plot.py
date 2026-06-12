@@ -11,11 +11,11 @@ import pyqtgraph as pg
 from pyqtgraph.Qt import QtWidgets
 import numpy as np
 
-from core import SpectrumManager, Settings
+from luracs.core import SpectrumManager, Settings
 
-from containers.spectrum_classes import Spectrum
+from luracs.containers.spectrum_classes import Spectrum
 
-from utils.numerics import multi_gaussian
+from luracs.utils.numerics import multi_gaussian
 
 
 class SpectrumPlot(QWidget):

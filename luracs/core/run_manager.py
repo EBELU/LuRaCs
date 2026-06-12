@@ -37,7 +37,7 @@ else:
 
 from .gui_logger import gui_logger
 
-from clients.DeviceWrappers import DeviceWrapper, CriticalNotImplementedError
+from ..clients.DeviceWrappers import DeviceWrapper, CriticalNotImplementedError
 
 
 @dataclass(frozen=True)
@@ -65,7 +65,7 @@ class SpectrumResult:
 
 class _RunManager(QObject):
     """
-    The run manager is core singleton that manages connected devices and spectrogram, since they are tightly connected to the devices. All communications with Bluetooth or USB goes through this class.
+    The run manager is luracs.core singleton that manages connected devices and spectrogram, since they are tightly connected to the devices. All communications with Bluetooth or USB goes through this class.
     """
 
     # ---- data signals ----
@@ -371,14 +371,14 @@ class _RunManager(QObject):
         self._scan_task = asyncio.create_task(self._scan_bluetooth(timeout))
 
     def scan_all_usb(self):
-        devices = usb.core.find(find_all=True)
+        devices = usb.luracs.core.find(find_all=True)
         results = []
 
         for dev in devices or []:
             try:
                 try:
                     dev.set_configuration()
-                except usb.core.USBError:
+                except usb.luracs.core.USBError:
                     pass
 
                 results.append(

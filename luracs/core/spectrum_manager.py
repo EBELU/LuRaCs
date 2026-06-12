@@ -1,18 +1,18 @@
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QColor
-from clients.DeviceWrappers import WrappedSpectrumPackage
+from luracs.clients.DeviceWrappers import WrappedSpectrumPackage
 from datetime import datetime, timedelta
 
-from containers.instrument_classes import GenericInstrument, UniqueInstrument
-from containers.spectrum_classes import Spectrum, SpectrumData
+from luracs.containers.instrument_classes import GenericInstrument, UniqueInstrument
+from luracs.containers.spectrum_classes import Spectrum, SpectrumData
 
 from .gui_logger import gui_logger
 from .settings import Settings
 from .roi_manager import ROIManager
 from .instument_library import InstrumentLibrary
 from .nuclide_library import NuclideLibrary
-from utils.color_rotator import ColorRotator
-from utils.file_io import xml_writer
+from luracs.utils.color_rotator import ColorRotator
+from luracs.utils.file_io import xml_writer
 
 
 class EmittedSignals(QObject):

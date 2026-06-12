@@ -2,27 +2,21 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from luracs.containers.roi_classes import ROI, Fit
+    from luracs.containers.roi_classes import ROI
 from PySide6.QtWidgets import (
     QWidget,
     QGroupBox,
     QVBoxLayout,
     QHBoxLayout,
-    QTableWidget,
-    QTableWidgetItem,
     QSizePolicy,
     QComboBox,
-    QRadioButton,
-    QButtonGroup,
     QMessageBox,
     QPushButton,
     QDialog,
     QTextEdit,
-    QAbstractItemView,
 )
-import numpy as np
 from PySide6.QtCore import Signal
-from core import SpectrumManager, IOManager
+from luracs.core import SpectrumManager, IOManager
 from ..misc.idx_table import StrIdxTable
 
 
@@ -40,7 +34,9 @@ class RoiInfoDialog(QDialog):
 
         # Combo box for ROI selection
         self.combo = QComboBox()
-        self.combo.addItems([r.alias for r in SpectrumManager.ROIManager.roi_registry.values()])
+        self.combo.addItems(
+            [r.alias for r in SpectrumManager.ROIManager.roi_registry.values()]
+        )
         layout.addWidget(self.combo)
 
         # Text edit to display info
@@ -173,12 +169,12 @@ class ROIInfoTab(QWidget):
 
         btn_view_info = QPushButton("View Full Info")
         btn_view_info.clicked.connect(self._open_info)
-        
+
         btn_roi_cps = QPushButton("CPS")
         btn_roi_cps.setCheckable(True)
         btn_roi_cps.toggled.connect(SpectrumManager.ROIManager.set_cps)
         SpectrumManager.ROIManager.sigCpsChanged.connect(self.rebuild_table)
-        
+
         btn_export_to_csv = QPushButton("Export to CSV")
         btn_export_to_csv.clicked.connect(IOManager.Exporter.export_roi_dialog)
 
@@ -197,7 +193,7 @@ class ROIInfoTab(QWidget):
 
         # Initial build
         self.rebuild_table()
-        SpectrumManager.Signals.spectrumRenamed.connect(lambda : self.rebuild_table())
+        SpectrumManager.Signals.spectrumRenamed.connect(lambda: self.rebuild_table())
 
     # --------------------------------------------------
     # Core logic
@@ -213,7 +209,9 @@ class ROIInfoTab(QWidget):
             for tag, roi in rois.items():
                 self._put_roi(tag, spectrum_name, roi)
 
-    def _put_roi(self, tag: str, spectrum_name: str, roi: ROI, none_fallback="Fit Failed"):
+    def _put_roi(
+        self, tag: str, spectrum_name: str, roi: ROI, none_fallback="Fit Failed"
+    ):
         if not roi:
             return
 
@@ -223,7 +221,9 @@ class ROIInfoTab(QWidget):
         if cps:
             roi_counts = f"{round(roi.get_count_data('roi_counts', True), 4)} CPS"
         else:
-            roi_counts = f"{int(roi.get_count_data('roi_counts', False)):,}".replace(",", " ")
+            roi_counts = f"{int(roi.get_count_data('roi_counts', False)):,}".replace(
+                ",", " "
+            )
 
         if roi.fit is not None:
             peak_counts = (
@@ -281,7 +281,6 @@ class ROIInfoTab(QWidget):
         keys_to_remove = [
             key for key in self.table.current_keys if key.startswith(f"{roi.tag}_")
         ]
-    
 
         for key in keys_to_remove:
             self.table.delete_row(key)

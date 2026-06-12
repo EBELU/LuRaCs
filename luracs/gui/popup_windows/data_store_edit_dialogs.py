@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from containers.spectrum_classes import Spectrum
+    from luracs.containers.spectrum_classes import Spectrum
 
 from PySide6.QtWidgets import QApplication, QWidget
 from PySide6.QtWidgets import (
@@ -24,8 +24,8 @@ from PySide6.QtCore import Qt
 import pyqtgraph as pg
 import numpy as np
 
-from core import SpectrumManager, IOManager
-from utils.numerics import resolution, exp_polynomial
+from luracs.core import SpectrumManager, IOManager
+from luracs.utils.numerics import resolution, exp_polynomial
 
 class InstrumentDialog(QDialog):
     def __init__(self, parent=None, **kwargs):

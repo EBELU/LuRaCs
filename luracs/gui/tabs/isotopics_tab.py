@@ -18,8 +18,8 @@ from PySide6.QtGui import QColor, QPainter, QBrush, QAction, QFont
 import pyqtgraph as pg
 import numpy as np
 
-from core import SpectrumManager, Settings
-from utils.numerics import find_peaks
+from luracs.core import SpectrumManager, Settings
+from luracs.utils.numerics import find_peaks
 
 from textwrap import dedent
 
@@ -451,7 +451,7 @@ class IsotopicsTab(QWidget):
         title_str = f"| {nuc.element} | {nuc.nuclide} |"
         separator = "="*len(title_str)
         
-        daughters = "\n".join([f"{d.replace("alpha", "α").replace("B", "β")} {n} {p}%" for d, n, p in nuc.daughters])
+        daughters = "\n".join([f"{d.replace('alpha', 'α').replace('B', 'β')} {n} {p}%" for d, n, p in nuc.daughters])
 
         self.nuclides_info_textbox.setText(
             f"{separator}\n"

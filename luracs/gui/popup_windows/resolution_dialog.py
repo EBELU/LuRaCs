@@ -25,8 +25,8 @@ import numpy as np
 import warnings
 from datetime import datetime
 
-from core import SpectrumManager
-from utils.numerics import resolution, curve_fit, r_squared
+from luracs.core import SpectrumManager
+from luracs.utils.numerics import resolution, curve_fit, r_squared
 
 class ResolutionWindow(QDialog):
     sigUpdateGenericInstrument = Signal(object, dict)

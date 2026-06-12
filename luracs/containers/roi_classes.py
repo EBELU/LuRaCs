@@ -1,16 +1,16 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from core.nuclide_library import NuclideLibrary
+    from luracs.core.nuclide_library import NuclideLibrary
 
-from containers.nuclide_classes import Emission
+from luracs.containers.nuclide_classes import Emission
 
 from PySide6.QtCore import Signal, Qt
 from pyqtgraph import LinearRegionItem
 from dataclasses import dataclass
 import numpy as np
 
-from gui.popup_windows.roi_editor import ROIEditor
+from luracs.gui.popup_windows.roi_editor import ROIEditor
 
 
 @dataclass(frozen=True)
