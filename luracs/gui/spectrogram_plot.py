@@ -287,6 +287,9 @@ class SpectrogramWidget(QWidget):
         self.hist.vb.enableAutoRange(axis="y")
         self.hist.vb.setLimits(xMin=-0.2, xMax=1e3, minXRange=1)
         self.hist.region.setBounds([0, 100000])
+        
+        # Load colormap preset
+        self.hist.gradient.loadPreset("viridis")
 
         self.spectrogram_plot.addItem(
             self.hist, row=1, col=0
@@ -299,8 +302,7 @@ class SpectrogramWidget(QWidget):
         main_layout.addLayout(left_layout)
         main_layout.addLayout(right_layout)
 
-        # Load colormap preset
-        self.hist.gradient.loadPreset("viridis")
+
 
         self.plot.invertY(True)
         self.plot.layout.setContentsMargins(0, 0, 0, 0)
@@ -675,6 +677,8 @@ class SpectrogramWidget(QWidget):
             self.time_selector_changed()
         else:
             self.plot.removeItem(self.time_selector)
+            self.info_text_selector = ""
+            self.set_info_text()
             if len(self.current_packet_buffer.spectrogram) > 0:
                 self.bar.setOpts(height=self.current_packet_buffer.spectrogram[0])
 

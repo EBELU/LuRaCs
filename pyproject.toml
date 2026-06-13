@@ -26,6 +26,8 @@ dependencies = [
     "plotext",
     "prompt_toolkit",
     "markdown",
+    "Scikit-Learn",
+    "SciPy",
 ]
 
 [project.optional-dependencies]
@@ -35,10 +37,6 @@ dev = [
     "odfpy",
 ]
 
-full = [
-    "Scikit-Learn",
-    "SciPy",
-]
 
 [tool.setuptools.packages.find]
 where = ["."]

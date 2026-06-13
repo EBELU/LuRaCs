@@ -26,17 +26,25 @@ LuRaCs is a free, open-source application designed for the measurement and analy
 - Area Mapping with a generic GPS connected through USB
 ### Spectrum View
 The spectrum view offers a count histogram retrieved from an instrument or loaded from a saved file. *Regions Of Interest* (ROI) can be defined in which a Gaussian peak can be fitted and the result from the fit used for further analysis.
+![spect_view](luracs/resources/docs/documentation/Interface/imgs/spect_view.webp)
+
 
 ### Analysis Tools
 LuRaCs offers a set of tools for analysing a measured *spectrum*. A spectrum can be calibrated to known emissions and instrument characteristics energy resolution and intrinsic efficiency can 
+![analysis_view](luracs/resources/docs/documentation/Interface/imgs/analysis.webp)
 ### Time Series Measurements
 When an instrument is connected, reading can be measured in a time series in the form of a *spectrogram*. A spectrogram saves the mean values of the count- and dose rate during each save interval as well as the collected spectrum.
+![timeseries_view](luracs/resources/docs/documentation/Interface/imgs/timeseries_view.webp)
 ### Area Mapping
 By connecting an external GPS through USB area mapping can be carried out by extending the normal spectrogram measurements. Maps can be requested from an internet URL or provided from a downloaded file for offline use.
 ### CLI
 While the GUI provides to most common interface, LuRaCs also supports control through a Command Line Interface. Enabling efficient use over an ssh tunnel for connecting the remotely connected instruments, for instance used with a *RaspberryPi*.
 
 The CLI is started by running with the `--headless` flag.
+
+![cli_img](luracs/resources/docs/documentation/Interface/imgs/cli.webp) ![cli_spect](luracs/resources/docs/documentation/Interface/imgs/cli_spect.webp)
+
+
 ### Implemented Instruments
 Currently, drivers for the following instruments are included by default
 - [RadiaCode-1xx series](https://www.radiacode.com/100-series)
@@ -61,4 +69,5 @@ LuRaCs documentation can be found [here](luracs/resources/docs/documentation/Wel
 
 ## Licence
 The LuRaCs source code is licensed under the GPL-3.0 license.
+
 The LuRaCs documentation and images are licensed under the CC BY-SA 4.0 license.

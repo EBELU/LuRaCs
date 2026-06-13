@@ -258,7 +258,7 @@ class db_parser:
 
 if __name__ == "__main__":
     p = db_parser(".appdata/spectrogram_library/SpectrumLog-20260325_204646.db")
-    import matplotlib.pyplot as plt
+    # import matplotlib.pyplot as plt
 
     # s = p.get_summary()["total_spectrum"]
     # plt.plot(s)

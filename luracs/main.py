@@ -2,15 +2,7 @@ import sys
 import asyncio
 import logging
 __version__ = "0.2.0"
-HAS_FULL_FEATURES = False
-try:
-    import sklearn
-    import scipy
-    import PySide6.QtWebEngineCore
 
-    HAS_FULL_FEATURES = True
-except ImportError:
-    HAS_FULL_FEATURES = False
 
 def print_progress(text, progress):
     print(
@@ -67,7 +59,8 @@ from luracs.gui.windows import (
 from luracs.gui.dialogs.settings_dialog import SettingsDialog
 
 # --- Import heavy features excluded in the lightweight version ---
-if HAS_FULL_FEATURES:
+from luracs.config import IS_H3
+if not IS_H3:
     pass
 
 print_progress("Loading luracs.utils.", 5)
@@ -102,7 +95,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         print_progress("Initializing main window", 7)
-        self.setWindowTitle("LuRaCs" if HAS_FULL_FEATURES else "LuRaCs-H3")
+        self.setWindowTitle("LuRaCs" if not IS_H3 else "LuRaCs-H3")
 
         self.mock_running = True
         self._closing = False
@@ -313,14 +306,12 @@ def main():
 
     # --- Log welcome ---
     Log.info(
-        f"""
-
- ======  ======  ======     
-|71    ||88    ||55    |    Version:  {__version__} \t [2026-04-14]
-|  Lu  ||  Ra  ||  Cs  |    Licence:  GNU General Public Licence v3.0
-| 177  || 226  || 137  |    
- ======  ======  ======     
-"""
+        "\n"
+        "\n ======  ======  ====== "    
+       f"\n|71    ||88    ||55    |    Version:  {__version__} \t [2026-04-14]"
+       f"\n|  Lu  ||  Ra  ||  Cs  |    Licence:  GNU General Public Licence v3.0"
+        "\n| 177  || 226  || 137  |"
+        "\n ======  ======  ====== "    
     )
     print_progress("Done!", 10)
     print()
