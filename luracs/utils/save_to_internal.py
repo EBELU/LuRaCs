@@ -1,5 +1,3 @@
-
-
 from luracs.core import Settings, Log
 from luracs.containers.spectrum_classes import Spectrum
 
@@ -33,4 +31,11 @@ def save_instrument_to_library(instrument: UniqueInstrument | GenericInstrument)
     xml_writer(dummy_spectrum, new_file, export_spectrum=False, export_rois=False)
 
     Log.debug(f"Instrument saved to library: {new_file}")
+    return new_file.with_suffix(".xml")
+
+
+def save_rois_to_internal(dummy_spectrum: Spectrum):
+    new_file = Settings.Paths.roi_library / dummy_spectrum.name
+    xml_writer(dummy_spectrum, new_file, export_spectrum=False, export_instrument=False)
+    Log.debug(f"ROIs saved to library: {new_file}")
     return new_file.with_suffix(".xml")

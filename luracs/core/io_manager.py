@@ -12,7 +12,7 @@ from PySide6.QtWidgets import QFileDialog, QMessageBox
 
 from luracs.utils.file_io import db_parser, xml_parser, io_dispatcher
 from luracs.utils import file_io
-from luracs.utils.save_to_internal import save_instrument_to_library, save_spectrum_to_library
+from luracs.utils.save_to_internal import save_instrument_to_library, save_spectrum_to_library, save_rois_to_internal
 
 from .settings import Settings
 from .gui_logger import gui_logger
@@ -43,7 +43,7 @@ class _FileIndex(QObject):
         # Build the indexes
         self.spectrum_index = Indexer(self, Settings.Paths.spectrum_library / "*.xml", {"meta_only": True}, save_spectrum_to_library, xml_parser)
         self.spectrogram_index = Indexer(self, Settings.Paths.spectrogram_library / "*.db", {}, None, db_parser)
-        self.roi_index = Indexer(self, Settings.Paths.roi_library / "*.xml", {"meta_only": True}, None, xml_parser)
+        self.roi_index = Indexer(self, Settings.Paths.roi_library / "*.xml", {"meta_only": True}, save_rois_to_internal, xml_parser)
         self.unique_instrument_index = Indexer(self, Settings.Paths.unique_instrument_library / "*.xml", {"meta_only": True}, save_instrument_to_library, xml_parser)
         self.generic_instrument_index = Indexer(self, Settings.Paths.generic_instrument_library / "*.xml", {"meta_only": True}, save_instrument_to_library, xml_parser)
         

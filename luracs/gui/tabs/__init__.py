@@ -1,4 +1,4 @@
-from .current_values_tab import CurrentValuesPlot
+from .real_time_values_tab import RealTimeValuesPlot
 from .devices_tab import DevicesInfoTab
 from .logger_tab import LogWidget
 from .roi_info_tab import ROIInfoTab

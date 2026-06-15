@@ -255,10 +255,10 @@ class IndexCommand(Command):
                     live_time = -1
                     
                 table.add_row(
-                    [header[0], 
+                    [header.name, 
                      parser.get_foreground_spectrum().start_date,
                      timedelta(seconds = round(live_time)),
-                     header[2]
+                     header.instrument_id
                      ])
         
             return table.get_table()

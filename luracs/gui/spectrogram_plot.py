@@ -252,11 +252,23 @@ class SpectrogramWidget(QWidget):
         y = np.zeros(self.x_len)
 
         # Call bar for changes
-        self.bar = pg.BarGraphItem(x=self.x, height=y, width=1.0, brush="y")
+        self.bar = pg.BarGraphItem(x=self.x, height=y, width=1.0, brush="g")
 
         self.top_spectrum_plot.setLimits(
             xMin=0, xMax=self.x_len, yMin=0, minXRange=10, minYRange=4
         )
+        
+        self.top_spectrum_plot.setMouseEnabled(x=False, y=True)
+        vb = self.top_spectrum_plot.getViewBox()
+
+        def keep_zero_bottom(_, ranges):
+            ymin, ymax = ranges[1]
+            if ymin != 0:
+                vb.setYRange(0, ymax, padding=0)
+
+        vb.sigRangeChanged.connect(keep_zero_bottom)
+        
+        self.top_spectrum_plot.getViewBox().autoRange()
 
         self.top_spectrum_plot.addItem(self.bar)
 
@@ -530,7 +542,7 @@ class SpectrogramWidget(QWidget):
             bar_width = np.mean(np.diff(self.x))
 
             self.top_spectrum_plot.removeItem(self.bar)
-            self.bar = pg.BarGraphItem(x=self.x, height=y, width=bar_width, brush="y")
+            self.bar = pg.BarGraphItem(x=self.x, height=y, width=bar_width, brush="g")
             self.top_spectrum_plot.addItem(self.bar)
 
             self.top_spectrum_plot.setLimits(xMax=np.max(self.x))
@@ -544,6 +556,9 @@ class SpectrogramWidget(QWidget):
 
             self.top_spectrum_plot.getAxis("bottom").setTicks([ticks])
             self.plot.getAxis("bottom").setTicks([ticks])
+
+            self.top_spectrum_plot.getViewBox().autoRange()
+            
 
     def update_spectrogram_y(self, timestamp_queue):
         "Spectrogram y-axis updated from receive data"

@@ -246,7 +246,7 @@ class ResolutionWindow(QDialog):
     def plot_data(self, mode: int):
         if getattr(self, "res_plot", None) is None: # Survive startup
             return
-        if len(self.current_energy_points) == 0:
+        if self.current_energy_points is None or len(self.current_energy_points) == 0:
             return
         
         self.res_plot.clear()

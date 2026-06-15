@@ -25,8 +25,10 @@ from ..misc.idx_table import StrIdxTable
 from luracs.utils.file_io import io_dispatcher
 from luracs.core import SpectrumManager, IOManager
 from luracs.spectrogram import restart_spectrogram
-from ..dialogs.data_store_edit_dialogs import InstrumentDialog
+from ..dialogs.data_store_edit_dialogs import InstrumentDialog, ROIDialog
 from luracs.containers.instrument_classes import UniqueInstrument, GenericInstrument
+from luracs.containers.spectrum_classes import Spectrum
+from luracs.gui.dialogs.save_dialog import SaveNamingDialog
 
 import shutil
 from pathlib import Path
@@ -216,9 +218,10 @@ class LibraryTab(QWidget):
 
 class SpectrumTab(LibraryTab):
     def __init__(self, parent):
+        self.titles = ["Name", "Date", "Live Time", "Background", "ROIs", "Instrument"]
         super().__init__(
             parent,
-            ["Name", "Date", "Live Time", "Background", "ROIs", "Instrument"],
+            self.titles,
             [150, 140, 75, 95, 50, 100],
             True,
         )
@@ -235,9 +238,12 @@ class SpectrumTab(LibraryTab):
         export_xlsx = self.export_menu.addAction("Excel Workbook (*.xlsx)")
         export_xlsx.triggered.connect(self.export_xlsx)
 
+        self.btn_info.clicked.connect(self.edit)
+
         self.delete_fn = IOManager.FileIndex.spectrum_index.delete_file
         
     def set_table(self):
+        self.table.reset_table(self.titles)
         for key, parser in IOManager.FileIndex.spectrum_index.get_index().items():
             name = parser.data.get("name")
             fg = parser.data.get("foreground")
@@ -272,6 +278,49 @@ class SpectrumTab(LibraryTab):
                 parser.data.pop("instrument", None)
                 
             SpectrumManager.import_spectrum(parser.data)
+            
+    def edit(self):
+        selection = self._get_selection()
+        if not selection:
+            return
+        
+        if len(selection) > 1:
+            QMessageBox.warning(self, "Selection error", "Only one item may be edited simultaneously")
+            return
+        
+        parser = io_dispatcher(selection[0], meta_parsing = True)
+        
+        edit_dialog = SaveNamingDialog(name=parser.get_header().name)
+        edit_dialog.remark_edit.clear()
+        edit_dialog.remark_edit.setPlainText(parser.get_header().remark or "")
+
+        res = edit_dialog.exec()
+        
+        if res != ROIDialog.Accepted:
+            return
+
+
+
+        header_dict = parser.get_header().__dict__
+        del header_dict["name"]
+        dummy_spectrum = Spectrum(parser.get_foreground_spectrum().channels, edit_dialog.get_name(), **header_dict)
+        dummy_spectrum.set_foreground(parser.get_foreground_spectrum())
+        dummy_spectrum.set_background(parser.get_background_spectrum())
+        
+        for roi in parser.get_rois():
+            dummy_spectrum.set_roi(roi)
+        
+        if parser.get_instrument() is not None:
+            dummy_spectrum.set_instrument(parser.get_instrument())
+            
+        dummy_spectrum.remark = edit_dialog.get_remark()
+        
+        IOManager.FileIndex.spectrum_index.delete_file(selection[0])
+        IOManager.FileIndex.spectrum_index.save_file(dummy_spectrum)
+        
+        self.set_table()
+        
+        
             
             
     def export_csv(self):
@@ -436,9 +485,11 @@ class ROIsTab(LibraryTab):
             lambda: self.export_same("LuRaCs ROI file (*.xml)")
         )
         
+        self.btn_info.clicked.connect(self.edit)
         self.delete_fn = IOManager.FileIndex.roi_index.delete_file
 
     def set_table(self):
+        self.table.reset_table(["Name", "ROIs", "Regions"], [150, 50, 400])
         for key, parser in IOManager.FileIndex.roi_index.get_index().items():
             rois = parser.get_rois()
             regions = ", ".join([str([round(rb) for rb in r.roi_bound]) for r in rois])
@@ -459,7 +510,36 @@ class ROIsTab(LibraryTab):
                 }
                 del extented_kwargs["tag"]
                 SpectrumManager.ROIManager.add_roi(*peak.roi_bound, **extented_kwargs)
+                
+    def edit(self):
+        selection = self._get_selection()
+        if not selection:
+            return
+        
+        if len(selection) > 1:
+            QMessageBox.warning(self, "Selection error", "Only one item may be edited simultaneously")
+            return
+        
 
+        edit_dialog = ROIDialog(io_dispatcher(selection[0]).get_rois(), Path(selection[0]).stem)
+
+        res = edit_dialog.exec()
+        
+        if res != ROIDialog.Accepted:
+            return
+
+        IOManager.FileIndex.roi_index.delete_file(selection[0])
+
+        dummy_spectrum = Spectrum(1, edit_dialog.get_name())
+        
+        for roi in edit_dialog.get_rois():
+            dummy_spectrum.set_roi(roi)
+
+        IOManager.FileIndex.roi_index.save_file(dummy_spectrum)
+        
+        self.set_table()
+        
+        print(IOManager.FileIndex.roi_index.index_registry.keys())
 
 
 class InstrumentsTab(LibraryTab):

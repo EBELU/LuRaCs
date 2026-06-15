@@ -247,6 +247,13 @@ QMenu::indicator:checked {
     border-radius: 4px;
 }
 
+QMenu::separator {
+    height: 1px;
+    background: #6c7086;
+    margin-left: 6px;
+    margin-right: 6px;
+}
+
 QScrollBar:horizontal {
     background: #1e1e2e;
     height: 12px;

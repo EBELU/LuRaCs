@@ -11,6 +11,7 @@ from collections import deque
 @dataclass
 class _Appearance:
     theme: str = "light"
+    color_rotator_scheme: str = "catppuccin"
     pen: bool = True
     brush: bool = False
     font_size: int = 10
@@ -58,6 +59,8 @@ class _Advanced:
     log_catch_exceptions: bool = True
     log_write_to_file: bool = False
     log_write_to_console: bool = False
+    
+    real_time_values_deque_length: int = 60
     
     spectrogram_deque_length: int = 256
 

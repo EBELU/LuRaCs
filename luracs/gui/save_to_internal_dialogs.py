@@ -86,6 +86,7 @@ def save_roi_references():
         dummy_roi = ROI(
             tag=r.tag,
             alias=r.alias,
+            spectrum="None",
             roi_bound=r.getRegion(),
             region_bound=(None, None),
             fit_type=r.fit_type,

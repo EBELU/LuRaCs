@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from luracs.containers.spectrum_classes import Spectrum
 
+
 from PySide6.QtWidgets import QApplication, QWidget
 from PySide6.QtWidgets import (
     QVBoxLayout,
@@ -16,8 +17,12 @@ from PySide6.QtWidgets import (
     QPushButton,
     QLabel,
     QDoubleSpinBox,
+    QSpinBox,
     QListWidget,
     QListWidgetItem,
+    QTableWidget,
+    QTableWidgetItem,
+    QHeaderView
 )
 
 from PySide6.QtCore import Qt
@@ -26,6 +31,7 @@ import numpy as np
 
 from luracs.core import SpectrumManager, IOManager
 from luracs.utils.numerics import resolution, exp_polynomial
+from luracs.containers.roi_classes import ROI, Fit
 
 class InstrumentDialog(QDialog):
     def __init__(self, parent=None, **kwargs):
@@ -386,7 +392,6 @@ class InstrumentDialog(QDialog):
         }
         return data, self.generic_list.currentData()
 
-
 class SpectrumEditDialog(QDialog):
     def __init__(self, parent=None, 
                  spectrum: Spectrum = None, 
@@ -575,7 +580,155 @@ class SpectrumEditDialog(QDialog):
     def clear_instrument(self):
         self.flag_clear_instrument = True
         self.instrument_line.setText("")
+        
+class ROIDialog(QDialog):
+    def __init__(self, rois: list[ROI] = [], name: str="", parent=None, **kwargs):
+        super().__init__(parent)
+        self.setWindowTitle("ROI Dialog")
+        self.resize(750, 500)
 
+        # Main layout
+        main_layout = QVBoxLayout(self)
+
+        # Form layout
+        form_layout = QFormLayout()
+        main_layout.addLayout(form_layout)
+        
+        self.line_name = QLineEdit()
+        self.line_name.setText(name)
+        
+        form_layout.addRow("Name: ", self.line_name)
+        
+        titles = ["Alias", "Lower Bound", "Upper Bound", "Nuclide", "Energy"]
+        self.table = QTableWidget()
+        self.table.setColumnCount(len(titles) + 1)  # +1 hidden ROI column
+        self.table.setHorizontalHeaderLabels(titles + ["__roi__"])
+        self.table.setColumnHidden(len(titles), True)  # hide last column
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        
+        form_layout.addRow(self.table)
+                
+        for i, roi in enumerate(rois):
+            self.table.insertRow(i)
+
+            # Store full ROI in hidden column (5)
+            roi_item = QTableWidgetItem()
+            roi_item.setData(Qt.UserRole, roi)
+            self.table.setItem(i, 5, roi_item)
+
+            # Row 0: Alias
+            line_alias = QLineEdit(roi.alias)
+            self.table.setCellWidget(i, 0, line_alias)
+
+            # Row 1: Lower bound
+            spin_lower = QSpinBox()
+            spin_lower.setRange(0, 3500)
+            spin_lower.setValue(roi.roi_bound[0])
+            self.table.setCellWidget(i, 1, spin_lower)
+
+            # Row 2: Upper bound
+            spin_upper = QSpinBox()
+            spin_upper.setRange(0, 3500)
+            spin_upper.setValue(roi.roi_bound[1])
+            self.table.setCellWidget(i, 2, spin_upper)
+
+            # Row 3: Nuclide
+            combo_nuclide = QComboBox()
+            combo_nuclide.addItem("None")
+            combo_nuclide.addItems(
+                SpectrumManager.NuclideLibrary.get_sorted_nuclide_names(True)
+            )
+            self.table.setCellWidget(i, 3, combo_nuclide)
+
+            # Row 4: Emission
+            combo_emission = QComboBox()
+            self.table.setCellWidget(i, 4, combo_emission)
+
+            # Signal connection (row-safe)
+            combo_nuclide.currentTextChanged.connect(
+                lambda text, row=i: self._update_emissions(row, text)
+            )
+
+            # Set initial nuclide
+            if roi.emission is not None:
+                combo_nuclide.setCurrentText(roi.emission.parent_nuclide)
+            else:
+                combo_nuclide.setCurrentText("None")
+
+            # Fill emissions + select current emission
+            self._update_emissions(i, combo_nuclide.currentText())
+
+            if roi.emission is not None:
+                combo_emission = self.table.cellWidget(i, 4)
+                for idx in range(combo_emission.count()):
+                    if combo_emission.itemData(idx) == roi.emission:
+                        combo_emission.setCurrentIndex(idx)
+                        break
+
+            
+        # --- Bottom Buttons
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+
+        main_layout.addWidget(buttons)
+        
+
+
+    def _update_emissions(self, row: int, nuclide: str):
+        emissions_obj = SpectrumManager.NuclideLibrary.get_nuclide(nuclide)
+
+        combo_emission = self.table.cellWidget(row, 4)
+        if combo_emission is None:
+            return
+
+        combo_emission.clear()
+
+        if emissions_obj is None:
+            combo_emission.addItem("None")
+            return
+
+        emissions = emissions_obj.emissions
+
+        for e in emissions:
+            text = f"{e.energy_keV} keV"
+            combo_emission.addItem(text, e)
+            
+    
+    def get_name(self):
+        return self.line_name.text()
+    
+    def get_rois(self):
+        rois = []
+        for i in range(self.table.rowCount()):
+            roi_item = self.table.item(i, 5)  # hidden column index
+            if roi_item is None:
+                continue
+            
+            old_roi: ROI = roi_item.data(Qt.UserRole)
+            combo = self.table.cellWidget(i, 4)
+            emission = combo.currentData()
+            rois.append(ROI(
+                tag=f"ROI_{i}", # Random id
+                alias=self.table.cellWidget(i, 0).text(),
+                spectrum="None",
+                roi_bound=(
+                    self.table.cellWidget(i, 1).value(),
+                    self.table.cellWidget(i, 2).value()
+                ),
+                region_bound=(),
+                fit_type=old_roi.fit_type,
+                bkg_type=old_roi.bkg_type,
+                fit=None,
+                roi_counts=0,
+                live_time=1,
+                emission=emission,
+                meta=old_roi.meta
+            )
+            )
+            
+        return rois
+        
 if __name__ == "__main__":
     import sys
 

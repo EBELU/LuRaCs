@@ -11,7 +11,7 @@ import pyqtgraph as pg
 from pyqtgraph.Qt import QtWidgets
 import numpy as np
 
-from luracs.core import SpectrumManager, Settings
+from luracs.core import SpectrumManager, Settings, core_utils
 
 from luracs.containers.spectrum_classes import Spectrum
 
@@ -114,9 +114,9 @@ class SpectrumPlot(QWidget):
         self.cbox_bkg_choises.setCurrentIndex(0)
 
         btn_layout.addWidget(self.btn_reset_zoom)
+        btn_layout.addWidget(self.btn_y_axis_lock)
         btn_layout.addWidget(self.btn_lin_log)
         btn_layout.addWidget(self.btn_cps)
-        btn_layout.addWidget(self.btn_y_axis_lock)
         btn_layout.addWidget(self.btn_mark_roi)
         btn_layout.addWidget(self.cbox_bkg_choises)
 
@@ -225,9 +225,9 @@ class SpectrumPlot(QWidget):
             )
         self._redraw()
 
-    def lock_y_axis(self):
+    def lock_y_axis(self, set_mode = None):
         """Lock or unlock if the y-axis can be zoomed in the spectrum plot"""
-        if self.y_axis_locked:
+        if self.y_axis_locked or (set_mode is not None and not set_mode):
             self.plot_widget.getViewBox().setMouseEnabled(x=True, y=True)
             self.y_axis_locked = False
             self.btn_y_axis_lock.setText("Lock y-axis")
@@ -258,6 +258,8 @@ class SpectrumPlot(QWidget):
         self.user_scaled = False
         self.plot_widget.setXRange(0, 2500, padding=0)
         self.plot_widget.enableAutoRange()
+        self.y_axis_locked = False
+        self.lock_y_axis()
 
     def update_plot(self, name):
         """Primary method for updating a spectrum plot"""
@@ -480,7 +482,7 @@ class SpectrumPlot(QWidget):
         # --- Gaussian line ---
         if spectrum_name not in self.ROI_lines_gaussian[roi_tag]:
             pen = pg.mkPen(
-                color=QColor("#BAFFC9") if Settings.Appearance.theme == "dark" else QColor("#000080"), 
+                color=QColor(core_utils.ThemeManager.colors["text"]), 
                 width=1.3
                 )
             line = self.plot_widget.plot([], [], pen=pen)
@@ -489,7 +491,7 @@ class SpectrumPlot(QWidget):
         # --- Linear background line ---
         if spectrum_name not in self.ROI_lines_linear[roi_tag]:
             pen = pg.mkPen(
-                color=QColor("#BAFFC9") if Settings.Appearance.theme == "dark" else QColor("#000080"), 
+                color=QColor(core_utils.ThemeManager.colors["text"]), 
                 width=1, 
                 style=Qt.DashLine)
             line = self.plot_widget.plot([], [], pen=pen)

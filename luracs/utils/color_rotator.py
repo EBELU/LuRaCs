@@ -1,5 +1,6 @@
-from PySide6.QtGui import QColor
+from enum import Enum
 
+from PySide6.QtGui import QColor, QPen
 import pyqtgraph as pg
 
 
@@ -30,8 +31,16 @@ def shift_hue(color: QColor, degrees: int) -> QColor:
     return shifted
 
 class ColorRotator:
-    def __init__(self, colors="mpl", width=2):
-        if colors == "mpl":  # Matplotlib
+    class ColorSchemes(Enum):
+        CATPPUCCIN = "catppuccin"
+        MPL = "mpl"
+        LO = "lo"
+    
+    def __init__(self, colors: ColorSchemes = None, width = 2):
+        print("colors",colors)
+        if colors is None:
+            colors = ColorRotator.ColorSchemes.MPL
+        if colors == self.ColorSchemes.MPL:  # Matplotlib
             colors = [
                 "#1f77b4",
                 "#ff7f0e",
@@ -40,7 +49,7 @@ class ColorRotator:
                 "#9467bd",
                 "#8c564b",
             ]
-        elif colors == "lo":  # LibreOffice
+        elif colors == self.ColorSchemes.LO:  # LibreOffice
             colors = [
                 "#004586",
                 "#ff420e",
@@ -50,14 +59,15 @@ class ColorRotator:
                 "#83caff",
             ]
             
-        elif colors == "dark-catppuccin":
+        elif colors == self.ColorSchemes.CATPPUCCIN: # Catppuccin Late
             colors = [
-                "#89b4fa",
-                "#fab387",
-                "#f9e2af",
-                "#a6e3a1",
-                "#f38ba8",
-                "#b4befe",
+                "#1e66f5",
+                "#fe640b",
+                "#40a02b",
+                "#e64553",
+                "#8839ef",
+                "#179299",
+                "#ea76cb",
             ]
 
         # Normalize everything to QColor
@@ -72,7 +82,7 @@ class ColorRotator:
         self._i += 1
         return QColor(color)  # return a copy (safe to modify)
     
-    def next_pen(self):
+    def next_pen(self) -> QPen:
         return pg.mkPen(self.next_color(), width=self.width)
     
     def get_color_pair(self, hue_shift_degrees: int = 15) -> tuple[QColor, QColor]:

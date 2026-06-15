@@ -44,7 +44,7 @@ class _SpectrumManager(QObject):
     """
     def __init__(self):
         super().__init__()
-        self.color_rotation = ColorRotator("dark-catppuccin")
+        self.color_rotation = ColorRotator(ColorRotator.ColorSchemes(Settings.Appearance.color_rotator_scheme))
 
         self.spectrum_registry: dict[str, Spectrum] = {}
 

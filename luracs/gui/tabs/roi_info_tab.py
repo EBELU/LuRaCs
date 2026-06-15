@@ -132,6 +132,7 @@ class ROIInfoTab(QWidget):
         # --- Signals ---
         SpectrumManager.ROIManager.sigROIUpdated.connect(self.recieve_roi)
         SpectrumManager.ROIManager.sigROIDeleted.connect(self.delete_roi)
+        SpectrumManager.Signals.spectrumRemoved.connect(self.spectrum_deleted)
 
         # ---- UI ----
         self.group_box = QGroupBox(title)
@@ -280,6 +281,14 @@ class ROIInfoTab(QWidget):
         """Remove all rows belonging to a deleted ROI."""
         keys_to_remove = [
             key for key in self.table.current_keys if key.startswith(f"{roi.tag}_")
+        ]
+
+        for key in keys_to_remove:
+            self.table.delete_row(key)
+            
+    def spectrum_deleted(self, spectrum_name: str):
+        keys_to_remove = [
+            key for key in self.table.current_keys if key.endswith(f"{spectrum_name}")
         ]
 
         for key in keys_to_remove:

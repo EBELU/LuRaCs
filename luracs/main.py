@@ -40,7 +40,7 @@ from luracs.gui.tabs import (
     SpectrumInfoTab,
     LogWidget,
     DevicesInfoTab,
-    CurrentValuesPlot,
+    RealTimeValuesPlot,
     IsotopicsTab,
     ConsoleTab,
 )
@@ -145,7 +145,7 @@ class MainWindow(QMainWindow):
 
         # Spectrum Infp
         self.spectrum_info_tab = SpectrumInfoTab(self, parent=self)
-        self.bottom_tabs.addTab(self.spectrum_info_tab, "Spectra")
+        self.bottom_tabs.addTab(self.spectrum_info_tab, "Spectrum Info")
 
         # ROI info
         self.roi_info_pane = ROIInfoTab(parent=self)
@@ -153,8 +153,8 @@ class MainWindow(QMainWindow):
         self.bottom_tabs.addTab(self.roi_info_pane, "ROI Info")
 
         # Current values
-        self.current_value_tab = CurrentValuesPlot()
-        self.bottom_tabs.addTab(self.current_value_tab, "Current Values")
+        self.current_value_tab = RealTimeValuesPlot()
+        self.bottom_tabs.addTab(self.current_value_tab, "Real Time Values")
 
         # Devices
         self.devices_tab = DevicesInfoTab()

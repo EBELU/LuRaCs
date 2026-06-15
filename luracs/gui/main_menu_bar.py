@@ -42,13 +42,14 @@ class MainMenuBar(QMenuBar):
         view_menu = self.addMenu("View")
         view_menu_map = view_menu.addMenu("&Map")
         view_menu_spectrum = view_menu.addMenu("&Spectrum")
-        view_menu_realtime = view_menu.addMenu("&Real Time Data")
+        view_menu_realtime = view_menu.addMenu("&Real Time Data    ")
+        view_menu_realtime_avg_line = view_menu_realtime.addAction(QAction("Mark Average", self, checkable=True))
         # ---------- Device Menu ----------
         device_menu = self.addMenu("&Device")
         device_menu_connectBT = device_menu.addAction("Connect Bluetooth")
         device_menu_connectBT.triggered.connect(parent.bt_window.start_popup)
 
-        self.device_menu_retryLast = device_menu.addMenu("&Retry Last Connection")
+        self.device_menu_retryLast = device_menu.addMenu("&Retry Last Connection   ")
         device_menu_connectUSB = device_menu.addAction("Connect USB")
         device_menu_connectUSB.triggered.connect(parent.usb_window.start_popup)
         device_menu_disconnect = device_menu.addAction("Disconnect All")

@@ -14,6 +14,7 @@ from luracs.containers.spectrum_classes import SpectrumData
 from luracs.containers.nuclide_classes import Emission
 from luracs.containers.roi_classes import ROI, Fit
 from luracs.containers.instrument_classes import UniqueInstrument, GenericInstrument
+from dataclasses import dataclass
 
 
 # --- Helper Functions ---
@@ -118,6 +119,15 @@ class xml_parser:
     N42_NS = {"n42": "http://physics.nist.gov/N42/2011/N42"}
     DHS_NS = {"dhs": "DHS", **N42_NS}
     LRC_NS = {"lrc": "https://example.com/n42/extensions", **N42_NS}
+    
+    @dataclass(kw_only=True, frozen=True)
+    class XMLHeader:
+        name: str
+        instrument_model: str
+        instrument_id: str
+        instrument_class_code: str
+        calibration: list
+        remark: str
 
     def __init__(self, path: Path | str, meta_only: bool = False):
         self.path = path if isinstance(path, Path) else Path(path)
@@ -199,13 +209,13 @@ class xml_parser:
         return self.data.get("instrument")
 
 
-    def get_header(self) -> tuple:
+    def get_header(self) -> XMLHeader:
         """
         Return a compact summary of parsed file metadata.
 
         Returns:
-            dict:
-                Dictionary containing high-level metadata extracted from
+            XMLHeader:
+                Dataclass containing high-level metadata extracted from
                 the XML document, including:
 
                 - name
@@ -213,18 +223,15 @@ class xml_parser:
                 - instrument_id
                 - instrument_class_code
                 - calibration
-
-        Note:
-            The current implementation constructs a ``set`` instead of a
-            dictionary due to the use of curly braces without key-value
-            pairs. Consider replacing with an explicit dictionary.
+                - remark
         """
-        return (
-            self.data.get("name"),
-            self.data.get("instrument_model"),
-            self.data.get("instument_id"),
-            self.data.get("instrument_class_code"),
-            self.data.get("calibration"),
+        return self.XMLHeader(
+            name=self.data.get("name"),
+            instrument_model=self.data.get("instrument_model"),
+            instrument_id=self.data.get("instrument_id"),
+            instrument_class_code=self.data.get("instrument_class_code"),
+            calibration=self.data.get("calibration"),
+            remark=self.data.get("remark"),
         )
         
     def _dispatch_parser(self):

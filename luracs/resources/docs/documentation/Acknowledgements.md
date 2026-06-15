@@ -2,12 +2,12 @@
 
 This application uses the following open-source projects:
 
-| Project | License |
+| Package | License |
 |---|---|
 | bleak | MIT License |
 | numpy | BSD License |
 | pyqtgraph | MIT License |
-| PySide6 / Qt for Python | LGPLv3 |
+| PySide6 (Qt for Python) | LGPLv3 |
 | qasync | BSD License |
 | openpyxl | MIT License |
 | pyusb | BSD License |
@@ -16,7 +16,9 @@ This application uses the following open-source projects:
 | uncertainties | BSD License |
 | plotext | MIT License |
 | prompt_toolkit | BSD License |
-| Markdown | BSD License |
+| markdown | BSD License |
+| scikit-learn | BSD License |
+| scipy | BSD License |
 
 We gratefully acknowledge the maintainers and contributors of these projects.
 
@@ -25,6 +27,9 @@ We gratefully acknowledge the maintainers and contributors of these projects.
 This application uses Qt for Python (PySide6), licensed under the GNU Lesser General Public License v3 (LGPLv3).
 
 Users may replace or modify LGPL-covered Qt libraries in accordance with the LGPL.
+
+## Colour Scheme and Icons
+This application uses the [Catppuccin](https://catppuccin.com/) colour scheme and [Material Design Icons](https://pictogrammers.com/library/mdi/) (Apache 2.0 see licences/)
 
 ## Project License
 

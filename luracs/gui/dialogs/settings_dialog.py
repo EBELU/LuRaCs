@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtWidgets import QDoubleSpinBox, QCheckBox, QLabel
 
 from luracs.core import Settings, RunManager, log_utils, core_utils
+from luracs.utils.color_rotator import ColorRotator
 
 
 class SettingsDialog(QDialog):
@@ -44,6 +45,13 @@ class SettingsDialog(QDialog):
             self.theme_combo.addItem(theme_option.value.replace("-", " ").capitalize(), theme_option.value)
         self.theme_combo.setCurrentText(Settings.Appearance.theme.replace("-", " ").capitalize())
         form.addRow("Theme:", self.theme_combo)
+        
+        self.rotator_combo = QComboBox()
+        color_scheme_map = {"lo": "LibreOffice", "mpl": "MatplotLib", "catppuccin": "Catppuccin"}
+        for color_scheme in ColorRotator.ColorSchemes:
+            self.rotator_combo.addItem(color_scheme_map[color_scheme.value], color_scheme)
+        self.rotator_combo.setCurrentText(color_scheme_map[Settings.Appearance.color_rotator_scheme])
+        form.addRow("Plot Colour Scheme:", self.rotator_combo)
 
         self.spectrum_draw_buttons = QButtonGroup()
 
@@ -87,7 +95,7 @@ class SettingsDialog(QDialog):
         self.font_size_spin.setValue(Settings.Appearance.font_size)
         self.font_size_spin.setRange(2, 48)
 
-        form.addRow("Font Size", self.font_size_spin)
+        form.addRow("Font Size:", self.font_size_spin)
 
         self.verbose_calculation_logging = QCheckBox("Verbose Calculation Logging")
         self.verbose_calculation_logging.setChecked(
@@ -125,6 +133,7 @@ class SettingsDialog(QDialog):
 
         return {
             "theme": theme,
+            "color_rotator_scheme": self.rotator_combo.currentData().value,
             "pen": pen,
             "brush": brush,
             "font_size": font_size,
