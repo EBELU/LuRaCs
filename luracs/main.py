@@ -30,7 +30,7 @@ from PySide6.QtCore import QTimer
 print_progress("Loading GUI", 0)
 
 # --- Perform standard internal imports ---
-from luracs.core import RunManager, Log, Settings, SpectrumManager, log_utils
+from luracs.core import RunManager, Log, Settings, SpectrumManager, log_utils, core_utils
 from luracs.core.script_engine import ScriptEngine # Not normally exposed in the api
 
 from luracs.gui import MainMenuBar, SpectrumPlotContainer, SpectrogramWidget
@@ -65,7 +65,7 @@ if not IS_H3:
 
 print_progress("Loading luracs.utils.", 5)
 
-from luracs.ThemeManager import ThemeManager
+from luracs.theme_manager import ThemeManager
 from luracs.utils.arg_parser import parse_cli_args
 from luracs.utils.startup import startup_script
 
@@ -99,9 +99,6 @@ class MainWindow(QMainWindow):
 
         self.mock_running = True
         self._closing = False
-
-        self.theme = ThemeManager(Settings.Appearance.theme)
-        self.theme.apply()
         
         # Shown from main menu bar
         self.bt_window = BluetoothListPopup()
@@ -131,6 +128,7 @@ class MainWindow(QMainWindow):
         # ---------- SPECTRUM PLOT ----------
         self.spect_tab = QTabWidget()
         self.spect_tab.setTabPosition(QTabWidget.South)
+        self.spect_tab.setObjectName("southTabs")
 
         self.spectrum_plot_container = SpectrumPlotContainer(self)
         self.spect_tab.addTab(self.spectrum_plot_container, "Spectrum")
@@ -202,18 +200,16 @@ class MainWindow(QMainWindow):
         layout.addLayout(bottom_layout, stretch=3)
 
         # Theming
-        self.theme.register_plot(self.current_value_tab.cps_plot_widget)
-        self.theme.register_plot(self.current_value_tab.dose_plot_widget)
-        self.theme.register_plot(self.spectrogram.plot)
-        self.theme.register_plot(self.spectrogram.top_spectrum_plot)
-        self.theme.register_plot(self.calc_win_efficiency.demo_plot)
-        self.theme.register_plot(self.calc_win_calibration.calibration_plot)
-        self.theme.register_plot(self.calc_win_resolution.res_plot)
-
-        self.theme.register_legend(self.current_value_tab.legends)
-        self.theme.register_legend(self.spectrum_plot_container.single_plot.legend)
-
-        self.theme.apply()
+        core_utils.ThemeManager.register_plot(self.current_value_tab.cps_plot_widget)
+        core_utils.ThemeManager.register_plot(self.current_value_tab.dose_plot_widget)
+        core_utils.ThemeManager.register_plot(self.spectrogram.plot)
+        core_utils.ThemeManager.register_plot(self.spectrogram.top_spectrum_plot)
+        core_utils.ThemeManager.register_plot(self.calc_win_efficiency.demo_plot)
+        core_utils.ThemeManager.register_plot(self.calc_win_calibration.calibration_plot)
+        core_utils.ThemeManager.register_plot(self.calc_win_resolution.res_plot)
+        core_utils.ThemeManager.register_legend(*self.current_value_tab.legends)
+        core_utils.ThemeManager.register_legend(self.spectrum_plot_container.single_plot.legend)
+        core_utils.ThemeManager.apply(ThemeManager.themes(Settings.Appearance.theme))
 
         # Run things that need the event loop active
         if len(sys.argv) > 1:
@@ -282,8 +278,6 @@ def main():
     if Settings.Advanced.log_write_to_console and not Settings.headless:
         log_utils.attach_console_handler()
 
-    # --- Set the loop for the RunManager ---
-    RunManager.set_loop(loop)
 
     # --- Script engine ---
     script_engine = ScriptEngine(

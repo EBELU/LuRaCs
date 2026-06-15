@@ -98,7 +98,6 @@ class _RunManager(QObject):
 
     def __init__(self):
         super().__init__()
-        self.event_loop = None
 
         self.deviceConnecting.connect(Settings.add_new_connection)
 
@@ -116,9 +115,6 @@ class _RunManager(QObject):
         self._polling = False
 
         self.loaded_spectrogram: dict[str, Spectrogram] = {}
-
-    def set_loop(self, loop):
-        self.event_loop = loop
 
     async def _poll_loop(self):
         update_delay = Settings.Advanced.update_loop_delay
@@ -371,14 +367,14 @@ class _RunManager(QObject):
         self._scan_task = asyncio.create_task(self._scan_bluetooth(timeout))
 
     def scan_all_usb(self):
-        devices = usb.luracs.core.find(find_all=True)
+        devices = usb.core.find(find_all=True)
         results = []
 
         for dev in devices or []:
             try:
                 try:
                     dev.set_configuration()
-                except usb.luracs.core.USBError:
+                except usb.core.USBError:
                     pass
 
                 results.append(

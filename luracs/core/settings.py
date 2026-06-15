@@ -1,5 +1,5 @@
 import sys
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Signal, Slot
 from dataclasses import dataclass, field
 from typing import Optional, Any
 import json
@@ -85,6 +85,7 @@ class _Paths:
         # runtime base (where bundled resources live)
         self.BASE = get_runtime_base()
 
+        self.themes = self.BASE / "resources" / "themes"
         self.nuclide_data = self.BASE / "resources" / "nuclide_data"
         self.bibliography = self.BASE  / "resources" / "docs" / "bibliography.md"
         self.documentation_dir = self.BASE  / "resources" / "docs" / "documentation"
@@ -115,10 +116,13 @@ class _Settings(QObject):
         self.Appearance = _Appearance()
         self.Paths = _Paths()
 
-    def add_new_connection(self, name):
-        if name not in list(self.State.last_connections):
-            self.State.last_connections.append(name)
-        self.latestConnectionUpdated.emit(list(self.State.last_connections))
+    @Slot(str, str, object)
+    def update_setting(self, group: str, variable: str, new_value: object):
+        "Update a setting based on group (Appearance | State | Advanced) and variable to be changed"
+        group_ref = getattr(self, group)
+        setattr(group_ref, variable, new_value)
+        
+        
 
     def load_settings(self):
         "Ingest the previous settings file"
@@ -140,6 +144,11 @@ class _Settings(QObject):
 
         with open(self.Paths.settings_file, "w") as f:
             json.dump(json_content, f, indent=4)
+            
+    def add_new_connection(self, name):
+        if name not in list(self.State.last_connections):
+            self.State.last_connections.append(name)
+        self.latestConnectionUpdated.emit(list(self.State.last_connections))
 
 
 Settings = _Settings()

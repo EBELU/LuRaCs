@@ -37,9 +37,13 @@ class MainMenuBar(QMenuBar):
         file_menu_saveRoi.triggered.connect(save_roi_references)
         exit_action = file_menu.addAction("Exit")
         exit_action.triggered.connect(self.on_exit)
-
-        # Device Menu
-
+        
+        # ---------- View Menu ----------
+        view_menu = self.addMenu("View")
+        view_menu_map = view_menu.addMenu("&Map")
+        view_menu_spectrum = view_menu.addMenu("&Spectrum")
+        view_menu_realtime = view_menu.addMenu("&Real Time Data")
+        # ---------- Device Menu ----------
         device_menu = self.addMenu("&Device")
         device_menu_connectBT = device_menu.addAction("Connect Bluetooth")
         device_menu_connectBT.triggered.connect(parent.bt_window.start_popup)
@@ -51,7 +55,9 @@ class MainMenuBar(QMenuBar):
         device_menu_disconnect.triggered.connect(
             lambda x: RunManager.remove_all_devices()
         )
-
+        
+        
+        # ---------- Gamma Tools ----------
         calculate_menu = self.addMenu("&Gamma Tools")
         calculate_menu_photoCalibration = calculate_menu.addAction("Calibration")
         calculate_menu_photoCalibration.triggered.connect(parent.calc_win_calibration.show)

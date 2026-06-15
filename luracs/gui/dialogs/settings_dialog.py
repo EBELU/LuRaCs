@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 
 from PySide6.QtWidgets import QDoubleSpinBox, QCheckBox, QLabel
 
-from luracs.core import Settings, RunManager, log_utils
+from luracs.core import Settings, RunManager, log_utils, core_utils
 
 
 class SettingsDialog(QDialog):
@@ -40,8 +40,9 @@ class SettingsDialog(QDialog):
 
         # --- Name field ---
         self.theme_combo = QComboBox()
-        self.theme_combo.addItems(["Light", "Dark"])
-        self.theme_combo.setCurrentText(Settings.Appearance.theme.capitalize())
+        for theme_option in core_utils.ThemeManager.themes:
+            self.theme_combo.addItem(theme_option.value.replace("-", " ").capitalize(), theme_option.value)
+        self.theme_combo.setCurrentText(Settings.Appearance.theme.replace("-", " ").capitalize())
         form.addRow("Theme:", self.theme_combo)
 
         self.spectrum_draw_buttons = QButtonGroup()
@@ -105,7 +106,7 @@ class SettingsDialog(QDialog):
         form.addRow("", self.load_instrument_on_import)
 
     def get_values(self):
-        theme = self.theme_combo.currentText().lower()
+        theme = self.theme_combo.currentData()
 
         checked_button = self.spectrum_draw_buttons.checkedButton()
         text = checked_button.text()
@@ -149,9 +150,7 @@ def edit_settings(main_window: MainWindow):
 
             match key:
                 case "theme":
-                    main_window.theme.mode = value
-                    main_window.theme.apply()
-                    main_window.theme.style_hist_lut(main_window.spectrogram.hist)
+                    core_utils.ThemeManager.apply(core_utils.ThemeManager.themes(value))
                     main_window.spectrum_plot_container.request_redraw()
                     for w in app.allWidgets():
                         w.update()

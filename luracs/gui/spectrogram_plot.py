@@ -25,7 +25,7 @@ import pyqtgraph as pg
 
 from textwrap import dedent
 
-from luracs.core import RunManager, Settings, IOManager, Log
+from luracs.core import RunManager, Settings, IOManager, Log, core_utils
 from luracs.spectrogram import (
     WrappedSpectrogramData,
     start_spectrogram,
@@ -192,7 +192,7 @@ class SpectrogramWidget(QWidget):
         self.btn_resume.clicked.connect(self.restart_logger)
 
         btn_menu = QPushButton("...")
-        btn_menu.setMaximumWidth(40)
+        btn_menu.setMaximumWidth(55)
 
         # --- Dropdown menu ---
         self.menu = QMenu(btn_menu)
@@ -245,7 +245,7 @@ class SpectrogramWidget(QWidget):
 
         # --- Plots ---
         self.top_spectrum_plot = pg.PlotWidget()
-        self.top_spectrum_plot.getPlotItem().layout.setContentsMargins(0, 13, 13, 0)
+        self.top_spectrum_plot.getPlotItem().layout.setContentsMargins(0, 13, 13, 5)
 
         # Defaults
         self.x = np.arange(self.x_len)
@@ -287,6 +287,8 @@ class SpectrogramWidget(QWidget):
         self.hist.vb.enableAutoRange(axis="y")
         self.hist.vb.setLimits(xMin=-0.2, xMax=1e3, minXRange=1)
         self.hist.region.setBounds([0, 100000])
+        
+        core_utils.ThemeManager.register_hist_lut(self.hist)
         
         # Load colormap preset
         self.hist.gradient.loadPreset("viridis")
@@ -661,7 +663,11 @@ class SpectrogramWidget(QWidget):
             )
         )
         timestamps = np.array(self.current_packet_buffer.timestamp_deque)[::-1]
-        start_time, stop_time = timestamps[ymax - 1], timestamps[ymin]
+        
+        if ymin >= len(timestamps):
+            return
+
+        start_time, stop_time = timestamps[min(ymax - 1, len(timestamps) - 1)], timestamps[ymin]
         time_str = "%H:%M:%S\n%m-%d" if self.show_date_on_y else "%H:%M:%S"
 
         self.info_text_selector = (
@@ -739,8 +745,9 @@ class SpectrogramWidget(QWidget):
         ymin, ymax = self.time_selector.getRegion()
         ymin, ymax = round(ymin), round(ymax)
         timestamps = np.array(self.current_packet_buffer.timestamp_deque)[::-1]
+        start_index = min(ymax - 1, len(timestamps) - 1)
         start_time, stop_time = (
-            datetime.fromtimestamp(timestamps[ymax - 1]),
+            datetime.fromtimestamp(timestamps[start_index]),
             datetime.fromtimestamp(timestamps[ymin]),
         )
 

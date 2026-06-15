@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QStackedWidget, QTabWidget, 
 from PySide6.QtCore import Signal
 from .spectrum_plot import SpectrumPlot
 
-from luracs.core import SpectrumManager, Settings
+from luracs.core import SpectrumManager, Settings, core_utils
 
 import numpy as np
 
@@ -38,7 +38,7 @@ class SpectrumPlotContainer(QWidget):
         self.single_plot.sigRedrawRequested.connect(lambda : self.sigRedrawRequested.emit())
         self._sigRedraw.connect(self.single_plot._redraw)
         
-        self.main_window.theme.register_plot(self.single_plot.plot_widget)
+        core_utils.ThemeManager.register_plot(self.single_plot.plot_widget)
         
         self.single_page = QWidget()
         layout = QVBoxLayout(self.single_page)
@@ -47,6 +47,7 @@ class SpectrumPlotContainer(QWidget):
 
         # --- Multi plot mode ---
         self.tabs = QTabWidget()
+        self.tabs.setObjectName("northTabs")
         self.tabs.setTabPosition(QTabWidget.North)
         self.tabs.setContentsMargins(0,0,0,0)
         self.tabs.currentChanged.connect(lambda : self.sigTabChanged.emit(self.tabs.currentWidget().owned_spectrum if self.tabs.currentWidget() else ""))
@@ -83,13 +84,13 @@ class SpectrumPlotContainer(QWidget):
         self._sigRedraw.connect(plot_widget._redraw)
         plot_widget.sigRedrawRequested.connect(lambda : self.sigRedrawRequested.emit())
         
-        self.main_window.theme.register_plot(plot_widget.plot_widget)
+        core_utils.ThemeManager.register_plot(plot_widget.plot_widget)
         self.tab_spectrum_plots[spectrum_name] = plot_widget
         self.tabs.addTab(plot_widget, spectrum_name)
         
     def remove_tab(self, spectrum_name):
         plot_widget = self.tab_spectrum_plots.pop(spectrum_name)
-        self.main_window.theme.unregister_plot(plot_widget)
+        core_utils.ThemeManager.unregister_plot(plot_widget)
         index = self.tabs.indexOf(plot_widget)
         self.tabs.removeTab(index)
         plot_widget.deleteLater()

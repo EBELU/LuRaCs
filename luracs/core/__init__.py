@@ -4,6 +4,7 @@ from .settings import Settings
 from .spectrum_manager import SpectrumManager
 from .calculator import Calculator
 from .io_manager import IOManager
+from .utils import _theme_manager
 
 from .gui_logger import (
     _attach_file_handler,
@@ -23,6 +24,9 @@ class log_utils:
 
     attach_console_handler = _attach_console_handler
     detach_console_handler = _detach_console_handler
+    
+class core_utils:
+    ThemeManager = _theme_manager
 
 """
 Global state classes shared by the entire program.

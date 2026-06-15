@@ -1,6 +1,10 @@
 from PySide6.QtWidgets import QTextBrowser, QListView, QDialog, QHBoxLayout, QVBoxLayout, QFileSystemModel, QTreeView, QWidget, QPushButton
+from PySide6.QtCore import QSortFilterProxyModel, Qt, QUrl
+
 import markdown
 from pathlib import Path
+
+
 
 
 class SmallDocumentationDialog(QDialog):
@@ -65,7 +69,7 @@ class SmallDocumentationDialog(QDialog):
             styled_html
         )
 
-
+        
 class DocumentationDialog(QWidget):
     def __init__(self, doc_dir: str, parent=None):
         super().__init__(parent)
@@ -91,6 +95,7 @@ class DocumentationDialog(QWidget):
         self.model.setNameFilterDisables(False)
 
         self.doc_tree = QTreeView()
+        self.doc_tree.setMaximumWidth(350)
 
         content_layout.addWidget(self.doc_tree, 3)
         content_layout.addWidget(self.text_browser, 7)
@@ -123,7 +128,6 @@ class DocumentationDialog(QWidget):
         self.load_markdown(doc_dir / "Welcome.md")
         
         
-        
     def load_markdown(self, path: str | Path):
         path = Path(path)
 
@@ -131,7 +135,7 @@ class DocumentationDialog(QWidget):
 
         html = markdown.markdown(
             md_text,
-            extensions=["fenced_code", "tables"]
+            extensions=["fenced_code", "tables",         "sane_lists"]
         )
         
         styled_html = f"""
@@ -142,6 +146,13 @@ class DocumentationDialog(QWidget):
             font-family: Arial;
             line-height: 1.3;
             padding: 12px;
+        }}
+        img {{
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 10px auto;
+            cursor: zoom-in;
         }}
         h1 {{ color: #1a73e8; }}
         th, td {{
@@ -157,6 +168,16 @@ class DocumentationDialog(QWidget):
             margin-top: 1px;
             margin-bottom: 1px;
         }}
+        
+        ul, ol {{
+            margin-top: 4px;
+            margin-bottom: 4px;
+            padding-left: 24px;
+        }}
+
+        li p {{
+            margin: 0;
+        }}
         </style>
         </head>
         <body>
@@ -168,9 +189,12 @@ class DocumentationDialog(QWidget):
         # important for images + relative links
         base_path = path.parent.resolve()
         self.text_browser.setHtml(
-            styled_html
+            styled_html,
         )
-        
+        self.text_browser.document().setBaseUrl(
+            QUrl.fromLocalFile(str(path.parent) + "/")
+        )
+            
     def on_selection_changed(self, selected, deselected):
         indexes = selected.indexes()
         if not indexes:

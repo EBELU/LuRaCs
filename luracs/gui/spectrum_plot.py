@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QComboBox,
 )
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QFont
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtWidgets
 import numpy as np
@@ -90,6 +90,10 @@ class SpectrumPlot(QWidget):
         if owned_spectrum is None:
             self.legend = self.plot_widget.addLegend()
             self.legend.setOffset((-1, 1))
+            self.legend.setLabelTextSize(f"{Settings.Appearance.font_size}pt")
+            
+
+            
 
         self.plot_widget.getViewBox().setMouseEnabled(x=True, y=False)
         self.plot_widget.enableAutoRange()

@@ -6,9 +6,6 @@ import pyqtgraph as pg
 
 class ThemeManager:
     """Controls the theme of the app.
-
-    Can switch between LIGHT and DARK modes.
-    Keeps a registry of plot widgets and legends to auto-apply styling.
     """
 
     DARK = "dark"
@@ -56,7 +53,7 @@ class ThemeManager:
         app = QApplication.instance()
         if not app:
             return
-
+        self._apply_stylesheet(app)
         self._apply_qt_palette(app)
         self._apply_pg_globals()
 
@@ -66,7 +63,7 @@ class ThemeManager:
         for lgd in self._registry_legends:
             self._style_legend(lgd)
 
-        self._apply_stylesheet(app)
+
 
     # ---------- Qt ----------
 
@@ -149,30 +146,32 @@ class ThemeManager:
 
     def _apply_stylesheet(self, app):
         if self.mode == self.DARK:
-            app.setStyleSheet("""
-            QCheckBox::indicator {
-                width: 10px;
-                height: 10px;
-                border: 1px solid #888;
-                background: #222;
-            }
+            with open("luracs/resources/themes/variants/dark-catppuccin.css", "r") as f:
+                app.setStyleSheet(f.read())
+            # app.setStyleSheet("""
+            # QCheckBox::indicator {
+            #     width: 10px;
+            #     height: 10px;
+            #     border: 1px solid #888;
+            #     background: #222;
+            # }
 
-            QCheckBox::indicator:checked {
-                background: solid #b3b3b3;
-            }
+            # QCheckBox::indicator:checked {
+            #     background: solid #b3b3b3;
+            # }
             
 
-            QLineEdit::placeholder {
-                color: #dddddd;
-            }
+            # QLineEdit::placeholder {
+            #     color: #dddddd;
+            # }
             
-            QMenu::separator {
-                height: 0.5px;
-                background: palette(mid);
-                margin-left: 8px;
-                margin-right: 8px;
-            }
-            """)
+            # QMenu::separator {
+            #     height: 0.5px;
+            #     background: palette(mid);
+            #     margin-left: 8px;
+            #     margin-right: 8px;
+            # }
+            # """)
         else:
             app.setStyleSheet("")
 
@@ -229,8 +228,6 @@ class ThemeManager:
         # 1. Axis ticks + labels
         hist.axis.setPen(pg.mkPen(fg))
         hist.axis.setTextPen(pg.mkPen(fg))
-
-        # 2. Histogram plot (inside the LUT widget)
 
         # 3. Gradient ticks (important)
         hist.gradient.tickPen = pg.mkPen(fg)
