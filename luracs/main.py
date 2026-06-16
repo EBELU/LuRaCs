@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO if "-db" in sys.argv else logging.INFO)
 
 
 # --- PySide6 Imports for main window ---
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtGui import QCloseEvent, QIcon
 from PySide6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -107,9 +107,9 @@ class MainWindow(QMainWindow):
         print_progress("Building GUI", 8)
         self.data_store = DataLibrary("Data Store", None)
 
-        self.bibliography_dialog = SmallDocumentationDialog(Settings.Paths.bibliography)
+        self.bibliography_dialog = SmallDocumentationDialog(Settings.Paths.bibliography.as_posix())
         self.documentation_dialog = DocumentationDialog(
-            Settings.Paths.documentation_dir, parent=None
+            Settings.Paths.documentation_dir.as_posix(), parent=None
         )
 
         self.settings_dialog = SettingsDialog()
@@ -256,6 +256,7 @@ def main():
     font = app.font()
     font.setPointSize(Settings.Appearance.font_size)  # Change the font size
     app.setFont(font)
+    app.setWindowIcon(QIcon(str(Settings.Paths.themes / "icons" / "main_icon_green.png")))
     loop = QEventLoop(app)
     asyncio.set_event_loop(loop)
 

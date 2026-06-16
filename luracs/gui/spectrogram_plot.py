@@ -289,10 +289,12 @@ class SpectrogramWidget(QWidget):
 
         self.plot.getViewBox().sigYRangeChanged.connect(self.on_y_range_changed)
 
-        self.plot.getAxis("left").setStyle(tickFont=QFont("Arial", 9))
+        self.plot.getAxis("left").setStyle(tickFont=QFont("Arial", Settings.Appearance.font_size - 2))
 
         # HistogramLUT (used only for gradient + dual slider)
         self.hist = pg.HistogramLUTItem(orientation="horizontal")
+        self.hist.setContentsMargins(55,0,55,0)
+        self.hist.vb.setMaximumHeight(25)
         self.hist.setMinimumHeight(15)
         self.hist.setImageItem(self.img)
         self.hist.vb.enableAutoRange(axis="x")

@@ -37,7 +37,6 @@ class ColorRotator:
         LO = "lo"
     
     def __init__(self, colors: ColorSchemes = None, width = 2):
-        print("colors",colors)
         if colors is None:
             colors = ColorRotator.ColorSchemes.MPL
         if colors == self.ColorSchemes.MPL:  # Matplotlib

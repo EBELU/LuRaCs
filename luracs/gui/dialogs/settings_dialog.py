@@ -172,6 +172,10 @@ def edit_settings(main_window: MainWindow):
                     font = app.font()
                     font.setPointSize(value)  # Change the font size
                     app.setFont(font)
+                    for widget in app.allWidgets():
+                        f = widget.font()
+                        f.setPointSize(value)
+                        widget.setFont(f)
 
                 case "verbose_calculation_logging":
                     Settings.Appearance.verbose_calculation_logging = value

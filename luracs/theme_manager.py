@@ -100,7 +100,7 @@ class ThemeManager(QObject):
         with open(str(style_sheet_pth.with_suffix(".css")), "r") as f:
             style_sheet = f.read()
             style_sheet = style_sheet.replace(
-                "${THEMES_PATH}", str(self.themes_path)
+                "${THEMES_PATH}", str(self.themes_path.as_posix())
             )
 
         with open(str(style_sheet_pth.with_suffix(".json")), "r") as f:
