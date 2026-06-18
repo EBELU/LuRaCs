@@ -14,25 +14,30 @@ def print_progress(text, progress):
 
 logging.basicConfig(level=logging.INFO if "-db" in sys.argv else logging.INFO)
 
+# --- Vital imports for core application to function ---
+from PySide6.QtWidgets import QApplication
+from qasync import QEventLoop
+from luracs.core import RunManager, Log, Settings, SpectrumManager, log_utils, core_utils
+from luracs.core.script_engine import ScriptEngine # Not normally exposed in the api
+
+from luracs.utils.arg_parser import parse_cli_args
+from luracs.utils.startup import startup_script
+
 
 # --- PySide6 Imports for main window ---
 from PySide6.QtGui import QCloseEvent, QIcon
 from PySide6.QtWidgets import (
-    QApplication,
     QMainWindow,
     QWidget,
     QVBoxLayout,
     QTabWidget,
 )
-from qasync import QEventLoop
+
 from PySide6.QtCore import QTimer
 
 print_progress("Loading GUI", 0)
 
 # --- Perform standard internal imports ---
-from luracs.core import RunManager, Log, Settings, SpectrumManager, log_utils, core_utils
-from luracs.core.script_engine import ScriptEngine # Not normally exposed in the api
-
 from luracs.gui import MainMenuBar, SpectrumPlotContainer, SpectrogramWidget
 
 from luracs.gui.tabs import (
@@ -57,6 +62,7 @@ from luracs.gui.windows import (
 )
 
 from luracs.gui.dialogs.settings_dialog import SettingsDialog
+from luracs.theme_manager import ThemeManager
 
 # --- Import heavy features excluded in the lightweight version ---
 from luracs.config import IS_H3
@@ -64,12 +70,6 @@ if not IS_H3:
     pass
 
 print_progress("Loading luracs.utils.", 5)
-
-from luracs.theme_manager import ThemeManager
-from luracs.utils.arg_parser import parse_cli_args
-from luracs.utils.startup import startup_script
-
-
 
 # ===================== IMPORTANT GUI CONNECTIONS =====================
 
@@ -90,6 +90,24 @@ RunManager.spectrumUpdated.connect(SpectrumManager.set_foreground_spectrum)
 
 
 
+_closing = False
+async def _async_close():
+    global _closing
+    if _closing:
+        return
+    _closing = True
+    try:
+        await RunManager.shutdown()
+    finally:
+        QApplication.quit()
+        
+def close():
+    Settings.save_settings()
+    asyncio.create_task(_async_close())
+
+
+
+
 # ===================== MAIN WINDOW =====================
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -97,19 +115,19 @@ class MainWindow(QMainWindow):
         print_progress("Initializing main window", 7)
         self.setWindowTitle("LuRaCs" if not IS_H3 else "LuRaCs-H3")
 
-        self.mock_running = True
-        self._closing = False
+        
+        self.data_store = DataLibrary("Data Store", None)
         
         # Shown from main menu bar
         self.bt_window = BluetoothListPopup()
         self.usb_window = USBListPopup()
         
         print_progress("Building GUI", 8)
-        self.data_store = DataLibrary("Data Store", None)
 
-        self.bibliography_dialog = SmallDocumentationDialog(Settings.Paths.bibliography.as_posix())
+
+        self.bibliography_dialog = SmallDocumentationDialog(Settings.Paths.bibliography)
         self.documentation_dialog = DocumentationDialog(
-            Settings.Paths.documentation_dir.as_posix(), parent=None
+            Settings.Paths.documentation_dir, parent=None
         )
 
         self.settings_dialog = SettingsDialog()
@@ -210,6 +228,7 @@ class MainWindow(QMainWindow):
         core_utils.ThemeManager.register_legend(*self.current_value_tab.legends)
         core_utils.ThemeManager.register_legend(self.spectrum_plot_container.single_plot.legend)
         core_utils.ThemeManager.apply(ThemeManager.themes(Settings.Appearance.theme))
+        Log.debug(f"{self.__class__}: Theme loaded '{Settings.Appearance.theme}'")
 
         # Run things that need the event loop active
         if len(sys.argv) > 1:
@@ -229,23 +248,14 @@ class MainWindow(QMainWindow):
         self.data_store.show()
 
     def closeEvent(self, event: QCloseEvent = None):
-        if self._closing:
+        global _closing
+        if _closing:
             event.accept()
             return
         Log.info("Disconnecting devices and shutting down application...")
         event.ignore()
         self.hide()
-        Settings.save_settings()
-        asyncio.create_task(self._async_close())
-
-    async def _async_close(self):
-        if self._closing:
-            return
-        self._closing = True
-        try:
-            await RunManager.shutdown()
-        finally:
-            QApplication.quit()
+        close()
 
 
 # ===================== ENTRY =====================
@@ -260,14 +270,18 @@ def main():
     loop = QEventLoop(app)
     asyncio.set_event_loop(loop)
 
-    win = MainWindow()
+
 
     # Check if headless
     if "--headless" in sys.argv:
         Settings.headless = True
+        win = None
     else:
         # If not headless, show the GUI
+        win = MainWindow()
         win.show()
+    
+    Log.debug(f"headless: {Settings.headless}")
 
     # --- Set Handlers for the logger ---
     if Settings.Advanced.log_write_to_file:
@@ -292,12 +306,14 @@ def main():
     app.aboutToQuit.connect(on_quit)
 
     # Connect Signals
-    win.console_tab.sigCommandEntered.connect(script_engine.submit_from_sync)
-    script_engine.sigCommandAppendOutput.connect(win.console_tab.append_output)
-    script_engine.sigCommandOutput.connect(win.console_tab.append_output)
-    script_engine.sigClearConsole.connect(win.console_tab.set_output)
-    script_engine.sigShutdown.connect(lambda: asyncio.create_task(win._async_close()))
-    script_engine.connect_log_buffer(win.log_tab.get_buffered_logs)
+    script_engine.sigShutdown.connect(lambda: asyncio.create_task(_async_close()))
+    script_engine.connect_log_buffer(log_utils.log_buffer.get_messages)
+    if win is not None:
+        win.console_tab.sigCommandEntered.connect(script_engine.submit_from_sync)
+        script_engine.sigCommandAppendOutput.connect(win.console_tab.append_output)
+        script_engine.sigCommandOutput.connect(win.console_tab.append_output)
+        script_engine.sigClearConsole.connect(win.console_tab.set_output)
+
 
     # --- Log welcome ---
     Log.info(
@@ -307,6 +323,7 @@ def main():
        f"\n|  Lu  ||  Ra  ||  Cs  |    Licence:  GNU General Public Licence v3.0"
         "\n| 177  || 226  || 137  |"
         "\n ======  ======  ====== "    
+        "\n"
     )
     print_progress("Done!", 10)
     print()

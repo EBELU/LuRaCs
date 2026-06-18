@@ -1,5 +1,6 @@
 from .run_manager import RunManager
 from .gui_logger import gui_logger as Log # This must be here, if bellow IOManager it breaks
+from .gui_logger import log_buffer as _log_buffer
 from .settings import Settings
 from .spectrum_manager import SpectrumManager
 from .calculator import Calculator
@@ -24,6 +25,8 @@ class log_utils:
 
     attach_console_handler = _attach_console_handler
     detach_console_handler = _detach_console_handler
+    
+    log_buffer = _log_buffer
     
 class core_utils:
     ThemeManager = _theme_manager

@@ -401,11 +401,12 @@ class SpectrogramCommand(Command):
         
         # --- Load a spectrogram form index ---
         elif args[0] == "load":
-            if args[1] not in IOManager.FileIndex.spectrogram_index.index_registry:
-                raise ArgumentError(f"'{args[1]}' does not match an indexed spectrogram")
+            file_pth = Path(args[1])
+            if not file_pth.exists():
+                raise ArgumentError(f"'{args[1]}' does not match an existing spectrogram")
                 
-            restart_spectrogram(args[1])
-            return f"'{args[1]}' loaded"
+            restart_spectrogram(file_pth.stem)
+            return f"'{file_pth.stem}' loaded"
         
         # --- Unload a spectrogram from active ---
         elif args[0] == "unload":
@@ -422,7 +423,7 @@ class SpectrogramCommand(Command):
         return {"start": {"all": None} | {key: None for key in RunManager.device_registry.keys()},
                 "pause": {"all": None} | {key: None for key, sg in RunManager.loaded_spectrogram.items() if not sg.paused},
                 "unpause": {"all": None} | {key: None for key, sg in RunManager.loaded_spectrogram.items() if sg.paused},
-                "load": {"all": None} |{file: None for file in IOManager.FileIndex.spectrogram_index.index_registry},
+                "load": {file: None for file in IOManager.FileIndex.spectrogram_index.index_registry},
                 "unload": {"all": None} | {key: None for key in RunManager.loaded_spectrogram.keys()}}
     
 class DeviceCommand(Command):

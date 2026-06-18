@@ -1,5 +1,7 @@
 import logging
 import sys
+from collections import deque
+from .settings import Settings
 
 gui_logger = logging.getLogger("Application")
 gui_logger.setLevel(logging.DEBUG)
@@ -13,8 +15,25 @@ formatter = logging.Formatter(
 # Handlers
 # ------------------------------------------------------------------
 
+class BufferHandler(logging.Handler):
+    def __init__(self, max_entries=1000):
+        super().__init__()
+        self.buffer = deque(maxlen=max_entries)
+
+    def emit(self, record):
+        self.buffer.append(self.format(record))
+
+    def get_messages(self):
+        return list(self.buffer)
+
 console_handler = None
 file_handler = None
+
+# --- Buffer Handler ---
+log_buffer = BufferHandler(max_entries=Settings.Advanced.log_buffer_length)
+log_buffer.setFormatter(formatter)
+
+gui_logger.addHandler(log_buffer)
 
 # --- Console Handler ---
 # Forwards log messages to the console

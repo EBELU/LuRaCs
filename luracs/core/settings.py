@@ -22,10 +22,16 @@ class _Appearance:
     load_instrument_on_import: bool = True
 
 @dataclass
+class _Temp:
+    spectrum_view_cursor: bool = False
+    spectrum_view_emission_lines_to_cursor: bool = False
+
+@dataclass
 class _State:
     last_connections: deque = field(default_factory=lambda: deque(maxlen=10))
     loaded_spectra: Optional[Any] = None
     roi_regions: Optional[Any] = None
+    
 
     def to_dict(self):
         return {
@@ -42,7 +48,7 @@ class _State:
             loaded_spectra=data.get("loaded_spectra"),
             roi_regions=data.get("roi_regions"),
         )
-
+    
 
 @dataclass
 class _Advanced:
@@ -109,6 +115,7 @@ class _Paths:
 
 class _Settings(QObject):
     latestConnectionUpdated = Signal(list)
+    sigSettingChanged = Signal(str, str, object)
 
     def __init__(self):
         super().__init__()
@@ -118,12 +125,14 @@ class _Settings(QObject):
         self.State = _State()
         self.Appearance = _Appearance()
         self.Paths = _Paths()
+        self.Temp = _Temp()
 
     @Slot(str, str, object)
     def update_setting(self, group: str, variable: str, new_value: object):
         "Update a setting based on group (Appearance | State | Advanced) and variable to be changed"
         group_ref = getattr(self, group)
         setattr(group_ref, variable, new_value)
+        self.sigSettingChanged.emit(group, variable, new_value)
         
         
 
@@ -134,7 +143,6 @@ class _Settings(QObject):
 
         self.Advanced = _Advanced(**json_content["advanced"])
         self.Appearance = _Appearance(**json_content["appearance"])
-        self.State = _State().from_dict(json_content["state"])
         self.latestConnectionUpdated.emit(list(self.State.last_connections))
 
     def save_settings(self):

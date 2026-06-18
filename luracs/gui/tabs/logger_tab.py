@@ -34,8 +34,6 @@ class LogWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self.buffer = deque(maxlen=Settings.Advanced.log_buffer_length)  # Buffer for log messages in headless mode
-
         # --- Setup QTextEdit ---
         self.text_edit = QTextEdit()
         self.text_edit.setReadOnly(True)
@@ -94,12 +92,3 @@ class LogWidget(QWidget):
         self.text_edit.verticalScrollBar().setValue(
             self.text_edit.verticalScrollBar().maximum()
         )
-        self.buffer.append(msg)
-    
-    def get_buffered_logs(self, tail: int = 50):
-        """Return the current buffer of log messages."""
-        return list(self.buffer)[-tail:]
-    
-    def emit_buffer(self, tail: int = 50):
-        """Emit the current buffer of log messages."""
-        self.sigBufferSent.emit(self.get_buffered_logs(tail))

@@ -42,6 +42,17 @@ class MainMenuBar(QMenuBar):
         view_menu = self.addMenu("View")
         view_menu_map = view_menu.addMenu("&Map")
         view_menu_spectrum = view_menu.addMenu("&Spectrum")
+
+        view_menu_spectrum_show_cursor = QAction("Show Cursor", self, checkable=True)
+        view_menu_spectrum_show_cursor.triggered.connect(lambda checked: Settings.update_setting("Temp", "spectrum_view_cursor", checked))
+        view_menu_spectrum.addAction(view_menu_spectrum_show_cursor)
+        
+        view_menu_spectrum_show_cursor_emissions = QAction("Show Cursor Emissions", self, checkable=True)
+        view_menu_spectrum_show_cursor_emissions.triggered.connect(lambda checked: Settings.update_setting("Temp", "spectrum_view_emission_lines_to_cursor", checked))
+        view_menu_spectrum_show_cursor_emissions.trigger()
+        view_menu_spectrum.addAction(view_menu_spectrum_show_cursor_emissions)
+        
+        
         view_menu_realtime = view_menu.addMenu("&Real Time Data    ")
         view_menu_realtime_avg_line = view_menu_realtime.addAction(QAction("Mark Average", self, checkable=True))
         # ---------- Device Menu ----------

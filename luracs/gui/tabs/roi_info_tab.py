@@ -157,8 +157,8 @@ class ROIInfoTab(QWidget):
         self.table.reset_table(self.titles, self.widths)
 
         box_layout = QVBoxLayout(self.group_box)
-        box_layout.addWidget(self.table.table)
-        box_layout.addStretch()
+        box_layout.addWidget(self.table.table, 1)
+
 
         # --- Top bar ---
         options_widget = QWidget()
@@ -189,8 +189,8 @@ class ROIInfoTab(QWidget):
         # --- Main layout ---
         main_layout = QVBoxLayout(self)
         main_layout.addWidget(options_widget)
-        main_layout.addWidget(self.group_box)
-        main_layout.addStretch()
+        main_layout.addWidget(self.group_box, 1)
+
 
         # Initial build
         self.rebuild_table()

@@ -25,7 +25,7 @@ class Nuclide:
     emissions: List[Emission]
     
 EmptyEmission = Emission(
-    parent_nuclide="None", 
+    parent_nuclide="", 
     energy_keV=None, 
     energy_error_keV=None, 
     intensity_percent=None,

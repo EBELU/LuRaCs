@@ -4,9 +4,10 @@ from PySide6.QtWidgets import (
     QPushButton,
     QHBoxLayout,
     QComboBox,
+    QLineEdit,
 )
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QFont
+from PySide6.QtGui import QColor
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtWidgets
 import numpy as np
@@ -14,6 +15,7 @@ import numpy as np
 from luracs.core import SpectrumManager, Settings, core_utils
 
 from luracs.containers.spectrum_classes import Spectrum
+from luracs.containers.nuclide_classes import EmptyEmission
 
 from luracs.utils.numerics import multi_gaussian
 
@@ -23,7 +25,8 @@ class SpectrumPlot(QWidget):
 
     Does not manage the spectra, can only request operations from SpectrumManager.
     """
-    # --- Signals ---        
+
+    # --- Signals ---
     # ROIs
     sigUpdateSpectumROIs = Signal(str)
     sigRemoveROI = Signal(str)
@@ -31,9 +34,14 @@ class SpectrumPlot(QWidget):
     sigLogLinUpdated = Signal(bool)
     sigCpsUpdated = Signal(bool)
     sigBkgSubUpdated = Signal(bool)
-    
+
     sigRedrawRequested = Signal()
-    def __init__(self, xlabel="Energy [keV]", ylabel="Counts", parent=None, owned_spectrum=None):
+    sigCheckNuclide = Signal(str)
+    sigUncheckNuclide = Signal(str)
+
+    def __init__(
+        self, xlabel="Energy [keV]", ylabel="Counts", parent=None, owned_spectrum=None
+    ):
         super().__init__(parent)
 
         # Spectrum manager
@@ -42,7 +50,6 @@ class SpectrumPlot(QWidget):
         SpectrumManager.Signals.backgroundRemoved.connect(self._redraw)
         SpectrumManager.Signals.visibilityChanged.connect(self._redraw)
 
-        
         # ROI manager
         SpectrumManager.ROIManager.sigROIUpdated.connect(self.draw_roi)
         SpectrumManager.ROIManager.sigROIDeleted.connect(self.remove_roi)
@@ -50,15 +57,15 @@ class SpectrumPlot(QWidget):
         self.sigUpdateSpectumROIs.connect(
             lambda n: SpectrumManager.ROIManager.update_roi(spectrum_name=n)
         )
-        
-        # Nuclide library
-        SpectrumManager.NuclideLibrary.sigViewCheckChanged.connect(self.draw_nuclide_lines)
 
-        
+        # Nuclide library
+        SpectrumManager.NuclideLibrary.sigViewCheckChanged.connect(
+            self.draw_nuclide_lines
+        )
+
         # Emitted
         self.sigRemoveROI.connect(SpectrumManager.ROIManager.remove_roi)
         self.sigBkgSubUpdated.connect(SpectrumManager.ROIManager.set_bkg_sub)
-        
 
         # --- Layout ---
 
@@ -86,14 +93,11 @@ class SpectrumPlot(QWidget):
             maxYRange=1e16,
         )
         self.plot_widget.getPlotItem().layout.setContentsMargins(2, 13, 13, 2)
-        
+
         if owned_spectrum is None:
             self.legend = self.plot_widget.addLegend()
             self.legend.setOffset((-1, 1))
             self.legend.setLabelTextSize(f"{Settings.Appearance.font_size}pt")
-            
-
-            
 
         self.plot_widget.getViewBox().setMouseEnabled(x=True, y=False)
         self.plot_widget.enableAutoRange()
@@ -105,6 +109,9 @@ class SpectrumPlot(QWidget):
         self.btn_lin_log = QPushButton("Log")
         self.btn_cps = QPushButton("CPS")
         self.btn_mark_roi = QPushButton("Add ROI")
+        self.line_cursor_info = QLineEdit()
+        self.line_cursor_info.setReadOnly(True)
+        self.line_cursor_info.setPlaceholderText("Cursor")
 
         self.cbox_bkg_choises = QComboBox()
 
@@ -119,6 +126,7 @@ class SpectrumPlot(QWidget):
         btn_layout.addWidget(self.btn_cps)
         btn_layout.addWidget(self.btn_mark_roi)
         btn_layout.addWidget(self.cbox_bkg_choises)
+        btn_layout.addWidget(self.line_cursor_info)
 
         # --- Assign button callbacks ---
         self.btn_reset_zoom.clicked.connect(self.reset_zoom)
@@ -128,7 +136,7 @@ class SpectrumPlot(QWidget):
         self.btn_y_axis_lock.clicked.connect(self.lock_y_axis)
         self.cbox_bkg_choises.currentIndexChanged.connect(self._on_bkg_option_selection)
 
-        self.owned_spectrum = owned_spectrum # Used for tabbed mode
+        self.owned_spectrum = owned_spectrum  # Used for tabbed mode
 
         self.primary_lines = {}
         self.bkg_lines = {}
@@ -150,7 +158,125 @@ class SpectrumPlot(QWidget):
         self.plot_widget.enableAutoRange(axis=pg.ViewBox.YAxis)
         self.plot_widget.setAutoVisible(y=True)
         SpectrumManager.Signals.colorUpdated.connect(self._redraw)
-        self.plot_widget.getViewBox().sigRangeChanged.connect(self.update_nuclide_lines)
+
+        self.proxy_nuclide_lines = pg.SignalProxy(
+            self.plot_widget.getViewBox().sigRangeChanged,
+            rateLimit=15,
+            slot=self.update_nuclide_lines,
+        )
+
+        self.cursor_nuclide = None
+        self.cursor_emission_lines = []
+        cursor_pen = pg.mkPen("g", width=2)
+        self.cursor_line = pg.InfiniteLine(250, pen=cursor_pen)
+        self.cursor_line.setZValue(35)
+        self.proxy_cursor_line = pg.SignalProxy(
+            self.plot_widget.scene().sigMouseMoved,
+            rateLimit=10,
+            slot=self._mouse_moved,
+        )
+        if Settings.Temp.spectrum_view_cursor:
+            self.plot_widget.getPlotItem().addItem(self.cursor_line, ignoreBounds=True)
+        else:
+            self.proxy_cursor_line.blockSignals(True)
+
+        Settings.sigSettingChanged.connect(self.set_cursor)
+
+    def set_cursor(self, group: str, setting: str, state: bool):
+        if group != "Temp" or setting != "spectrum_view_cursor":
+            return
+
+        if state:
+            self.plot_widget.getPlotItem().addItem(self.cursor_line, ignoreBounds=True)
+            self.proxy_cursor_line.blockSignals(False)
+        else:
+            self.plot_widget.getPlotItem().removeItem(self.cursor_line)
+            self.proxy_cursor_line.blockSignals(True)
+            self.clear_cursor_lines()
+            self.cursor_nuclide = None
+            self._format_line_edit("")
+
+    def _mouse_moved(self, evt):
+        pos = evt[0]
+        self.last_nuclide = None
+
+        if self.plot_widget.sceneBoundingRect().contains(pos):
+            vb = self.plot_widget.getPlotItem().vb
+            mouse_point = vb.mapSceneToView(pos)
+
+            x = mouse_point.x()
+
+            self.cursor_line.setPos(x)
+            matched_nuclide = SpectrumManager.NuclideLibrary.match_energy_to_nuclide(x, match_only_shown=False, window=33, weight_by_intensity=True, filter_by_intensity_precent=10)
+            
+            matched_nuclide = matched_nuclide if matched_nuclide is not None else EmptyEmission
+            
+            if matched_nuclide.parent_nuclide in SpectrumManager.NuclideLibrary.decay_chains["Th-232 -- Chain"]:
+                self._format_line_edit(f"E: {round(x):<4} keV, [{(matched_nuclide.parent_nuclide + ' (Th-232-Chain)'):<6}]")
+                
+            elif matched_nuclide.parent_nuclide in SpectrumManager.NuclideLibrary.decay_chains["U-238 -- Chain"]:
+                self._format_line_edit(f"E: {round(x):<4} keV, [{(matched_nuclide.parent_nuclide + ' (U-238-Chain)'):<6}]")
+                
+            else:
+                self._format_line_edit(f"E: {round(x):<4} keV, [{(matched_nuclide.parent_nuclide):<6}]")
+            
+            if matched_nuclide != self.cursor_nuclide and matched_nuclide is not EmptyEmission and Settings.Temp.spectrum_view_emission_lines_to_cursor:
+                self.update_cursor_lines(matched_nuclide.parent_nuclide, QColor(255, 200, 0))
+            else:
+                self.clear_cursor_lines()
+                self.cursor_nuclide = None
+
+    def _format_line_edit(self, text):
+        self.line_cursor_info.setText(text)
+        
+    def clear_cursor_lines(self):
+        vb = self.plot_widget.getViewBox()
+
+        for item in self.cursor_emission_lines:
+            vb.removeItem(item)
+
+        self.cursor_emission_lines.clear()
+        
+    def update_cursor_lines(self, nuclide: str | None, color: QColor):
+        if nuclide == self.cursor_nuclide or not nuclide:
+            return  
+
+        self.clear_cursor_lines()
+
+        if nuclide is None:
+            self.cursor_nuclide = None
+            return
+
+        vb = self.plot_widget.getViewBox()
+        (_, _), (y_min, y_max) = vb.viewRange()
+        maximum = y_max * 0.85
+
+        fetched_nuclide = SpectrumManager.NuclideLibrary.get_nuclide(nuclide)
+        if not fetched_nuclide:
+            return
+        emissions = fetched_nuclide.emissions
+        
+        if not emissions:
+            return
+
+        largest_yield = max(e.intensity_percent for e in emissions)
+
+        for e in emissions:
+            if e.intensity_percent < 9.5:
+                continue
+            height = e.intensity_percent * maximum / largest_yield
+            pen = pg.mkPen(color=color, width=2, style=Qt.PenStyle.DashLine) if e.type == "x-ray" else pg.mkPen(color=color, width=2)
+            
+            line = pg.PlotDataItem(
+                x=[e.energy_keV, e.energy_keV],
+                y=[y_min, height],
+                pen=pen,
+            )
+
+            vb.addItem(line, ignoreBounds=True)
+            self.cursor_emission_lines.append(line)
+
+        self.cursor_nuclide = nuclide
 
     def _on_bkg_option_selection(self, option):
         """Change how the background is handeled"""
@@ -206,7 +332,7 @@ class SpectrumPlot(QWidget):
         self.sigCpsUpdated.emit(self.cps)
         if recalculate:
             self._redraw()
-            
+
     def change_lin_log(self):
         """Change lin log at data retrieval"""
         if not self.log:
@@ -225,7 +351,7 @@ class SpectrumPlot(QWidget):
             )
         self._redraw()
 
-    def lock_y_axis(self, set_mode = None):
+    def lock_y_axis(self, set_mode=None):
         """Lock or unlock if the y-axis can be zoomed in the spectrum plot"""
         if self.y_axis_locked or (set_mode is not None and not set_mode):
             self.plot_widget.getViewBox().setMouseEnabled(x=True, y=True)
@@ -241,11 +367,13 @@ class SpectrumPlot(QWidget):
         self.plot_widget.clear()
         self.primary_lines.clear()
         self.bkg_lines.clear()
-        
+
         self.ROI_lines_gaussian.clear()
         self.ROI_lines_linear.clear()
-        
-        
+
+        if Settings.Temp.spectrum_view_cursor:
+            self.plot_widget.getPlotItem().addItem(self.cursor_line, ignoreBounds=True)
+
         for spect_name in SpectrumManager.get_spectra_dict().keys():
             self.update_plot(spect_name)
             for roi in SpectrumManager.ROIManager.roi_registry.keys():
@@ -263,13 +391,13 @@ class SpectrumPlot(QWidget):
 
     def update_plot(self, name):
         """Primary method for updating a spectrum plot"""
-        if Settings.headless: # Skip plotting overhead in headless mode
+        if Settings.headless:  # Skip plotting overhead in headless mode
             self.sigUpdateSpectumROIs.emit(name)
             return
-        
+
         if self.owned_spectrum is not None and name != self.owned_spectrum:
             return
-        
+
         spect = SpectrumManager.get_spectrum(name)
         if not spect.show_in_plot:
             return
@@ -322,7 +450,10 @@ class SpectrumPlot(QWidget):
                 bkg = np.nanmin(spectrum.get_background(self.log, self.cps))
 
             self.primary_lines[spectrum.name].setFillLevel(
-                np.floor(min(np.nanmin(spectrum.get_foreground(self.log, self.cps)), bkg) * 2) / 2
+                np.floor(
+                    min(np.nanmin(spectrum.get_foreground(self.log, self.cps)), bkg) * 2
+                )
+                / 2
             )
 
         self.primary_lines[spectrum.name].setData(
@@ -442,12 +573,15 @@ class SpectrumPlot(QWidget):
 
     def update_all_rois(self):
         for roi in SpectrumManager.ROIManager.roi_registry.values():
-            if roi not in self.plot_widget.plotItem.items and roi.owner_spectrum == self.owned_spectrum:
+            if (
+                roi not in self.plot_widget.plotItem.items
+                and roi.owner_spectrum == self.owned_spectrum
+            ):
                 self.plot_widget.addItem(roi)
         for spectrum_name in SpectrumManager.spectrum_registry.keys():
             for roi_tag in SpectrumManager.ROIManager.roi_registry.keys():
                 self.draw_roi(roi_tag, spectrum_name)
-                
+
     def add_roi(self):
         # Pick a good position in the plit to spawn the new roi
         x_min, x_max = self.plot_widget.viewRange()[0]
@@ -459,17 +593,17 @@ class SpectrumPlot(QWidget):
         x_low = float(x_min) + diff * 0.15
 
         x_high = float(x_min) + diff * 0.45
-            
-        SpectrumManager.ROIManager.add_roi(x_low=x_low, x_high=x_high, movable=True, owner_spectrum=self.owned_spectrum)
-        
-            
+
+        SpectrumManager.ROIManager.add_roi(
+            x_low=x_low, x_high=x_high, movable=True, owner_spectrum=self.owned_spectrum
+        )
 
     def draw_roi(self, roi_tag: str, spectrum_name):
         spectrum = SpectrumManager.get_spectra_dict().get(spectrum_name)
 
         if spectrum is None or not spectrum.show_in_plot:
             return
-        
+
         roi = SpectrumManager.ROIManager.roi_registry.get(roi_tag)
         if roi is None or roi.owner_spectrum != self.owned_spectrum:
             return
@@ -482,22 +616,22 @@ class SpectrumPlot(QWidget):
         # --- Gaussian line ---
         if spectrum_name not in self.ROI_lines_gaussian[roi_tag]:
             pen = pg.mkPen(
-                color=QColor(core_utils.ThemeManager.colors["text"]), 
-                width=1.3
-                )
+                color=QColor(core_utils.ThemeManager.colors["text"]), width=1.3
+            )
             line = self.plot_widget.plot([], [], pen=pen)
             self.ROI_lines_gaussian[roi_tag][spectrum_name] = line
 
         # --- Linear background line ---
         if spectrum_name not in self.ROI_lines_linear[roi_tag]:
             pen = pg.mkPen(
-                color=QColor(core_utils.ThemeManager.colors["text"]), 
-                width=1, 
-                style=Qt.DashLine)
+                color=QColor(core_utils.ThemeManager.colors["text"]),
+                width=1,
+                style=Qt.DashLine,
+            )
             line = self.plot_widget.plot([], [], pen=pen)
             self.ROI_lines_linear[roi_tag][spectrum_name] = line
 
-        # --- Get data ---        
+        # --- Get data ---
         roi_fit = spectrum.ROIs.get(roi_tag, None)
         if roi_fit is None:
             return
@@ -544,11 +678,8 @@ class SpectrumPlot(QWidget):
             ):
                 self.plot_widget.removeItem(gaussian_line)
                 self.plot_widget.removeItem(lin_line)
-                
-
 
     def draw_nuclide_lines(self, nuclide: str, show_state: bool, color: QColor):
-
         # Remove existing lines first
         if nuclide in self.nuclide_lines:
             for line in self.nuclide_lines.pop(nuclide):
@@ -572,10 +703,7 @@ class SpectrumPlot(QWidget):
         self.nuclide_lines[nuclide] = []
 
         for emission in emissions:
-
-            height = (
-                emission.intensity_percent * maximum / largest_yield
-            )
+            height = emission.intensity_percent * maximum / largest_yield
 
             line = QtWidgets.QGraphicsLineItem(
                 emission.energy_keV,
@@ -583,7 +711,7 @@ class SpectrumPlot(QWidget):
                 emission.energy_keV,
                 height,
             )
-            
+
             pen = pg.mkPen(color=color, width=3)
             if emission.type.lower() == "x-ray":
                 pen.setStyle(Qt.PenStyle.DashLine)
@@ -595,7 +723,6 @@ class SpectrumPlot(QWidget):
 
             self.nuclide_lines[nuclide].append(line)
 
-
     def update_nuclide_lines(self):
 
         vb = self.plot_widget.getViewBox()
@@ -604,25 +731,15 @@ class SpectrumPlot(QWidget):
         maximum = y_max * 0.85
 
         for nuclide, line_list in self.nuclide_lines.items():
-
-            emissions = SpectrumManager.NuclideLibrary.get_nuclide(
-                nuclide
-            ).emissions
+            emissions = SpectrumManager.NuclideLibrary.get_nuclide(nuclide).emissions
 
             if not emissions:
                 continue
 
-            largest_yield = max(
-                e.intensity_percent for e in emissions
-            )
+            largest_yield = max(e.intensity_percent for e in emissions)
 
             for line, emission in zip(line_list, emissions):
-
-                height = (
-                    emission.intensity_percent
-                    * maximum
-                    / largest_yield
-                )
+                height = emission.intensity_percent * maximum / largest_yield
 
                 line.setLine(
                     emission.energy_keV,

@@ -178,7 +178,7 @@ class ResolutionWindow(QDialog):
             table.setItem(row, 1, roi_item)
             
             # --- Column 2: Spectrum ---
-            table.setItem(row, 2, QTableWidgetItem(str(roi.meta.get("spectrum_name"))))
+            table.setItem(row, 2, QTableWidgetItem(str(roi.spectrum)))
             
             # --- Column 3: Nuclide ---
             table.setItem(row, 3, QTableWidgetItem(str(roi.emission.parent_nuclide if roi.emission else "None")))
