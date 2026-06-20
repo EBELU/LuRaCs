@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
 )
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QFont
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtWidgets
 import numpy as np
@@ -53,6 +53,9 @@ class SpectrumPlot(QWidget):
         # ROI manager
         SpectrumManager.ROIManager.sigROIUpdated.connect(self.draw_roi)
         SpectrumManager.ROIManager.sigROIDeleted.connect(self.remove_roi)
+        SpectrumManager.ROIManager.sigROICreated.connect(self.set_roi_labels)
+        SpectrumManager.ROIManager.sigROIUpdated.connect(self.update_roi_label_text)
+        SpectrumManager.ROIManager.sigROIDeleted.connect(self.remove_roi_label)
 
         self.sigUpdateSpectumROIs.connect(
             lambda n: SpectrumManager.ROIManager.update_roi(spectrum_name=n)
@@ -145,6 +148,7 @@ class SpectrumPlot(QWidget):
         self.ROI_lines_gaussian = {}  # Gaussian cruve lines
         self.ROI_lines_linear = {}  # Background correction lines
         self.nuclide_lines = {}
+        self.ROI_labels: dict[str, pg.TextItem] = {}
 
         self.y_axis_locked = True
         self.user_scaled = False
@@ -181,6 +185,83 @@ class SpectrumPlot(QWidget):
             self.proxy_cursor_line.blockSignals(True)
 
         Settings.sigSettingChanged.connect(self.set_cursor)
+        Settings.sigSettingChanged.connect(self.toggle_roi_labels)
+
+        self.proxy_roi_labels = pg.SignalProxy(
+            self.plot_widget.getViewBox().sigRangeChanged,
+            rateLimit=15,
+            slot=self.update_roi_label_pos,
+        )
+
+    def set_roi_labels(self):
+        if not Settings.Temp.spectrum_view_show_roi_labels:
+            return
+        for roi in SpectrumManager.ROIManager.roi_registry.values():
+            if (
+                roi.owner_spectrum == self.owned_spectrum or self.owned_spectrum is None
+            ) and roi.tag not in self.ROI_labels:
+                label = pg.TextItem(anchor=(0.5, 0))
+                self.plot_widget.getPlotItem().addItem(label, ignoreBounds=True)
+                self.ROI_labels[roi.tag] = label
+                label.setText(
+                    f"{roi.alias}\n{roi.emission.parent_nuclide if roi.emission else ''}",
+                    color=core_utils.ThemeManager.colors["text"],
+                )
+
+                x1, x2 = roi.getRegion()
+                center_x = (x1 + x2) / 2
+                y_top = self.plot_widget.getViewBox().viewRange()[1][1]
+
+                font = QFont()
+                font.setPointSize(Settings.Appearance.font_size - 2)
+                label.setFont(font)
+
+                label.setPos(center_x, y_top)
+
+    def update_roi_label_text(self, tag, spectrum, _):
+        if tag in self.ROI_labels:
+            label = self.ROI_labels[tag]
+            roi = SpectrumManager.ROIManager.roi_registry[tag]
+            label.setText(
+                f"{roi.alias}\n{roi.emission.parent_nuclide if roi.emission else ''}"
+            )
+
+            x1, x2 = roi.getRegion()
+            center_x = (x1 + x2) / 2
+            y_top = self.plot_widget.getViewBox().viewRange()[1][1]
+            label.setPos(center_x, y_top)
+
+    def update_roi_label_pos(self):
+        for tag, label in self.ROI_labels.items():
+            roi = SpectrumManager.ROIManager.roi_registry.get(tag)
+            if roi is None:
+                return
+            x1, x2 = roi.getRegion()
+
+            center_x = (x1 + x2) / 2
+            y_top = self.plot_widget.getViewBox().viewRange()[1][1]
+
+            label.setPos(center_x, y_top)
+
+    def remove_roi_label(self, removed_roi=None):
+        if removed_roi is None:
+            rois = SpectrumManager.ROIManager.roi_registry.values()
+        else:
+            rois = [removed_roi]
+
+        for roi in rois:
+            poped_label = self.ROI_labels.pop(roi.tag, None)
+            if poped_label is None:
+                return
+
+            self.plot_widget.getPlotItem().removeItem(poped_label)
+
+    def toggle_roi_labels(self, group, variable, state):
+        if group == "Temp" and variable == "spectrum_view_show_roi_labels":
+            if state:
+                self.set_roi_labels()
+            else:
+                self.remove_roi_label()
 
     def set_cursor(self, group: str, setting: str, state: bool):
         if group != "Temp" or setting != "spectrum_view_cursor":
@@ -207,28 +288,54 @@ class SpectrumPlot(QWidget):
             x = mouse_point.x()
 
             self.cursor_line.setPos(x)
-            matched_nuclide = SpectrumManager.NuclideLibrary.match_energy_to_nuclide(x, match_only_shown=False, window=33, weight_by_intensity=True, filter_by_intensity_precent=10)
-            
-            matched_nuclide = matched_nuclide if matched_nuclide is not None else EmptyEmission
-            
-            if matched_nuclide.parent_nuclide in SpectrumManager.NuclideLibrary.decay_chains["Th-232 -- Chain"]:
-                self._format_line_edit(f"E: {round(x):<4} keV, [{(matched_nuclide.parent_nuclide + ' (Th-232-Chain)'):<6}]")
-                
-            elif matched_nuclide.parent_nuclide in SpectrumManager.NuclideLibrary.decay_chains["U-238 -- Chain"]:
-                self._format_line_edit(f"E: {round(x):<4} keV, [{(matched_nuclide.parent_nuclide + ' (U-238-Chain)'):<6}]")
-                
+            matched_nuclide = SpectrumManager.NuclideLibrary.match_energy_to_nuclide(
+                x,
+                match_only_shown=False,
+                window=33,
+                weight_by_intensity=False,
+                filter_by_intensity_precent=10,
+            )
+
+            matched_nuclide = (
+                matched_nuclide if matched_nuclide is not None else EmptyEmission
+            )
+
+            if (
+                matched_nuclide.parent_nuclide
+                in SpectrumManager.NuclideLibrary.decay_chains["Th-232 -- Chain"]
+            ):
+                self._format_line_edit(
+                    f"E: {round(x):<4} keV, [{(matched_nuclide.parent_nuclide + ' (Th-232-Chain)'):<6}]"
+                )
+
+            elif (
+                matched_nuclide.parent_nuclide
+                in SpectrumManager.NuclideLibrary.decay_chains["U-238 -- Chain"]
+            ):
+                self._format_line_edit(
+                    f"E: {round(x):<4} keV, [{(matched_nuclide.parent_nuclide + ' (U-238-Chain)'):<6}]"
+                )
+
             else:
-                self._format_line_edit(f"E: {round(x):<4} keV, [{(matched_nuclide.parent_nuclide):<6}]")
-            
-            if matched_nuclide != self.cursor_nuclide and matched_nuclide is not EmptyEmission and Settings.Temp.spectrum_view_emission_lines_to_cursor:
-                self.update_cursor_lines(matched_nuclide.parent_nuclide, QColor(255, 200, 0))
+                self._format_line_edit(
+                    f"E: {round(x):<4} keV, [{(matched_nuclide.parent_nuclide):<6}]"
+                )
+
+            if (
+                matched_nuclide != self.cursor_nuclide
+                and matched_nuclide is not EmptyEmission
+                and Settings.Temp.spectrum_view_emission_lines_to_cursor
+            ):
+                self.update_cursor_lines(
+                    matched_nuclide.parent_nuclide, QColor(255, 200, 0)
+                )
             else:
                 self.clear_cursor_lines()
                 self.cursor_nuclide = None
 
     def _format_line_edit(self, text):
         self.line_cursor_info.setText(text)
-        
+
     def clear_cursor_lines(self):
         vb = self.plot_widget.getViewBox()
 
@@ -236,10 +343,10 @@ class SpectrumPlot(QWidget):
             vb.removeItem(item)
 
         self.cursor_emission_lines.clear()
-        
+
     def update_cursor_lines(self, nuclide: str | None, color: QColor):
         if nuclide == self.cursor_nuclide or not nuclide:
-            return  
+            return
 
         self.clear_cursor_lines()
 
@@ -255,7 +362,7 @@ class SpectrumPlot(QWidget):
         if not fetched_nuclide:
             return
         emissions = fetched_nuclide.emissions
-        
+
         if not emissions:
             return
 
@@ -265,8 +372,12 @@ class SpectrumPlot(QWidget):
             if e.intensity_percent < 9.5:
                 continue
             height = e.intensity_percent * maximum / largest_yield
-            pen = pg.mkPen(color=color, width=2, style=Qt.PenStyle.DashLine) if e.type == "x-ray" else pg.mkPen(color=color, width=2)
-            
+            pen = (
+                pg.mkPen(color=color, width=2, style=Qt.PenStyle.DashLine)
+                if e.type == "x-ray"
+                else pg.mkPen(color=color, width=2)
+            )
+
             line = pg.PlotDataItem(
                 x=[e.energy_keV, e.energy_keV],
                 y=[y_min, height],
@@ -370,6 +481,9 @@ class SpectrumPlot(QWidget):
 
         self.ROI_lines_gaussian.clear()
         self.ROI_lines_linear.clear()
+
+        self.remove_roi_label()
+        self.set_roi_labels()
 
         if Settings.Temp.spectrum_view_cursor:
             self.plot_widget.getPlotItem().addItem(self.cursor_line, ignoreBounds=True)

@@ -4,12 +4,13 @@ from collections import deque
 from .settings import Settings
 
 gui_logger = logging.getLogger("Application")
-gui_logger.setLevel(logging.DEBUG)
+gui_logger.setLevel(level=logging.DEBUG if "-db" in sys.argv else logging.INFO)
 
 formatter = logging.Formatter(
     fmt="%(asctime)s | Application | %(levelname)s | %(message)s",
     datefmt="%H:%M:%S"
 )
+
 
 # ------------------------------------------------------------------
 # Handlers

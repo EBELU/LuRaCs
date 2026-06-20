@@ -1,10 +1,18 @@
-from PySide6.QtWidgets import QTextBrowser, QListView, QDialog, QHBoxLayout, QVBoxLayout, QFileSystemModel, QTreeView, QWidget, QPushButton
-from PySide6.QtCore import QSortFilterProxyModel, Qt, QUrl
+from PySide6.QtWidgets import (
+    QTextBrowser,
+    QListView,
+    QDialog,
+    QHBoxLayout,
+    QVBoxLayout,
+    QFileSystemModel,
+    QTreeView,
+    QWidget,
+    QPushButton,
+)
+from PySide6.QtCore import QUrl
 
 import markdown
 from pathlib import Path
-
-
 
 
 class SmallDocumentationDialog(QDialog):
@@ -34,16 +42,13 @@ class SmallDocumentationDialog(QDialog):
         main_layout.addLayout(button_layout)
 
         self.load_markdown(md_file)
-        
+
     def load_markdown(self, path: str | Path):
         path = Path(path)
 
         md_text = path.read_text(encoding="utf-8")
 
-        html = markdown.markdown(
-            md_text,
-            extensions=["fenced_code", "tables"]
-        )
+        html = markdown.markdown(md_text, extensions=["fenced_code", "tables"])
 
         styled_html = f"""
         <html>
@@ -65,11 +70,9 @@ class SmallDocumentationDialog(QDialog):
 
         # important for images + relative links
         base_path = path.parent.resolve()
-        self.text_browser.setHtml(
-            styled_html
-        )
+        self.text_browser.setHtml(styled_html)
 
-        
+
 class DocumentationDialog(QWidget):
     def __init__(self, doc_dir: str, parent=None):
         super().__init__(parent)
@@ -126,18 +129,16 @@ class DocumentationDialog(QWidget):
         main_layout.addLayout(button_layout)
 
         self.load_markdown(doc_dir / "Welcome.md")
-        
-        
+
     def load_markdown(self, path: str | Path):
         path = Path(path)
 
         md_text = path.read_text(encoding="utf-8")
 
         html = markdown.markdown(
-            md_text,
-            extensions=["fenced_code", "tables",         "sane_lists"]
+            md_text, extensions=["fenced_code", "tables", "sane_lists"]
         )
-        
+
         styled_html = f"""
         <html>
         <head>
@@ -194,7 +195,7 @@ class DocumentationDialog(QWidget):
         self.text_browser.document().setBaseUrl(
             QUrl.fromLocalFile(str(path.parent) + "/")
         )
-            
+
     def on_selection_changed(self, selected, deselected):
         indexes = selected.indexes()
         if not indexes:
@@ -208,6 +209,6 @@ class DocumentationDialog(QWidget):
 
         file_path = self.model.filePath(index)
         self.load_markdown(file_path)
-        
+
     def on_directory_loaded(self, path):
         self.doc_tree.expandAll()

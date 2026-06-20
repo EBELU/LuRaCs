@@ -28,6 +28,8 @@ dependencies = [
     "markdown",
     "Scikit-Learn",
     "SciPy",
+
+    "RaysidClient @ git+https://github.com/EBELU/RaysidClient.git",
 ]
 
 [project.optional-dependencies]

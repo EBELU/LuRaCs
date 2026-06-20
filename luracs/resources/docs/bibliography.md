@@ -5,8 +5,9 @@
 
 
 ## Isotope data
-The isotope data is sources from the publications from *Labroratorie National Henri Bequerel* (LNHB), see the used used works bellow. General website link [Nuclear Data Table (LNHB)](http://www.lnhb.fr/home/nuclear-data/nuclear-data-table/)
+The isotope data used in this work are primarily sourced from publications by the *Laboratoire National Henri Becquerel (LNHB)*. The specific references consulted are listed below. Recommended decay and nuclear data are available through the LNHB Nuclear Data Table.
 
+[Nuclear Data Table (LNHB)](http://www.lnhb.fr/home/nuclear-data/nuclear-data-table/)
 
 - Mougeot, X. et al. Evaluations of the decay data of ⁴⁰K, ⁴⁵Ti, ⁵⁶Co, ⁹⁹Tc, ¹⁷⁷Lu, ²¹²Pb and ²⁴²Am from the Decay Data Evaluation Project (DDEP)—2025. Metrologia 63, 019001 (2026).
 - Mougeot, X. et al. Evaluations of the decay data of ⁵⁷Co, ⁷⁶Br, ¹³³ᵐXe and ¹⁴²Pr from the Decay Data Evaluation Project (DDEP)—2017. Metrologia 62, 069001 (2025).
@@ -18,3 +19,8 @@ The isotope data is sources from the publications from *Labroratorie National He
 - Table of radionuclides. Vol. 5: A=22 to 244. in (ed. Bé, M.-M.) (BIPM, Sèvres, 2010).
 - Table of radionuclides. Vol. 6: A=22 to 242. in (ed. Bé, M.-M.) (BIPM, Sèvres, 2011).
 - Table of radionuclides. Vol. 7: A=14 to 245. in (ed. Bé, M.-M.) (BIPM, Sèvres, 2013).
+
+The following isotopes could not be sourced from LNHB and data was sourced from other sites.
+
+- Th-230: *Thorium-230 - isotopic data and properties. https://chemlin.org/isotope/thorium-230* and *Isotopes of thorium. Wikipedia (2026).*
+

@@ -116,7 +116,7 @@ class ResolutionWindow(QDialog):
             yMin=0,
         )
 
-        form.addRow("Efficiency Plot", self.res_plot)
+        form.addRow("Resolution Plot", self.res_plot)
 
         main_layout.addLayout(form)
         

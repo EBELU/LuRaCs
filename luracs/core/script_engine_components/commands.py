@@ -312,7 +312,13 @@ class ViewCommand(Command):
             return print_rois()
         
         elif args[0] == "log":
-            return "\n".join(list(engine.get_log_buffer()))
+            
+            return (
+                "==============\n"+
+                "| System Log |\n"+
+                "==============\n\n"+
+                "\n".join(list(engine.get_log_buffer()))
+            )
         
         else:
             raise InvalidCommandError(args[0])

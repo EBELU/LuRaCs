@@ -32,3 +32,5 @@ EmptyEmission = Emission(
     intensity_error_percent=None,
     origin="",
     type="")
+
+

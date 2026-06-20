@@ -1,6 +1,7 @@
 from luracs.containers.nuclide_classes import Nuclide, Emission
 import json
 import glob
+import numpy as np
 
 
 def load_nuclide_data(pth: str):
@@ -13,18 +14,20 @@ def load_nuclide_data(pth: str):
 
 
 def nuclide_from_json(data: dict) -> Nuclide:
-    emissions = [
-        Emission(
+    emissions = []
+    for e in data.get("Emissions", []):
+        emission_type = e["Type"] if not np.isclose(e["Energy (keV)"], 511) else "annih."
+        
+        emissions.append(Emission(
             parent_nuclide=data["Nuclide"],
             energy_keV=e["Energy (keV)"],
             energy_error_keV=e["Energy error (keV)"],
             intensity_percent=e["I (%)"],
             intensity_error_percent=e["I error (%)"],
-            type=e["Type"],
+            type=emission_type,
             origin=e["Origin"],
-        )
-        for e in data.get("Emissions", [])
-    ]
+        ))
+
 
     return Nuclide(
         nuclide=data["Nuclide"],

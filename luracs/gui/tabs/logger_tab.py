@@ -1,4 +1,5 @@
 import logging
+import sys
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QTextEdit, QWidget, QVBoxLayout
@@ -82,7 +83,7 @@ class LogWidget(QWidget):
 
         for name in loggers:
             logger = logging.getLogger(name)
-            logger.setLevel(logging.INFO)
+            logger.setLevel(level=logging.INFO)
             logger.addHandler(handler)
             logger.propagate = False
 

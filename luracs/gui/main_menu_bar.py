@@ -17,12 +17,14 @@ from luracs.gui.dialogs.settings_dialog import edit_settings, edit_advanced_sett
 class MainMenuBar(QMenuBar):
     sigSetSpectrumViewToTabs = Signal()
     sigSetSpectrumViewToCombined = Signal()
+    sigUpdateSetting = Signal(str, str, object)
     
     def __init__(self, parent: MainWindow = None):
         super().__init__(parent)
         self.parent = parent
 
         Settings.latestConnectionUpdated.connect(self.update_last_connections)
+        self.sigUpdateSetting.connect(Settings.update_setting)
 
 
         # ---------- File Menu ----------
@@ -40,21 +42,34 @@ class MainMenuBar(QMenuBar):
         
         # ---------- View Menu ----------
         view_menu = self.addMenu("View")
-        view_menu_map = view_menu.addMenu("&Map")
+        
+        # --- Map ---
+        view_menu_map = view_menu.addMenu("&Map")        
+        
+        # --- Real Time Data View ---
+        view_menu_realtime = view_menu.addMenu("&Real Time Data    ")
+        view_menu_realtime_avg_line = view_menu_realtime.addAction(QAction("Mark Average", self, checkable=True))
+        
+        # --- Spectrum View ---
         view_menu_spectrum = view_menu.addMenu("&Spectrum")
 
+        # Cursor
         view_menu_spectrum_show_cursor = QAction("Show Cursor", self, checkable=True)
-        view_menu_spectrum_show_cursor.triggered.connect(lambda checked: Settings.update_setting("Temp", "spectrum_view_cursor", checked))
+        view_menu_spectrum_show_cursor.triggered.connect(lambda checked: self.sigUpdateSetting.emit("Temp", "spectrum_view_cursor", checked))
         view_menu_spectrum.addAction(view_menu_spectrum_show_cursor)
         
+        # Cursor emissions
         view_menu_spectrum_show_cursor_emissions = QAction("Show Cursor Emissions", self, checkable=True)
-        view_menu_spectrum_show_cursor_emissions.triggered.connect(lambda checked: Settings.update_setting("Temp", "spectrum_view_emission_lines_to_cursor", checked))
+        view_menu_spectrum_show_cursor_emissions.triggered.connect(lambda checked: self.sigUpdateSetting.emit("Temp", "spectrum_view_emission_lines_to_cursor", checked))
         view_menu_spectrum_show_cursor_emissions.trigger()
         view_menu_spectrum.addAction(view_menu_spectrum_show_cursor_emissions)
         
+        # ROI Labels
+        view_menu_spectrum_show_roi_labels = QAction("Show ROI Labels", self, checkable=True)
+        view_menu_spectrum_show_roi_labels.triggered.connect(lambda checked: self.sigUpdateSetting.emit("Temp", "spectrum_view_show_roi_labels", checked))
+        view_menu_spectrum_show_roi_labels.trigger()
+        view_menu_spectrum.addAction(view_menu_spectrum_show_roi_labels)
         
-        view_menu_realtime = view_menu.addMenu("&Real Time Data    ")
-        view_menu_realtime_avg_line = view_menu_realtime.addAction(QAction("Mark Average", self, checkable=True))
         # ---------- Device Menu ----------
         device_menu = self.addMenu("&Device")
         device_menu_connectBT = device_menu.addAction("Connect Bluetooth")

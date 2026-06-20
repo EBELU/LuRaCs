@@ -12,7 +12,7 @@ def print_progress(text, progress):
         flush=True,
     )
 
-logging.basicConfig(level=logging.INFO if "-db" in sys.argv else logging.INFO)
+logging.basicConfig(level=logging.INFO)
 
 # --- Vital imports for core application to function ---
 from PySide6.QtWidgets import QApplication
@@ -87,7 +87,7 @@ DeletableROI.roi_editor_dialog = ROIEditor
 RunManager.createDeviceSpectrum.connect(SpectrumManager.create_spectrum)
 RunManager.removeDeviceSpectrum.connect(SpectrumManager.remove_spectrum)
 RunManager.spectrumUpdated.connect(SpectrumManager.set_foreground_spectrum)
-
+Settings.sigSettingChanged.connect(lambda group, variable, new_value: Log.debug(f"{Settings.__class__}: Setting updated: {group}.{variable} = {new_value}"))
 
 
 _closing = False
@@ -280,7 +280,7 @@ def main():
         # If not headless, show the GUI
         win = MainWindow()
         win.show()
-    
+    Log.setLevel(level=logging.DEBUG if "-db" in sys.argv else logging.INFO)
     Log.debug(f"headless: {Settings.headless}")
 
     # --- Set Handlers for the logger ---
