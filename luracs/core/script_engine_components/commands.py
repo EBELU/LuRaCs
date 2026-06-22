@@ -16,6 +16,7 @@ from luracs.utils.file_io import xml_parser, db_parser
 from luracs.core import RunManager, SpectrumManager, Settings, IOManager
 from .helpers import print_table, TableFormatter, plot_spectrum, print_rois, ArgumentParser
 from .exceptions import ArgumentError, ActiveGUIError, InvalidCommandError
+from luracs.utils import ascii_art
 
 from luracs.spectrogram import start_spectrogram, restart_spectrogram
 
@@ -39,30 +40,13 @@ class Command(ABC):
 
     def index_files(self) -> None:
         return
-    
+
 class ClearCommand(Command):
     name = "clear"
     async def run(self, engine, *args):
         color = engine.headless
-        if color:
-            bg_yellow = "\033[43m\033[30m"
-            bg_blue   = "\033[44m"
-            bg_green  = "\033[42m\033[30m"
-            reset = "\033[0m"
-        else:
-            bg_yellow = ""
-            bg_blue   = ""
-            bg_green  = ""
-            reset = ""
-            
 
-        default_message = (f"""{bg_green} ====== {reset}{bg_blue} ====== {reset}{bg_yellow} ====== {reset}
-{bg_green}|71    |{reset}{bg_blue}|88    |{reset}{bg_yellow}|55    |{reset}    Version:  {engine.program_version}
-{bg_green}|  Lu  |{reset}{bg_blue}|  Ra  |{reset}{bg_yellow}|  Cs  |{reset}    LuRaCs Console
-{bg_green}| 177  |{reset}{bg_blue}| 226  |{reset}{bg_yellow}| 137  |{reset}    Type 'help' for a list of commands
-{bg_green} ====== {reset}{bg_blue} ====== {reset}{bg_yellow} ====== {reset}
-""")
-        return default_message
+        return ascii_art.logo(engine.program_version, color, engine.IS_H3)
     
 
 class HelpCommand(Command):

@@ -294,6 +294,19 @@ class _Importer(QObject):
             
         return new_spectrum
     
+    def import_library(self):
+        zip_file_path, _ = QFileDialog.getSaveFileName(
+            None,
+            "Import zipped data store",
+            str(Path.home()),
+            "Zip-File (*.zip)"
+        )
+        
+        if not zip_file_path:
+            return
+        
+        file_io.unzip_library(Settings.Paths.appdata, Path(zip_file_path))
+    
 class _Exporter(QObject):
     """ 
     Provides functionality needed for export data from the application gathered in place. 
@@ -370,5 +383,18 @@ class _Exporter(QObject):
             rois.extend(SpectrumManager.ROIManager.get_data_from_spectrum(spectrum).values())
         
         file_io.csv_writer.export_rois(rois, file_path)
+        
+    def export_library(self):
+        zip_file_path, _ = QFileDialog.getSaveFileName(
+            None,
+            "Import zipped data store",
+            str(Path.home()),
+            "Zip-File (*.zip)"
+        )
+        
+        if not zip_file_path:
+            return
+        
+        file_io.zip_library(Settings.Paths.appdata, Path(zip_file_path))
         
 IOManager = _IOManager()

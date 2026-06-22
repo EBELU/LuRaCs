@@ -6,7 +6,7 @@ __version__ = "0.2.0"
 
 def print_progress(text, progress):
     print(
-        "\r[" + "#" * progress + " " * (10 - progress) + "]",
+        "\r[" + "=" * progress + " " * (10 - progress) + "]",
         f"-- {text} {' ' * 15}",
         end="",
         flush=True,
@@ -22,6 +22,7 @@ from luracs.core.script_engine import ScriptEngine # Not normally exposed in the
 
 from luracs.utils.arg_parser import parse_cli_args
 from luracs.utils.startup import startup_script
+from luracs.utils import ascii_art
 
 
 # --- PySide6 Imports for main window ---
@@ -65,9 +66,13 @@ from luracs.gui.dialogs.settings_dialog import SettingsDialog
 from luracs.theme_manager import ThemeManager
 
 # --- Import heavy features excluded in the lightweight version ---
-from luracs.config import IS_H3
-if not IS_H3:
-    pass
+try:
+    import PySide6.QtWebEngineCore
+    import scipy
+    import sklearn
+    IS_H3 = False
+except ModuleNotFoundError:
+    IS_H3 = True
 
 print_progress("Loading luracs.utils.", 5)
 
@@ -104,7 +109,6 @@ async def _async_close():
 def close():
     Settings.save_settings()
     asyncio.create_task(_async_close())
-
 
 
 
@@ -154,8 +158,11 @@ class MainWindow(QMainWindow):
         self.spectrogram = SpectrogramWidget(self)
         self.spectrogram.sigShowDataStore.connect(self.show_data_store)
         self.spect_tab.addTab(self.spectrogram, "Spectrogram")
-
-        layout.addWidget(self.spect_tab, 5)
+        
+        if not IS_H3:
+            self.spect_tab.addTab(QWidget(), "Map")
+        
+        layout.addWidget(self.spect_tab, 6)
 
         # ---------- Bottom Tabs ----------
 
@@ -164,25 +171,30 @@ class MainWindow(QMainWindow):
         # Spectrum Infp
         self.spectrum_info_tab = SpectrumInfoTab(self, parent=self)
         self.bottom_tabs.addTab(self.spectrum_info_tab, "Spectrum Info")
+        self.bottom_tabs.setTabToolTip(0, "View detailed information about the spectra currently loaded")
 
         # ROI info
         self.roi_info_pane = ROIInfoTab(parent=self)
         self.roi_info_pane.clearROIs.connect(SpectrumManager.ROIManager.clear_all)
         self.bottom_tabs.addTab(self.roi_info_pane, "ROI Info")
+        self.bottom_tabs.setTabToolTip(1, "View detailed information about regions of interest (ROI) set in the spectra")
 
         # Current values
         self.current_value_tab = RealTimeValuesPlot()
         self.bottom_tabs.addTab(self.current_value_tab, "Real Time Values")
+        self.bottom_tabs.setTabToolTip(2, "View the current values measured by a connected device")
 
         # Devices
         self.devices_tab = DevicesInfoTab()
         self.bottom_tabs.addTab(self.devices_tab, "Devices")
+        self.bottom_tabs.setTabToolTip(3, "View connected devices and their status")
 
         # Isotopics
         self.isotopics_tab = IsotopicsTab(
             list(SpectrumManager.NuclideLibrary.get_sorted_nuclide_names())
         )
         self.bottom_tabs.addTab(self.isotopics_tab, "Isotopics")
+        self.bottom_tabs.setTabToolTip(4, "View radionuclide information, set help lines in the spectrum, search peaks and auto assign peaks")
         # Isotopics connections
         self.spectrum_plot_container.sigRedrawRequested.connect(
             self.isotopics_tab.request_line_data
@@ -208,10 +220,12 @@ class MainWindow(QMainWindow):
         # Console
         self.console_tab = ConsoleTab()
         self.bottom_tabs.addTab(self.console_tab, "Console")
+        self.bottom_tabs.setTabToolTip(5, "Enter text commands and run scripts in the console")
 
         # System log
         self.log_tab = LogWidget()
         self.bottom_tabs.addTab(self.log_tab, "System Log")
+        self.bottom_tabs.setTabToolTip(6, "View messages logged by the system")
 
         bottom_layout = QVBoxLayout()
         bottom_layout.addWidget(self.bottom_tabs)
@@ -296,7 +310,9 @@ def main():
 
     # --- Script engine ---
     script_engine = ScriptEngine(
-        program_version=__version__, headless=Settings.headless
+        program_version=__version__ + "--Tritium" if IS_H3 else "",
+        headless=Settings.headless, 
+        IS_H3=IS_H3
     )
 
     # Shutdown
@@ -314,19 +330,11 @@ def main():
         script_engine.sigCommandOutput.connect(win.console_tab.append_output)
         script_engine.sigClearConsole.connect(win.console_tab.set_output)
 
-
-    # --- Log welcome ---
-    Log.info(
-        "\n"
-        "\n ======  ======  ====== "    
-       f"\n|71    ||88    ||55    |    Version:  {__version__} \t [2026-04-14]"
-       f"\n|  Lu  ||  Ra  ||  Cs  |    Licence:  GNU General Public Licence v3.0"
-        "\n| 177  || 226  || 137  |"
-        "\n ======  ======  ====== "    
-        "\n"
-    )
     print_progress("Done!", 10)
     print()
+    # --- Log welcome ---
+    Log.info("\n\n" + ascii_art.logo(__version__ + "--Tritium" if IS_H3 else "", is_h3=IS_H3))
+
 
     # --- Start the event loop ---
     with loop:

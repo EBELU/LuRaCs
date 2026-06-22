@@ -10,12 +10,15 @@ exe_name = "Win" if is_windows else "Linux"
 
 # Cross-platform path
 main_script = os.path.join('luracs', 'main.py')
+resources = os.path.join('luracs', 'resources')
 
 a = Analysis(
     [main_script],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[
+        (resources, 'resources'),
+        ],
     hiddenimports=[
         'bleak',
         'qasync',
@@ -58,7 +61,7 @@ exe = EXE(
     name='LuRaCs-H3'+ exe_name,
     debug=False,
     bootloader_ignore_signals=False,
-    strip=is_linux,   # strip only on Linux (safe)
+    strip=False,   # strip only on Linux (safe)
     upx=is_windows,   # UPX works better on Windows
     console=not is_windows,  # GUI app on Windows, console on Linux
     disable_windowed_traceback=False,
@@ -72,7 +75,7 @@ coll = COLLECT(
     exe,
     a.binaries,
     a.datas,
-    strip=is_linux,
+    strip=False,
     upx=is_windows,
     upx_exclude=[],
     name='LuRaCs-H3',

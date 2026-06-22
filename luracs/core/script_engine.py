@@ -26,10 +26,11 @@ class ScriptEngine(QObject):
     sigCancelCurrent = Signal()
     sigClearConsole = Signal(str)
 
-    def __init__(self, parent=None, headless=False, program_version=""):
+    def __init__(self, parent=None, headless: bool = False, program_version: str = "", IS_H3: bool = False):
         super().__init__(parent)
         self.queue = asyncio.Queue()
         self.headless = headless
+        self.IS_H3 = IS_H3
         self.program_version = program_version
         self._loop = None
         self._tasks = []

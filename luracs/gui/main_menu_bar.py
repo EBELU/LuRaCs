@@ -10,7 +10,8 @@ import asyncio
 
 from luracs.core import RunManager, Settings, IOManager
 
-from .save_to_internal_dialogs import save_roi_references
+
+from .misc import ConfirmCallback
 
 from luracs.gui.dialogs.settings_dialog import edit_settings, edit_advanced_settings
 
@@ -33,10 +34,14 @@ class MainMenuBar(QMenuBar):
         file_menu_import.triggered.connect(
             lambda : IOManager.Importer.import_generic()
             )
+        file_menu.addSeparator()
         file_load = file_menu.addAction("Data Store")
         file_load.triggered.connect(parent.data_store.show)
-        file_menu_saveRoi = file_menu.addAction("Save reference ROIs")
-        file_menu_saveRoi.triggered.connect(save_roi_references)
+        file_menu_export_library = file_menu.addAction("Export Data Store")
+        file_menu_export_library.triggered.connect(IOManager.Exporter.export_library)
+        file_menu_import_library = file_menu.addAction("Import Data Store")
+        file_menu_import_library.triggered.connect(IOManager.Importer.import_library)
+        file_menu.addSeparator()
         exit_action = file_menu.addAction("Exit")
         exit_action.triggered.connect(self.on_exit)
         
@@ -78,9 +83,10 @@ class MainMenuBar(QMenuBar):
         self.device_menu_retryLast = device_menu.addMenu("&Retry Last Connection   ")
         device_menu_connectUSB = device_menu.addAction("Connect USB")
         device_menu_connectUSB.triggered.connect(parent.usb_window.start_popup)
+        device_menu_rest_all = device_menu.addAction("Reset All Spectra")
         device_menu_disconnect = device_menu.addAction("Disconnect All")
         device_menu_disconnect.triggered.connect(
-            lambda x: RunManager.remove_all_devices()
+            lambda: ConfirmCallback(self.parent, "Disconnect all devices?", RunManager.remove_all_devices)
         )
         
         

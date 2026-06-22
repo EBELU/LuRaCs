@@ -30,7 +30,7 @@ QPushButton {
 
 QPushButton:hover {
     color: #181825;
-    background-color: #74c7ec;
+    background-color: #89b4fa;
 }
 
 QPushButton:pressed {
@@ -148,6 +148,12 @@ QMenu {
     border: 1px solid #313244;
 }
 
+QMenuBar::item:selected {
+    background: #89b4fa;
+    color: #11111b;
+    border-radius: 2px;
+}
+
 QMenu::item:selected {
     background-color: #89b4fa;
     color: #11111b;
@@ -187,7 +193,7 @@ QCheckBox::indicator:unchecked {
 }
 
 QCheckBox::indicator:hover:unchecked {
-    border: 2px solid #74c7ec;
+    border: 2px solid #89b4fa;
 }
 
 QCheckBox::indicator:checked {
@@ -402,4 +408,14 @@ QScrollBar:disabled {
 
 QScrollBar::handle:disabled {
     background: #313244;
+}
+
+QToolTip {
+    background-color: #89b4fa;
+    color: #181825;
+
+    border: none;
+    border-radius: 6px;
+
+    padding: 2px 2px;
 }

@@ -29,7 +29,7 @@ QPushButton {
 }
 
 QPushButton:hover {
-    background-color: #3b82f6;
+    background-color: #ccd0da;
 }
 
 QPushButton:pressed {
@@ -47,6 +47,13 @@ QDoubleSpinBox {
     border: 1px solid #ccd0da;
     border-radius: 4px;
     padding: 1px;
+}
+
+QTableView::item:selected,
+QListView::item:selected,
+QTreeView::item:selected {
+    background-color: #1e66f5;
+    color: #dce0e8;
 }
 
 QLineEdit:focus,
@@ -134,7 +141,7 @@ QTabWidget#southTabs QTabBar {
     background-color: #e6e9ef;
 
     border-top-left-radius: 4px;
-    border-top-right-radius: px;
+    border-top-right-radius: 4px;
     border-bottom-left-radius: 10px;
     border-bottom-right-radius: 10px;
 
@@ -243,6 +250,12 @@ QMenu::item {
     padding: 6px 14px 6px 14px;
 }
 
+QMenuBar::item:selected {
+    background: #1e66f5;
+    color: #ffffff;
+    border-radius: 2px;
+}
+
 QMenu::indicator:unchecked {
     border: 2px solid #1e66f5;
     border-radius: 3px;
@@ -256,6 +269,12 @@ QMenu::indicator:checked {
     border-radius: 1px;
     background: #1e66f5;
     image: url(${THEMES_PATH}/icons/check-bold.svg);
+}
+
+QMenu::separator {
+    height: 1px;
+    background: #4c4f69;
+    margin: 4px 8px;
 }
 
 QScrollBar:horizontal {
@@ -406,4 +425,14 @@ QScrollBar:disabled {
 
 QScrollBar::handle:disabled {
     background: #dce0e8;
+}
+
+QToolTip {
+    background-color: #1e66f5;
+    color: white;
+
+    border: none;
+    border-radius: 6px;
+
+    padding: 2px 2px;
 }

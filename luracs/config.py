@@ -1,1 +1,0 @@
-IS_H3 = False

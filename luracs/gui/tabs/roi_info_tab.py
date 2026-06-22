@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Signal
 from luracs.core import SpectrumManager, IOManager
 from ..misc.idx_table import StrIdxTable
+from ..save_to_internal_dialogs import save_roi_references
 
 
 class RoiInfoDialog(QDialog):
@@ -178,11 +179,15 @@ class ROIInfoTab(QWidget):
 
         btn_export_to_csv = QPushButton("Export to CSV")
         btn_export_to_csv.clicked.connect(IOManager.Exporter.export_roi_dialog)
+        
+        btn_export_roi_references = QPushButton("Export Reference ROIs")
+        btn_export_roi_references.clicked.connect(save_roi_references)
 
         options_bar.addWidget(btn_clear)
         options_bar.addWidget(btn_view_info)
         options_bar.addWidget(btn_roi_cps)
         options_bar.addWidget(btn_export_to_csv)
+        options_bar.addWidget(btn_export_roi_references)
         options_bar.addStretch()
         options_widget.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Preferred)
 
