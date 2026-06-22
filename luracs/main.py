@@ -39,7 +39,7 @@ from PySide6.QtCore import QTimer
 print_progress("Loading GUI", 0)
 
 # --- Perform standard internal imports ---
-from luracs.gui import MainMenuBar, SpectrumPlotContainer, SpectrogramWidget
+from luracs.gui import MainMenuBar, SpectrumPlotContainer, SpectrogramWidget, MapWidget
 
 from luracs.gui.tabs import (
     ROIInfoTab,
@@ -160,7 +160,7 @@ class MainWindow(QMainWindow):
         self.spect_tab.addTab(self.spectrogram, "Spectrogram")
         
         if not IS_H3:
-            self.spect_tab.addTab(QWidget(), "Map")
+            self.spect_tab.addTab(MapWidget(), "Map")
         
         layout.addWidget(self.spect_tab, 6)
 

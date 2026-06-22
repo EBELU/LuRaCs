@@ -32,6 +32,7 @@ class _State:
     last_connections: deque = field(default_factory=lambda: deque(maxlen=10))
     loaded_spectra: Optional[Any] = None
     roi_regions: Optional[Any] = None
+    map_last_online_url: str = ""
     
 
     def to_dict(self):
@@ -39,16 +40,14 @@ class _State:
             "last_connections": list(self.last_connections),
             "loaded_spectra": self.loaded_spectra,
             "roi_regions": self.roi_regions,
+            "map_last_online_url": self.map_last_online_url
         }
 
-    @classmethod
-    def from_dict(cls, data):
-        last_connections = deque(data.get("last_connections", []), maxlen=10)
-        return cls(
-            last_connections=last_connections,
-            loaded_spectra=data.get("loaded_spectra"),
-            roi_regions=data.get("roi_regions"),
-        )
+    def from_dict(self, data):
+        self.last_connections = deque(data.get("last_connections", []), maxlen=10)
+        self.loaded_spectra = data.get("loaded_spectra")
+        self.roi_regions = data.get("roi_regions")
+        self.map_last_online_url = data.get("map_last_online_url", "")
     
 
 @dataclass
@@ -94,6 +93,7 @@ class _Paths:
     def __post_init__(self):
         # runtime base (where bundled resources live)
         self.BASE = get_runtime_base()
+        self.resources = self.BASE / "resources" 
 
         self.themes = self.BASE / "resources" / "themes"
         self.nuclide_data = self.BASE / "resources" / "nuclide_data"
@@ -144,6 +144,7 @@ class _Settings(QObject):
 
         self.Advanced = _Advanced(**json_content["advanced"])
         self.Appearance = _Appearance(**json_content["appearance"])
+        self.State.from_dict(json_content["state"])
         self.latestConnectionUpdated.emit(list(self.State.last_connections))
 
     def save_settings(self):

@@ -1,11 +1,10 @@
 import logging
-import sys
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QTextEdit, QWidget, QVBoxLayout
 
 from luracs.core import Settings
-from collections import deque
+
 
 class LogSignalEmitter(QObject):
     """QObject that emits log messages to the GUI."""
@@ -30,8 +29,10 @@ class QtHandler(logging.Handler):
 
 class LogWidget(QWidget):
     """QTextEdit widget showing all logs in real-time."""
+
     sigMessageLogged = Signal(str)
     sigBufferSent = Signal(list)
+
     def __init__(self, parent=None):
         super().__init__(parent)
 

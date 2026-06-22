@@ -28,7 +28,6 @@
 
 <body>
     <div id="map"></div>
-    <div id="info"></div>
 
     <script>
         const data_points = {};
@@ -86,9 +85,6 @@
             });
 
             map.on("mousemove", (e) => {
-                document.getElementById("info").innerHTML =
-                    `${JSON.stringify(e.point)}<br>${JSON.stringify(e.lngLat.wrap())}`;
-
                 if (bridge) {
                     bridge.mouse_move(
                         JSON.stringify(e.point),

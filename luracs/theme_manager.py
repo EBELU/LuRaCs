@@ -146,7 +146,6 @@ class ThemeManager(QObject):
                 sample.setBrush(pg.mkBrush(foreground))
                 
     def _style_hist_lut(self, hist, foreground):
-
         # 1. Axis ticks + labels
         hist.axis.setPen(pg.mkPen(foreground))
         hist.axis.setTextPen(pg.mkPen(foreground))

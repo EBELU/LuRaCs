@@ -82,7 +82,7 @@ class SpectrumPlot(QWidget):
 
         self.plot_widget.setLabel("bottom", xlabel)
         self.plot_widget.setLabel("left", ylabel)
-        self.plot_widget.showGrid(x=True, y=True)
+        self.plot_widget.showGrid(x=True, y=True, alpha=0.2)
         # self.plot_widget.getAxis('left').enableAutoSIPrefix(False)
         self.plot_widget.setXRange(0, 2500, padding=0)
         self.plot_widget.setLimits(

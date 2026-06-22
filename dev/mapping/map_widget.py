@@ -203,7 +203,8 @@ class MapWidget(QWidget):
 
     def start_web_engine(self, source_url: str, vector_source: bool):
         if self.web_engine_view is not None:
-            return
+            self.web_engine_view.deleteLater()
+            self.web_engine_view = None
 
         self.web_engine_view = QWebEngineView()
 
