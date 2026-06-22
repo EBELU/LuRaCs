@@ -7,10 +7,8 @@ name = "LuRaCs"
 version = "0.0.0"
 description = "Gamma Spectroscopy Software"
 requires-python = ">=3.10,<3.14"
-authors = [
-    {name = "Erik Ewald"}
-]
-license = {text = "GPL-3.0"}
+authors = [{ name = "Erik Ewald" }]
+license = { text = "GPL-3.0" }
 readme = "README.md"
 dependencies = [
     "bleak>=0.21",
@@ -33,11 +31,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = [
-    "pandas",
-    "pyinstaller",
-    "odfpy",
-]
+dev = ["pandas", "pyinstaller", "odfpy"]
 
 
 [tool.setuptools.packages.find]

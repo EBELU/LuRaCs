@@ -1,47 +1,130 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <title>Add a raster tile source</title>
-    <meta property="og:description" content="Add a third-party raster source to the map." />
+    <title>Data map</title>
+    <meta property="og:description" content="A map of collected data" />
     <meta property="og:created" content="2025-06-25" />
     <meta charset='utf-8'>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel='stylesheet' href='https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css' />
     <script src='https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js'></script>
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+
     <style>
-        body { margin: 0; padding: 0; }
-        html, body, #map { height: 100%; }
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        html,
+        body,
+        #map {
+            height: 100%;
+        }
+
+        #info {
+            display: block;
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translate(-50%);
+            width: 50%;
+            padding: 10px;
+            border: none;
+            border-radius: 9px;
+            font-size: 12px;
+            text-align: center;
+            color: #222;
+            background: #fff;
+        }
     </style>
 </head>
+
 <body>
-<div id="map"></div>
-<script>
-    const map = new maplibregl.Map({
-        container: 'map', // container id
-        style: {
-            'version': 8,
-            'sources': {
-                'raster-tiles': {
-                    'type': 'raster',
-                    'tiles': ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-                    'tileSize': 256,
-                    'minzoom': 0,
-                    'maxzoom': 19,
-                    'attribution': "© OpenStreetMap contributors",
+    <div id="map"></div>
+    <div id="info"></div>
+
+    <script>
+        const data_points = {};
+
+        function add_data_point(id, lat, lon, colour) {
+            const el = document.createElement("div");
+            el.id = id;
+
+            el.style.width = "13px";
+            el.style.height = "13px";
+            el.style.borderRadius = "50%";
+            el.style.backgroundColor = colour;
+            el.style.border = "3px solid white";
+            el.style.boxSizing = "border-box";
+
+            const popup = new maplibregl.Popup({ offset: 9 }).setText(
+                'Data point: ' + id
+            );
+
+            const marker = new maplibregl.Marker({ element: el })
+                .setLngLat([lon, lat])
+                .setPopup(popup)
+                .addTo(map);
+
+            data_points[id] = { marker, el };
+        }
+
+        function change_data_point_colour(id, colour) {
+            const obj = data_points[id];
+            if (!obj) return;
+            obj.el.style.backgroundColor = colour;
+        }
+
+        function remove_data_point(id) {
+            const obj = data_points[id];
+            if (!obj) return;
+            obj.marker.remove();
+            delete data_points[id];
+        }
+
+        function createJsMap(style) {
+            if (map) {
+                map.remove();
+            }
+
+            map = new maplibregl.Map({
+                container: "map",
+                style: style,
+                center: [20.0, 41.0],
+                zoom: 11
+            });
+
+            map.on("load", () => {
+                console.log("Map loaded");
+            });
+
+            map.on("mousemove", (e) => {
+                document.getElementById("info").innerHTML =
+                    `${JSON.stringify(e.point)}<br>${JSON.stringify(e.lngLat.wrap())}`;
+
+                if (bridge) {
+                    bridge.mouse_move(
+                        JSON.stringify(e.point),
+                        JSON.stringify(e.lngLat.wrap())
+                    );
                 }
-            },
-            'layers': [
-                {
-                    'id': 'simple-tiles',
-                    'type': 'raster',
-                    'source': 'raster-tiles',
-                }
-            ],
-            'id': 'blank'
-        },
-        center: [0, 0], // starting position
-        zoom: 0 // starting zoom
-    });
-</script>
+            });
+        }
+
+        let bridge = null;
+        let bridgeReady = false;
+        map = null;
+
+        new QWebChannel(qt.webChannelTransport, function (channel) {
+            bridge = channel.objects.bridge;
+            bridgeReady = true;
+
+            bridge.from_js("Web channel ready");
+        });
+
+    </script>
 </body>
+
 </html>
