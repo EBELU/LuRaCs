@@ -10,7 +10,7 @@ import os
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 
-from luracs.utils.file_io import db_parser, xml_parser, io_dispatcher
+from luracs.utils.file_io import db_parser, xml_parser, io_dispatcher, spe_parser, tka_parser
 from luracs.utils import file_io
 from luracs.utils.save_to_internal import save_instrument_to_library, save_spectrum_to_library, save_rois_to_internal
 
@@ -185,7 +185,7 @@ class _Importer(QObject):
     sigImportSpectrumAsBackground = Signal(str, dict)
 
     import_filters = {
-        "spectrum": "Spectrum Files (*.xml *.n42 *.tke *.spe)",
+        "spectrum": "Spectrum Files (*.xml *.n42 *.TKA *.Spe *.spe)",
         "spectrogram": "LuRaCs Spectrogram Database File (*.db)",
         "rois": "LuRaCs ROIs File (*.xml)",
         "instrument": "LuRaCs Instrument File (*xml)",
@@ -247,7 +247,7 @@ class _Importer(QObject):
         if selected_filter == self.import_filters["spectrum"]:
             for file_path in file_paths:
                 spectrum_parser = io_dispatcher(file_path)
-                if isinstance(spectrum_parser, xml_parser):
+                if isinstance(spectrum_parser, (xml_parser, spe_parser, tka_parser)):
                     self.sigImportSpectrum.emit(spectrum_parser.data, True) # Bool is to signal external import
 
     def import_spectrum_as_background(self, spectrum_name: str):

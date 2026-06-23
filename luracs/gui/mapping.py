@@ -33,6 +33,7 @@ from PySide6.QtWebChannel import QWebChannel
 import pyqtgraph as pg
 
 from luracs.core import Settings, Log, core_utils
+from luracs.resources.mapping_resources.local_server import TileServer
 
 
 class LoadOnlineMapDialog(QDialog):
@@ -115,6 +116,7 @@ class MapWidget(QWidget):
         super().__init__(parent=parent)
 
         self.pending_style = None
+        self.tile_server = None
 
         main_layout = QVBoxLayout(self)
 
@@ -252,7 +254,7 @@ class MapWidget(QWidget):
             self.pending_style = json.load((Settings.Paths.resources / "mapping_resources" / "style_vector.json").open())
             self.pending_style["sources"]["openmaptiles"] = {
                 "type": "vector",
-                "tiles": source_url,
+                "tiles": [source_url],
             }
         else:
             self.pending_style = json.load((Settings.Paths.resources / "mapping_resources" / "style_raster.json").open())
@@ -295,6 +297,16 @@ class MapWidget(QWidget):
         else:
             Settings.State.map_last_online_url = ""
         
+        if "{z}/{x}/{y}" not in dialog.get_source_url():
+            reply = QMessageBox.question(
+                self, 
+                "Error", 
+                "The given urls does not match the expected tile coordinate pattern of '{z}/{x}/{y}', continue?",     
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No  # default button
+            )
+            if reply != QMessageBox.Yes:
+                return
         
         self.start_web_engine(
             dialog.get_source_url(), vector_source=vector_source
@@ -302,12 +314,27 @@ class MapWidget(QWidget):
         
         self.loaded_map_name = dialog.get_source_url().removeprefix("https://").removesuffix("/{z}/{x}/{y}.png")
 
-
     def load_offline_map(self):
-        QFileDialog.getOpenFileName(
-            self, "Load Local Map", filter="PM Tiles (*.pmtiles)"
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Load Local Map",
+            filter="PM Tiles (*.pmtiles)"
         )
 
+        if not path:
+            return
+
+        if self.tile_server:
+            self.tile_server.stop()
+
+        self.loaded_map_name = Path(path).name
+        self.tile_server = TileServer(Path(path))
+        self.tile_server.start()
+
+        self.start_web_engine(
+            self.tile_server.url,
+            vector_source=True,
+        )
 
 if __name__ == "__main__":
     app = QApplication.instance() or QApplication(sys.argv)

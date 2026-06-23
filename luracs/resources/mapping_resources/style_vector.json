@@ -7,10 +7,13 @@
     "openmaptiles:version": "3.x"
   },
   "sources": {
-    "openmaptiles": {
-      "type": "vector",
-      "url": "http://localhost:3000/albania"
-    },
+      "openmaptiles": {
+        "type": "vector",
+        "tiles": [
+          "http://127.0.0.1:8000/tiles/{z}/{x}/{y}.pbf"
+        ]
+      }
+    ,
     "natural_earth_shaded_relief": {
       "maxzoom": 6,
       "tileSize": 256,

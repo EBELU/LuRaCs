@@ -1,6 +1,7 @@
 from pathlib import Path
 from .xml_parser import xml_parser
 from .db_parser import db_parser
+from .proprietary_formats import spe_parser, tka_parser
 
 
 def io_dispatcher(
@@ -20,8 +21,11 @@ def io_dispatcher(
     if file_name.suffix in (".xml", ".n42"):
         return xml_parser(file_name, meta_parsing)
 
-    elif file_name.suffix in (".tke", ".spe"):
-        raise NotImplementedError()
+    elif file_name.suffix.lower() in (".spe"):
+        return spe_parser(file_name)
+    
+    elif file_name.suffix.lower() in (".tka"):
+        return tka_parser(file_name)
 
     elif file_name.suffix in (".db"):
         return db_parser(file_name)

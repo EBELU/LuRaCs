@@ -37,6 +37,11 @@ QPushButton:pressed {
     background-color: #89dceb;
 }
 
+QPushButton:checked {
+    background-color: #89b4fa;
+    color: #181825;
+}
+
 QLineEdit,
 QTextEdit,
 QPlainTextEdit,

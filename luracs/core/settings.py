@@ -10,7 +10,7 @@ from collections import deque
 
 @dataclass
 class _Appearance:
-    theme: str = "light"
+    theme: str = "light-catppuccin"
     color_rotator_scheme: str = "catppuccin"
     pen: bool = True
     brush: bool = False
