@@ -2,14 +2,14 @@ from pathlib import Path
 import numpy as np
 from datetime import datetime
 
-from luracs.core import settings
 from luracs.containers.spectrum_classes import SpectrumData
 from luracs.containers.roi_classes import ROI
+
 
 class spe_parser:
     def __init__(self, path: Path | str):
         self.data = {}
-        
+
         path = Path(path)
 
         meas_date = None
@@ -30,8 +30,7 @@ class spe_parser:
 
             # ---- DATE ----
             if line.startswith("$DATE_MEA"):
-                meas_date = datetime.strptime(lines[i + 1].strip(),
-                                            "%m/%d/%Y %H:%M:%S")
+                meas_date = datetime.strptime(lines[i + 1].strip(), "%m/%d/%Y %H:%M:%S")
                 i += 2
                 continue
 
@@ -93,30 +92,31 @@ class spe_parser:
                 live_time,
                 real_time,
                 start_date=meas_date,
-                spectrum_name=path.name
+                spectrum_name=path.name,
             ),
-            "calibration": np.array(calib[::-1])
+            "calibration": np.array(calib[::-1]),
         }
-        
+
+
 class tka_parser:
-    def __init__(self, path: Path | str):        
+    def __init__(self, path: Path | str):
         live_time = None
         real_time = None
         count_array = []
         path = Path(path)
-        
+
         with open(path.resolve(), "r", encoding="utf-8", errors="ignore") as f:
             for i, line in enumerate(f):
                 if i > 1:
                     count_array.append(int(line.strip()))
-                
+
                 elif i == 0:
                     live_time = int(line.strip())
-                    
+
                 elif i == 1:
                     real_time = int(line.strip())
-        
-        count_array = np.array(count_array)     
+
+        count_array = np.array(count_array)
         self.data = {
             "name": path.name,
             "foreground": SpectrumData(
@@ -125,6 +125,6 @@ class tka_parser:
                 sum(count_array),
                 live_time,
                 real_time,
-                spectrum_name=path.name
-            )
+                spectrum_name=path.name,
+            ),
         }
