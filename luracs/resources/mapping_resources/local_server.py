@@ -7,38 +7,6 @@ import uvicorn
 from pmtiles.reader import Reader
 import asyncio
 
-def get_tile_server(tile_path: Path):
-    path = str(tile_path.resolve())
-
-    async def tiles(request: Request):
-        file_size = os.path.getsize(path)
-        range_header = request.headers.get("range")
-
-        if not range_header:
-            with open(path, "rb") as f:
-                return Response(
-                    f.read(),
-                    media_type="application/octet-stream",
-                )
-
-        start = int(range_header.replace("bytes=", "").split("-")[0])
-        end = file_size - 1
-
-        with open(path, "rb") as f:
-            f.seek(start)
-            data = f.read(end - start + 1)
-
-        return Response(
-            data,
-            status_code=206,
-            media_type="application/octet-stream",
-            headers={
-                "Content-Range": f"bytes {start}-{end}/{file_size}"
-            },
-        )
-
-    return tiles
-
 
 class PMTilesServer:
     def __init__(self, pmtiles_path: Path):
@@ -74,6 +42,7 @@ class PMTilesServer:
                 tile_data,
                 media_type="application/x-protobuf",
                 headers={
+                    "Content-Encoding": "gzip",
                     "Cache-Control": "public, max-age=3600",
                 },
             )

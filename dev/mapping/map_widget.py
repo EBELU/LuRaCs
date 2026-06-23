@@ -269,7 +269,7 @@ class MapWidget(QWidget):
 
     def load_offline_map(self):
         QFileDialog.getOpenFileName(
-            self, "Load Local Map", filter="PM Tiles (*.pmtiles)"
+            self, "Load Local Map", filter="PM Tiles (*.pmtiles)", options=QFileDialog.Option.DontUseNativeDialog
         )
 
 

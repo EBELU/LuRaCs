@@ -318,7 +318,8 @@ class MapWidget(QWidget):
         path, _ = QFileDialog.getOpenFileName(
             self,
             "Load Local Map",
-            filter="PM Tiles (*.pmtiles)"
+            filter="PM Tiles (*.pmtiles)",
+            options=QFileDialog.Option.DontUseNativeDialog
         )
 
         if not path:

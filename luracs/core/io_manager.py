@@ -207,7 +207,7 @@ class _Importer(QObject):
             
         
         file_paths, selected_filter = QFileDialog.getOpenFileNames(
-            dialog_parent, "Import File", str(Settings.Paths.last_opened_dir), filter
+            dialog_parent, "Import File", str(Settings.Paths.last_opened_dir), filter, options=QFileDialog.Option.DontUseNativeDialog
         )
 
         # Clean up files and make them Paths
@@ -227,7 +227,7 @@ class _Importer(QObject):
             filter = ";;".join(self.import_filters.values())
             
         file_path, selected_filter = QFileDialog.getOpenFileName(
-            self, "Import File", str(Settings.Paths.last_opened_dir), filter
+            self, "Import File", str(Settings.Paths.last_opened_dir), filter, options=QFileDialog.Option.DontUseNativeDialog
         )
 
         # Clean up the path
@@ -256,6 +256,7 @@ class _Importer(QObject):
             "Import File",
             str(Settings.Paths.last_opened_dir),
             self.import_filters["spectrum"],
+            options=QFileDialog.Option.DontUseNativeDialog
         )
         if file_path is not None:
             file_path = Path(file_path)
@@ -299,7 +300,8 @@ class _Importer(QObject):
             None,
             "Import zipped data store",
             str(Path.home()),
-            "Zip-File (*.zip)"
+            "Zip-File (*.zip)",
+            options=QFileDialog.Option.DontUseNativeDialog
         )
         
         if not zip_file_path:
@@ -328,6 +330,7 @@ class _Exporter(QObject):
             "Export File",
             str(Settings.Paths.last_opened_dir),
             self.export_filters["spectrum"],
+            options=QFileDialog.Option.DontUseNativeDialog
         )
 
         if not file_path:
@@ -358,6 +361,7 @@ class _Exporter(QObject):
             "Export File",
             str(Settings.Paths.last_opened_dir),
             "Comma Separated Values (*.csv)",
+            options=QFileDialog.Option.DontUseNativeDialog
         )
 
         if not file_path:
@@ -389,7 +393,8 @@ class _Exporter(QObject):
             None,
             "Import zipped data store",
             str(Path.home()),
-            "Zip-File (*.zip)"
+            "Zip-File (*.zip)",
+            options=QFileDialog.Option.DontUseNativeDialog
         )
         
         if not zip_file_path:

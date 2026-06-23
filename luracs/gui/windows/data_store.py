@@ -172,7 +172,7 @@ class LibraryTab(QWidget):
             return
 
         if len(selection) > 1:
-            folder = QFileDialog.getExistingDirectory(None, "Select or Create Folder")
+            folder = QFileDialog.getExistingDirectory(None, "Select or Create Folder", options=QFileDialog.Option.DontUseNativeDialog)
             if not folder:
                 return
 
@@ -183,7 +183,7 @@ class LibraryTab(QWidget):
         else:
             default_name = (Path.home() / selection[0]).name
             new_path, _ = QFileDialog.getSaveFileName(
-                None, "Export Spectrum", str(default_name), filter
+                None, "Export Spectrum", str(default_name), filter, options=QFileDialog.Option.DontUseNativeDialog
             )
 
             if not new_path:
@@ -330,7 +330,7 @@ class SpectrumTab(LibraryTab):
             return
 
         if len(selection) > 1:
-            folder = QFileDialog.getExistingDirectory(None, "Select or Create Folder")
+            folder = QFileDialog.getExistingDirectory(None, "Select or Create Folder", options=QFileDialog.Option.DontUseNativeDialog)
             if not folder:
                 return
 
@@ -344,7 +344,7 @@ class SpectrumTab(LibraryTab):
         else:
             default_name = (Path.home() / selection[0]).stem
             new_path, _ = QFileDialog.getSaveFileName(
-                None, "Export Spectrum", str(default_name), filter
+                None, "Export Spectrum", str(default_name), filter, options=QFileDialog.Option.DontUseNativeDialog
             )
 
             if not new_path:
@@ -364,7 +364,7 @@ class SpectrumTab(LibraryTab):
             return
 
         if len(selection) > 1:
-            folder = QFileDialog.getExistingDirectory(None, "Select or Create Folder")
+            folder = QFileDialog.getExistingDirectory(None, "Select or Create Folder", options=QFileDialog.Option.DontUseNativeDialog)
             if not folder:
                 return
 
@@ -378,7 +378,7 @@ class SpectrumTab(LibraryTab):
         else:
             default_name = (Path.home() / selection[0]).stem
             new_path, _ = QFileDialog.getSaveFileName(
-                None, "Export Spectrum", str(default_name), filter
+                None, "Export Spectrum", str(default_name), filter, options=QFileDialog.Option.DontUseNativeDialog
             )
 
             if not new_path:
@@ -447,7 +447,7 @@ class SpectrogramTab(LibraryTab):
             return
 
         if len(selection) > 1:
-            folder = QFileDialog.getExistingDirectory(None, "Select or Create Folder")
+            folder = QFileDialog.getExistingDirectory(None, "Select or Create Folder", options=QFileDialog.Option.DontUseNativeDialog)
             if not folder:
                 return
 
@@ -461,7 +461,7 @@ class SpectrogramTab(LibraryTab):
         else:
             default_name = (Path.home() / selection[0]).with_suffix(".xlsx")
             new_path, _ = QFileDialog.getSaveFileName(
-                None, "Export Spectrogram", str(default_name), "Excel Workbook (*.xlsx)"
+                None, "Export Spectrogram", str(default_name), "Excel Workbook (*.xlsx)", options=QFileDialog.Option.DontUseNativeDialog
             )
 
             if not new_path:
