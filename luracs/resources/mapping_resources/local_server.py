@@ -1,39 +1,46 @@
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
-import os
 from threading import Thread
 import uvicorn
 from pmtiles.reader import Reader
-import asyncio
+from functools import lru_cache
+import threading
+
 
 
 class PMTilesServer:
     def __init__(self, pmtiles_path: Path):
         self.app = FastAPI()
-        
+
+        self.file = open(pmtiles_path, "rb")
+
+        self.lock = threading.Lock()
+
         def get_bytes(offset, length):
-            with open(pmtiles_path, "rb") as f:
-                f.seek(offset)
-                return f.read(length)
-            
+            with self.lock:
+                self.file.seek(offset)
+                return self.file.read(length)
+
         self.reader = Reader(get_bytes)
-        
+
         self.app.add_middleware(
             CORSMiddleware,
-            allow_origins=["*"],  # or ["file://"] won't work; use "*"
+            allow_origins=["*"],
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],
         )
 
-        @self.app.get("/tiles/{z}/{x}/{y}.pbf")
-        async def tile(z: int, x: int, y: int):
+        reader = self.reader
 
-            tile_data = await asyncio.to_thread(
-                self.reader.get,
-                z, x, y
-            )
+        @lru_cache(maxsize=20000)
+        def get_tile(z, x, y):
+            return reader.get(z, x, y)
+
+        @self.app.get("/tiles/{z}/{x}/{y}.pbf")
+        def tile(z: int, x: int, y: int):
+            tile_data = get_tile(z, x, y)
 
             if tile_data is None:
                 return Response(status_code=204)
@@ -43,9 +50,10 @@ class PMTilesServer:
                 media_type="application/x-protobuf",
                 headers={
                     "Content-Encoding": "gzip",
-                    "Cache-Control": "public, max-age=3600",
+                    "Cache-Control": "public, max-age=86400, immutable",
                 },
             )
+
 
 class TileServer:
     def __init__(self, pmtiles_path: Path, host="127.0.0.1", port=8080):

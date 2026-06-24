@@ -160,7 +160,10 @@ class MainWindow(QMainWindow):
         self.spect_tab.addTab(self.spectrogram, "Spectrogram")
         
         if not IS_H3:
-            self.spect_tab.addTab(MapWidget(), "Map")
+            self.map_widget = MapWidget()
+            self.spect_tab.addTab(self.map_widget, "Map")
+        else:
+            self.map_widget = None
         
         layout.addWidget(self.spect_tab, 6)
 
@@ -269,6 +272,8 @@ class MainWindow(QMainWindow):
         Log.info("Disconnecting devices and shutting down application...")
         event.ignore()
         self.hide()
+        if self.map_widget is not None:
+            self.map_widget.stop()
         close()
 
 

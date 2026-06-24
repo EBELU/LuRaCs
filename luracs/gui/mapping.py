@@ -204,6 +204,10 @@ class MapWidget(QWidget):
         central_layout.addWidget(lut_container, stretch=2)
 
         main_layout.addLayout(central_layout)
+        
+    def stop(self):
+        if self.tile_server is not None:
+            self.tile_server.stop()
 
 
     def createJsMap(self):

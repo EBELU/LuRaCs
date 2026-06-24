@@ -204,6 +204,16 @@
         "line-width": {"base": 1.3, "stops": [[13, 0.5], [20, 6]]}
       }
     },
+
+    {
+      "id": "ocean",
+      "type": "fill",
+      "source": "openmaptiles",
+      "source-layer": "ocean",
+      "paint": {
+        "fill-color": "rgb(158,189,255)"
+      }
+    },
     {
       "id": "water",
       "type": "fill",
@@ -212,6 +222,7 @@
       "filter": ["all", ["!=", "brunnel", "tunnel"]],
       "paint": {"fill-color": "rgb(158,189,255)"}
     },
+    
     {
       "id": "landcover_sand",
       "type": "fill",
