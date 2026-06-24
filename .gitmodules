@@ -5,3 +5,9 @@
 [submodule "Clients/RadiacodeClient"]
 	path = luracs/clients/RadiacodeClient
 	url = https://github.com/EBELU/RadiacodeClient.git
+[submodule "luracs/clients/RaysidClient"]
+	path = luracs/clients/RaysidClient
+	url = https://github.com/EBELU/RaysidClient.git
+[submodule "luracs/clients/RadiacodeClient"]
+	path = luracs/clients/RadiacodeClient
+	url = https://github.com/EBELU/RadiacodeClient.git
