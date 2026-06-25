@@ -1,11 +1,13 @@
 from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.concurrency import run_in_threadpool
 from pathlib import Path
 from threading import Thread
 import uvicorn
-from pmtiles.reader import Reader
+from .pmtiles.reader import Reader, MmapSource
 from functools import lru_cache
 import threading
+
 
 
 
@@ -17,12 +19,9 @@ class PMTilesServer:
 
         self.lock = threading.Lock()
 
-        def get_bytes(offset, length):
-            with self.lock:
-                self.file.seek(offset)
-                return self.file.read(length)
 
-        self.reader = Reader(get_bytes)
+        f = open(pmtiles_path, "rb")
+        self.reader = Reader(MmapSource(f))
 
         self.app.add_middleware(
             CORSMiddleware,
@@ -36,12 +35,13 @@ class PMTilesServer:
 
         @lru_cache(maxsize=20000)
         def get_tile(z, x, y):
-            return reader.get(z, x, y)
+            result = reader.get(z, x, y)
+            return result
+
 
         @self.app.get("/tiles/{z}/{x}/{y}.pbf")
-        def tile(z: int, x: int, y: int):
-            tile_data = get_tile(z, x, y)
-
+        async def tile(z: int, x: int, y: int):
+            tile_data = await run_in_threadpool(get_tile, z, x, y)
             if tile_data is None:
                 return Response(status_code=204)
 

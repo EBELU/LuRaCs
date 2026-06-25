@@ -923,44 +923,6 @@
       }
     },
     {
-      "id": "road_transit_rail_hatching",
-      "type": "line",
-      "source": "openmaptiles",
-      "source-layer": "transportation",
-      "filter": [
-        "all",
-        ["!in", "brunnel", "bridge", "tunnel"],
-        ["==", "class", "transit"]
-      ],
-      "paint": {
-        "line-color": "#bbb",
-        "line-dasharray": [0.2, 8],
-        "line-width": {"base": 1.4, "stops": [[14.5, 0], [15, 3], [20, 8]]}
-      }
-    },
-    {
-      "id": "road_one_way_arrow",
-      "type": "symbol",
-      "source": "openmaptiles",
-      "source-layer": "transportation",
-      "minzoom": 16,
-      "filter": ["==", "oneway", 1],
-      "layout": {"icon-image": "arrow", "symbol-placement": "line"}
-    },
-    {
-      "id": "road_one_way_arrow_opposite",
-      "type": "symbol",
-      "source": "openmaptiles",
-      "source-layer": "transportation",
-      "minzoom": 16,
-      "filter": ["==", "oneway", -1],
-      "layout": {
-        "icon-image": "arrow",
-        "symbol-placement": "line",
-        "icon-rotate": 180
-      }
-    },
-    {
       "id": "bridge_motorway_link_casing",
       "type": "line",
       "source": "openmaptiles",
@@ -1302,25 +1264,6 @@
       }
     },
     {
-      "id": "building-3d",
-      "type": "fill-extrusion",
-      "source": "openmaptiles",
-      "source-layer": "building",
-      "minzoom": 14,
-      "paint": {
-        "fill-extrusion-color": "hsl(35, 8%, 85%)",
-        "fill-extrusion-height": {
-          "property": "render_height",
-          "type": "identity"
-        },
-        "fill-extrusion-base": {
-          "property": "render_min_height",
-          "type": "identity"
-        },
-        "fill-extrusion-opacity": 0.8
-      }
-    },
-    {
       "id": "boundary_3",
       "type": "line",
       "source": "openmaptiles",
@@ -1400,35 +1343,6 @@
       }
     },
     {
-      "id": "poi_z16",
-      "type": "symbol",
-      "source": "openmaptiles",
-      "source-layer": "poi",
-      "minzoom": 16,
-      "filter": ["all", ["==", "$type", "Point"], [">=", "rank", 20]],
-      "layout": {
-        "icon-image": [
-          "match",
-          ["get", "subclass"],
-          ["florist", "furniture", "soccer", "tennis"],
-          ["get", "subclass"],
-          ["get", "class"]
-        ],
-        "text-anchor": "top",
-        "text-field": "{name}",
-        "text-font": ["Roboto Condensed Italic"],
-        "text-max-width": 9,
-        "text-offset": [0, 0.6],
-        "text-size": 12
-      },
-      "paint": {
-        "text-color": "#666",
-        "text-halo-blur": 0.5,
-        "text-halo-color": "#ffffff",
-        "text-halo-width": 1
-      }
-    },
-    {
       "id": "poi_z15",
       "type": "symbol",
       "source": "openmaptiles",
@@ -1440,21 +1354,6 @@
         [">=", "rank", 7],
         ["<", "rank", 20]
       ],
-      "layout": {
-        "icon-image": [
-          "match",
-          ["get", "subclass"],
-          ["florist", "furniture", "soccer", "tennis"],
-          ["get", "subclass"],
-          ["get", "class"]
-        ],
-        "text-anchor": "top",
-        "text-field": "{name}",
-        "text-font": ["Roboto Condensed Italic"],
-        "text-max-width": 9,
-        "text-offset": [0, 0.6],
-        "text-size": 12
-      },
       "paint": {
         "text-color": "#666",
         "text-halo-blur": 0.5,
@@ -1474,21 +1373,6 @@
         [">=", "rank", 1],
         ["<", "rank", 7]
       ],
-      "layout": {
-        "icon-image": [
-          "match",
-          ["get", "subclass"],
-          ["florist", "furniture", "soccer", "tennis"],
-          ["get", "subclass"],
-          ["get", "class"]
-        ],
-        "text-anchor": "top",
-        "text-field": "{name}",
-        "text-font": ["Roboto Condensed Italic"],
-        "text-max-width": 9,
-        "text-offset": [0, 0.6],
-        "text-size": 12
-      },
       "paint": {
         "text-color": "#666",
         "text-halo-blur": 0.5,
@@ -1501,7 +1385,7 @@
       "type": "symbol",
       "source": "openmaptiles",
       "source-layer": "poi",
-      "filter": ["all", ["in", "class", "bus", "rail", "airport"]],
+      "filter": ["all", ["in", "class", "rail", "airport"]],
       "layout": {
         "icon-image": "{class}",
         "text-anchor": "left",

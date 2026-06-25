@@ -28,7 +28,6 @@ dependencies = [
     "SciPy",
     "fastapi",
     "uvicorn",
-    "pmtiles",
 
     "RaysidClient @ git+https://github.com/EBELU/RaysidClient.git",
 ]

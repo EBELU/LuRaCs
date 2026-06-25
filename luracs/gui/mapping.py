@@ -1,8 +1,6 @@
-import copy
 import json
 from pathlib import Path
 import sys
-import numpy as np
 
 from PySide6.QtCore import QObject, Qt, Signal, Slot, QUrl
 from PySide6.QtWidgets import (
@@ -259,6 +257,7 @@ class MapWidget(QWidget):
             self.pending_style["sources"]["openmaptiles"] = {
                 "type": "vector",
                 "tiles": [source_url],
+                "maxzoom": 14,
             }
         else:
             self.pending_style = json.load((Settings.Paths.resources / "mapping_resources" / "style_raster.json").open())
@@ -336,6 +335,8 @@ class MapWidget(QWidget):
         self.tile_server = TileServer(Path(path))
         self.tile_server.start()
 
+        Log.info("Tile server warming up, cacheing map...")
+        
         self.start_web_engine(
             self.tile_server.url,
             vector_source=True,
