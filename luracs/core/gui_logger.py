@@ -7,14 +7,14 @@ gui_logger = logging.getLogger("Application")
 gui_logger.setLevel(level=logging.DEBUG if "-db" in sys.argv else logging.INFO)
 
 formatter = logging.Formatter(
-    fmt="%(asctime)s | Application | %(levelname)s | %(message)s",
-    datefmt="%H:%M:%S"
+    fmt="%(asctime)s | Application | %(levelname)s | %(message)s", datefmt="%H:%M:%S"
 )
 
 
 # ------------------------------------------------------------------
 # Handlers
 # ------------------------------------------------------------------
+
 
 class BufferHandler(logging.Handler):
     def __init__(self, max_entries=1000):
@@ -27,6 +27,7 @@ class BufferHandler(logging.Handler):
     def get_messages(self):
         return list(self.buffer)
 
+
 console_handler = None
 file_handler = None
 
@@ -35,6 +36,7 @@ log_buffer = BufferHandler(max_entries=Settings.Advanced.log_buffer_length)
 log_buffer.setFormatter(formatter)
 
 gui_logger.addHandler(log_buffer)
+
 
 # --- Console Handler ---
 # Forwards log messages to the console
@@ -60,6 +62,7 @@ def _detach_console_handler():
     console_handler.close()
     console_handler = None
 
+
 # --- File Handler ---
 # Writes log error messages to a crash report file
 def _attach_file_handler():
@@ -73,6 +76,7 @@ def _attach_file_handler():
     file_handler.setFormatter(formatter)
     gui_logger.addHandler(file_handler)
 
+
 def _detach_file_handler():
     global file_handler
 
@@ -83,7 +87,7 @@ def _detach_file_handler():
     file_handler.close()
     file_handler = None
 
- 
+
 # --- Exception Handler ---
 # Pipes unhandled exceptions to the console
 def handle_exception(exc_type, exc_value, exc_traceback):
@@ -92,12 +96,13 @@ def handle_exception(exc_type, exc_value, exc_traceback):
         return
 
     gui_logger.critical(
-        "Unhandled exception",
-        exc_info=(exc_type, exc_value, exc_traceback)
+        "Unhandled exception", exc_info=(exc_type, exc_value, exc_traceback)
     )
+
 
 def _attach_exception_handler():
     sys.excepthook = handle_exception
+
 
 def _detach_exception_handler():
     sys.excepthook = sys.__excepthook__

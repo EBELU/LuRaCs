@@ -10,6 +10,7 @@ from PySide6.QtCore import Qt, Signal
 
 from luracs.core import RunManager
 
+
 class ListPopupNonBlocking(QDialog):
     """
     Non-blocking list popup.

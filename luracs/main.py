@@ -1,6 +1,7 @@
 import sys
 import asyncio
 import logging
+
 __version__ = "0.2.0"
 
 
@@ -12,13 +13,21 @@ def print_progress(text, progress):
         flush=True,
     )
 
+
 logging.basicConfig(level=logging.INFO)
 
 # --- Vital imports for core application to function ---
 from PySide6.QtWidgets import QApplication
 from qasync import QEventLoop
-from luracs.core import RunManager, Log, Settings, SpectrumManager, log_utils, core_utils
-from luracs.core.script_engine import ScriptEngine # Not normally exposed in the api
+from luracs.core import (
+    RunManager,
+    Log,
+    Settings,
+    SpectrumManager,
+    log_utils,
+    core_utils,
+)
+from luracs.core.script_engine import ScriptEngine  # Not normally exposed in the api
 
 from luracs.utils.arg_parser import parse_cli_args
 from luracs.utils.startup import startup_script
@@ -70,6 +79,7 @@ try:
     import PySide6.QtWebEngineCore
     import scipy
     import sklearn
+
     IS_H3 = False
 except ModuleNotFoundError:
     IS_H3 = True
@@ -86,16 +96,21 @@ from luracs.containers.roi_classes import DeletableROI
 DeletableROI.roi_editor_dialog = ROIEditor
 
 
-
 # ===================== IMPORTANT SIGNALS =====================
 
 RunManager.createDeviceSpectrum.connect(SpectrumManager.create_spectrum)
 RunManager.removeDeviceSpectrum.connect(SpectrumManager.remove_spectrum)
 RunManager.spectrumUpdated.connect(SpectrumManager.set_foreground_spectrum)
-Settings.sigSettingChanged.connect(lambda group, variable, new_value: Log.debug(f"{Settings.__class__}: Setting updated: {group}.{variable} = {new_value}"))
+Settings.sigSettingChanged.connect(
+    lambda group, variable, new_value: Log.debug(
+        f"{Settings.__class__}: Setting updated: {group}.{variable} = {new_value}"
+    )
+)
 
 
 _closing = False
+
+
 async def _async_close():
     global _closing
     if _closing:
@@ -105,11 +120,11 @@ async def _async_close():
         await RunManager.shutdown()
     finally:
         QApplication.quit()
-        
+
+
 def close():
     Settings.save_settings()
     asyncio.create_task(_async_close())
-
 
 
 # ===================== MAIN WINDOW =====================
@@ -119,15 +134,13 @@ class MainWindow(QMainWindow):
         print_progress("Initializing main window", 7)
         self.setWindowTitle("LuRaCs" if not IS_H3 else "LuRaCs-H3")
 
-        
         self.data_store = DataLibrary("Data Store", None)
-        
+
         # Shown from main menu bar
         self.bt_window = BluetoothListPopup()
         self.usb_window = USBListPopup()
-        
-        print_progress("Building GUI", 8)
 
+        print_progress("Building GUI", 8)
 
         self.bibliography_dialog = SmallDocumentationDialog(Settings.Paths.bibliography)
         self.documentation_dialog = DocumentationDialog(
@@ -158,13 +171,13 @@ class MainWindow(QMainWindow):
         self.spectrogram = SpectrogramWidget(self)
         self.spectrogram.sigShowDataStore.connect(self.show_data_store)
         self.spect_tab.addTab(self.spectrogram, "Spectrogram")
-        
+
         if not IS_H3:
             self.map_widget = MapWidget()
             self.spect_tab.addTab(self.map_widget, "Map")
         else:
             self.map_widget = None
-        
+
         layout.addWidget(self.spect_tab, 6)
 
         # ---------- Bottom Tabs ----------
@@ -174,18 +187,25 @@ class MainWindow(QMainWindow):
         # Spectrum Infp
         self.spectrum_info_tab = SpectrumInfoTab(self, parent=self)
         self.bottom_tabs.addTab(self.spectrum_info_tab, "Spectrum Info")
-        self.bottom_tabs.setTabToolTip(0, "View detailed information about the spectra currently loaded")
+        self.bottom_tabs.setTabToolTip(
+            0, "View detailed information about the spectra currently loaded"
+        )
 
         # ROI info
         self.roi_info_pane = ROIInfoTab(parent=self)
         self.roi_info_pane.clearROIs.connect(SpectrumManager.ROIManager.clear_all)
         self.bottom_tabs.addTab(self.roi_info_pane, "ROI Info")
-        self.bottom_tabs.setTabToolTip(1, "View detailed information about regions of interest (ROI) set in the spectra")
+        self.bottom_tabs.setTabToolTip(
+            1,
+            "View detailed information about regions of interest (ROI) set in the spectra",
+        )
 
         # Current values
         self.current_value_tab = RealTimeValuesPlot()
         self.bottom_tabs.addTab(self.current_value_tab, "Real Time Values")
-        self.bottom_tabs.setTabToolTip(2, "View the current values measured by a connected device")
+        self.bottom_tabs.setTabToolTip(
+            2, "View the current values measured by a connected device"
+        )
 
         # Devices
         self.devices_tab = DevicesInfoTab()
@@ -197,7 +217,10 @@ class MainWindow(QMainWindow):
             list(SpectrumManager.NuclideLibrary.get_sorted_nuclide_names())
         )
         self.bottom_tabs.addTab(self.isotopics_tab, "Isotopics")
-        self.bottom_tabs.setTabToolTip(4, "View radionuclide information, set help lines in the spectrum, search peaks and auto assign peaks")
+        self.bottom_tabs.setTabToolTip(
+            4,
+            "View radionuclide information, set help lines in the spectrum, search peaks and auto assign peaks",
+        )
         # Isotopics connections
         self.spectrum_plot_container.sigRedrawRequested.connect(
             self.isotopics_tab.request_line_data
@@ -223,7 +246,9 @@ class MainWindow(QMainWindow):
         # Console
         self.console_tab = ConsoleTab()
         self.bottom_tabs.addTab(self.console_tab, "Console")
-        self.bottom_tabs.setTabToolTip(5, "Enter text commands and run scripts in the console")
+        self.bottom_tabs.setTabToolTip(
+            5, "Enter text commands and run scripts in the console"
+        )
 
         # System log
         self.log_tab = LogWidget()
@@ -240,10 +265,14 @@ class MainWindow(QMainWindow):
         core_utils.ThemeManager.register_plot(self.spectrogram.plot)
         core_utils.ThemeManager.register_plot(self.spectrogram.top_spectrum_plot)
         core_utils.ThemeManager.register_plot(self.calc_win_efficiency.demo_plot)
-        core_utils.ThemeManager.register_plot(self.calc_win_calibration.calibration_plot)
+        core_utils.ThemeManager.register_plot(
+            self.calc_win_calibration.calibration_plot
+        )
         core_utils.ThemeManager.register_plot(self.calc_win_resolution.res_plot)
         core_utils.ThemeManager.register_legend(*self.current_value_tab.legends)
-        core_utils.ThemeManager.register_legend(self.spectrum_plot_container.single_plot.legend)
+        core_utils.ThemeManager.register_legend(
+            self.spectrum_plot_container.single_plot.legend
+        )
         core_utils.ThemeManager.apply(ThemeManager.themes(Settings.Appearance.theme))
         Log.debug(f"{self.__class__}: Theme loaded '{Settings.Appearance.theme}'")
 
@@ -285,11 +314,11 @@ def main():
     font = app.font()
     font.setPointSize(Settings.Appearance.font_size)  # Change the font size
     app.setFont(font)
-    app.setWindowIcon(QIcon(str(Settings.Paths.themes / "icons" / "main_icon_green.png")))
+    app.setWindowIcon(
+        QIcon(str(Settings.Paths.themes / "icons" / "main_icon_green.png"))
+    )
     loop = QEventLoop(app)
     asyncio.set_event_loop(loop)
-
-
 
     # Check if headless
     if "--headless" in sys.argv:
@@ -312,12 +341,11 @@ def main():
     if Settings.Advanced.log_write_to_console and not Settings.headless:
         log_utils.attach_console_handler()
 
-
     # --- Script engine ---
     script_engine = ScriptEngine(
         program_version=__version__ + "--Tritium" if IS_H3 else "",
-        headless=Settings.headless, 
-        IS_H3=IS_H3
+        headless=Settings.headless,
+        IS_H3=IS_H3,
     )
 
     # Shutdown
@@ -338,8 +366,9 @@ def main():
     print_progress("Done!", 10)
     print()
     # --- Log welcome ---
-    Log.info("\n\n" + ascii_art.logo(__version__ + "--Tritium" if IS_H3 else "", is_h3=IS_H3))
-
+    Log.info(
+        "\n\n" + ascii_art.logo(__version__ + "--Tritium" if IS_H3 else "", is_h3=IS_H3)
+    )
 
     # --- Start the event loop ---
     with loop:

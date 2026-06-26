@@ -7,7 +7,6 @@ from pathlib import Path
 from collections import deque
 
 
-
 @dataclass
 class _Appearance:
     theme: str = "light-catppuccin"
@@ -17,9 +16,10 @@ class _Appearance:
     font_size: int = 10
     tabbed_spectrum_view: bool = False
     verbose_calculation_logging: bool = True
-    
+
     load_rois_on_import: bool = True
     load_instrument_on_import: bool = True
+
 
 @dataclass
 class _Temp:
@@ -27,20 +27,20 @@ class _Temp:
     spectrum_view_emission_lines_to_cursor: bool = False
     spectrum_view_show_roi_labels: bool = True
 
+
 @dataclass
 class _State:
     last_connections: deque = field(default_factory=lambda: deque(maxlen=10))
     loaded_spectra: Optional[Any] = None
     roi_regions: Optional[Any] = None
     map_last_online_url: str = ""
-    
 
     def to_dict(self):
         return {
             "last_connections": list(self.last_connections),
             "loaded_spectra": self.loaded_spectra,
             "roi_regions": self.roi_regions,
-            "map_last_online_url": self.map_last_online_url
+            "map_last_online_url": self.map_last_online_url,
         }
 
     def from_dict(self, data):
@@ -48,7 +48,7 @@ class _State:
         self.loaded_spectra = data.get("loaded_spectra")
         self.roi_regions = data.get("roi_regions")
         self.map_last_online_url = data.get("map_last_online_url", "")
-    
+
 
 @dataclass
 class _Advanced:
@@ -65,10 +65,11 @@ class _Advanced:
     log_catch_exceptions: bool = True
     log_write_to_file: bool = False
     log_write_to_console: bool = False
-    
+
     real_time_values_deque_length: int = 60
-    
+
     spectrogram_deque_length: int = 256
+
 
 def get_runtime_base() -> Path:
     if hasattr(sys, "_MEIPASS"):
@@ -87,18 +88,18 @@ class _Paths:
     BASE: Path = field(init=False)
 
     settings_file: Path = field(init=False)
-    
+
     last_opened_dir: Path = field(init=False)
 
     def __post_init__(self):
         # runtime base (where bundled resources live)
         self.BASE = get_runtime_base()
-        self.resources = self.BASE / "resources" 
+        self.resources = self.BASE / "resources"
 
         self.themes = self.BASE / "resources" / "themes"
         self.nuclide_data = self.BASE / "resources" / "nuclide_data"
-        self.bibliography = self.BASE  / "resources" / "docs" / "bibliography.md"
-        self.documentation_dir = self.BASE  / "resources" / "docs" / "documentation"
+        self.bibliography = self.BASE / "resources" / "docs" / "bibliography.md"
+        self.documentation_dir = self.BASE / "resources" / "docs" / "documentation"
 
         # Initialize all dependent paths relative to appdata
         self.spectrum_library = self.appdata / "spectrum_library"
@@ -108,7 +109,7 @@ class _Paths:
         self.unique_instrument_library = self.appdata / "unique_instrument_library"
         self.generic_instrument_library = self.appdata / "generic_instrument_library"
         self.settings_file = self.appdata / "settings.json"
-        
+
         # Track what directory files were last loaded from or saved to during runtime
         # For the users convenience :)
         self.last_opened_dir = Path.home()
@@ -134,8 +135,6 @@ class _Settings(QObject):
         group_ref = getattr(self, group)
         setattr(group_ref, variable, new_value)
         self.sigSettingChanged.emit(group, variable, new_value)
-        
-        
 
     def load_settings(self):
         "Ingest the previous settings file"
@@ -151,13 +150,13 @@ class _Settings(QObject):
         "Dump settings, typically at shutdown"
         json_content = {
             "appearance": self.Appearance.__dict__,
-            "state": self.State.to_dict(), # Dequeues make this annoying
+            "state": self.State.to_dict(),  # Dequeues make this annoying
             "advanced": self.Advanced.__dict__,
         }
 
         with open(self.Paths.settings_file, "w") as f:
             json.dump(json_content, f, indent=4)
-            
+
     def add_new_connection(self, name):
         if name not in list(self.State.last_connections):
             self.State.last_connections.append(name)

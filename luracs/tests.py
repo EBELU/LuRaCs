@@ -6,6 +6,7 @@ from datetime import datetime
 import numpy as np
 import copy
 import logging
+
 logging.basicConfig(level=logging.DEBUG)
 
 from luracs.core import SpectrumManager, IOManager
@@ -58,18 +59,19 @@ def test_xml_io():
         new_spect.set_roi(r)
 
     xml_writer(new_spect, "/home/eewa/Documents/git/MySpect/debug")
-    print(io_dispatcher("/home/eewa/Documents/git/MySpect/debug.xml", meta_parsing=False).__dict__)
-    
-    
+    print(
+        io_dispatcher(
+            "/home/eewa/Documents/git/MySpect/debug.xml", meta_parsing=False
+        ).__dict__
+    )
+
 
 if __name__ == "__main__":
     # import sys
     # from PySide6.QtWidgets import QApplication
     # app = QApplication.instance() or QApplication(sys.argv)
 
-
     print(IOManager.FileIndex.spectrum_index.get_item_from_attr("name", "Cyklotron_Co"))
     print(SpectrumManager.UniqueInstrumentLibrary.instrument_registry)
 
     # sys.exit(app.exec())
-

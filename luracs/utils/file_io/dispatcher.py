@@ -23,7 +23,7 @@ def io_dispatcher(
 
     elif file_name.suffix.lower() in (".spe"):
         return spe_parser(file_name)
-    
+
     elif file_name.suffix.lower() in (".tka"):
         return tka_parser(file_name)
 

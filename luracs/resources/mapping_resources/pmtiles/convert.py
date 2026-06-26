@@ -71,7 +71,6 @@ def mbtiles_to_pmtiles(input, output, maxzoom):
     cursor = conn.cursor()
 
     with write(output) as writer:
-
         # collect a set of all tile IDs
         tileid_set = []
         for row in cursor.execute(
@@ -230,12 +229,14 @@ def disk_to_pmtiles(directory_path, output, maxzoom, **kwargs):
     except FileNotFoundError:
         raise Exception("metadata.json not found in directory")
 
-    tile_format = kwargs.get('tile_format', metadata.get("format"))
+    tile_format = kwargs.get("tile_format", metadata.get("format"))
     if not tile_format:
-        raise Exception("tile format not found in metadata.json nor specified as keyword argument")
+        raise Exception(
+            "tile format not found in metadata.json nor specified as keyword argument"
+        )
     metadata["format"] = tile_format  # Add 'format' to metadata
 
-    scheme = kwargs.get('scheme')
+    scheme = kwargs.get("scheme")
 
     # Collect a set of all tile IDs
     z_set = []  # List of all zoom levels for auto-detecting maxzoom.
@@ -250,10 +251,10 @@ def disk_to_pmtiles(directory_path, output, maxzoom, **kwargs):
     count = 0
     warned = False
     for zoom_dir in zoom_dirs:
-        if scheme == 'ags':
+        if scheme == "ags":
             z = int(zoom_dir.replace("L", ""))
-        elif scheme == 'gwc':
-            z=int(zoom_dir[-2:])
+        elif scheme == "gwc":
+            z = int(zoom_dir[-2:])
         else:
             z = int(zoom_dir)
         if not collect_min <= z <= collect_max:
@@ -266,34 +267,38 @@ def disk_to_pmtiles(directory_path, output, maxzoom, **kwargs):
             print(" Searching for tiles at z=%s ..." % (z), end="", flush=True)
         count = 0
         for row_dir in get_dirs(os.path.join(directory_path, zoom_dir)):
-            if scheme == 'ags':
+            if scheme == "ags":
                 y = int(row_dir.replace("R", ""), 16)
-            elif scheme == 'gwc':
+            elif scheme == "gwc":
                 pass
-            elif scheme == 'zyx':
+            elif scheme == "zyx":
                 y = int(row_dir)
             else:
                 x = int(row_dir)
-            for current_file in os.listdir(os.path.join(directory_path, zoom_dir, row_dir)):
+            for current_file in os.listdir(
+                os.path.join(directory_path, zoom_dir, row_dir)
+            ):
                 if current_file == ".DS_Store":
                     pass
                 else:
-                    file_name, _ = current_file.split('.',1)
-                    if scheme == 'tms':
+                    file_name, _ = current_file.split(".", 1)
+                    if scheme == "tms":
                         y = flip_y(z, int(file_name))
-                    elif scheme == 'ags':
+                    elif scheme == "ags":
                         x = int(file_name.replace("C", ""), 16)
-                    elif scheme == 'gwc':
-                        x, y = file_name.split('_')
+                    elif scheme == "gwc":
+                        x, y = file_name.split("_")
                         x = int(x)
                         y = flip_y(z, int(y))
-                    elif scheme == 'zyx':
+                    elif scheme == "zyx":
                         x = int(file_name)
                     else:
                         y = int(file_name)
 
                     tileid = zxy_to_tileid(z, x, y)
-                    filepath = os.path.join(directory_path, zoom_dir, row_dir, current_file)
+                    filepath = os.path.join(
+                        directory_path, zoom_dir, row_dir, current_file
+                    )
                     tileid_path_set.append((tileid, filepath))
                     count = count + 1
         if verbose:
@@ -315,14 +320,15 @@ def disk_to_pmtiles(directory_path, output, maxzoom, **kwargs):
     is_pbf = tile_format == "pbf"
 
     with write(output) as writer:
-
         # read tiles in ascending tile order
         count = 0
         if verbose:
-            count_step = (2**(maxzoom-3))**2 if maxzoom <= 9 else (2**(9-3))**2
+            count_step = (
+                (2 ** (maxzoom - 3)) ** 2 if maxzoom <= 9 else (2 ** (9 - 3)) ** 2
+            )
             print(" Begin writing %s to .pmtiles ..." % (n_tiles), flush=True)
         for tileid, filepath in tileid_path_set:
-            f = open(filepath, 'rb')
+            f = open(filepath, "rb")
             try:
                 data = f.read()
                 # force gzip compression only for vector
@@ -351,8 +357,9 @@ def get_dirs(path):
 
     Licensed under BSD 3-Clause
     """
-    return [name for name in os.listdir(path)
-        if os.path.isdir(os.path.join(path, name))]
+    return [
+        name for name in os.listdir(path) if os.path.isdir(os.path.join(path, name))
+    ]
 
 
 def flip_y(zoom, y):
@@ -363,4 +370,4 @@ def flip_y(zoom, y):
 
     Licensed under BSD 3-Clause
     """
-    return (2**zoom-1) - y
+    return (2**zoom - 1) - y

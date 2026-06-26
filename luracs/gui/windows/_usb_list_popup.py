@@ -11,6 +11,7 @@ from PySide6.QtCore import Qt, Signal
 from luracs.core import RunManager, Log
 import asyncio
 
+
 def _on_usb_device_selected(device: dict):
     Log.debug("Selected USB device:", device)
 
@@ -24,18 +25,19 @@ def _on_usb_device_selected(device: dict):
     # Adjust if your RunManager function name differs
     asyncio.create_task(RunManager.add_device(serial, product, True))
 
+
 class USBListPopup(QDialog):
     sigSelected = Signal(object)
     sigCancel = Signal()
     sigRescan = Signal()
-    
-    def __init__(self, parent = None):
+
+    def __init__(self, parent=None):
         super().__init__(parent=parent)
         self.setWindowTitle("Connect device")
         self.resize(350, 450)
-        
+
         self._devices: list[dict] = []
-        
+
         # --- Main layout ---
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
@@ -45,9 +47,9 @@ class USBListPopup(QDialog):
         self.list_widget = QListWidget()
         self.list_widget.setSelectionMode(QListWidget.SingleSelection)
         self.list_widget.itemDoubleClicked.connect(self._on_double_click)
-        
+
         layout.addWidget(self.list_widget)
-        
+
         # --- Buttons ---
         button_layout = QHBoxLayout()
         button_layout.setSpacing(10)
@@ -65,10 +67,8 @@ class USBListPopup(QDialog):
         button_layout.addWidget(self.confirm_btn)
         button_layout.addWidget(self.cancel_btn)
         layout.addLayout(button_layout)
-        
-        self.list_widget.itemDoubleClicked.connect(self._on_double_click)
-        
 
+        self.list_widget.itemDoubleClicked.connect(self._on_double_click)
 
     def _on_confirmed(self):
         item = self.list_widget.currentItem()
@@ -87,7 +87,7 @@ class USBListPopup(QDialog):
     def _request_usb_scan(self):
         devices = RunManager.scan_all_usb()
         self.set_devices(devices)
-        
+
     def set_devices(self, devices: list):
         self.list_widget.clear()
         self._devices = devices or []
@@ -110,15 +110,16 @@ class USBListPopup(QDialog):
             self.list_widget.addItem(item)
 
         self.list_widget.clearSelection()
-        
+
+
 if __name__ == "__main__":
     import sys
     from PySide6.QtWidgets import QApplication
+
     app = QApplication.instance() or QApplication(sys.argv)
 
     window = USBListPopup()
     window.resize(200, 300)
     window.show()
-
 
     sys.exit(app.exec())

@@ -1,8 +1,9 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from .spectrum_manager import _SpectrumManager
-    
+
 from PySide6.QtCore import Signal, QObject
 from PySide6.QtGui import QColor
 from luracs.containers.roi_classes import DeletableROI, Fit, ROI
@@ -180,6 +181,7 @@ class ROIManager(QObject):
     """
     The roi manager manages roi-objects in the spectrum view. It is the owner of all roi objects, a spectrum can only 'borrow' it for display. Hit handles all calculations required for getting the desired data from rois. Spectrogram rois are not handled by this roi manager.
     """
+
     sigROICreated = Signal(object)
     sigROIUpdated = Signal(str, str, object)
     sigROIDeleted = Signal(object)
@@ -187,9 +189,7 @@ class ROIManager(QObject):
 
     def __init__(self, spectrum_manager, title="", parent=None):
         super().__init__(parent=parent)
-        self.spectrum_manager: _SpectrumManager = (
-            spectrum_manager  # Keep a reference
-        )
+        self.spectrum_manager: _SpectrumManager = spectrum_manager  # Keep a reference
 
         self.roi_registry: dict[str, DeletableROI] = {}
         self.roi_counter: int = 0
@@ -208,16 +208,18 @@ class ROIManager(QObject):
         "Communication with SpectrumPlot"
         self.spectrum_is_cps = cps_bool
         self.sigCpsChanged.emit(cps_bool)
-        
 
     def add_roi(self, x_low=None, x_high=None, **kwargs):
         "Add a ROI to the plot, kwargs are given to the class DeletableROI"
 
         roi_tag = f"ROI_{self.roi_counter}"
         self.roi_counter += 1
-        new_roi = DeletableROI(roi_tag,[x_low, x_high], 
-                               nuclide_lib_ref=self.spectrum_manager.NuclideLibrary,
-                               **kwargs)
+        new_roi = DeletableROI(
+            roi_tag,
+            [x_low, x_high],
+            nuclide_lib_ref=self.spectrum_manager.NuclideLibrary,
+            **kwargs,
+        )
 
         self.roi_registry[roi_tag] = new_roi
 
@@ -228,7 +230,7 @@ class ROIManager(QObject):
 
         new_roi.sigSelected.connect(self.select_roi)
         new_roi.sigSettingsUpdated.connect(self.propagrade_roi_settings_change)
-        
+
         self.sigROICreated.emit(new_roi)
         roi_bounds = [f"{int(v):4d}" for v in np.array(new_roi.getRegion()).round()]
 
@@ -241,7 +243,7 @@ class ROIManager(QObject):
         return new_roi
 
     def remove_roi(self, roi_tag: str, update_state: bool = True) -> None:
-        "Remove a ROI based the tag"        
+        "Remove a ROI based the tag"
         popped_roi = self.roi_registry.pop(roi_tag, None)
         if not popped_roi:
             return
@@ -258,7 +260,6 @@ class ROIManager(QObject):
                     if r not in updated_tags:
                         self.on_roi_change(r)
                         updated_tags.add(r)
-            
 
     def clear_all(self) -> None:
         "Remove all rois"
@@ -274,11 +275,11 @@ class ROIManager(QObject):
     def on_roi_change(self, roi_tag: str, update_all: bool = True):
         """Callback for when a roi is moved, recalculates everything"""
         # Save the old group so all rois can be updated
-        old_group = set([roi_tag]) # Put this in for newly added rois
+        old_group = set([roi_tag])  # Put this in for newly added rois
         for g in self.roi_groupings:
             if roi_tag in g:
                 old_group = g.copy()
-                
+
         self.roi_groupings = self.calculate_roi_groups()
         self.set_brushes()  # Set brush color
         # Update all rois in the old group, otherwise the plot wont change
@@ -287,7 +288,6 @@ class ROIManager(QObject):
                 self.update_roi(roi_tag=g_roi_tag)
         else:
             self.update_roi(roi_tag=roi_tag)
-        
 
     def select_roi(self, selected_roi_tag):
         """Callback for when a roi is clicked with M1"""  # Currently only changes color and Z-value
@@ -335,10 +335,13 @@ class ROIManager(QObject):
         singles_dict: dict[str, list] = {}
 
         for r in self.roi_registry.values():
-            if r.owner_spectrum not in mergeable_dict and r.owner_spectrum not in singles_dict:
+            if (
+                r.owner_spectrum not in mergeable_dict
+                and r.owner_spectrum not in singles_dict
+            ):
                 mergeable_dict[r.owner_spectrum] = []
                 singles_dict[r.owner_spectrum] = []
-                
+
             tag = r.tag
             low, high = r.getRegion()
 
@@ -346,10 +349,9 @@ class ROIManager(QObject):
                 mergeable_dict[r.owner_spectrum].append((tag, low, high))
             else:
                 singles_dict[r.owner_spectrum].append({tag})  # singleton group
-        
+
         groups: list[set[str]] = []
         for mergeable, singles in zip(mergeable_dict.values(), singles_dict.values()):
-
             mergeable.sort(key=lambda x: x[1])  # by low
 
             current_group: set[str] = set()
@@ -417,8 +419,11 @@ class ROIManager(QObject):
             for roi in rois:
                 if roi in updated_rois:
                     continue
-                
-                if self.roi_registry[roi].owner_spectrum is not None and self.roi_registry[roi].owner_spectrum != spect.name:
+
+                if (
+                    self.roi_registry[roi].owner_spectrum is not None
+                    and self.roi_registry[roi].owner_spectrum != spect.name
+                ):
                     continue
 
                 # Find the group(s) this ROI belongs to
@@ -437,7 +442,7 @@ class ROIManager(QObject):
                 rois[key] = spect_roi
 
         return rois
-    
+
     def get_data_from_spectrum(self, spectrum_name: str) -> dict[str, ROI]:
         "Get all ROIs from a specified spectrum"
         return self.spectrum_manager.get_spectrum(spectrum_name).ROIs.copy()
@@ -446,7 +451,9 @@ class ROIManager(QObject):
         if spectrum.foreground is None:  # Sometimes a spectrum is loaded to fast
             return
         "Perform all calculations needed for evaluating a roi"
-        roi_group = [self.roi_registry[k] for k in roi_group]  # Change from keys to rois
+        roi_group = [
+            self.roi_registry[k] for k in roi_group
+        ]  # Change from keys to rois
         bounds = [list(r.getRegion()) for r in roi_group]
 
         # Since these settings need to be the same for the entire group this is fine
@@ -475,7 +482,7 @@ class ROIManager(QObject):
                     poission_weights,
                     Settings.Advanced.optimizer_use_chi2_weight,
                     bkg_type,
-                    bkg_fit_extension = 5,
+                    bkg_fit_extension=5,
                 )
         else:
             fits, converged = None, False
@@ -490,7 +497,7 @@ class ROIManager(QObject):
             "fit_type": fit_type,
             "bkg_type": bkg_type,
             "live_time": spectrum.foreground.live_time,
-            "spectrum": spectrum.name
+            "spectrum": spectrum.name,
         }
 
         if converged and fit_type != "None":

@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=65", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "RaysidClient"
+version = "1.0.0"
+description = "Bluetooth client for connecting to a Raysid gamma spectrometer"
+requires-python = ">=3.10"
+authors = [
+    {name = "Erik Ewald"}
+]
+license = {text = "BSD 3-Clause License"}
+readme = "README.md"
+dependencies = [
+    "bleak>=0.21",
+    "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+gui = ["pyside6>=6.6", "qasync", "scipy>=1.11"]

@@ -1,11 +1,12 @@
 import numpy as np
 import math
 
+
 # --- Savitzky-Golay filtering ---
 def savgol_coeffs(window_length, polyorder, deriv=0):
     """
     Compute Savitzky-Golay convolution coefficients.
-    
+
     https://scipy-cookbook.readthedocs.io/items/SavitzkyGolay.html
 
 
@@ -23,26 +24,26 @@ def savgol_coeffs(window_length, polyorder, deriv=0):
         raise ValueError("deriv must be <= polyorder")
 
     half = window_length // 2
-    
+
     # Generate window indicies
     x = np.arange(-half, half + 1, dtype=float)
 
-    # Vandermonde matrix 
+    # Vandermonde matrix
     # https://en.wikipedia.org/wiki/Vandermonde_matrix
     # -------------------------------------------------
-    
+
     # Given n distinct points:
     # (x0,y0), (x1,y1), ..., (x{n-1}, y{n-1})
 
     # find the polynomial of degree <= n-1:
     # p(x) = a0 + a1 * x + a2 * x^2 + ... + a{n-1} * x^{n-1}
-    
+
     # such that:
     # p(x_i) = y_i
-    
+
     # This produces the linear system:
     # V * a = y
-    
+
     # where:
     #       / 1   x0   x0^2   ...   x0^{n-1} \
     #       | 1   x1   x1^2   ...   x1^{n-1} |
@@ -61,26 +62,26 @@ def savgol_coeffs(window_length, polyorder, deriv=0):
     # y  =  | .  |
     #       | .  |
     #       \y{n-1}/
-    
+
     V = np.vander(x, polyorder + 1, increasing=True)
 
     # det(V) != 0 if and only if x_i are distinct
     # Given det(V) != 0 this matrix invertable
     # Thus, solving inverting V solves for a
-    
+
     coeffs = np.linalg.pinv(V)[deriv]
-    
+
     # For a polynomial
     # p(x) = a0 + a1 x + a2 x^2 + ...
-    
+
     # the m-th derivative at x=0 satisfies
     # p^(m)(0) = m! * a_m
     # The selected row of pinv(V) recovers a_m,
     # so multiply by m! to obtain derivative weights.
-    
+
     coeffs = coeffs * math.factorial(deriv)
 
-    return coeffs 
+    return coeffs
 
 
 def savgol_filter(y, window_length, polyorder, deriv=0):
@@ -97,6 +98,7 @@ def savgol_filter(y, window_length, polyorder, deriv=0):
 
     return np.convolve(ypad, coeffs[::-1], mode="valid"), coeffs
 
+
 # --- Helpers ---
 def MAD_threshold(x, sigma=5):
     """
@@ -107,10 +109,9 @@ def MAD_threshold(x, sigma=5):
     noise = np.median(np.abs(x - np.median(x))) / 0.6745
     return sigma * noise
 
+
 def local_mad_threshold(
-    x: np.ndarray,
-    window_length: int = 101,
-    sigma: float = 5.0
+    x: np.ndarray, window_length: int = 101, sigma: float = 5.0
 ) -> np.ndarray:
     """
     Rolling MAD-based adaptive threshold.
@@ -125,7 +126,6 @@ def local_mad_threshold(
     threshold = np.zeros_like(x, dtype=float)
 
     for i in range(len(x)):
-
         low = max(0, i - radius)
         high = min(len(x), i + radius + 1)
 
@@ -141,18 +141,16 @@ def local_mad_threshold(
 
     return threshold
 
+
 def local_minima(x, threshold=None):
     """
     Detect local minima.
     """
 
-    mask = (
-        (x[1:-1] < x[:-2]) &
-        (x[1:-1] < x[2:])
-    )
+    mask = (x[1:-1] < x[:-2]) & (x[1:-1] < x[2:])
 
     if threshold is not None:
-        mask &= (-x[1:-1] > threshold)
+        mask &= -x[1:-1] > threshold
 
     return np.where(mask)[0] + 1
 
@@ -162,13 +160,10 @@ def local_maxima(x, threshold=None):
     Detect local maxima.
     """
 
-    mask = (
-        (x[1:-1] > x[:-2]) &
-        (x[1:-1] > x[2:])
-    )
+    mask = (x[1:-1] > x[:-2]) & (x[1:-1] > x[2:])
 
     if threshold is not None:
-        mask &= (x[1:-1] > threshold)
+        mask &= x[1:-1] > threshold
 
     return np.where(mask)[0] + 1
 
@@ -181,11 +176,11 @@ def enforce_min_separation(peaks, min_sep):
     filtered = []
 
     for p in peaks:
-
         if not filtered or p - filtered[-1] > min_sep:
             filtered.append(p)
 
     return np.array(filtered)
+
 
 def median_filter(x: np.ndarray, window_length: int) -> np.ndarray:
 
@@ -204,7 +199,13 @@ def median_filter(x: np.ndarray, window_length: int) -> np.ndarray:
 
     return filtered
 
-def post_process_peaks(peaks_idx: np.ndarray, left_edges_idx: np.ndarray, right_edges_idx: np.ndarray, array_length: int):
+
+def post_process_peaks(
+    peaks_idx: np.ndarray,
+    left_edges_idx: np.ndarray,
+    right_edges_idx: np.ndarray,
+    array_length: int,
+):
     """
     Pair each peak with surrounding edges.
     return (left_edge_point, p, right_edge_point)
@@ -218,11 +219,13 @@ def post_process_peaks(peaks_idx: np.ndarray, left_edges_idx: np.ndarray, right_
 
         if len(left) == 0 or len(right) == 0:
             continue
-        
-        span = (right[0] - left[-1])
+
+        span = right[0] - left[-1]
         left_edge_point = left[-1] - span if left[-1] - span >= 0 else 0
-        right_edge_point = right[0] + span if right[0] + span < array_length else array_length - 1
-        
+        right_edge_point = (
+            right[0] + span if right[0] + span < array_length else array_length - 1
+        )
+
         regions.append((left_edge_point, p, right_edge_point))
 
     return regions
@@ -230,13 +233,16 @@ def post_process_peaks(peaks_idx: np.ndarray, left_edges_idx: np.ndarray, right_
 
 # --- Peak finder ---
 
-def find_peaks(spectrum: np.ndarray, window_length: int = 31) -> tuple[list[tuple[float, float, float]], np.ndarray, np.ndarray]:
-    """    
+
+def find_peaks(
+    spectrum: np.ndarray, window_length: int = 31
+) -> tuple[list[tuple[float, float, float]], np.ndarray, np.ndarray]:
+    """
     return (left_edge_point, p, right_edge_point)
     """
     if window_length % 2 == 0:
         raise ValueError("Convolution window should have and off number if elements")
-    
+
     channels = np.arange(len(spectrum))
 
     # noise_gain = np.sqrt(np.sum(coeffs**2))
@@ -244,36 +250,31 @@ def find_peaks(spectrum: np.ndarray, window_length: int = 31) -> tuple[list[tupl
     # SG derivatives
     d1, d1_coeffs = savgol_filter(
         spectrum,
-        window_length=window_length, # Must change for high resolution spectra
+        window_length=window_length,  # Must change for high resolution spectra
         polyorder=3,
-        deriv=1
+        deriv=1,
     )
 
     d2, d2_coeffs = savgol_filter(
         spectrum,
-        window_length=window_length, # --||--
+        window_length=window_length,  # --||--
         polyorder=3,
-        deriv=2
+        deriv=2,
     )
-
 
     # Detection thresholds, set using median absolute deviation
     threshold_d1 = MAD_threshold(d1)
     threshold_d2 = MAD_threshold(d2)
 
-
     # Peak centers are derived from 2nd derivative minima
     peaks = local_minima(d2, threshold_d2)
 
-
     # Peak edges are derived from 1st derivative extrema
-    left_edges =  local_maxima(d1, threshold_d1)
+    left_edges = local_maxima(d1, threshold_d1)
     right_edges = local_minima(d1, threshold_d1)
-
 
     # Remove duplicate nearby peaks
     peaks = enforce_min_separation(peaks, min_sep=15)
-
 
     # Pair edges to peaks
     peak_regions = post_process_peaks(
@@ -282,5 +283,5 @@ def find_peaks(spectrum: np.ndarray, window_length: int = 31) -> tuple[list[tupl
         right_edges,
         len(channels),
     )
-    
+
     return peak_regions, d1, d2

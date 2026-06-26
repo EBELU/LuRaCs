@@ -374,7 +374,7 @@ class Spectrogram(QObject):
             self.buffers.latest_timestamp + self.save_interval
         ):
             return
-        
+
         # Make the timestamp first and then do calculations
         dt = new_ts - self.buffers.latest_timestamp
         self.buffers.latest_timestamp = new_ts
@@ -498,22 +498,21 @@ class Spectrogram(QObject):
         new = arr.reshape(-1, self.concat_factor).sum(axis=1)
 
         return new
-    
+
     def resize_deque(self, new_len: int):
         try:
             self.blockSignals(True)
-            new_spectrum_view_queue=deque(self.buffers.spectrum_view_queue, new_len)
-            new_timestamp_queue=deque(self.buffers.timestamp_queue, new_len)
-            new_timedelta_queue=deque(self.buffers.timestamp_queue, new_len)
-            
+            new_spectrum_view_queue = deque(self.buffers.spectrum_view_queue, new_len)
+            new_timestamp_queue = deque(self.buffers.timestamp_queue, new_len)
+            new_timedelta_queue = deque(self.buffers.timestamp_queue, new_len)
+
             self.buffers.spectrum_view_queue = new_spectrum_view_queue
             self.buffers.timestamp_queue = new_timestamp_queue
             self.buffers.timedelta_queue = new_timedelta_queue
-            
+
             self.data_wrapper.spectrogram = self.buffers.spectrum_view_queue
             self.data_wrapper.timestamp_deque = self.buffers.timestamp_queue
-            
+
             Log.debug(f"Spectrogram deque updated {self.db_name} -> {new_len}")
         finally:
             self.blockSignals(False)
-

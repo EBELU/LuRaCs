@@ -30,13 +30,14 @@ def shift_hue(color: QColor, degrees: int) -> QColor:
     shifted.setHsv(new_hue, s, v, a)
     return shifted
 
+
 class ColorRotator:
     class ColorSchemes(Enum):
         CATPPUCCIN = "catppuccin"
         MPL = "mpl"
         LO = "lo"
-    
-    def __init__(self, colors: ColorSchemes = None, width = 2):
+
+    def __init__(self, colors: ColorSchemes = None, width=2):
         if colors is None:
             colors = ColorRotator.ColorSchemes.MPL
         if colors == self.ColorSchemes.MPL:  # Matplotlib
@@ -57,8 +58,8 @@ class ColorRotator:
                 "#7e0021",
                 "#83caff",
             ]
-            
-        elif colors == self.ColorSchemes.CATPPUCCIN: # Catppuccin Late
+
+        elif colors == self.ColorSchemes.CATPPUCCIN:  # Catppuccin Late
             colors = [
                 "#1e66f5",
                 "#fe640b",
@@ -80,16 +81,16 @@ class ColorRotator:
         color = self.colors[self._i % len(self.colors)]
         self._i += 1
         return QColor(color)  # return a copy (safe to modify)
-    
+
     def next_pen(self) -> QPen:
         return pg.mkPen(self.next_color(), width=self.width)
-    
+
     def get_color_pair(self, hue_shift_degrees: int = 15) -> tuple[QColor, QColor]:
         "Get the next color in the rotation and a second color based on the first with shifted hue"
-        
+
         first_color = self.next_color()
         second_color = shift_hue(first_color, hue_shift_degrees)
         return first_color, second_color
-    
+
     def reset(self):
         self._i = 0

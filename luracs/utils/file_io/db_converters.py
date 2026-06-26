@@ -44,7 +44,6 @@ def _write_logged_data_to_xlsx(
     columns = []
 
     for key, values in data.items():
-
         # spectra is now the dataclass field name
         if key == "spectra":
             if not include_spectrogram_data:
@@ -53,9 +52,7 @@ def _write_logged_data_to_xlsx(
             arr = np.asarray(values)
 
             if arr.ndim != 2:
-                raise ValueError(
-                    f"spectra must be 2D, got shape {arr.shape}"
-                )
+                raise ValueError(f"spectra must be 2D, got shape {arr.shape}")
 
             for ch in range(arr.shape[1]):
                 headers.append(f"Ch{ch}")
@@ -80,11 +77,9 @@ def _write_logged_data_to_xlsx(
         ws.append(row)
 
 
-
-
-
 class db_writer:
     "Provides methods for converting a spectrogram database to other formats."
+
     @classmethod
     def export_full_xlsx(
         cls,
@@ -109,7 +104,7 @@ class db_writer:
         )
 
         wb.save(new_name)
-        
+
     @classmethod
     def build_spectrum_from_db(
         cls,
@@ -151,9 +146,7 @@ class db_writer:
             if len(data.timestamps_datetime):
                 start_date = data.timestamps_datetime[0]
                 end_date = data.timestamps_datetime[-1]
-                live_time = (
-                    data.timestamps[-1] - data.timestamps[0]
-                )
+                live_time = data.timestamps[-1] - data.timestamps[0]
             else:
                 start_date = header.created
                 end_date = header.created
@@ -176,10 +169,7 @@ class db_writer:
         calibration = list(header.calibration)
 
         if header.concat != 1:
-            calibration = [
-                c * header.concat**i
-                for i, c in enumerate(calibration)
-            ]
+            calibration = [c * header.concat**i for i, c in enumerate(calibration)]
 
         new_spectrum.apply_calibration(calibration)
 

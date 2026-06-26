@@ -342,7 +342,11 @@ class LibraryTab(QWidget):
             return
 
         if len(selection) > 1:
-            folder = QFileDialog.getExistingDirectory(None, "Select or Create Folder", options=QFileDialog.Option.DontUseNativeDialog)
+            folder = QFileDialog.getExistingDirectory(
+                None,
+                "Select or Create Folder",
+                options=QFileDialog.Option.DontUseNativeDialog,
+            )
             if folder is None:
                 return
 
@@ -354,7 +358,7 @@ class LibraryTab(QWidget):
                 None,
                 "Export Spectrum",
                 str(Path.home()),
-                options=QFileDialog.Option.DontUseNativeDialog
+                options=QFileDialog.Option.DontUseNativeDialog,
             )
             if not new_path:
                 return

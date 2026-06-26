@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from core.nuclide_library import NuclideLibrary
 
@@ -110,16 +111,13 @@ class ROI:
                 return attr
 
 
-
-
-
 class DeletableROI(LinearRegionItem):
     """Visual ROI selector modified to have a 'tag' and can be deleted by right clicking"""
 
     sigDeleteRequested = Signal(str)
     sigSelected = Signal(str)
     sigSettingsUpdated = Signal(object)
-    
+
     # Container components can not depend on gui components!
     # Dialog is set during initialisation of main
     roi_editor_dialog = None
@@ -153,7 +151,7 @@ class DeletableROI(LinearRegionItem):
         self.owner_spectrum: str = owner_spectrum
 
         self.setToolTip(f"ROI: {self.alias}\nRight-click to edit")
-        
+
         # Self check
         if self.roi_editor_dialog is None:
             raise NotImplementedError("ROI Edit dialog has not been set properly")

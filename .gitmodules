@@ -1,16 +1,3 @@
-[submodule "Clients/RaysidClient"]
-	path = luracs/clients/RaysidClient
-	url = https://github.com/EBELU/RaysidClient.git
-
-[submodule "Clients/RadiacodeClient"]
-	path = luracs/clients/RadiacodeClient
-	url = https://github.com/EBELU/RadiacodeClient.git
-[submodule "luracs/clients/RaysidClient"]
-	path = luracs/clients/RaysidClient
-	url = https://github.com/EBELU/RaysidClient.git
-[submodule "luracs/clients/RadiacodeClient"]
-	path = luracs/clients/RadiacodeClient
-	url = https://github.com/EBELU/RadiacodeClient.git
 [submodule "user_manual-latex"]
 	path = user_manual-latex
 	url = https://github.com/EBELU/LuRaCs-UserManual.git

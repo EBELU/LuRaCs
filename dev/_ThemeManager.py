@@ -5,8 +5,7 @@ import pyqtgraph as pg
 
 
 class ThemeManager:
-    """Controls the theme of the app.
-    """
+    """Controls the theme of the app."""
 
     DARK = "dark"
     LIGHT = "light"
@@ -25,7 +24,7 @@ class ThemeManager:
             self._registry_plots.extend(plot)
         else:
             self._registry_plots.append(plot)
-            
+
     def unregister_plot(self, plot):
         """Remove a plot widget or list of plot widgets."""
         if isinstance(plot, list):
@@ -62,8 +61,6 @@ class ThemeManager:
 
         for lgd in self._registry_legends:
             self._style_legend(lgd)
-
-
 
     # ---------- Qt ----------
 
@@ -159,12 +156,11 @@ class ThemeManager:
             # QCheckBox::indicator:checked {
             #     background: solid #b3b3b3;
             # }
-            
 
             # QLineEdit::placeholder {
             #     color: #dddddd;
             # }
-            
+
             # QMenu::separator {
             #     height: 0.5px;
             #     background: palette(mid);
@@ -189,11 +185,13 @@ class ThemeManager:
         try:
             pw.setBackground((30, 30, 30) if self.mode == self.DARK else "w")
         except AttributeError:
-            pw.getViewBox().setBackgroundColor((30, 30, 30) if self.mode == self.DARK else "w")
+            pw.getViewBox().setBackgroundColor(
+                (30, 30, 30) if self.mode == self.DARK else "w"
+            )
             pw.getViewWidget().setBackgroundBrush(
                 pg.mkBrush((30, 30, 30) if self.mode == self.DARK else "w")
             )
-        
+
         except RuntimeError:
             return
 
@@ -235,4 +233,3 @@ class ThemeManager:
 
         # Force redraw
         hist.gradient.update()
-        

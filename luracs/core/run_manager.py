@@ -252,7 +252,9 @@ class _RunManager(QObject):
 
         try:
             client.set_state(DeviceWrapper.DeviceState.STOPPING)
+            print(f"Stopping device {device_name}")
             await client.stop()
+            print(f"Device {device_name} stopped")
             gui_logger.info(f"Device disconnected: {device_name}")
             self.deviceRemoved.emit(device_name)
         except Exception as e:
@@ -413,5 +415,6 @@ class _RunManager(QObject):
             spectrogram.resize_deque(new_len)
 
         self.spectrogramDequeResized.emit()
+
 
 RunManager = _RunManager()

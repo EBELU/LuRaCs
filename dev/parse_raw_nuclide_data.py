@@ -17,7 +17,6 @@ def is_float(x):
 os.makedirs("dev/cleaned_nuclide_data", exist_ok=True)
 
 for file in glob(pth + "/*"):
-    
     if "Vol" in str(Path(file).stem):
         volume = int(Path(file).stem.split("_")[-1].removeprefix("Vol"))
         json_dict = {"citation_ref": f"LNHB Volume {volume}"}
@@ -40,7 +39,9 @@ for file in glob(pth + "/*"):
                 case "Daughter(s)":
                     daughters = []
                     for i in range(1, len(line_parts), 3):
-                        daughters.append([line_parts[i], line_parts[i + 1], float(line_parts[i + 2])])
+                        daughters.append(
+                            [line_parts[i], line_parts[i + 1], float(line_parts[i + 2])]
+                        )
                     json_dict["Daughters"] = daughters
 
                 case "Possible parent(s)":

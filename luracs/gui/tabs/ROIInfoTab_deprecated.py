@@ -40,7 +40,9 @@ class RoiInfoDialog(QDialog):
 
         # Combo box for ROI selection
         self.combo = QComboBox()
-        self.combo.addItems([r.alias for r in SpectrumManager.ROIManager.roi_registry.values()])
+        self.combo.addItems(
+            [r.alias for r in SpectrumManager.ROIManager.roi_registry.values()]
+        )
         layout.addWidget(self.combo)
 
         # Text edit to display info
@@ -212,7 +214,9 @@ class ROIInfoTab(QWidget):
         if self.combo_show_spectrum:
             items = list(SpectrumManager.get_spectra_dict().keys())
         else:
-            items = [roi.alias for roi in SpectrumManager.ROIManager.roi_registry.values()]
+            items = [
+                roi.alias for roi in SpectrumManager.ROIManager.roi_registry.values()
+            ]
 
         self.combo.addItems(items)
 
@@ -246,7 +250,18 @@ class ROIInfoTab(QWidget):
 
         rois = SpectrumManager.ROIManager.get_data_from_spectrum(spectrum)
 
-        titles = ["ROI", "Lower", "Upper", "Peak Center", "FWHM", "Peak Counts", "ROI Counts", "Nuclide", "Photo Peak", "Peak Difference"]
+        titles = [
+            "ROI",
+            "Lower",
+            "Upper",
+            "Peak Center",
+            "FWHM",
+            "Peak Counts",
+            "ROI Counts",
+            "Nuclide",
+            "Photo Peak",
+            "Peak Difference",
+        ]
         widths = [150, 75, 75, 100, 100, 150, 150, 75, 100, 100]
 
         if self.table.mode != 1:
@@ -271,9 +286,20 @@ class ROIInfoTab(QWidget):
 
         rois = SpectrumManager.ROIManager.get_data_from_roi(roi_tag)
 
-        titles = ["Spectrum", "Lower", "Upper", "Peak Center", "FWHM", "Peak Counts", "ROI Counts", "Nuclide", "Photo Peak", "Peak Difference"]
+        titles = [
+            "Spectrum",
+            "Lower",
+            "Upper",
+            "Peak Center",
+            "FWHM",
+            "Peak Counts",
+            "ROI Counts",
+            "Nuclide",
+            "Photo Peak",
+            "Peak Difference",
+        ]
         widths = [150, 75, 75, 100, 100, 150, 150, 75, 100, 100]
-        
+
         if self.table.mode != 0:
             self.table.mode = 0
             self.table.reset_table(titles, widths)
@@ -312,8 +338,14 @@ class ROIInfoTab(QWidget):
                 peak_counts,
                 roi_counts,
                 roi.emission.parent_nuclide if roi.emission is not None else "None",
-                f"{roi.emission.energy_keV} keV" if roi.emission is not None and roi.emission.energy_keV is not None else "None",
-                f"{round(roi.fit.mu - roi.emission.energy_keV,3)} keV" if roi.emission is not None and roi.emission.energy_keV is not None and roi.fit is not None else "None",
+                f"{roi.emission.energy_keV} keV"
+                if roi.emission is not None and roi.emission.energy_keV is not None
+                else "None",
+                f"{round(roi.fit.mu - roi.emission.energy_keV, 3)} keV"
+                if roi.emission is not None
+                and roi.emission.energy_keV is not None
+                and roi.fit is not None
+                else "None",
             ]
         else:
             row = [

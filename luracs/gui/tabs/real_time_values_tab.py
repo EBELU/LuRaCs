@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from core.run_manager import CurrentValuesPackage
 
@@ -38,7 +39,9 @@ class RealTimeValuesPlot(QWidget):
 
         self.cps_plot_widget = pg.PlotWidget()
         self.dose_plot_widget = pg.PlotWidget()
-        self.color_rotation = ColorRotator(ColorRotator.ColorSchemes(Settings.Appearance.color_rotator_scheme))
+        self.color_rotation = ColorRotator(
+            ColorRotator.ColorSchemes(Settings.Appearance.color_rotator_scheme)
+        )
 
         self.legends = []
 
@@ -81,10 +84,12 @@ class RealTimeValuesPlot(QWidget):
 
         RunManager.currentUpdated.connect(self.receive_data_packet)
         RunManager.deviceRemoved.connect(self.handle_device_removal)
-        
+
         for plot_widget in (self.cps_plot_widget, self.dose_plot_widget):
-            plot_widget.setLimits(xMin=0, xMax=self.queue_len * Settings.Advanced.update_loop_delay)
-            
+            plot_widget.setLimits(
+                xMin=0, xMax=self.queue_len * Settings.Advanced.update_loop_delay
+            )
+
         for lgd in self.legends:
             lgd.setOffset((2, 2))
 
@@ -117,11 +122,13 @@ class RealTimeValuesPlot(QWidget):
     def update_plots(self, name: str):
         time_interval = Settings.Advanced.update_loop_delay
 
-        x_axis = np.arange(Settings.Advanced.real_time_values_deque_length)[::-1] * time_interval
-        
+        x_axis = (
+            np.arange(Settings.Advanced.real_time_values_deque_length)[::-1]
+            * time_interval
+        )
+
         self.cps_lines[name].setData(x_axis, self.cps_queues[name])
         self.dose_lines[name].setData(x_axis, self.dose_queues[name])
-
 
     def update_values_text(self, name: str):
         # Convert deques to numpy arrays for easy calculations
@@ -135,9 +142,9 @@ class RealTimeValuesPlot(QWidget):
         # Current values = most recent
         current_cps = cps_array[-1]
         current_dr = dr_array[-1]
-        
+
         self.table.write_row(name, [name, round(current_cps, 2), round(current_dr, 3)])
-        
+
     def handle_device_removal(self, name: str):
         # Remove CPS plot and data
         if name in self.cps_lines:
@@ -152,6 +159,5 @@ class RealTimeValuesPlot(QWidget):
             del self.dose_lines[name]
 
         self.dose_queues.pop(name, None)
-        
-        self.table.delete_row(name)
 
+        self.table.delete_row(name)

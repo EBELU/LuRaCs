@@ -112,14 +112,15 @@ class NuclideLibrary(QObject):
         match_only_shown=True,
         window: float = 50,
         weight_by_intensity: bool = True,
-        filter_by_intensity_precent: int = -np.inf
+        filter_by_intensity_precent: int = -np.inf,
     ) -> Emission | None:
         "Matches and energy to the closes emission within a window surrounding the given energy. All units are keV."
         if not match_only_shown or len(self.selected_nuclides) == 0:
             emissions = [
                 e
                 for e in self.get_all_emissions()
-                if abs(e.energy_keV - energy) < window and e.intensity_percent > filter_by_intensity_precent
+                if abs(e.energy_keV - energy) < window
+                and e.intensity_percent > filter_by_intensity_precent
             ]
         else:
             emissions = []
@@ -128,7 +129,8 @@ class NuclideLibrary(QObject):
                     [
                         e
                         for e in self.get_nuclide(nuclide_name).emissions
-                        if abs(e.energy_keV - energy) < window and e.intensity_percent > filter_by_intensity_precent
+                        if abs(e.energy_keV - energy) < window
+                        and e.intensity_percent > filter_by_intensity_precent
                     ]
                 )
 

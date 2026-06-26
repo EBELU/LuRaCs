@@ -1,8 +1,9 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from luracs.core.nuclide_library import NuclideLibrary
-    
+
 from luracs.containers.nuclide_classes import Emission
 
 
@@ -84,7 +85,10 @@ class ROIEditor(QDialog):
         self.nuclide = QComboBox()
         # self.nuclide.setView(QListView())  # forces Qt view
         self.nuclide.addItems(
-            ["None"] + self.nuclide_lib_ref.get_sorted_nuclide_names(require_photon_emissions=True)
+            ["None"]
+            + self.nuclide_lib_ref.get_sorted_nuclide_names(
+                require_photon_emissions=True
+            )
         )
         self.nuclide.setMaxVisibleItems(10)
         self.nuclide.currentTextChanged.connect(self._update_emissions)

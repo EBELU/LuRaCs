@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
 
 from PySide6.QtGui import QAction
 
+
 class MenuButton(QWidget):
     def __init__(self, title="Menu", parent=None):
         super().__init__(parent)

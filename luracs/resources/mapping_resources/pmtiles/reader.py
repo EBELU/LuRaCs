@@ -38,9 +38,7 @@ class Reader:
 
     @lru_cache(maxsize=1024)
     def directory(self, offset, length):
-        return deserialize_directory(
-            self.get_bytes(offset, length)
-        )
+        return deserialize_directory(self.get_bytes(offset, length))
 
     def metadata(self):
         header = self.header()
@@ -64,7 +62,6 @@ class Reader:
         dir_length = header["root_length"]
 
         for depth in range(4):
-
             directory = self.directory(
                 dir_offset,
                 dir_length,
@@ -74,10 +71,7 @@ class Reader:
 
             if result:
                 if result.run_length == 0:
-                    dir_offset = (
-                        header["leaf_directory_offset"]
-                        + result.offset
-                    )
+                    dir_offset = header["leaf_directory_offset"] + result.offset
                     dir_length = result.length
                 else:
                     return self.get_bytes(
@@ -91,8 +85,9 @@ def traverse(get_bytes, header, dir_offset, dir_length):
     for entry in entries:
         if entry.run_length > 0:
             for i in range(entry.run_length):
-                yield tileid_to_zxy(entry.tile_id + i), get_bytes(
-                    header["tile_data_offset"] + entry.offset, entry.length
+                yield (
+                    tileid_to_zxy(entry.tile_id + i),
+                    get_bytes(header["tile_data_offset"] + entry.offset, entry.length),
                 )
         else:
             for t in traverse(

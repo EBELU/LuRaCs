@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFileDialog,
     QMessageBox,
-    QCheckBox
+    QCheckBox,
 )
 from PySide6.QtGui import QAction
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -38,7 +38,7 @@ class LoadOnlineMapDialog(QDialog):
     def __init__(self, last_url: str = "", parent=None):
         super().__init__(parent=parent)
         self.setWindowTitle("Load Online Map")
-        
+
         self.resize(600, self.sizeHint().height())
 
         main_layout = QVBoxLayout(self)
@@ -51,7 +51,7 @@ class LoadOnlineMapDialog(QDialog):
         self.combo_vector_raster = QComboBox()
         self.combo_vector_raster.addItems(["Vector Tiles", "Raster Tiles"])
         form.addRow("Tile Type:", self.combo_vector_raster)
-        
+
         self.check_save_url = QCheckBox("Save URL")
         self.check_save_url.setChecked(True)
         form.addRow("", self.check_save_url)
@@ -72,7 +72,7 @@ class LoadOnlineMapDialog(QDialog):
 
     def get_vector_source(self):
         return self.combo_vector_raster.currentIndex() == 0
-    
+
     def get_if_save_url(self):
         return self.check_save_url.isChecked()
 
@@ -136,7 +136,7 @@ class MapWidget(QWidget):
 
         self.btn_load_map.setMenu(menu)
         tool_bar.addWidget(self.btn_load_map, 1)
-        
+
         # Info label
         self.loaded_map_name = ""
         self.status_label = QLabel(
@@ -157,7 +157,7 @@ class MapWidget(QWidget):
         # Add toolbar
         tool_bar.addWidget(self.combo_spectrogram, 2)
         tool_bar.addWidget(self.combo_shown_data, 2)
-        
+
         controls_group.setLayout(tool_bar)
         main_layout.addWidget(controls_group)
 
@@ -183,30 +183,27 @@ class MapWidget(QWidget):
         lut_container = pg.GraphicsLayoutWidget()
         self.plot = lut_container.addPlot(row=0, col=0)
         self.plot.hide()
-        
+
         self.view_slider = pg.HistogramLUTItem(orientation="vertical")
         self.view_slider.setLevels(0, 0.2)
         self.view_slider.vb.setLimits(yMin=0, yMax=1e6, minXRange=1)
         self.view_slider.region.setBounds([0, 1e6])
-        
-        self.view_slider.gradient.loadPreset("viridis") 
-        
+
+        self.view_slider.gradient.loadPreset("viridis")
+
         core_utils.ThemeManager.register_hist_lut(self.view_slider)
         core_utils.ThemeManager.register_plot(self.plot)
-        
-                
+
         lut_container.addItem(self.view_slider)
         lut_container.setMaximumWidth(125)
-        
 
         central_layout.addWidget(lut_container, stretch=2)
 
         main_layout.addLayout(central_layout)
-        
+
     def stop(self):
         if self.tile_server is not None:
             self.tile_server.stop()
-
 
     def createJsMap(self):
         style_json = json.dumps(self.pending_style)
@@ -253,14 +250,22 @@ class MapWidget(QWidget):
         self.bridge.bridgeReady.connect(self.createJsMap)
 
         if vector_source:
-            self.pending_style = json.load((Settings.Paths.resources / "mapping_resources" / "style_vector.json").open())
+            self.pending_style = json.load(
+                (
+                    Settings.Paths.resources / "mapping_resources" / "style_vector.json"
+                ).open()
+            )
             self.pending_style["sources"]["openmaptiles"] = {
                 "type": "vector",
                 "tiles": [source_url],
                 "maxzoom": 14,
             }
         else:
-            self.pending_style = json.load((Settings.Paths.resources / "mapping_resources" / "style_raster.json").open())
+            self.pending_style = json.load(
+                (
+                    Settings.Paths.resources / "mapping_resources" / "style_raster.json"
+                ).open()
+            )
             self.pending_style["sources"]["openmaptiles"] = {
                 "type": "raster",
                 "tiles": [source_url],
@@ -280,49 +285,54 @@ class MapWidget(QWidget):
         self.web_container.setCurrentWidget(self.web_engine_view)
 
     def load_online_map(self):
-        dialog = LoadOnlineMapDialog(parent=self, last_url=Settings.State.map_last_online_url)
+        dialog = LoadOnlineMapDialog(
+            parent=self, last_url=Settings.State.map_last_online_url
+        )
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
 
         if not dialog.get_source_url():
             return
-        
+
         vector_source = dialog.get_vector_source()
         if dialog.get_source_url().endswith(".png") and vector_source:
             vector_source = False
             QMessageBox.information(
                 self,
                 "Raster Detected",
-                "The given URL was identified as raster but vector was chosen. The map will be loaded as raster")
+                "The given URL was identified as raster but vector was chosen. The map will be loaded as raster",
+            )
 
         if dialog.get_if_save_url():
             Settings.State.map_last_online_url = str(dialog.get_source_url())
         else:
             Settings.State.map_last_online_url = ""
-        
+
         if "{z}/{x}/{y}" not in dialog.get_source_url():
             reply = QMessageBox.question(
-                self, 
-                "Error", 
-                "The given urls does not match the expected tile coordinate pattern of '{z}/{x}/{y}', continue?",     
+                self,
+                "Error",
+                "The given urls does not match the expected tile coordinate pattern of '{z}/{x}/{y}', continue?",
                 QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No  # default button
+                QMessageBox.No,  # default button
             )
             if reply != QMessageBox.Yes:
                 return
-        
-        self.start_web_engine(
-            dialog.get_source_url(), vector_source=vector_source
+
+        self.start_web_engine(dialog.get_source_url(), vector_source=vector_source)
+
+        self.loaded_map_name = (
+            dialog.get_source_url()
+            .removeprefix("https://")
+            .removesuffix("/{z}/{x}/{y}.png")
         )
-        
-        self.loaded_map_name = dialog.get_source_url().removeprefix("https://").removesuffix("/{z}/{x}/{y}.png")
 
     def load_offline_map(self):
         path, _ = QFileDialog.getOpenFileName(
             self,
             "Load Local Map",
             filter="PM Tiles (*.pmtiles)",
-            options=QFileDialog.Option.DontUseNativeDialog
+            options=QFileDialog.Option.DontUseNativeDialog,
         )
 
         if not path:
@@ -336,11 +346,12 @@ class MapWidget(QWidget):
         self.tile_server.start()
 
         Log.info("Tile server warming up, cacheing map...")
-        
+
         self.start_web_engine(
             self.tile_server.url,
             vector_source=True,
         )
+
 
 if __name__ == "__main__":
     app = QApplication.instance() or QApplication(sys.argv)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from main import MainWindow
 
@@ -15,11 +16,12 @@ from .misc import ConfirmCallback
 
 from luracs.gui.dialogs.settings_dialog import edit_settings, edit_advanced_settings
 
+
 class MainMenuBar(QMenuBar):
     sigSetSpectrumViewToTabs = Signal()
     sigSetSpectrumViewToCombined = Signal()
     sigUpdateSetting = Signal(str, str, object)
-    
+
     def __init__(self, parent: MainWindow = None):
         super().__init__(parent)
         self.parent = parent
@@ -27,13 +29,10 @@ class MainMenuBar(QMenuBar):
         Settings.latestConnectionUpdated.connect(self.update_last_connections)
         self.sigUpdateSetting.connect(Settings.update_setting)
 
-
         # ---------- File Menu ----------
         file_menu = self.addMenu("&File")
         file_menu_import = file_menu.addAction("Import")
-        file_menu_import.triggered.connect(
-            lambda : IOManager.Importer.import_generic()
-            )
+        file_menu_import.triggered.connect(lambda: IOManager.Importer.import_generic())
         file_menu.addSeparator()
         file_load = file_menu.addAction("Data Store")
         file_load.triggered.connect(parent.data_store.show)
@@ -44,37 +43,55 @@ class MainMenuBar(QMenuBar):
         file_menu.addSeparator()
         exit_action = file_menu.addAction("Exit")
         exit_action.triggered.connect(self.on_exit)
-        
+
         # ---------- View Menu ----------
         view_menu = self.addMenu("View")
-        
+
         # --- Map ---
-        view_menu_map = view_menu.addMenu("&Map")        
-        
+        view_menu_map = view_menu.addMenu("&Map")
+
         # --- Real Time Data View ---
         view_menu_realtime = view_menu.addMenu("&Real Time Data    ")
-        view_menu_realtime_avg_line = view_menu_realtime.addAction(QAction("Mark Average", self, checkable=True))
-        
+        view_menu_realtime_avg_line = view_menu_realtime.addAction(
+            QAction("Mark Average", self, checkable=True)
+        )
+
         # --- Spectrum View ---
         view_menu_spectrum = view_menu.addMenu("&Spectrum")
 
         # Cursor
         view_menu_spectrum_show_cursor = QAction("Show Cursor", self, checkable=True)
-        view_menu_spectrum_show_cursor.triggered.connect(lambda checked: self.sigUpdateSetting.emit("Temp", "spectrum_view_cursor", checked))
+        view_menu_spectrum_show_cursor.triggered.connect(
+            lambda checked: self.sigUpdateSetting.emit(
+                "Temp", "spectrum_view_cursor", checked
+            )
+        )
         view_menu_spectrum.addAction(view_menu_spectrum_show_cursor)
-        
+
         # Cursor emissions
-        view_menu_spectrum_show_cursor_emissions = QAction("Show Cursor Emissions", self, checkable=True)
-        view_menu_spectrum_show_cursor_emissions.triggered.connect(lambda checked: self.sigUpdateSetting.emit("Temp", "spectrum_view_emission_lines_to_cursor", checked))
+        view_menu_spectrum_show_cursor_emissions = QAction(
+            "Show Cursor Emissions", self, checkable=True
+        )
+        view_menu_spectrum_show_cursor_emissions.triggered.connect(
+            lambda checked: self.sigUpdateSetting.emit(
+                "Temp", "spectrum_view_emission_lines_to_cursor", checked
+            )
+        )
         view_menu_spectrum_show_cursor_emissions.trigger()
         view_menu_spectrum.addAction(view_menu_spectrum_show_cursor_emissions)
-        
+
         # ROI Labels
-        view_menu_spectrum_show_roi_labels = QAction("Show ROI Labels", self, checkable=True)
-        view_menu_spectrum_show_roi_labels.triggered.connect(lambda checked: self.sigUpdateSetting.emit("Temp", "spectrum_view_show_roi_labels", checked))
+        view_menu_spectrum_show_roi_labels = QAction(
+            "Show ROI Labels", self, checkable=True
+        )
+        view_menu_spectrum_show_roi_labels.triggered.connect(
+            lambda checked: self.sigUpdateSetting.emit(
+                "Temp", "spectrum_view_show_roi_labels", checked
+            )
+        )
         view_menu_spectrum_show_roi_labels.trigger()
         view_menu_spectrum.addAction(view_menu_spectrum_show_roi_labels)
-        
+
         # ---------- Device Menu ----------
         device_menu = self.addMenu("&Device")
         device_menu_connectBT = device_menu.addAction("Connect Bluetooth")
@@ -86,32 +103,38 @@ class MainMenuBar(QMenuBar):
         device_menu_rest_all = device_menu.addAction("Reset All Spectra")
         device_menu_disconnect = device_menu.addAction("Disconnect All")
         device_menu_disconnect.triggered.connect(
-            lambda: ConfirmCallback(self.parent, "Disconnect all devices?", RunManager.remove_all_devices)
+            lambda: ConfirmCallback(
+                self.parent, "Disconnect all devices?", RunManager.remove_all_devices
+            )
         )
-        
-        
+
         # ---------- Gamma Tools ----------
         calculate_menu = self.addMenu("&Gamma Tools")
         calculate_menu_photoCalibration = calculate_menu.addAction("Calibration")
-        calculate_menu_photoCalibration.triggered.connect(parent.calc_win_calibration.show)
+        calculate_menu_photoCalibration.triggered.connect(
+            parent.calc_win_calibration.show
+        )
         calculate_menu_photoEff = calculate_menu.addAction("Efficiency")
         calculate_menu_photoEff.triggered.connect(parent.calc_win_efficiency.show)
         calculate_menu_photoResolution = calculate_menu.addAction("Resolution")
-        calculate_menu_photoResolution.triggered.connect(parent.calc_win_resolution.show)
+        calculate_menu_photoResolution.triggered.connect(
+            parent.calc_win_resolution.show
+        )
 
-        
-        #calculate_menu = self.addMenu("&MRI Tools")
+        # calculate_menu = self.addMenu("&MRI Tools")
 
         # ---------- Options Menu ----------
         options_menu = self.addMenu("&Options")
         settings_action = options_menu.addAction("Settings")
-        settings_action.triggered.connect(lambda : edit_settings(parent))
+        settings_action.triggered.connect(lambda: edit_settings(parent))
         advanced_settings_action = options_menu.addAction("Advanced Settings")
-        advanced_settings_action.triggered.connect(lambda : edit_advanced_settings(parent))
-        
+        advanced_settings_action.triggered.connect(
+            lambda: edit_advanced_settings(parent)
+        )
+
         spectrum_tabbed_group = QActionGroup(self)
         spectrum_tabbed_group.setExclusive(True)
-        
+
         # --- Spectrum view options ---
         options_menu.addSeparator()
 
@@ -123,11 +146,9 @@ class MainMenuBar(QMenuBar):
         self.combined_action = QAction("Combined Spectrum View", self, checkable=True)
         self.tabbed_action = QAction("Tabbed Spectrum View", self, checkable=True)
 
-
         # Add to group
         view_group.addAction(self.combined_action)
         view_group.addAction(self.tabbed_action)
-
 
         # Set default
         if Settings.Appearance.tabbed_spectrum_view:
@@ -140,7 +161,7 @@ class MainMenuBar(QMenuBar):
         options_menu.addAction(self.tabbed_action)
 
         view_group.triggered.connect(self.on_view_changed)
-        
+
         # ---------- Help Menu ----------
         help_menu = self.addMenu("&Help")
         documentation_action = help_menu.addAction("Documentation")
@@ -175,15 +196,13 @@ class MainMenuBar(QMenuBar):
     def on_exit(self):
         if self.parent:
             self.parent.close()
-                
+
     # Handle selection
     def on_view_changed(self, action):
         if action == self.tabbed_action:
             Settings.Appearance.tabbed_spectrum_view = True
             self.sigSetSpectrumViewToTabs.emit()
-            
 
         elif action == self.combined_action:
             Settings.Appearance.tabbed_spectrum_view = False
             self.sigSetSpectrumViewToCombined.emit()
-

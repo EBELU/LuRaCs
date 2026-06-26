@@ -160,7 +160,6 @@ class ROIInfoTab(QWidget):
         box_layout = QVBoxLayout(self.group_box)
         box_layout.addWidget(self.table.table, 1)
 
-
         # --- Top bar ---
         options_widget = QWidget()
         options_bar = QHBoxLayout(options_widget)
@@ -179,7 +178,7 @@ class ROIInfoTab(QWidget):
 
         btn_export_to_csv = QPushButton("Export to CSV")
         btn_export_to_csv.clicked.connect(IOManager.Exporter.export_roi_dialog)
-        
+
         btn_export_roi_references = QPushButton("Export Reference ROIs")
         btn_export_roi_references.clicked.connect(save_roi_references)
 
@@ -195,7 +194,6 @@ class ROIInfoTab(QWidget):
         main_layout = QVBoxLayout(self)
         main_layout.addWidget(options_widget)
         main_layout.addWidget(self.group_box, 1)
-
 
         # Initial build
         self.rebuild_table()
@@ -290,7 +288,7 @@ class ROIInfoTab(QWidget):
 
         for key in keys_to_remove:
             self.table.delete_row(key)
-            
+
     def spectrum_deleted(self, spectrum_name: str):
         keys_to_remove = [
             key for key in self.table.current_keys if key.endswith(f"{spectrum_name}")

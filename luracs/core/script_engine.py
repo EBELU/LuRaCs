@@ -3,7 +3,11 @@ import asyncio
 import shlex
 import traceback
 
-from .script_engine_components.exceptions import ArgumentError, InvalidCommandError, ActiveGUIError
+from .script_engine_components.exceptions import (
+    ArgumentError,
+    InvalidCommandError,
+    ActiveGUIError,
+)
 from .script_engine_components.registry import CommandRegistry
 from .script_engine_components.commands import register_commands
 
@@ -20,13 +24,20 @@ class ScriptEngine(QObject):
     """
     The script engine converts text commands to actions for the application using async. It is the backbone of headless mode.
     """
+
     sigCommandAppendOutput = Signal(str)
     sigCommandOutput = Signal(str)
     sigShutdown = Signal()
     sigCancelCurrent = Signal()
     sigClearConsole = Signal(str)
 
-    def __init__(self, parent=None, headless: bool = False, program_version: str = "", IS_H3: bool = False):
+    def __init__(
+        self,
+        parent=None,
+        headless: bool = False,
+        program_version: str = "",
+        IS_H3: bool = False,
+    ):
         super().__init__(parent)
         self.queue = asyncio.Queue()
         self.headless = headless
@@ -36,14 +47,14 @@ class ScriptEngine(QObject):
         self._tasks = []
         self._current_command_task = None
         self.output_suppressed = False
-        
+
         self.get_log_buffer = None
 
         self.registry = CommandRegistry()
         register_commands(self.registry)
         self.auto_completer = None
         self.console_cleared = True
-        if self.headless:               
+        if self.headless:
             self.auto_completer = self.make_autocompleter()
             self.session = PromptSession(completer=self.auto_completer)
 
@@ -58,27 +69,26 @@ class ScriptEngine(QObject):
             self._tasks.append(asyncio.create_task(self._read_input()))
 
         self.queue.put_nowait(f"clear {self.headless}")  # Show welcome message
-    
-    
+
     def make_autocompleter(self) -> dict:
         command_args = {"exit": None}
         for cmd in self.registry.commands.values():
             command_args[cmd.name] = cmd.get_auto_complete()
         return NestedCompleter.from_nested_dict(command_args)
-        
-        
+
     async def _read_input(self):
         try:
             while True:
                 try:
                     # Update the autocompleter
                     self.session.completer = self.make_autocompleter()
-                    
-                    # await self.queue.join()
-                    
-                    await asyncio.sleep(0.1) # Wait so the input is under the displayed output
-                    cmd = await self.session.prompt_async("LuRaCs Console <<< ")
 
+                    # await self.queue.join()
+
+                    await asyncio.sleep(
+                        0.1
+                    )  # Wait so the input is under the displayed output
+                    cmd = await self.session.prompt_async("LuRaCs Console <<< ")
 
                 except KeyboardInterrupt:
                     # Cancel whatever is going on but dont lock up the program
@@ -86,7 +96,7 @@ class ScriptEngine(QObject):
                     self.cancel_current_command()
                     self.queue.put_nowait("clear")
                     continue
-                
+
                 if self._current_command_task and not self._current_command_task.done():
                     self.sigCancelCurrent.emit()
                     self.cancel_current_command()
@@ -94,13 +104,11 @@ class ScriptEngine(QObject):
 
                 if not cmd:
                     continue
-                
-                
+
                 await self.queue.put(cmd.strip())
 
                 if cmd.strip().lower() in ("exit", "quit", "shutdown"):
                     break
-            
 
         except asyncio.CancelledError:
             # Stop!
@@ -120,7 +128,7 @@ class ScriptEngine(QObject):
                 cmd = cmd.strip()
                 if not cmd:
                     continue
-                
+
                 try:
                     await self.command_parser(cmd)
                 finally:
@@ -128,8 +136,6 @@ class ScriptEngine(QObject):
 
         except asyncio.CancelledError:
             return
-        
-
 
     # --- Shutdown ---
     async def stop(self):
@@ -148,19 +154,16 @@ class ScriptEngine(QObject):
         if self._loop is None:
             return
 
-        self._loop.call_soon_threadsafe(
-            self.queue.put_nowait,
-            cmd
-        )
+        self._loop.call_soon_threadsafe(self.queue.put_nowait, cmd)
 
     def print_output(self, text: str):
         if self.output_suppressed:
             return
-        
+
         if self.headless:
             if text:
                 clear_terminal()
-            
+
             print(text)
         else:
             if self.console_cleared:
@@ -169,15 +172,14 @@ class ScriptEngine(QObject):
 
             self.sigCommandOutput.emit(text if text else "")
 
-
     # --- Command handling ---
     async def command_parser(self, cmd: str):
         "Where the dough is made"
         if self._current_command_task:
             self.sigCancelCurrent.emit()
             self.cancel_current_command()
-        
-        commands = shlex.split(cmd) # Split it like a unix shell
+
+        commands = shlex.split(cmd)  # Split it like a unix shell
         if not commands:
             return
 
@@ -193,7 +195,6 @@ class ScriptEngine(QObject):
         if cmd_name == "clear":
             self.cancel_current_command()
             self.sigClearConsole.emit("")
-            
 
         command = self.registry.get(cmd_name)
         if not command:
@@ -227,25 +228,17 @@ class ScriptEngine(QObject):
         finally:
             self._current_command_task = None
 
-        
         self.print_output(res)
-            
+
         if cmd_name == "clear":
             self.console_cleared = True
-            
+
     def cancel_current_command(self):
         if self._current_command_task and not self._current_command_task.done():
             self._current_command_task.cancel()
-    
-    
+
     def connect_log_buffer(self, get_log_fn):
         self.get_log_buffer = get_log_fn
-        
-        
+
     def suppress_output(self, state: bool):
         self.output_suppressed = state
-        
-
-
-
-    

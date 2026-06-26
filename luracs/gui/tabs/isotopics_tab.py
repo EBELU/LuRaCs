@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QLabel,
     QColorDialog,
-    QSpinBox
+    QSpinBox,
 )
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtGui import QColor, QPainter, QBrush, QAction, QFont
@@ -22,6 +22,7 @@ from luracs.core import SpectrumManager, Settings
 from luracs.utils.numerics import find_peaks
 
 from textwrap import dedent
+
 
 # --- Helpers ---
 def format_emissions(emissions):
@@ -140,7 +141,6 @@ class NuclideListItem(QWidget):
 
         self.label = QLabel(text)
 
-
         self.color_widget = ColorCellWidget(color)
 
         layout.addWidget(self.checkbox)
@@ -155,7 +155,7 @@ class NuclideListItem(QWidget):
         # connect color picker
         self.color_widget.clicked.connect(self.color_widget.get_color)
         self.color_widget.sigColorChanged.connect(self._on_color_changed)
-        
+
     def mouseDoubleClickEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self.checkbox.toggle()
@@ -164,22 +164,20 @@ class NuclideListItem(QWidget):
 
     def _on_state_changed(self, state):
         self.sigViewCheckChanged.emit(
-            self.name, Qt.CheckState(state) == Qt.CheckState.Checked,
-            self.color_widget.color
+            self.name,
+            Qt.CheckState(state) == Qt.CheckState.Checked,
+            self.color_widget.color,
         )
-        
+
     def emit_info(self):
-        self.sigViewCheckChanged.emit(
-            self.name, True,
-            self.color_widget.color
-        )
-        
+        self.sigViewCheckChanged.emit(self.name, True, self.color_widget.color)
 
     def _on_color_changed(self, color):
         self.sigColorChanged.emit(self.name, color)
 
+
 class SpectrumDebugViewWidget(QWidget):
-    def __init__(self, parent = None):
+    def __init__(self, parent=None):
         super().__init__(parent=parent)
         self.spectrum_y = None
         self.d1 = None
@@ -189,18 +187,17 @@ class SpectrumDebugViewWidget(QWidget):
         self.spectrum_plot = pg.PlotWidget()
         self.d1_plot = pg.PlotWidget()
         self.d2_plot = pg.PlotWidget()
-        
+
         self.d1_plot.getPlotItem().setXLink(self.spectrum_plot)
-        self.d2_plot.getPlotItem().setXLink(self.spectrum_plot) 
-        
+        self.d2_plot.getPlotItem().setXLink(self.spectrum_plot)
+
         self.plots_L = [self.spectrum_plot, self.d1_plot, self.d2_plot]
-        
+
         main_layout = QVBoxLayout(self)
-        
+
         main_layout.addWidget(self.spectrum_plot)
         main_layout.addWidget(self.d1_plot)
         main_layout.addWidget(self.d2_plot)
-        
 
     def show(self):
         for plot in self.plots_L:
@@ -224,11 +221,7 @@ class SpectrumDebugViewWidget(QWidget):
                 y = data[x]
 
                 plot_item.plot(
-                    x, y,
-                    pen=None,
-                    symbol='o',
-                    symbolSize=8,
-                    symbolBrush='r'
+                    x, y, pen=None, symbol="o", symbolSize=8, symbolBrush="r"
                 )
 
             # Centre = blue
@@ -237,11 +230,7 @@ class SpectrumDebugViewWidget(QWidget):
                 y = data[x]
 
                 plot_item.plot(
-                    x, y,
-                    pen=None,
-                    symbol='o',
-                    symbolSize=8,
-                    symbolBrush='b'
+                    x, y, pen=None, symbol="o", symbolSize=8, symbolBrush="b"
                 )
 
             # Right = green
@@ -250,11 +239,7 @@ class SpectrumDebugViewWidget(QWidget):
                 y = data[x]
 
                 plot_item.plot(
-                    x, y,
-                    pen=None,
-                    symbol='o',
-                    symbolSize=8,
-                    symbolBrush='g'
+                    x, y, pen=None, symbol="o", symbolSize=8, symbolBrush="g"
                 )
 
         # ---------------- Spectrum ----------------
@@ -286,6 +271,7 @@ class SpectrumDebugViewWidget(QWidget):
 
         super().show()
 
+
 class IsotopicsTab(QWidget):
     sigViewCheckChanged = Signal(str, bool, object)  # (name, checked, QColor)
     sigListItemClicked = Signal(str)
@@ -295,11 +281,12 @@ class IsotopicsTab(QWidget):
         super().__init__(parent=parent)
 
         self.sigListItemClicked.connect(self.change_nuclide_info)
-        self.sigViewCheckChanged.connect(SpectrumManager.NuclideLibrary._track_selected_nuclies)
-        
+        self.sigViewCheckChanged.connect(
+            SpectrumManager.NuclideLibrary._track_selected_nuclies
+        )
+
         SpectrumManager.Signals.spectrumCreated.connect(self.set_search_combo)
         SpectrumManager.Signals.spectrumRemoved.connect(self.set_search_combo)
-        
 
         main_layout = QHBoxLayout(self)
 
@@ -315,16 +302,18 @@ class IsotopicsTab(QWidget):
 
         nuclides_list_layout.addWidget(self.nuclide_search_bar)
         nuclides_list_layout.addWidget(self.nuclide_list_widget)
-        
-        self.all_nuclides = all_nuclides
-        
-        for nuclide in sorted([*self.all_nuclides, *SpectrumManager.NuclideLibrary.decay_chains.keys()], key=lambda x: int(x.removesuffix("-- Chain").split("-")[1].removesuffix("m"))):
-            self.add_nuclide(
-                            nuclide, "blue", 
-                            is_chain = True if "Chain" in nuclide else False
-                            )
-            
 
+        self.all_nuclides = all_nuclides
+
+        for nuclide in sorted(
+            [*self.all_nuclides, *SpectrumManager.NuclideLibrary.decay_chains.keys()],
+            key=lambda x: int(
+                x.removesuffix("-- Chain").split("-")[1].removesuffix("m")
+            ),
+        ):
+            self.add_nuclide(
+                nuclide, "blue", is_chain=True if "Chain" in nuclide else False
+            )
 
         self.nuclides_info_textbox = QTextEdit()
         self.nuclides_info_textbox.setReadOnly(True)
@@ -335,22 +324,21 @@ class IsotopicsTab(QWidget):
         self.nuclides_info_textbox.setFont(font)
 
         peak_search_layout = QVBoxLayout()
-        
+
         self.btn_assign_emissions = QPushButton("Auto Set Emissions")
         peak_search_layout.addWidget(self.btn_assign_emissions)
         # Connected via main to the spectrum_plot_container that does the matching
-
 
         self.btn_search_peaks = QPushButton("Search peaks")
         self.btn_search_peaks.clicked.connect(self.peak_finder)
 
         self.search_spect_combo = QComboBox()
-        
+
         self.search_window_length = QSpinBox()
         self.search_window_length.setRange(3, 1001)
         self.search_window_length.setSingleStep(2)
         self.search_window_length.setValue(31)
-        
+
         self.debug_view = SpectrumDebugViewWidget()
         self.btn_view_calculation = QPushButton("View Derivatives")
         self.btn_view_calculation.clicked.connect(self.debug_view.show)
@@ -371,7 +359,6 @@ class IsotopicsTab(QWidget):
         main_layout.addLayout(nuclides_list_layout, 2)
         main_layout.addWidget(self.nuclides_info_textbox, 4)
         main_layout.addLayout(peak_search_layout, 2)
-        
 
     def add_nuclide(self, name, color, is_chain=False):
         "Used during startup"
@@ -416,14 +403,13 @@ class IsotopicsTab(QWidget):
         name = widget.name
 
         self.sigListItemClicked.emit(name)
-        
+
     def expand_chain(self, chain: str, state: bool, _):
         chain_members = SpectrumManager.NuclideLibrary.decay_chains[chain]
-        
+
         for nuclide in chain_members:
             self.set_nuclide_check(nuclide, state)
-            
-        
+
     def request_line_data(self):
         "Get data from currently selected nuclides"
         for i in range(self.nuclide_list_widget.count()):
@@ -432,7 +418,7 @@ class IsotopicsTab(QWidget):
 
             if item_widget.checkbox.isChecked():
                 item_widget.emit_info()
-                
+
     def set_nuclide_check(self, nuclide: str, state: bool):
         for i in range(self.nuclide_list_widget.count()):
             item = self.nuclide_list_widget.item(i)
@@ -447,11 +433,16 @@ class IsotopicsTab(QWidget):
             # TODO Display decay chain in GUI
             return
         nuc = SpectrumManager.NuclideLibrary.get_nuclide(name)
-        
+
         title_str = f"| {nuc.element} | {nuc.nuclide} |"
-        separator = "="*len(title_str)
-        
-        daughters = "\n".join([f"{d.replace('alpha', 'α').replace('B', 'β')} {n} {p}%" for d, n, p in nuc.daughters])
+        separator = "=" * len(title_str)
+
+        daughters = "\n".join(
+            [
+                f"{d.replace('alpha', 'α').replace('B', 'β')} {n} {p}%"
+                for d, n, p in nuc.daughters
+            ]
+        )
 
         self.nuclides_info_textbox.setText(
             f"{separator}\n"
@@ -469,31 +460,31 @@ class IsotopicsTab(QWidget):
 
     def peak_finder(self):
         spectrum_key = self.search_spect_combo.currentData()
-        
+
         spectrum = SpectrumManager.get_spectrum(spectrum_key)
         if spectrum is None:
             return
-        
+
         if SpectrumManager.ROIManager.spectrum_is_bkg_sub:
             y_data = spectrum.get_bkg_sub()
         else:
             y_data = spectrum.get_foreground()
-        
+
         peaks, d1, d2 = find_peaks(y_data)
-        
+
         self.debug_view.spectrum_y = y_data
         self.debug_view.d1 = d1
         self.debug_view.d2 = d2
         self.debug_view.peaks = peaks
-        
+
         for le, p, re in peaks:
             le_e, re_e = spectrum.x_axis[le], spectrum.x_axis[re]
-            
+
             width_threshold = 75 if re_e < 250 else 250
-            
-            if abs(le_e - re_e) < width_threshold:            
+
+            if abs(le_e - re_e) < width_threshold:
                 SpectrumManager.ROIManager.add_roi(le_e, re_e)
-            
+
     def set_search_combo(self):
         self.search_spect_combo.clear()
         if Settings.Appearance.tabbed_spectrum_view:
@@ -504,8 +495,3 @@ class IsotopicsTab(QWidget):
             self.search_spect_combo.setEnabled(True)
             for key, spectrum in SpectrumManager.get_spectra_dict().items():
                 self.search_spect_combo.addItem(spectrum.name, key)
-    
-
-        
-        
-        

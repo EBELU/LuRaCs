@@ -9,7 +9,9 @@ from pathlib import Path
 
 class ThemeManager(QObject):
     """Controls the theme of the app."""
+
     sigUpdateSettingsTheme = Signal(str, str, str)
+
     class themes(Enum):
         LIGHT = "light"
         LIGHT_CATPPUCCIN = "light-catppuccin"
@@ -23,7 +25,7 @@ class ThemeManager(QObject):
         super().__init__()
         self.mode = mode
         self.themes_path = themes_path
-        
+
     # ---------- Public API ----------
     def register_plot(self, *plots):
         """Register one or more plot widgets."""
@@ -54,7 +56,6 @@ class ThemeManager(QObject):
         for lut in luts:
             if lut in self._registry_hist_lut:
                 self._registry_hist_lut.remove(lut)
-
 
     def apply(self, style_name: themes):
         self.theme = style_name
@@ -89,12 +90,10 @@ class ThemeManager(QObject):
             self._style_legend(
                 lgd, self.colors["text"], self.colors["surface0"], theme_is_dark
             )
-        
+
         for lut in self._registry_hist_lut:
-            self._style_hist_lut(
-                lut, self.colors["text"]
-            )
-            
+            self._style_hist_lut(lut, self.colors["text"])
+
     def _load_styles(self, style_name: themes):
         style_sheet_pth = self.themes_path / "variants" / style_name.value
         with open(str(style_sheet_pth.with_suffix(".css")), "r") as f:
@@ -144,7 +143,7 @@ class ThemeManager(QObject):
                 sample.setPen(pg.mkPen(foreground))
             if hasattr(sample, "setBrush"):
                 sample.setBrush(pg.mkBrush(foreground))
-                
+
     def _style_hist_lut(self, hist, foreground):
         # 1. Axis ticks + labels
         hist.axis.setPen(pg.mkPen(foreground))

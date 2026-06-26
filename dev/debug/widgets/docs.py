@@ -1,4 +1,12 @@
-from PySide6.QtWidgets import QApplication, QTextBrowser, QGroupBox, QListView, QDialog, QHBoxLayout, QMainWindow
+from PySide6.QtWidgets import (
+    QApplication,
+    QTextBrowser,
+    QGroupBox,
+    QListView,
+    QDialog,
+    QHBoxLayout,
+    QMainWindow,
+)
 from PySide6.QtCore import QUrl, Qt
 from PySide6.QtGui import QFont
 import markdown
@@ -6,33 +14,31 @@ from pathlib import Path
 
 app = QApplication([])
 
+
 class SmallDocumentationDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
 
         self.setWindowTitle("Documentation")
-        
+
         width = 600
         height = int(width * 1.414)
         self.resize(width, height)
         main_layout = QHBoxLayout(self)
-        
+
         self.text_browser = QTextBrowser()
         self.text_browser.document().setDefaultFont(QFont("Arial", 12))
-        
+
         main_layout.addWidget(self.text_browser)
-        
+
         self.load_markdown("debug/widgets/ex_doc.md")
-        
+
     def load_markdown(self, path: str | Path):
         path = Path(path)
 
         md_text = path.read_text(encoding="utf-8")
 
-        html = markdown.markdown(
-            md_text,
-            extensions=["fenced_code", "tables"]
-        )
+        html = markdown.markdown(md_text, extensions=["fenced_code", "tables"])
 
         styled_html = f"""
         <html>
@@ -54,9 +60,7 @@ class SmallDocumentationDialog(QDialog):
 
         # important for images + relative links
         base_path = path.parent.resolve()
-        self.text_browser.setHtml(
-            styled_html
-        )
+        self.text_browser.setHtml(styled_html)
 
 
 class DocumentationDialog(QDialog):
@@ -66,25 +70,22 @@ class DocumentationDialog(QDialog):
         self.setWindowTitle("Documentation")
         self.resize(800, 600)
         main_layout = QHBoxLayout(self)
-        
+
         self.doc_list = QListView()
-        
+
         self.text_browser = QTextBrowser()
-        
+
         main_layout.addWidget(self.doc_list, 3)
         main_layout.addWidget(self.text_browser, 7)
-        
+
         self.load_markdown("debug/widgets/ex_doc.md")
-        
+
     def load_markdown(self, path: str | Path):
         path = Path(path)
 
         md_text = path.read_text(encoding="utf-8")
 
-        html = markdown.markdown(
-            md_text,
-            extensions=["fenced_code", "tables"]
-        )
+        html = markdown.markdown(md_text, extensions=["fenced_code", "tables"])
 
         styled_html = f"""
         <html>
@@ -106,10 +107,8 @@ class DocumentationDialog(QDialog):
 
         # important for images + relative links
         base_path = path.parent.resolve()
-        self.text_browser.setHtml(
-            styled_html
-        )
-    
+        self.text_browser.setHtml(styled_html)
+
 
 md_text = "# Hello\n\nThis is **Markdown**."
 html = markdown.markdown(md_text, extensions=["fenced_code"])

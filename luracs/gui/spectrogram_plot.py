@@ -257,7 +257,7 @@ class SpectrogramWidget(QWidget):
         self.top_spectrum_plot.setLimits(
             xMin=0, xMax=self.x_len, yMin=0, minXRange=10, minYRange=4
         )
-        
+
         self.top_spectrum_plot.setMouseEnabled(x=False, y=True)
         vb = self.top_spectrum_plot.getViewBox()
 
@@ -267,7 +267,7 @@ class SpectrogramWidget(QWidget):
                 vb.setYRange(0, ymax, padding=0)
 
         vb.sigRangeChanged.connect(keep_zero_bottom)
-        
+
         self.top_spectrum_plot.getViewBox().autoRange()
 
         self.top_spectrum_plot.addItem(self.bar)
@@ -289,11 +289,13 @@ class SpectrogramWidget(QWidget):
 
         self.plot.getViewBox().sigYRangeChanged.connect(self.on_y_range_changed)
 
-        self.plot.getAxis("left").setStyle(tickFont=QFont("Arial", Settings.Appearance.font_size - 2))
+        self.plot.getAxis("left").setStyle(
+            tickFont=QFont("Arial", Settings.Appearance.font_size - 2)
+        )
 
         # HistogramLUT (used only for gradient + dual slider)
         self.hist = pg.HistogramLUTItem(orientation="horizontal")
-        self.hist.setContentsMargins(55,0,55,0)
+        self.hist.setContentsMargins(55, 0, 55, 0)
         self.hist.vb.setMaximumHeight(25)
         self.hist.setMinimumHeight(15)
         self.hist.setImageItem(self.img)
@@ -301,9 +303,9 @@ class SpectrogramWidget(QWidget):
         self.hist.vb.enableAutoRange(axis="y")
         self.hist.vb.setLimits(xMin=-0.2, xMax=1e3, minXRange=1)
         self.hist.region.setBounds([0, 100000])
-        
+
         core_utils.ThemeManager.register_hist_lut(self.hist)
-        
+
         # Load colormap preset
         self.hist.gradient.loadPreset("viridis")
 
@@ -317,8 +319,6 @@ class SpectrogramWidget(QWidget):
 
         main_layout.addLayout(left_layout)
         main_layout.addLayout(right_layout)
-
-
 
         self.plot.invertY(True)
         self.plot.layout.setContentsMargins(0, 0, 0, 0)
@@ -560,7 +560,6 @@ class SpectrogramWidget(QWidget):
             self.plot.getAxis("bottom").setTicks([ticks])
 
             self.top_spectrum_plot.getViewBox().autoRange()
-            
 
     def update_spectrogram_y(self, timestamp_queue):
         "Spectrogram y-axis updated from receive data"
@@ -680,11 +679,14 @@ class SpectrogramWidget(QWidget):
             )
         )
         timestamps = np.array(self.current_packet_buffer.timestamp_deque)[::-1]
-        
+
         if ymin >= len(timestamps):
             return
 
-        start_time, stop_time = timestamps[min(ymax - 1, len(timestamps) - 1)], timestamps[ymin]
+        start_time, stop_time = (
+            timestamps[min(ymax - 1, len(timestamps) - 1)],
+            timestamps[ymin],
+        )
         time_str = "%H:%M:%S\n%m-%d" if self.show_date_on_y else "%H:%M:%S"
 
         self.info_text_selector = (

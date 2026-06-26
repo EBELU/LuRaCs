@@ -42,15 +42,27 @@ class SettingsDialog(QDialog):
         # --- Name field ---
         self.theme_combo = QComboBox()
         for theme_option in core_utils.ThemeManager.themes:
-            self.theme_combo.addItem(theme_option.value.replace("-", " ").capitalize(), theme_option.value)
-        self.theme_combo.setCurrentText(Settings.Appearance.theme.replace("-", " ").capitalize())
+            self.theme_combo.addItem(
+                theme_option.value.replace("-", " ").capitalize(), theme_option.value
+            )
+        self.theme_combo.setCurrentText(
+            Settings.Appearance.theme.replace("-", " ").capitalize()
+        )
         form.addRow("Theme:", self.theme_combo)
-        
+
         self.rotator_combo = QComboBox()
-        color_scheme_map = {"lo": "LibreOffice", "mpl": "MatplotLib", "catppuccin": "Catppuccin"}
+        color_scheme_map = {
+            "lo": "LibreOffice",
+            "mpl": "MatplotLib",
+            "catppuccin": "Catppuccin",
+        }
         for color_scheme in ColorRotator.ColorSchemes:
-            self.rotator_combo.addItem(color_scheme_map[color_scheme.value], color_scheme)
-        self.rotator_combo.setCurrentText(color_scheme_map[Settings.Appearance.color_rotator_scheme])
+            self.rotator_combo.addItem(
+                color_scheme_map[color_scheme.value], color_scheme
+            )
+        self.rotator_combo.setCurrentText(
+            color_scheme_map[Settings.Appearance.color_rotator_scheme]
+        )
         form.addRow("Plot Colour Scheme:", self.rotator_combo)
 
         self.spectrum_draw_buttons = QButtonGroup()
@@ -250,7 +262,6 @@ class AdvancedSettingsDialog(QDialog):
         label = QLabel("Logging")
         label.setStyleSheet("font-weight: bold; margin-top: 10px;")
         form.addRow(label)
-        
 
         log_row = QWidget()
         log_layout = QHBoxLayout(log_row)
@@ -270,12 +281,12 @@ class AdvancedSettingsDialog(QDialog):
         log_layout.addWidget(self.log_write_to_console)
 
         form.addRow("Handlers:", log_row)
-        
+
         self.log_buffer_length = QSpinBox()
         self.log_buffer_length.setRange(10, 100000)
         self.log_buffer_length.setValue(Settings.Advanced.log_buffer_length)
         form.addRow("Headless Log Buffer Length:", self.log_buffer_length)
-        
+
         label = QLabel("Spectrogram")
         label.setStyleSheet("font-weight: bold; margin-top: 10px;")
         form.addRow(label)
@@ -306,8 +317,8 @@ class AdvancedSettingsDialog(QDialog):
             "optimizer_use_chi2_weight": self.optimizer_use_chi2_weight.isChecked(),
             "log_buffer_length": self.log_buffer_length.value(),
             "log_catch_exceptions": self.log_catch_exceptions.isChecked(),
-            "log_write_to_file": self.log_write_to_file.isChecked(),       
-            "log_write_to_console": self.log_write_to_console.isChecked(),        
+            "log_write_to_file": self.log_write_to_file.isChecked(),
+            "log_write_to_console": self.log_write_to_console.isChecked(),
             "spectrogram_deque_length": self.spectrogram_deque_length.value(),
         }
 
@@ -331,13 +342,13 @@ def edit_advanced_settings(main_window: MainWindow):
             match key:
                 case "spectrogram_deque_length":
                     RunManager.resize_spectrogram_deque(value)
-                    
+
                 case "log_catch_exceptions":
                     if value:
                         log_utils.attach_exception_handler()
                     else:
                         log_utils.detach_exception_handler()
-                
+
                 case "log_write_to_file":
                     if value:
                         log_utils.attach_file_handler()

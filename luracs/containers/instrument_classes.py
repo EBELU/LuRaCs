@@ -36,7 +36,7 @@ class GenericInstrument:
     # --- Response Matrix ---
     response_matrix: np.ndarray = None
     response_matrix_shape: list = None
-    
+
     remark: str = ""
 
     def get_copy(self):

@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
     QPushButton,
     QDoubleSpinBox,
-    QHBoxLayout
+    QHBoxLayout,
 )
 import pyqtgraph as pg
 
@@ -19,8 +19,6 @@ import sys
 
 
 app = QApplication.instance() or QApplication(sys.argv)
-
-
 
 
 def value_with_uncertainty():
@@ -39,6 +37,7 @@ def value_with_uncertainty():
 
     return container, value, uncertainty
 
+
 class EfficiencyWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -56,7 +55,7 @@ class EfficiencyWindow(QDialog):
 
         self.spectrum_combo = QComboBox()
         self.spectrum_combo.addItem("None")
-        
+
         self.spectrum_combo.setCurrentIndex(0)  # default to "None"
         form.addRow("Spectrum", self.spectrum_combo)
 
@@ -66,24 +65,26 @@ class EfficiencyWindow(QDialog):
         self.data_table.setHorizontalHeaderLabels(titles)
         for i, w in enumerate(widths):
             self.data_table.setColumnWidth(i, w)
-        
+
         form.addRow("", self.data_table)
-        
+
         self.instrument_combo = QComboBox()
         self.instrument_combo.addItem("None")
         form.addRow("Instrument", self.instrument_combo)
-        
+
         # Detector area
         widget, self.detector_area, self.detector_area_unc = value_with_uncertainty()
         form.addRow("Detector area [cm²]", widget)
 
         # Source-detector distance
-        widget, self.source_detector_distance, self.source_detector_distance_unc = value_with_uncertainty()
+        widget, self.source_detector_distance, self.source_detector_distance_unc = (
+            value_with_uncertainty()
+        )
         form.addRow("Source-Detector\nDistance [cm]", widget)
 
         self.calculate_button = QPushButton("Calculate")
         form.addRow("", self.calculate_button)
-        
+
         self.demo_plot = pg.PlotWidget()
         self.demo_plot.setMaximumHeight(250)
         self.demo_plot.getPlotItem().layout.setContentsMargins(2, 13, 13, 2)
@@ -95,25 +96,21 @@ class EfficiencyWindow(QDialog):
         )
 
         form.addRow("Efficiency Plot", self.demo_plot)
-        
-
-        
 
         main_layout.addLayout(form)
-        
+
         bottom_buttons = QHBoxLayout()
         self.assign_to_instrument_btn = QPushButton("Assign to instrument")
         self.close_btn = QPushButton("Close")
-        
+
         bottom_buttons.addStretch()
         bottom_buttons.addWidget(self.assign_to_instrument_btn)
         bottom_buttons.addWidget(self.close_btn)
 
-        
         main_layout.addLayout(bottom_buttons)
-        
+
     def show(self):
-        
+
         super().show()
 
 

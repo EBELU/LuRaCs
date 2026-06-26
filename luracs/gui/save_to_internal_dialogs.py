@@ -48,7 +48,6 @@ def save_spectrum_to_library_dialog(spectrum: Spectrum):
     # Dont rename, it breaks data signalling from device
 
 
-
 def save_roi_references():
     "Export reference rois for the library to be loaded on any spectrum"
     save_diag = SaveNamingDialog()

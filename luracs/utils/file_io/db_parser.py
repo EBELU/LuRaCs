@@ -5,6 +5,7 @@ import json
 from dataclasses import dataclass
 from luracs.utils.numerics.compression import decompress_spectrum
 
+
 @dataclass(frozen=True, kw_only=True)
 class dbHeader:
     created: datetime
@@ -13,14 +14,16 @@ class dbHeader:
     concat: int
     save_interval: int
     calibration: list
-    
+
+
 @dataclass(frozen=True, kw_only=True)
 class dbSummary:
     total_duration: float
     total_dose: float
     last_update: datetime
     total_spectrum: np.ndarray
-    
+
+
 @dataclass(frozen=True, kw_only=True)
 class dbDataColumns:
     timestamps: np.ndarray
@@ -31,7 +34,8 @@ class dbDataColumns:
     longitude: np.ndarray
     latitude: np.ndarray
     spectra: np.ndarray
-    
+
+
 class db_parser:
     def __init__(self, file_name=None, connection: sql.Connection = None):
         if file_name is None and connection is None:
@@ -138,9 +142,7 @@ class db_parser:
             spec_blob,
         ) in rows:
             timestamps.append(ts)
-            timestamps_datetime.append(
-                datetime.fromtimestamp(ts)
-            )
+            timestamps_datetime.append(datetime.fromtimestamp(ts))
             temperatures.append(temp)
             avg_cps.append(cps / 1000.0)
             avg_dr.append(dr / 1000.0)
@@ -224,9 +226,7 @@ class db_parser:
 
         cursor.execute(query, params)
 
-        return self._rows_to_datacolumns(
-            cursor.fetchall()
-        )
+        return self._rows_to_datacolumns(cursor.fetchall())
 
     def get_spectrogram_rows(
         self,
@@ -255,6 +255,7 @@ class db_parser:
         rows = list(reversed(cursor.fetchall()))
 
         return self._rows_to_datacolumns(rows)
+
 
 if __name__ == "__main__":
     p = db_parser(".appdata/spectrogram_library/SpectrumLog-20260325_204646.db")

@@ -9,9 +9,12 @@ from .MockClient import MockClient
 from .RadiacodeClient.src import RadiacodeClientAsync
 from .RaysidClient.RaysidClient import RaysidClientAsync
 
+
 class CriticalNotImplementedError(NotImplementedError):
     "Helper exception to enforce good wrappers"
+
     pass
+
 
 @dataclass(frozen=True)
 class WrappedRealTimePackage:
@@ -40,6 +43,7 @@ class WrappedSpectrumPackage:
     calib_coeff: list
     timestamp: float
 
+
 OPTIONAL_WRAPPER_METHODS = {
     "get_calibration",
     "set_calibration",
@@ -48,9 +52,9 @@ OPTIONAL_WRAPPER_METHODS = {
     "set_gain",
     "get_gain",
     "set_energy_range",
-    "get_energy_range"
-    "clear_accumulation"
+    "get_energy_rangeclear_accumulation",
 }
+
 
 class DeviceWrapper(QObject):
     _registry: dict[str, "DeviceWrapper"] = {}
@@ -88,17 +92,17 @@ class DeviceWrapper(QObject):
         # Virtual placeholders
         self.client = None
         self.channels = None
-        
+
         # These should be overwritten like the following for all new wrappers
         # self.name = "raysid"
         # self.client = RaysidClientAsync(address)
-        # self.channels = 1800                
+        # self.channels = 1800
 
     # --- Helpers ---
     @classmethod
     def get_registry(cls):
         return cls._registry
-    
+
     @classmethod
     def match_model_to_str(cls, name_string: str):
         for key, obj in cls._registry.items():
@@ -109,7 +113,7 @@ class DeviceWrapper(QObject):
         assert isinstance(state, self.DeviceState)
         self.state = state
         self.stateUpdated.emit(self.name, state)
-        
+
     # --- Critical methods that must be defined ---
     # All the following methods are used by the RunManager and must be defined for each new wrapper
     def get_RealTimeData(self) -> WrappedRealTimePackage:
@@ -124,7 +128,6 @@ class DeviceWrapper(QObject):
         """
         raise CriticalNotImplementedError("get_RealTimeData")
 
-
     def get_Status(self) -> WrappedStatusPackage:
         """
         Retrieve the current device status information.
@@ -137,7 +140,6 @@ class DeviceWrapper(QObject):
         """
         raise CriticalNotImplementedError("get_Status")
 
-
     def get_Spectrum(self) -> WrappedSpectrumPackage:
         """
         Retrieve the latest acquired spectrum.
@@ -149,12 +151,11 @@ class DeviceWrapper(QObject):
             calibration coefficients, and acquisition timestamp.
         """
         raise CriticalNotImplementedError("get_Spectrum")
-    
 
-    def is_running(self)->bool:
+    def is_running(self) -> bool:
         raise CriticalNotImplementedError("is_running")
 
-    def is_stopped(self)->bool:
+    def is_stopped(self) -> bool:
         raise CriticalNotImplementedError("is_stopped")
 
     async def start(self):
@@ -172,7 +173,7 @@ class MockClientWrapper(DeviceWrapper):
         self.name = "MockClient"
         self.channels = 1024
         self.client = MockClient(self.name)
-        
+
     def get_RealTimeData(self):
         latestRTD = getattr(self.client, "LatestRealTimeData", None)
         if latestRTD is not None:
@@ -229,9 +230,10 @@ class RadiacodeWrapper(DeviceWrapper):
         self.name = self.name.split("#")[-1]
         self.client = RadiacodeClientAsync(address, usb)
         self.channels = 1024
-        
+
     def get_RealTimeData(self):
-        latestRTD = getattr(self.client, "LatestRealTimeData", None)
+        latestRTD = getattr(self.client, "latest_realtime", None)
+        print(f"Latest RTD for {self.name}: {latestRTD}")
         if latestRTD is not None:
             return WrappedRealTimePackage(
                 getattr(latestRTD, "CPS"),
@@ -242,7 +244,7 @@ class RadiacodeWrapper(DeviceWrapper):
             )
 
     def get_Status(self):
-        latestStatus = getattr(self.client, "LatestStatusData", None)
+        latestStatus = getattr(self.client, "latest_status", None)
         if latestStatus is not None:
             return WrappedStatusPackage(
                 getattr(latestStatus, "battery", None),
@@ -254,7 +256,7 @@ class RadiacodeWrapper(DeviceWrapper):
             )
 
     def get_Spectrum(self):
-        latestSpectrum = getattr(self.client, "LatestSpectrum", None)
+        latestSpectrum = getattr(self.client, "latest_spectrum", None)
         if latestSpectrum is not None:
             return WrappedSpectrumPackage(
                 getattr(latestSpectrum, "spectrum"),
@@ -265,7 +267,9 @@ class RadiacodeWrapper(DeviceWrapper):
             )
 
     def is_running(self):
-        return getattr(self.client, "_running", False)
+        stopped = getattr(self.client, "_stopped", True)
+
+        return not stopped
 
     def is_stopped(self):
         return getattr(self.client, "_stopped", True)
@@ -275,7 +279,7 @@ class RadiacodeWrapper(DeviceWrapper):
 
     async def stop(self):
         return await self.client.stop()
-    
+
     def set_calibration(self, coeff):
         self.client.set_calibration(coeff)
 
@@ -288,7 +292,7 @@ class RaysidWrapper(DeviceWrapper):
 
         self.client = RaysidClientAsync(address)
         self.channels = 1800
-        
+
     def get_RealTimeData(self):
         latestRTD = getattr(self.client, "LatestRealTimeData", None)
         if latestRTD is not None:
@@ -322,7 +326,7 @@ class RaysidWrapper(DeviceWrapper):
                 getattr(latestSpectrum, "calib_coeff", None),
                 getattr(latestSpectrum, "timestamp", time.time()),
             )
-            
+
     def is_running(self):
         return getattr(self.client, "_running", False)
 

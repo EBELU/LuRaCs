@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from luracs.containers.spectrum_classes import Spectrum
 
@@ -22,7 +23,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QTableWidget,
     QTableWidgetItem,
-    QHeaderView
+    QHeaderView,
 )
 
 from PySide6.QtCore import Qt
@@ -32,6 +33,7 @@ import numpy as np
 from luracs.core import SpectrumManager, IOManager
 from luracs.utils.numerics import resolution, exp_polynomial
 from luracs.containers.roi_classes import ROI, Fit
+
 
 class InstrumentDialog(QDialog):
     def __init__(self, parent=None, **kwargs):
@@ -52,14 +54,16 @@ class InstrumentDialog(QDialog):
         self.generic_list = QComboBox()
         form_layout.addRow("Generic Instruments:", self.generic_list)
         self.generic_list.addItem("None", None)
-        for key, i in SpectrumManager.GenericInstrumentLibrary.instrument_registry.items():
+        for (
+            key,
+            i,
+        ) in SpectrumManager.GenericInstrumentLibrary.instrument_registry.items():
             self.generic_list.addItem(i.model, key)
         self.generic_list.setCurrentText("None")
         self.generic_list.currentIndexChanged.connect(self.generic_instrument_selected)
         if len(kwargs) != 0:
             self.generic_list.setEnabled(False)
-            
-            
+
         # ------------------------------------------------------------------
         # Row with 2 lines, name and model
         # ------------------------------------------------------------------
@@ -75,12 +79,11 @@ class InstrumentDialog(QDialog):
         model_name_row.addWidget(self.model_input)
         form_layout.addRow("Instrument Name:", model_name_row)
 
-
         # ------------------------------------------------------------------
         # Row with 2 lines, Manufacturer and detector material
         # ------------------------------------------------------------------
         manufacturer_material_row = QHBoxLayout()
-        
+
         # Manufacturer
         self.manufacturer = QLineEdit()
         manufacturer_material_row.addWidget(self.manufacturer)
@@ -94,17 +97,15 @@ class InstrumentDialog(QDialog):
         self.remarks = QTextEdit()
         form_layout.addRow("Remarks:", self.remarks)
 
-
         # ------------------------------------------------------------------
         # Detector Shape, with uncertainty
         # ------------------------------------------------------------------
-        
+
         # --- Shape combo ---
         self.shape = QComboBox()
         self.shape.addItems(["Cuboid", "Cylinder", "Other"])
         self.shape.currentTextChanged.connect(self.update_spinboxes)
         form_layout.addRow("Shape:", self.shape)
-
 
         # --- Dimension spin boxes ---
         # Height
@@ -137,9 +138,8 @@ class InstrumentDialog(QDialog):
         self.depth_uncert_spin.setDecimals(2)
         self.depth_uncert_spin.setPrefix("± ")
 
-
         # --- Build widgets for the spinboxes ---
-        
+
         # Layout for dimensions
         dim_layout = QHBoxLayout()
 
@@ -172,7 +172,7 @@ class InstrumentDialog(QDialog):
         dim_layout.addWidget(d_widget)
 
         form_layout.addRow("Dimensions:", dim_layout)
-        
+
         # Layout for uncertainties
         unc_layout = QHBoxLayout()
 
@@ -206,11 +206,10 @@ class InstrumentDialog(QDialog):
 
         form_layout.addRow("Uncertainties:", unc_layout)
 
-
         # ------------------------------------------------------------------
         # Resolution
         # ------------------------------------------------------------------
-        
+
         # Line
         self.resolution = QLineEdit()
         self.resolution.setReadOnly(True)
@@ -221,21 +220,14 @@ class InstrumentDialog(QDialog):
         self.res_plot_widget.setMinimumHeight(150)
         self.res_plot_widget.getPlotItem().layout.setContentsMargins(2, 13, 13, 2)
         self.res_plot_widget.setMouseEnabled(x=False, y=False)
-        self.res_plot_widget.getPlotItem().setLabel(
-            axis="bottom",
-            text="Energy [keV]"
-        )
-        self.res_plot_widget.getPlotItem().setLabel(
-            axis="left",
-            text="Resolution [%]"
-        )
+        self.res_plot_widget.getPlotItem().setLabel(axis="bottom", text="Energy [keV]")
+        self.res_plot_widget.getPlotItem().setLabel(axis="left", text="Resolution [%]")
         form_layout.addRow("", self.res_plot_widget)
-
 
         # ------------------------------------------------------------------
         # Intrinsic efficiency
         # ------------------------------------------------------------------
-        
+
         # Line
         self.efficiency = QLineEdit()
         self.efficiency.setReadOnly(True)
@@ -246,14 +238,8 @@ class InstrumentDialog(QDialog):
         self.eff_plot_widget.setMinimumHeight(150)
         self.eff_plot_widget.getPlotItem().layout.setContentsMargins(2, 13, 13, 2)
         self.eff_plot_widget.setMouseEnabled(x=False, y=False)
-        self.eff_plot_widget.getPlotItem().setLabel(
-            axis="bottom",
-            text="Energy [keV]"
-        )
-        self.res_plot_widget.getPlotItem().setLabel(
-            axis="left",
-            text="Int. Eff. [%]"
-        )
+        self.eff_plot_widget.getPlotItem().setLabel(axis="bottom", text="Energy [keV]")
+        self.res_plot_widget.getPlotItem().setLabel(axis="left", text="Int. Eff. [%]")
         form_layout.addRow("", self.eff_plot_widget)
 
         # ------------------------------------------------------------------
@@ -269,7 +255,6 @@ class InstrumentDialog(QDialog):
         response_matrix_row.addWidget(self.load_matrix)
         # form_layout.addRow("Response Matrix: ", response_matrix_row)
 
-
         # --- Bottom Buttons ---
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self.accept)
@@ -278,7 +263,7 @@ class InstrumentDialog(QDialog):
 
         # Initialize spinboxes
         self.update_spinboxes(self.shape.currentText())
-        
+
         # Set values from an entered instrument
         self.set_values(**kwargs)
 
@@ -300,7 +285,7 @@ class InstrumentDialog(QDialog):
             # Uncertainty
             self.W_label.setText("Width:")
             self.W_uncert_label.setText("Width:")
-            
+
     def set_values(self, **kwargs):
         # --- Basic Info ---
         self.name_input.setText(kwargs.get("name", ""))
@@ -308,66 +293,97 @@ class InstrumentDialog(QDialog):
         self.manufacturer.setText(kwargs.get("manufacturer", ""))
         self.detector_material.setText(kwargs.get("detector_material", ""))
         self.remarks.setPlainText(kwargs.get("remark", ""))
-        
+
         # --- Detector shape ---
         dimensions = kwargs.get("detector_dimensions_cm")
         dimensions_uncert = kwargs.get("detector_dimensions_uncert_cm")
-        
+
         # Height
         if dimensions is not None:
-            self.height_spin.setValue(dimensions[0])            
+            self.height_spin.setValue(dimensions[0])
         if dimensions_uncert is not None:
             self.height_uncert_spin.setValue(dimensions_uncert[0])
-        
+
         # Width
         if dimensions is not None:
             self.width_spin.setValue(dimensions[1])
         if dimensions_uncert is not None:
             self.width_uncert_spin.setValue(dimensions_uncert[1])
-            
+
         # Depth
         if self.shape.currentText() != "Cylinder" and dimensions is not None:
             self.depth_spin.setValue(dimensions[2])
         if self.shape.currentText() != "Cylinder" and dimensions_uncert is not None:
             self.depth_uncert_spin.setValue(dimensions_uncert[2])
-        
+
         # --- Resolution ---
         # Line
         res_created = kwargs.get("resolution_created")
         if res_created is not None:
             res_created = res_created.strftime("%Y-%m-%d %H:%M")
-        self.resolution.setText(f"[{res_created}] fn = {kwargs.get('resolution_fn', '')}, params = {kwargs.get('resolution_params', '')}")
-        
+        self.resolution.setText(
+            f"[{res_created}] fn = {kwargs.get('resolution_fn', '')}, params = {kwargs.get('resolution_params', '')}"
+        )
+
         # Resolution plot
         self.res_plot_widget.getPlotItem().clear()
-        if kwargs.get("resolution_E_points") is not None and kwargs.get("resolution_FWHM_points") is not None:
-            self.res_plot_widget.plot(kwargs.get("resolution_E_points"), np.array(kwargs.get("resolution_FWHM_points")) * 100 / np.array(kwargs.get("resolution_E_points")), pen=None, symbol = "o")
+        if (
+            kwargs.get("resolution_E_points") is not None
+            and kwargs.get("resolution_FWHM_points") is not None
+        ):
+            self.res_plot_widget.plot(
+                kwargs.get("resolution_E_points"),
+                np.array(kwargs.get("resolution_FWHM_points"))
+                * 100
+                / np.array(kwargs.get("resolution_E_points")),
+                pen=None,
+                symbol="o",
+            )
             res_x = np.linspace(25, max(kwargs.get("resolution_E_points")) + 500, 1000)
             res_y = resolution(res_x, np.array(kwargs.get("resolution_params"))) * 100
             self.res_plot_widget.plot(res_x, res_y)
-        
+
         # --- Intrinsic efficiency ---
         # Line
         eff_created = kwargs.get("int_efficiency_created")
         if eff_created is not None:
             eff_created = eff_created.strftime("%Y-%m-%d %H:%M")
-        self.efficiency.setText(f"[{eff_created}] fn = {kwargs.get('int_efficiency_fn', '')}, params = {kwargs.get('int_efficiency_params', '')}")
+        self.efficiency.setText(
+            f"[{eff_created}] fn = {kwargs.get('int_efficiency_fn', '')}, params = {kwargs.get('int_efficiency_params', '')}"
+        )
 
-        
         # Efficiency plot
         self.eff_plot_widget.getPlotItem().clear()
-        if kwargs.get("int_efficiency_E_points") is not None and kwargs.get("int_efficiency_eff_points") is not None:
-            self.eff_plot_widget.plot(kwargs.get("int_efficiency_E_points"), np.array(kwargs.get("int_efficiency_eff_points")) * 100, pen=None, symbol = "o")
-            res_x = np.linspace(25, max(kwargs.get("int_efficiency_E_points")) + 500, 1000)
-            res_y = exp_polynomial(res_x, np.array(kwargs.get("int_efficiency_params"))) * 100
+        if (
+            kwargs.get("int_efficiency_E_points") is not None
+            and kwargs.get("int_efficiency_eff_points") is not None
+        ):
+            self.eff_plot_widget.plot(
+                kwargs.get("int_efficiency_E_points"),
+                np.array(kwargs.get("int_efficiency_eff_points")) * 100,
+                pen=None,
+                symbol="o",
+            )
+            res_x = np.linspace(
+                25, max(kwargs.get("int_efficiency_E_points")) + 500, 1000
+            )
+            res_y = (
+                exp_polynomial(res_x, np.array(kwargs.get("int_efficiency_params")))
+                * 100
+            )
             self.eff_plot_widget.plot(res_x, res_y)
-            
+
     def generic_instrument_selected(self, index: int):
         instrument_key = self.generic_list.itemData(index)
         if instrument_key is None:
-            self.set_values(detector_dimensions_cm = [0, 0, 0], detector_dimensions_uncert_cm = [0, 0, 0],)
+            self.set_values(
+                detector_dimensions_cm=[0, 0, 0],
+                detector_dimensions_uncert_cm=[0, 0, 0],
+            )
         else:
-            instrument = SpectrumManager.GenericInstrumentLibrary.instrument_registry[instrument_key]
+            instrument = SpectrumManager.GenericInstrumentLibrary.instrument_registry[
+                instrument_key
+            ]
             self.set_values(**instrument.__dict__)
 
     def get_data(self):
@@ -392,10 +408,14 @@ class InstrumentDialog(QDialog):
         }
         return data, self.generic_list.currentData()
 
+
 class SpectrumEditDialog(QDialog):
-    def __init__(self, parent=None, 
-                 spectrum: Spectrum = None, 
-                 spectrum_is_connected: bool = False):
+    def __init__(
+        self,
+        parent=None,
+        spectrum: Spectrum = None,
+        spectrum_is_connected: bool = False,
+    ):
         super().__init__(parent)
         self.setWindowTitle("Spectrum Edit Dialog")
         self.resize(400, 300)
@@ -416,16 +436,21 @@ class SpectrumEditDialog(QDialog):
         self.remark_input = QTextEdit()
         self.remark_input.setPlainText(spectrum.remark if spectrum else "")
         form_layout.addRow("Remark:", self.remark_input)
-        
+
         self.calibration_text = QTextEdit()
         self.calibration_text.setReadOnly(True)
         if spectrum is not None and spectrum.calibration_coefficients is not None:
-            calib_str = "\n".join([f"a{i} = {a}" for i, a in enumerate(reversed(spectrum.calibration_coefficients))])
+            calib_str = "\n".join(
+                [
+                    f"a{i} = {a}"
+                    for i, a in enumerate(reversed(spectrum.calibration_coefficients))
+                ]
+            )
         else:
             calib_str = ""
         self.calibration_text.setText(calib_str)
         form_layout.addRow("Calibration", self.calibration_text)
-        
+
         # self.calibration_plot = pg.PlotWidget()
         # self.calibration_plot.setMouseEnabled(x=False, y=False)
         # self.calibration_plot.getPlotItem().setLabel(
@@ -437,51 +462,58 @@ class SpectrumEditDialog(QDialog):
         #     axis="bottom",
         #     text="Channel"
         # )
-        
+
         # self.calibration_plot.getPlotItem().plot(np.arange(len(spectrum.x_axis)), spectrum.x_axis)
-        
+
         # self.calibration_plot.getPlotItem().layout.setContentsMargins(2, 13, 13, 2)
-        
+
         # form_layout.addRow("", self.calibration_plot)
-        
+
         # --- Background ---
         # Background name
         self.background_line = QLineEdit()
-        self.background_line.setText(spectrum.background.spectrum_name if spectrum and spectrum.background is not None else "")
+        self.background_line.setText(
+            spectrum.background.spectrum_name
+            if spectrum and spectrum.background is not None
+            else ""
+        )
         self.background_line.setReadOnly(True)
         form_layout.addRow("Background", self.background_line)
-        
+
         # Buttons
         bkg_btns = QHBoxLayout()
-        
+
         bkg_btn_select = QPushButton("Select")
         bkg_btn_select.clicked.connect(self.select_background)
         bkg_btn_import = QPushButton("Import")
         bkg_btn_import.clicked.connect(self.import_background)
         bkg_btn_clear = QPushButton("Clear Bkg")
         bkg_btn_clear.clicked.connect(self.clear_bkg)
-        
+
         bkg_btns.addWidget(bkg_btn_select)
         bkg_btns.addWidget(bkg_btn_import)
         bkg_btns.addWidget(bkg_btn_clear)
-        
+
         form_layout.addRow("", bkg_btns)
-        
+
         # Internal spectra list
         self.spectrum_list = QListWidget()
         form_layout.addRow("", self.spectrum_list)
-        
-        for path, parser in sorted(IOManager.FileIndex.spectrum_index.get_index().items(), key=lambda item: item[0]):
+
+        for path, parser in sorted(
+            IOManager.FileIndex.spectrum_index.get_index().items(),
+            key=lambda item: item[0],
+        ):
             item = QListWidgetItem(str(parser.data["name"]))
             item.setData(Qt.ItemDataRole.UserRole, path)
             self.spectrum_list.addItem(item)
-        
+
         # --- Instrument ---
         # Name
         self.instrument_line = QLineEdit()
         self.instrument_line.setReadOnly(True)
         form_layout.addRow("Instrument", self.instrument_line)
-        
+
         # Buttons
         instrument_btns = QHBoxLayout()
         instrument_btn_select = QPushButton("Select")
@@ -491,32 +523,36 @@ class SpectrumEditDialog(QDialog):
         instrument_btns.addWidget(instrument_btn_select)
         instrument_btns.addWidget(instrument_btn_clear)
         form_layout.addRow("", instrument_btns)
-        
+
         # Instrument list from instrument libraries
         self.instrument_list = QListWidget()
-        self.instrument_line.setText(spectrum.instrument.name if spectrum.instrument is not None else "")
+        self.instrument_line.setText(
+            spectrum.instrument.name if spectrum.instrument is not None else ""
+        )
         form_layout.addRow("", self.instrument_list)
-        
-        for path, instr in sorted(SpectrumManager.UniqueInstrumentLibrary.instrument_registry.items(), key=lambda item: item[0]):
+
+        for path, instr in sorted(
+            SpectrumManager.UniqueInstrumentLibrary.instrument_registry.items(),
+            key=lambda item: item[0],
+        ):
             item = QListWidgetItem(instr.name)
             item.setData(Qt.ItemDataRole.UserRole, instr)
             self.instrument_list.addItem(item)
-        
+
         # --- Bottom buttons ---
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         main_layout.addWidget(buttons)
-        
-        
+
         # --- Flags ---
-        # These set the response of things handled outside of this dialog 
+        # These set the response of things handled outside of this dialog
         self.flag_clear_bkg = False
         self.flag_clear_instrument = False
         self.flag_change_bkg = False
         self.flag_change_instrument = False
-        self.flag_can_change_name = not spectrum_is_connected # A spectrum with a connection is not allowed to change its name, it would mess with receiving now data from the the connected device
-        
+        self.flag_can_change_name = not spectrum_is_connected  # A spectrum with a connection is not allowed to change its name, it would mess with receiving now data from the the connected device
+
         self.selected_background = None
         self.selected_instrument = None
 
@@ -531,10 +567,10 @@ class SpectrumEditDialog(QDialog):
             "flag_clear_instrument": self.flag_clear_instrument,
             "flag_can_change_name": self.flag_can_change_name,
             "flag_change_bkg": self.flag_change_bkg,
-            "flag_change_instrument": self.flag_change_instrument
+            "flag_change_instrument": self.flag_change_instrument,
         }
         return data
-    
+
     def select_background(self):
         item = self.spectrum_list.selectedItems()
         if len(item) > 0:
@@ -543,25 +579,27 @@ class SpectrumEditDialog(QDialog):
             return
         name = item.text()
         path = item.data(Qt.ItemDataRole.UserRole)
-        
+
         self.background_line.setText(name)
         self.selected_background = path
         self.flag_clear_bkg = False
         self.flag_change_bkg = True
-    
+
     def import_background(self):
-        path, _ = IOManager.Importer.import_file(IOManager.Importer.import_filters["spectrum"])
-        
+        path, _ = IOManager.Importer.import_file(
+            IOManager.Importer.import_filters["spectrum"]
+        )
+
         if path is not None:
             self.background_line.setText(path.name)
             self.selected_background = path
             self.flag_clear_bkg = False
             self.flag_change_bkg = True
-            
+
     def clear_bkg(self):
         self.flag_clear_bkg = True
         self.background_line.setText("")
-        
+
     def select_instrument(self):
         item = self.instrument_list.selectedItems()
         if len(item) > 0:
@@ -571,18 +609,19 @@ class SpectrumEditDialog(QDialog):
             return
         name = item.text()
         instr = item.data(Qt.ItemDataRole.UserRole)
-        
+
         self.instrument_line.setText(name)
         self.selected_instrument = instr
         self.flag_clear_instrument = False
         self.flag_change_instrument = True
-        
+
     def clear_instrument(self):
         self.flag_clear_instrument = True
         self.instrument_line.setText("")
-        
+
+
 class ROIDialog(QDialog):
-    def __init__(self, rois: list[ROI] = [], name: str="", parent=None, **kwargs):
+    def __init__(self, rois: list[ROI] = [], name: str = "", parent=None, **kwargs):
         super().__init__(parent)
         self.setWindowTitle("ROI Dialog")
         self.resize(750, 500)
@@ -593,21 +632,21 @@ class ROIDialog(QDialog):
         # Form layout
         form_layout = QFormLayout()
         main_layout.addLayout(form_layout)
-        
+
         self.line_name = QLineEdit()
         self.line_name.setText(name)
-        
+
         form_layout.addRow("Name: ", self.line_name)
-        
+
         titles = ["Alias", "Lower Bound", "Upper Bound", "Nuclide", "Energy"]
         self.table = QTableWidget()
         self.table.setColumnCount(len(titles) + 1)  # +1 hidden ROI column
         self.table.setHorizontalHeaderLabels(titles + ["__roi__"])
         self.table.setColumnHidden(len(titles), True)  # hide last column
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        
+
         form_layout.addRow(self.table)
-                
+
         for i, roi in enumerate(rois):
             self.table.insertRow(i)
 
@@ -665,15 +704,12 @@ class ROIDialog(QDialog):
                         combo_emission.setCurrentIndex(idx)
                         break
 
-            
         # --- Bottom Buttons
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
 
         main_layout.addWidget(buttons)
-        
-
 
     def _update_emissions(self, row: int, nuclide: str):
         emissions_obj = SpectrumManager.NuclideLibrary.get_nuclide(nuclide)
@@ -693,42 +729,43 @@ class ROIDialog(QDialog):
         for e in emissions:
             text = f"{e.energy_keV} keV"
             combo_emission.addItem(text, e)
-            
-    
+
     def get_name(self):
         return self.line_name.text()
-    
+
     def get_rois(self):
         rois = []
         for i in range(self.table.rowCount()):
             roi_item = self.table.item(i, 5)  # hidden column index
             if roi_item is None:
                 continue
-            
+
             old_roi: ROI = roi_item.data(Qt.UserRole)
             combo = self.table.cellWidget(i, 4)
             emission = combo.currentData()
-            rois.append(ROI(
-                tag=f"ROI_{i}", # Random id
-                alias=self.table.cellWidget(i, 0).text(),
-                spectrum="None",
-                roi_bound=(
-                    self.table.cellWidget(i, 1).value(),
-                    self.table.cellWidget(i, 2).value()
-                ),
-                region_bound=(),
-                fit_type=old_roi.fit_type,
-                bkg_type=old_roi.bkg_type,
-                fit=None,
-                roi_counts=0,
-                live_time=1,
-                emission=emission,
-                meta=old_roi.meta
+            rois.append(
+                ROI(
+                    tag=f"ROI_{i}",  # Random id
+                    alias=self.table.cellWidget(i, 0).text(),
+                    spectrum="None",
+                    roi_bound=(
+                        self.table.cellWidget(i, 1).value(),
+                        self.table.cellWidget(i, 2).value(),
+                    ),
+                    region_bound=(),
+                    fit_type=old_roi.fit_type,
+                    bkg_type=old_roi.bkg_type,
+                    fit=None,
+                    roi_counts=0,
+                    live_time=1,
+                    emission=emission,
+                    meta=old_roi.meta,
+                )
             )
-            )
-            
+
         return rois
-        
+
+
 if __name__ == "__main__":
     import sys
 

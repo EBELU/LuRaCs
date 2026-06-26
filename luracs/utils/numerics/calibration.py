@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from luracs.containers.spectrum_classes import Spectrum
     from luracs.containers.roi_classes import ROI, Fit
@@ -7,7 +8,14 @@ if TYPE_CHECKING:
 import numpy as np
 
 
-def calibrate_x_axis(ref_channel_points: list, ref_energy_points: list, polynomial_degree:int, axis_len: int, current_x_axis: np.ndarray = None, return_reference_points: bool = False):
+def calibrate_x_axis(
+    ref_channel_points: list,
+    ref_energy_points: list,
+    polynomial_degree: int,
+    axis_len: int,
+    current_x_axis: np.ndarray = None,
+    return_reference_points: bool = False,
+):
     """Calibrate the energy axis of a spectrum.
 
     Args:
@@ -21,29 +29,34 @@ def calibrate_x_axis(ref_channel_points: list, ref_energy_points: list, polynomi
     Returns:
         np.ndarray: New x-axix
         np.ndarray: Calibration coefficients
-        
+
         (optional) tuple[list, list]: Reference points [channels, energies]
     """
-    
+
     if current_x_axis is not None:
-        ref_channel_points = np.interp(ref_channel_points, current_x_axis, np.arange(axis_len))
-    
-    coefficients = np.polyfit(ref_channel_points, ref_energy_points,  polynomial_degree)
+        ref_channel_points = np.interp(
+            ref_channel_points, current_x_axis, np.arange(axis_len)
+        )
+
+    coefficients = np.polyfit(ref_channel_points, ref_energy_points, polynomial_degree)
     new_x = np.polyval(coefficients, np.arange(axis_len))
-    
+
     if return_reference_points:
         return new_x, coefficients, (ref_channel_points, ref_energy_points)
-    
+
     else:
         return new_x, coefficients
-        
+
+
 if __name__ == "__main__":
     channels = 1024
     current_x = np.polyval([0.0003705, 2.3694975, 4.2583089], np.arange(channels))
-    
+
     ref_channel_points = [655, 1165, 1323]
     ref_energy_points = [662, 1173, 1332]
-    
-    new_x, coeff = calibrate_x_axis(ref_channel_points, ref_energy_points, 2, channels, current_x)
+
+    new_x, coeff = calibrate_x_axis(
+        ref_channel_points, ref_energy_points, 2, channels, current_x
+    )
 
     print(coeff)

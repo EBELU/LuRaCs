@@ -9,8 +9,6 @@ from functools import lru_cache
 import threading
 
 
-
-
 class PMTilesServer:
     def __init__(self, pmtiles_path: Path):
         self.app = FastAPI()
@@ -18,7 +16,6 @@ class PMTilesServer:
         self.file = open(pmtiles_path, "rb")
 
         self.lock = threading.Lock()
-
 
         f = open(pmtiles_path, "rb")
         self.reader = Reader(MmapSource(f))
@@ -37,7 +34,6 @@ class PMTilesServer:
         def get_tile(z, x, y):
             result = reader.get(z, x, y)
             return result
-
 
         @self.app.get("/tiles/{z}/{x}/{y}.pbf")
         async def tile(z: int, x: int, y: int):

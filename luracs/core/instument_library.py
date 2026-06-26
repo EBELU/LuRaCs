@@ -81,7 +81,7 @@ class InstrumentLibrary(QObject):
 
         gui_logger.debug(f"Instrument updated: name={name}, {', '.join(changes)}")
         self.sigInstrumentUpdated.emit(instrument_key, instr)
-        
+
     def get_key_from_attr(self, attr: str, value):
         "Get an idex key from an attribute of the stored instrument"
         for key, item in self.instrument_registry.items():

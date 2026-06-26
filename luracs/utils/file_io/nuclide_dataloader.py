@@ -16,18 +16,21 @@ def load_nuclide_data(pth: str):
 def nuclide_from_json(data: dict) -> Nuclide:
     emissions = []
     for e in data.get("Emissions", []):
-        emission_type = e["Type"] if not np.isclose(e["Energy (keV)"], 511) else "annih."
-        
-        emissions.append(Emission(
-            parent_nuclide=data["Nuclide"],
-            energy_keV=e["Energy (keV)"],
-            energy_error_keV=e["Energy error (keV)"],
-            intensity_percent=e["I (%)"],
-            intensity_error_percent=e["I error (%)"],
-            type=emission_type,
-            origin=e["Origin"],
-        ))
+        emission_type = (
+            e["Type"] if not np.isclose(e["Energy (keV)"], 511) else "annih."
+        )
 
+        emissions.append(
+            Emission(
+                parent_nuclide=data["Nuclide"],
+                energy_keV=e["Energy (keV)"],
+                energy_error_keV=e["Energy error (keV)"],
+                intensity_percent=e["I (%)"],
+                intensity_error_percent=e["I error (%)"],
+                type=emission_type,
+                origin=e["Origin"],
+            )
+        )
 
     return Nuclide(
         nuclide=data["Nuclide"],

@@ -11,4 +11,6 @@ def startup_script():
 
     if os.path.isfile(Settings.Paths.settings_file):
         Settings.load_settings()
-        SpectrumManager.color_rotation = ColorRotator(ColorRotator.ColorSchemes(Settings.Appearance.color_rotator_scheme))
+        SpectrumManager.color_rotation = ColorRotator(
+            ColorRotator.ColorSchemes(Settings.Appearance.color_rotator_scheme)
+        )

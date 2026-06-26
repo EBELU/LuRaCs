@@ -1,5 +1,7 @@
 from .run_manager import RunManager
-from .gui_logger import gui_logger as Log # This must be here, if bellow IOManager it breaks
+from .gui_logger import (
+    gui_logger as Log,
+)  # This must be here, if bellow IOManager it breaks
 from .gui_logger import log_buffer as _log_buffer
 from .settings import Settings
 from .spectrum_manager import SpectrumManager
@@ -16,6 +18,7 @@ from .gui_logger import (
     _detach_console_handler,
 )
 
+
 class log_utils:
     attach_file_handler = _attach_file_handler
     detach_file_handler = _detach_file_handler
@@ -25,11 +28,13 @@ class log_utils:
 
     attach_console_handler = _attach_console_handler
     detach_console_handler = _detach_console_handler
-    
+
     log_buffer = _log_buffer
-    
+
+
 class core_utils:
     ThemeManager = _theme_manager
+
 
 """
 Global state classes shared by the entire program.
@@ -44,5 +49,5 @@ __all__ = [
     "Calculator",
     "IOManager",
     "Log",
-    "log_utils"
+    "log_utils",
 ]

@@ -81,7 +81,7 @@ def _build_roi(general_kwargs: dict, fit_kwargs: dict):
         fit = Fit(region_lower=None, region_upper=None, **fit_kwargs)
     else:
         fit = None
-    
+
     emission_data = general_kwargs.pop("emission_data")
     if len(emission_data):
         emission = Emission(**emission_data)
@@ -119,7 +119,7 @@ class xml_parser:
     N42_NS = {"n42": "http://physics.nist.gov/N42/2011/N42"}
     DHS_NS = {"dhs": "DHS", **N42_NS}
     LRC_NS = {"lrc": "https://example.com/n42/extensions", **N42_NS}
-    
+
     @dataclass(kw_only=True, frozen=True)
     class XMLHeader:
         name: str
@@ -150,7 +150,6 @@ class xml_parser:
         """
         return self.data.get("foreground")
 
-
     def get_background_spectrum(self) -> SpectrumData:
         """
         Return the background spectrum data.
@@ -167,7 +166,6 @@ class xml_parser:
         """
         return self.data.get("foreground")
 
-
     def get_rois(self) -> list[ROI]:
         """
         Return all parsed regions of interest (ROIs).
@@ -181,7 +179,6 @@ class xml_parser:
                 Returns an empty list if no ROI data is present.
         """
         return self.data.get("peaks", [])
-
 
     def get_roi_data(self) -> list[dict]:
         """
@@ -201,13 +198,11 @@ class xml_parser:
         """
         return self.data.get("peak_data", [])
 
-
     def get_instrument(self) -> UniqueInstrument | GenericInstrument:
         """
         Return parsed instrument metadata and characterization data.
         """
         return self.data.get("instrument")
-
 
     def get_header(self) -> XMLHeader:
         """
@@ -233,7 +228,7 @@ class xml_parser:
             calibration=self.data.get("calibration"),
             remark=self.data.get("remark"),
         )
-        
+
     def _dispatch_parser(self):
         root_tag = etree.QName(self.root).localname.lower()
         if root_tag == "radinstrumentdata":
@@ -344,8 +339,8 @@ class xml_parser:
         """
         Parse the n42 iso format for spectrometric data. This is not a complete parser but will work for most n42 instances
         """
-        
-        ns, data = self.N42_NS, {"name": self.file_name} # Namespace
+
+        ns, data = self.N42_NS, {"name": self.file_name}  # Namespace
         data["instrument_id"] = self.root.findtext(
             ".//n42:RadInstrumentIdentifier", namespaces=ns
         )
@@ -355,17 +350,17 @@ class xml_parser:
         data["instrument_class_code"] = self.root.findtext(
             ".//n42:RadInstrumentClassCode", namespaces=ns
         )
-        
+
         # --- Calibration ---
         coeff = self.root.findtext(
             ".//n42:EnergyCalibration/n42:CoefficientValues", namespaces=ns
         )
         if coeff:
-            data["calibration"] = [float(x) for x in coeff.split()][::-1] # Swing around for numpy
-            
-        data["remark"] = self.root.findtext(
-            ".//n42:Remark", namespaces=ns
-        )
+            data["calibration"] = [float(x) for x in coeff.split()][
+                ::-1
+            ]  # Swing around for numpy
+
+        data["remark"] = self.root.findtext(".//n42:Remark", namespaces=ns)
 
         # --- Spectrum data ---
         for meas in self.root.xpath(".//n42:RadMeasurement", namespaces=ns):
@@ -421,11 +416,11 @@ class xml_parser:
                 roi.get("spectrum_ref"),
             )
             cont = roi.xpath(".//n42:PeakContinuum", namespaces=ns)
-            
+
             # ------------------------------------------------------------------
             # ROI Continuum
             # ------------------------------------------------------------------
-            
+
             cont = cont[0] if cont else None
             if cont is not None:
                 meta_data = {
@@ -448,7 +443,7 @@ class xml_parser:
             # ------------------------------------------------------------------
             # Peak Fit
             # ------------------------------------------------------------------
-            
+
             peak_nodes = roi.xpath("./n42:Peak", namespaces=ns)
             if peak_nodes is not None and len(peak_nodes) != 0:
                 peak = peak_nodes[0]
@@ -469,19 +464,23 @@ class xml_parser:
                 N = peak.xpath(".//n42:NetCounts", namespaces=ns)
                 B = peak.xpath(".//n42:BkgCounts", namespaces=ns)
                 G = peak.xpath(".//n42:GrossCounts", namespaces=ns)
-                counts = float(counts_res[0].text) if counts_res and counts_res[0].text else 0.0
-                peak_kwargs = { "lower": e_low,
-                                "upper": e_high,
-                                "params": fit_params,
-                                "param_errs": fit_params_err,
-                                "peak_counts": counts,
-                                "bkg_params": bkg_params,
-                                "N": N if N is not None else 0,
-                                "B": B if B is not None else 0,
-                                "G": G if G is not None else 0,
-                                
+                counts = (
+                    float(counts_res[0].text)
+                    if counts_res and counts_res[0].text
+                    else 0.0
+                )
+                peak_kwargs = {
+                    "lower": e_low,
+                    "upper": e_high,
+                    "params": fit_params,
+                    "param_errs": fit_params_err,
+                    "peak_counts": counts,
+                    "bkg_params": bkg_params,
+                    "N": N if N is not None else 0,
+                    "B": B if B is not None else 0,
+                    "G": G if G is not None else 0,
                 }
-                
+
                 # The data of a roi, idk what to do with this
                 misc_peak_kwargs = {
                     "centroid": centroid,
@@ -495,7 +494,7 @@ class xml_parser:
             else:
                 # No peak
                 peak_kwargs = misc_peak_kwargs = None
-                
+
             # ------------------------------------------------------------------
             # Nuclide data of the ROI
             # ------------------------------------------------------------------
@@ -505,17 +504,26 @@ class xml_parser:
             if nuclide:
                 nuclide = nuclide[0]
 
-                
-                emission_data["parent_nuclide"] = nuclide.xpath("./n42:Name", namespaces=ns)[0].text
+                emission_data["parent_nuclide"] = nuclide.xpath(
+                    "./n42:Name", namespaces=ns
+                )[0].text
 
-                emission_data["energy_keV"], emission_data["energy_error_keV"] = _parse_pair(nuclide, "./n42:Energy", ns=ns)
-                
-                emission_data["intensity_percent"], emission_data["intensity_error_percent"] = _parse_pair(nuclide, "./n42:Intensity", ns=ns)
-                
-                emission_data["type"] = nuclide.xpath("./n42:Type", namespaces=ns)[0].text
-                
-                emission_data["origin"] = nuclide.xpath("./n42:EmissionOrigin", namespaces=ns)[0].text
+                emission_data["energy_keV"], emission_data["energy_error_keV"] = (
+                    _parse_pair(nuclide, "./n42:Energy", ns=ns)
+                )
 
+                (
+                    emission_data["intensity_percent"],
+                    emission_data["intensity_error_percent"],
+                ) = _parse_pair(nuclide, "./n42:Intensity", ns=ns)
+
+                emission_data["type"] = nuclide.xpath("./n42:Type", namespaces=ns)[
+                    0
+                ].text
+
+                emission_data["origin"] = nuclide.xpath(
+                    "./n42:EmissionOrigin", namespaces=ns
+                )[0].text
 
             general_kwargs = {
                 "tag": "",
@@ -528,14 +536,14 @@ class xml_parser:
                 "live_time": live_time,
                 "meta": meta_data,
                 "emission_data": emission_data,
-                "spectrum": spectrum
+                "spectrum": spectrum,
             }
 
             peaks.append(_build_roi(general_kwargs, peak_kwargs))
             peak_data.append(misc_peak_kwargs)
 
         return peaks, peak_data
-    
+
     def parse_instrument(self, ext_root):
         ns = self.N42_NS
 
@@ -569,7 +577,9 @@ class xml_parser:
             "detector_material": get_text("./n42:DetectorMaterial"),
             "detector_shape": get_text("./n42:DetectorShape"),
             "detector_dimensions_cm": get_array("./n42:DetectorDimensions"),
-            "detector_dimensions_uncert_cm": get_array("./n42:DetectorDimensionsUncertainty"),
+            "detector_dimensions_uncert_cm": get_array(
+                "./n42:DetectorDimensionsUncertainty"
+            ),
             "remark": get_text("./n42:Remark", ""),
         }
 
@@ -580,26 +590,28 @@ class xml_parser:
         res = instrument.xpath("./n42:Resolution", namespaces=ns)
         if res:
             res = res[0]
-            
-            kwargs["resolution_created"] = datetime.fromisoformat((
-                res.xpath("./n42:CreatedTS", namespaces=ns)[0].text
-            ))
 
-            kwargs["resolution_fn"] = (
-                res.xpath("./n42:Function", namespaces=ns)[0].text
+            kwargs["resolution_created"] = datetime.fromisoformat(
+                (res.xpath("./n42:CreatedTS", namespaces=ns)[0].text)
             )
+
+            kwargs["resolution_fn"] = res.xpath("./n42:Function", namespaces=ns)[0].text
 
             kwargs["resolution_params"] = _parse_array(
                 res.xpath("./n42:Parameters", namespaces=ns)[0].text
             )
 
             points = res.xpath(".//n42:ResolutionPoints/n42:DataPoint", namespaces=ns)
-            
-            kwargs["resolution_E_points"] = [_get_float(point, "./n42:Energy", ns) for point in points]
-            kwargs["resolution_FWHM_points"] = [_get_float(point, "./n42:FWHM", ns) for point in points]
-            kwargs["resolution_FWHM_uncert_points"] = [_get_float(point, "./n42:FWHMUncertainty", ns) for point in points]
 
-
+            kwargs["resolution_E_points"] = [
+                _get_float(point, "./n42:Energy", ns) for point in points
+            ]
+            kwargs["resolution_FWHM_points"] = [
+                _get_float(point, "./n42:FWHM", ns) for point in points
+            ]
+            kwargs["resolution_FWHM_uncert_points"] = [
+                _get_float(point, "./n42:FWHMUncertainty", ns) for point in points
+            ]
 
         # ------------------------------------------------------------------
         # Efficiency
@@ -608,30 +620,32 @@ class xml_parser:
         eff = instrument.xpath("./n42:Efficiency", namespaces=ns)
         if eff:
             eff = eff[0]
-            
-            kwargs["int_efficiency_created"] = datetime.fromisoformat((
-                eff.xpath("./n42:CreatedTS", namespaces=ns)[0].text
-            ))
 
-            kwargs["int_efficiency_fn"] = (
-                eff.xpath("./n42:Function", namespaces=ns)[0].text
+            kwargs["int_efficiency_created"] = datetime.fromisoformat(
+                (eff.xpath("./n42:CreatedTS", namespaces=ns)[0].text)
             )
+
+            kwargs["int_efficiency_fn"] = eff.xpath("./n42:Function", namespaces=ns)[
+                0
+            ].text
 
             kwargs["int_efficiency_params"] = _parse_array(
                 eff.xpath("./n42:Parameters", namespaces=ns)[0].text
             )
 
-            kwargs["int_efficiency_description"] = get_text(
-                "./n42:Description"
-            )
-            
+            kwargs["int_efficiency_description"] = get_text("./n42:Description")
+
             points = eff.xpath(".//n42:EfficiencyPoints/n42:DataPoint", namespaces=ns)
-            
-            kwargs["int_efficiency_E_points"] = [_get_float(point, "./n42:Energy", ns) for point in points]
-            kwargs["int_efficiency_eff_points"] = [_get_float(point, "./n42:Efficiency", ns) for point in points]
-            kwargs["int_efficiency_uncert_points"] = [_get_float(point, "./n42:EfficiencyUncertainty", ns) for point in points]
 
-
+            kwargs["int_efficiency_E_points"] = [
+                _get_float(point, "./n42:Energy", ns) for point in points
+            ]
+            kwargs["int_efficiency_eff_points"] = [
+                _get_float(point, "./n42:Efficiency", ns) for point in points
+            ]
+            kwargs["int_efficiency_uncert_points"] = [
+                _get_float(point, "./n42:EfficiencyUncertainty", ns) for point in points
+            ]
 
         # ------------------------------------------------------------------
         # Response matrix
@@ -674,9 +688,13 @@ class xml_parser:
             )
 
             points = cal.xpath(".//n42:CalibrationPoints/n42:DataPoint", namespaces=ns)
-            
-            kwargs["calibration_energy_points"] = [_get_float(point, "./n42:Energy", ns) for point in points]
-            kwargs["calibration_channel_points"] = [_get_float(point, "./n42:Channel", ns) for point in points]
+
+            kwargs["calibration_energy_points"] = [
+                _get_float(point, "./n42:Energy", ns) for point in points
+            ]
+            kwargs["calibration_channel_points"] = [
+                _get_float(point, "./n42:Channel", ns) for point in points
+            ]
 
             date = cal.xpath("./n42:Date", namespaces=ns)
             if date:
@@ -685,4 +703,3 @@ class xml_parser:
         kwargs["name"] = get_text("./n42:Name", "")
 
         return UniqueInstrument(**kwargs)
-        

@@ -23,14 +23,14 @@ class Nuclide:
     specific_activity_Bq_per_g: Tuple[float, float]
     citation_ref: str
     emissions: List[Emission]
-    
+
+
 EmptyEmission = Emission(
-    parent_nuclide="", 
-    energy_keV=None, 
-    energy_error_keV=None, 
+    parent_nuclide="",
+    energy_keV=None,
+    energy_error_keV=None,
     intensity_percent=None,
     intensity_error_percent=None,
     origin="",
-    type="")
-
-
+    type="",
+)
