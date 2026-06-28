@@ -18,7 +18,7 @@ class MultipleUSBReadFailure(Exception):
 
 
 class Usb:
-    def __init__(self, serial_number=None, timeout_ms=3000):
+    def __init__(self, serial_number=None, timeout_ms=2000):
         _vid = 0x0483
         _pid = 0xF123
 
@@ -68,7 +68,7 @@ class Usb:
         self._device.write(0x1, request)
 
         trials = 0
-        max_trials = 3
+        max_trials = 1
         while trials < max_trials:  # repeat until non-zero lenght data received
             try:
                 data = self._device.read(0x81, 256, timeout=self._timeout_ms).tobytes()

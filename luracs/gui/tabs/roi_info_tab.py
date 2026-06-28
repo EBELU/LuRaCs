@@ -179,7 +179,7 @@ class ROIInfoTab(QWidget):
         btn_export_to_csv = QPushButton("Export to CSV")
         btn_export_to_csv.clicked.connect(IOManager.Exporter.export_roi_dialog)
 
-        btn_export_roi_references = QPushButton("Export Reference ROIs")
+        btn_export_roi_references = QPushButton("Save Reference ROIs")
         btn_export_roi_references.clicked.connect(save_roi_references)
 
         options_bar.addWidget(btn_clear)

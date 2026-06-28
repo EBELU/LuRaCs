@@ -44,8 +44,8 @@ class DevicesInfoTab(QWidget):
 
         self.status_ts_buff = {}
 
-        RunManager.newDeviceWrapped.connect(self.add_device)
-        RunManager.statusUpdated.connect(self.update_status)
+        RunManager.Signals.newDeviceWrapped.connect(self.add_device)
+        RunManager.Signals.statusUpdated.connect(self.update_status)
 
     def build_menu_button(
         self,
@@ -63,7 +63,6 @@ class DevicesInfoTab(QWidget):
         return menu_button
 
     def add_device(self, name: str, wrapper: DeviceWrapper):
-        wrapper.stateUpdated.connect(self.update_state)
         self.row_regestry[name] = [
             name,
             None,

@@ -101,6 +101,7 @@ class MainMenuBar(QMenuBar):
         device_menu_connectUSB = device_menu.addAction("Connect USB")
         device_menu_connectUSB.triggered.connect(parent.usb_window.start_popup)
         device_menu_rest_all = device_menu.addAction("Reset All Spectra")
+        device_menu_rest_all.triggered.connect(lambda :ConfirmCallback(self, "Reset the accumulated spectrum of all connected devices?",RunManager.reset_all_spectra))
         device_menu_disconnect = device_menu.addAction("Disconnect All")
         device_menu_disconnect.triggered.connect(
             lambda: ConfirmCallback(

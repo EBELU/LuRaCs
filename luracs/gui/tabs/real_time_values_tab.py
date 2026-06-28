@@ -8,7 +8,6 @@ from PySide6.QtWidgets import (
     QWidget,
     QHBoxLayout,
     QSizePolicy,
-    QTableWidget,
     QTableWidgetItem,
 )
 import pyqtgraph as pg
@@ -82,8 +81,8 @@ class RealTimeValuesPlot(QWidget):
 
         self.row_indicies = {}
 
-        RunManager.currentUpdated.connect(self.receive_data_packet)
-        RunManager.deviceRemoved.connect(self.handle_device_removal)
+        RunManager.Signals.currentUpdated.connect(self.receive_data_packet)
+        RunManager.Signals.deviceRemoved.connect(self.handle_device_removal)
 
         for plot_widget in (self.cps_plot_widget, self.dose_plot_widget):
             plot_widget.setLimits(

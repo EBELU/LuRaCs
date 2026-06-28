@@ -1,8 +1,14 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ..core.run_manager import _RunManager
 import time
 from enum import Enum, auto
 from dataclasses import dataclass
 import numpy as np
-from PySide6.QtCore import Signal, QObject
+import asyncio
+from ..core.settings import Settings
+from ..core.gui_logger import gui_logger
 
 from .MockClient import MockClient
 
@@ -56,10 +62,9 @@ OPTIONAL_WRAPPER_METHODS = {
 }
 
 
-class DeviceWrapper(QObject):
+class DeviceWrapper:
     _registry: dict[str, "DeviceWrapper"] = {}
-
-    stateUpdated = Signal(str, object)
+    run_manager: _RunManager | None = None
 
     type = None
 
@@ -79,7 +84,6 @@ class DeviceWrapper(QObject):
             cls._registry[cls.type] = cls
 
     def __init__(self, address, usb: bool, parent=None):
-        super().__init__(parent)
         self.address = address
         try:
             self.name = address.name
@@ -88,6 +92,8 @@ class DeviceWrapper(QObject):
         self.connection = "USB" if usb else "BLE"
         self.connected_timestamp = time.time()
         self.state = self.DeviceState.UNINITIALIZED
+        
+        self.poll_task: asyncio.Task | None = None
 
         # Virtual placeholders
         self.client = None
@@ -112,11 +118,66 @@ class DeviceWrapper(QObject):
     def set_state(self, state):
         assert isinstance(state, self.DeviceState)
         self.state = state
-        self.stateUpdated.emit(self.name, state)
+        
+    async def _poll_loop(self):
+            update_delay = Settings.Advanced.update_loop_delay
+            spectrum_delay = Settings.Advanced.spectrum_update_delay
+
+            next_loop_time = time.monotonic()
+            next_spectrum_time = time.monotonic()
+
+            try:
+                while self.is_running():
+                    now = time.monotonic()
+
+                    realtime = await self.get_RealTimeData()
+                    if realtime is not None:
+                        self.run_manager.currentUpdated.emit(self.name, realtime)
+                    
+                    status = await self.get_Status()
+                    if status is not None:
+                        self.run_manager.statusUpdated.emit(self.name, status)
+                        
+                    if now >= next_spectrum_time:
+                        spectrum = await self.get_Spectrum()
+                        if spectrum is not None:
+                            self.run_manager.spectrumUpdated.emit(self.name, spectrum)
+
+                    # Schedule next spectrum update
+                    if now >= next_spectrum_time:
+                        next_spectrum_time += spectrum_delay
+
+                    # Schedule next loop iteration
+                    next_loop_time += update_delay
+                    sleep_time = next_loop_time - time.monotonic()
+
+                    if sleep_time > 0:
+                        await asyncio.sleep(sleep_time)
+                    else:
+                        # Were behind -> resync to avoid spiral of death
+                        next_loop_time = time.monotonic()
+
+            except asyncio.CancelledError:
+                raise
+
+            except Exception:
+                gui_logger.exception(f"Polling crashed for {self.name}")
+                self.set_state(self.DeviceState.ERROR)
+                
+    async def start_polling(self):
+        if self.poll_task is None or self.poll_task.done():
+            self.poll_task = asyncio.create_task(self._poll_loop())
+
+    async def stop_polling(self):
+        if self.poll_task:
+            self.poll_task.cancel()
+            await asyncio.gather(self.poll_task, return_exceptions=True)
+            self.poll_task = None
+        
 
     # --- Critical methods that must be defined ---
     # All the following methods are used by the RunManager and must be defined for each new wrapper
-    def get_RealTimeData(self) -> WrappedRealTimePackage:
+    async def get_RealTimeData(self) -> WrappedRealTimePackage:
         """
         Retrieve the latest real-time detector measurements.
 
@@ -128,7 +189,7 @@ class DeviceWrapper(QObject):
         """
         raise CriticalNotImplementedError("get_RealTimeData")
 
-    def get_Status(self) -> WrappedStatusPackage:
+    async def get_Status(self) -> WrappedStatusPackage:
         """
         Retrieve the current device status information.
 
@@ -140,7 +201,7 @@ class DeviceWrapper(QObject):
         """
         raise CriticalNotImplementedError("get_Status")
 
-    def get_Spectrum(self) -> WrappedSpectrumPackage:
+    async def get_Spectrum(self) -> WrappedSpectrumPackage:
         """
         Retrieve the latest acquired spectrum.
 
@@ -159,54 +220,63 @@ class DeviceWrapper(QObject):
         raise CriticalNotImplementedError("is_stopped")
 
     async def start(self):
-        raise CriticalNotImplementedError("start")
+        await self.start_polling()
 
     async def stop(self):
-        raise CriticalNotImplementedError("stop")
-
+        await self.stop_polling()
+        
+    def reset_spectrum(self):
+        pass
 
 class MockClientWrapper(DeviceWrapper):
     type = "mock"
 
     def __init__(self, address=None, usb=None):
         super().__init__(address, usb)
+
         self.name = "MockClient"
         self.channels = 1024
         self.client = MockClient(self.name)
 
-    def get_RealTimeData(self):
-        latestRTD = getattr(self.client, "LatestRealTimeData", None)
-        if latestRTD is not None:
-            return WrappedRealTimePackage(
-                getattr(latestRTD, "CPS"),
-                getattr(latestRTD, "DR"),
-                getattr(latestRTD, "CPS_error", None),
-                getattr(latestRTD, "DR_error", None),
-                getattr(latestRTD, "timestamp", time.time()),
-            )
+    async def get_RealTimeData(self):
+        latest = getattr(self.client, "LatestRealTimeData", None)
+        if latest is None:
+            return None
 
-    def get_Status(self):
-        latestStatus = getattr(self.client, "LatestStatusData", None)
-        if latestStatus is not None:
-            return WrappedStatusPackage(
-                getattr(latestStatus, "battery", None),
-                getattr(latestStatus, "temperature", None),
-                getattr(latestStatus, "charging", None),
-                getattr(latestStatus, "acc_dose", None),
-                getattr(latestStatus, "dose_acc_time", None),
-                getattr(latestStatus, "timestamp", time.time()),
-            )
+        return WrappedRealTimePackage(
+            latest.CPS,
+            latest.DR,
+            getattr(latest, "CPS_error", None),
+            getattr(latest, "DR_error", None),
+            getattr(latest, "timestamp", time.time()),
+        )
 
-    def get_Spectrum(self):
-        latestSpectrum = getattr(self.client, "LatestSpectrum", None)
-        if latestSpectrum is not None:
-            return WrappedSpectrumPackage(
-                getattr(latestSpectrum, "spectrum"),
-                getattr(latestSpectrum, "uptime"),
-                None,
-                getattr(latestSpectrum, "calib_coeff", None),
-                getattr(latestSpectrum, "timestamp", time.time()),
-            )
+    async def get_Status(self):
+        latest = getattr(self.client, "LatestStatusData", None)
+        if latest is None:
+            return None
+
+        return WrappedStatusPackage(
+            getattr(latest, "battery", None),
+            getattr(latest, "temperature", None),
+            getattr(latest, "charging", None),
+            getattr(latest, "acc_dose", None),
+            getattr(latest, "dose_acc_time", None),
+            getattr(latest, "timestamp", time.time()),
+        )
+
+    async def get_Spectrum(self):
+        latest = getattr(self.client, "LatestSpectrum", None)
+        if latest is None:
+            return None
+
+        return WrappedSpectrumPackage(
+            latest.spectrum,
+            latest.uptime,
+            None,
+            getattr(latest, "calib_coeff", None),
+            getattr(latest, "timestamp", time.time()),
+        )
 
     def is_running(self):
         return getattr(self.client, "_running", False)
@@ -215,10 +285,13 @@ class MockClientWrapper(DeviceWrapper):
         return getattr(self.client, "_stopped", True)
 
     async def start(self):
-        return await self.client.start()
+        await self.client.start()
+        await self.start_polling()
 
     async def stop(self):
-        return await self.client.stop()
+        await self.stop_polling()
+        await self.client.stop()
+        
 
 
 class RadiacodeWrapper(DeviceWrapper):
@@ -231,9 +304,8 @@ class RadiacodeWrapper(DeviceWrapper):
         self.client = RadiacodeClientAsync(address, usb)
         self.channels = 1024
 
-    def get_RealTimeData(self):
-        latestRTD = getattr(self.client, "latest_realtime", None)
-        print(f"Latest RTD for {self.name}: {latestRTD}")
+    async def get_RealTimeData(self):
+        latestRTD = await self.client.get_realtime()
         if latestRTD is not None:
             return WrappedRealTimePackage(
                 getattr(latestRTD, "CPS"),
@@ -243,8 +315,8 @@ class RadiacodeWrapper(DeviceWrapper):
                 getattr(latestRTD, "timestamp", time.time()),
             )
 
-    def get_Status(self):
-        latestStatus = getattr(self.client, "latest_status", None)
+    async def get_Status(self):
+        latestStatus = await self.client.get_status()
         if latestStatus is not None:
             return WrappedStatusPackage(
                 getattr(latestStatus, "battery", None),
@@ -255,8 +327,8 @@ class RadiacodeWrapper(DeviceWrapper):
                 getattr(latestStatus, "timestamp", time.time()),
             )
 
-    def get_Spectrum(self):
-        latestSpectrum = getattr(self.client, "latest_spectrum", None)
+    async def get_Spectrum(self):
+        latestSpectrum = await self.client.get_spectrum()
         if latestSpectrum is not None:
             return WrappedSpectrumPackage(
                 getattr(latestSpectrum, "spectrum"),
@@ -275,13 +347,18 @@ class RadiacodeWrapper(DeviceWrapper):
         return getattr(self.client, "_stopped", True)
 
     async def start(self):
-        return await self.client.start()
+        await self.client.start()
+        await super().start()
 
     async def stop(self):
-        return await self.client.stop()
+        await self.client.stop()
+        await super().stop()
 
     def set_calibration(self, coeff):
         self.client.set_calibration(coeff)
+        
+    def reset_spectrum(self):
+        self.client.reset()
 
 
 class RaysidWrapper(DeviceWrapper):

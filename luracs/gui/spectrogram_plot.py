@@ -134,8 +134,8 @@ class SpectrogramWidget(QWidget):
 
         self.sigStartSpectrogram.connect(start_spectrogram)
         self.sigLoadSpectrogram.connect(restart_spectrogram)
-        RunManager.spectrogramStarted.connect(self.connect_logger)
-        RunManager.spectrogramDequeResized.connect(self.update_on_spectrogram_selection)
+        RunManager.Signals.spectrogramStarted.connect(self.connect_logger)
+        RunManager.Signals.spectrogramDequeResized.connect(self.update_on_spectrogram_selection)
 
         # Default values
         self.y_len = Settings.Advanced.spectrogram_deque_length

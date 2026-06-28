@@ -43,7 +43,7 @@ class BluetoothListPopup(ListPopupNonBlocking):
         self.deviceSelected.connect(_on_bt_device_selected)
         self.rescanRequested.connect(self._request_bt_scan)
         self.cancelScan.connect(RunManager.cancel_scan_task)
-        RunManager.bluetoothFound.connect(self.receive_BT_list)
+        RunManager.Signals.bluetoothFound.connect(self.receive_BT_list)
 
         self.scan_task = None
 

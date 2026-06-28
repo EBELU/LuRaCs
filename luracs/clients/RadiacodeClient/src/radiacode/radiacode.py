@@ -6,7 +6,7 @@ spectrum analysis.
 """
 
 import datetime
-import platform
+import asyncio
 import struct
 from typing import Optional
 
@@ -71,12 +71,15 @@ class RadiaCode:
         ignore_firmware_compatibility_check: bool = False,
     ) -> 'RadiaCode':
 
-        bt_supported = platform.system() != 'Darwin'
-
-        if bluetooth_mac and bt_supported:
+        if bluetooth_mac:
+            logger.info(f"Connecting BLE to '{bluetooth_mac}'")
             conn = Bluetooth(bluetooth_mac)
         elif serial_number:
-            conn = Usb(serial_number=serial_number)
+            logger.info(f"Connecting USB to '{serial_number}'")
+            conn = await asyncio.to_thread(
+                Usb,
+                serial_number=serial_number,
+            )
         else:
             raise RuntimeError('Connection failed')
 
@@ -116,7 +119,10 @@ class RadiaCode:
         request = req_header + (args or b'')
         full_request = struct.pack('<I', len(request)) + request
 
-        response = await self._connection.execute(full_request)
+        if isinstance(self._connection, Bluetooth):
+            response = await self._connection.execute(full_request)
+        else:
+            response = self._connection.execute(full_request)
 
         resp_header = response.unpack('<4s')[0]
         assert req_header == resp_header, f'req={req_header.hex()} resp={resp_header.hex()}'
@@ -183,7 +189,10 @@ class RadiaCode:
     # Device lifecycle
     # -------------------------
     async def stop(self):
-        await self._connection.stop()
+        if isinstance(self._connection, Bluetooth):
+            await self._connection.stop()
+        else:
+            self._connection.stop()
 
     def base_time(self) -> datetime.datetime:
         return self._base_time

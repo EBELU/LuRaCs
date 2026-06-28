@@ -6,9 +6,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QHBoxLayout,
 )
-from PySide6.QtCore import Qt, Signal
-
-from luracs.core import RunManager
+from PySide6.QtCore import Qt, Signal, QSize
 
 
 class ListPopupNonBlocking(QDialog):
@@ -39,6 +37,12 @@ class ListPopupNonBlocking(QDialog):
         self.list_widget.setSelectionMode(QListWidget.SingleSelection)
         self.list_widget.setFocusPolicy(Qt.NoFocus)
         self.list_widget.itemDoubleClicked.connect(self._on_double_click)
+        
+        self.list_widget.setStyleSheet("""
+        QListWidget::item {
+            padding: 8px;
+        }
+        """)
 
 
         layout.addWidget(self.list_widget)
@@ -70,6 +74,7 @@ class ListPopupNonBlocking(QDialog):
             item = QListWidgetItem(text)
             item.setTextAlignment(Qt.AlignCenter)
             item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+            item.setSizeHint(QSize(0, 40))
             self.list_widget.addItem(item)
 
         self.list_widget.clearSelection()

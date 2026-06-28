@@ -371,7 +371,7 @@ class ROICommand(Command):
 
         SpectrumManager.ROIManager.add_roi(lower, upper)
 
-        return f"ROI added"
+        return "ROI added"
 
 
 class SpectrogramCommand(Command):
@@ -588,8 +588,8 @@ class WatchCommand(Command):
     device_states_buffer: dict[str, WrappedStatusPackage] = {}
 
     def __init__(self):
-        RunManager.currentUpdated.connect(self.update_realtime_values_buffer)
-        RunManager.statusUpdated.connect(self.update_device_state_buffer)
+        RunManager.Signals.currentUpdated.connect(self.update_realtime_values_buffer)
+        RunManager.Signals.statusUpdated.connect(self.update_device_state_buffer)
 
     async def run(self, engine: ScriptEngine, *args):
         if not engine.headless:

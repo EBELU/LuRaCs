@@ -101,9 +101,9 @@ DeletableROI.roi_editor_dialog = ROIEditor
 
 # ===================== IMPORTANT SIGNALS =====================
 
-RunManager.createDeviceSpectrum.connect(SpectrumManager.create_spectrum)
-RunManager.removeDeviceSpectrum.connect(SpectrumManager.remove_spectrum)
-RunManager.spectrumUpdated.connect(SpectrumManager.set_foreground_spectrum)
+RunManager.Signals.createDeviceSpectrum.connect(SpectrumManager.create_spectrum)
+RunManager.Signals.removeDeviceSpectrum.connect(SpectrumManager.remove_spectrum)
+RunManager.Signals.spectrumUpdated.connect(SpectrumManager.set_foreground_spectrum)
 Settings.sigSettingChanged.connect(
     lambda group, variable, new_value: Log.debug(
         f"{Settings.__class__}: Setting updated: {group}.{variable} = {new_value}"

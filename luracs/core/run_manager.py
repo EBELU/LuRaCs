@@ -62,12 +62,7 @@ class SpectrumResult:
     live_time: float
     timestamp: float
 
-
-class _RunManager(QObject):
-    """
-    The run manager is luracs.core singleton that manages connected devices and spectrogram, since they are tightly connected to the devices. All communications with Bluetooth or USB goes through this class.
-    """
-
+class EmittedSignals(QObject):
     # ---- data signals ----
     currentUpdated = Signal(str, object)
     statusUpdated = Signal(str, object)
@@ -95,11 +90,19 @@ class _RunManager(QObject):
     bluetoothTimer = Signal(float)
     bluetoothFound = Signal(list)
     bluetoothError = Signal(str)
+    
+
+class _RunManager(QObject):
+    """
+    The run manager is luracs.core singleton that manages connected devices and spectrogram, since they are tightly connected to the devices. All communications with Bluetooth or USB goes through this class.
+    """
 
     def __init__(self):
         super().__init__()
+        
+        self.Signals = EmittedSignals()
 
-        self.deviceConnecting.connect(Settings.add_new_connection)
+        self.Signals.deviceConnecting.connect(Settings.add_new_connection)
 
         self.device_registry: dict[str, DeviceWrapper] = {}
 
@@ -109,83 +112,23 @@ class _RunManager(QObject):
         self._seen_devices: dict[str, object] = {}
         self._scan_task: asyncio.Task | None = None
 
-        self.running = False
+        DeviceWrapper.run_manager = self
 
         self._poll_task: asyncio.Task | None = None
         self._polling = False
 
         self.loaded_spectrogram: dict[str, Spectrogram] = {}
 
-    async def _poll_loop(self):
-        update_delay = Settings.Advanced.update_loop_delay
-        spectrum_delay = Settings.Advanced.spectrum_update_delay
-
-        next_loop_time = time.monotonic()
-        next_spectrum_time = time.monotonic()
-
-        try:
-            while self._polling:
-                now = time.monotonic()
-
-                for name, client in list(self.device_registry.items()):
-                    # --- Remove stopped clients ---
-                    if client.is_stopped():
-                        self.device_registry.pop(name)
-                        continue
-
-                    # --- Check crash ---
-                    if not client.is_running() and not client.is_stopped():
-                        client.set_state(DeviceWrapper.DeviceState.ERROR)
-                        continue
-
-                    # --- Spectrum (time-based, not loop-based) ---
-                    if now >= next_spectrum_time:
-                        spectrum = client.get_Spectrum()
-                        if spectrum is not None:
-                            self.spectrumUpdated.emit(name, spectrum)
-
-                    # --- Realtime ---
-                    realtime = client.get_RealTimeData()
-                    if realtime is not None:
-                        self.currentUpdated.emit(name, realtime)
-
-                    # --- Status ---
-                    status = client.get_Status()
-                    if status is not None:
-                        self.statusUpdated.emit(name, status)
-
-                # Schedule next spectrum update
-                if now >= next_spectrum_time:
-                    next_spectrum_time += spectrum_delay
-
-                # Schedule next loop iteration
-                next_loop_time += update_delay
-                sleep_time = next_loop_time - time.monotonic()
-
-                if sleep_time > 0:
-                    await asyncio.sleep(sleep_time)
-                else:
-                    # Were behind -> resync to avoid spiral of death
-                    next_loop_time = time.monotonic()
-
-        except asyncio.CancelledError:
-            raise
-
-        except CriticalNotImplementedError as e:
-            gui_logger.error(
-                f"Wrapper for device {name} has critical method '{e}' not implemented! Removing device."
-            )
-            self.remove_device(name)
-
-        except Exception as e:
-            gui_logger.critical("Polling crashed:", e)
+        self.queue_len = Settings.Advanced.real_time_values_deque_length
+        self.cps_queues = {}
+        self.dose_queues = {}
 
     async def add_device(
         self, device_address: str, device_type: str, usb: bool = False
     ):
         client_wrapper = DeviceWrapper.match_model_to_str(device_type)
         if client_wrapper is None:
-            gui_logger.error(f"Invald device type! {device_type}")
+            gui_logger.error(f"Invalid device type! {device_type}")
             return
 
         new_device: DeviceWrapper = client_wrapper(device_address, usb)
@@ -194,85 +137,91 @@ class _RunManager(QObject):
             gui_logger.debug(f"Device {device_address} already exists")
             return
 
-        self.deviceConnecting.emit(new_device.name)
-        self.newDeviceWrapped.emit(new_device.name, new_device)
+        self.Signals.deviceConnecting.emit(new_device.name)
+        self.Signals.newDeviceWrapped.emit(new_device.name, new_device)
         new_device.set_state(DeviceWrapper.DeviceState.CONNECTING)
 
         try:
             await new_device.start()
+
+            if not new_device.is_running():
+                raise RuntimeError("Device failed to enter running state")
+
         except asyncio.CancelledError:
-            gui_logger.error(f"Deive was cancelled {new_device.name}")
+            gui_logger.error(f"Device start cancelled: {new_device.name}")
             self.deviceCancelled.emit(new_device.name)
+            return
 
         except CriticalNotImplementedError as e:
             gui_logger.error(
-                f"Wrapper for device {new_device.name} has critical method '{e}' not implemented! Aborting!"
+                f"Wrapper for device {new_device.name} has critical method '{e}' not implemented!"
             )
+            new_device.set_state(DeviceWrapper.DeviceState.CONNECTION_FAILED)
+            return
 
         except Exception as e:
             gui_logger.error(f"Device start threw exception {e}. Start failed!")
             new_device.set_state(DeviceWrapper.DeviceState.CONNECTION_FAILED)
             return
 
-        try:
-            if new_device.is_running():
-                gui_logger.info(
-                    f"Device connected: name={new_device.name}, type={device_type}, connection_type={'USB' if usb else 'BLE'}"
-                )
-                self.deviceConnected.emit(new_device.name)
-                new_device.set_state(DeviceWrapper.DeviceState.CONNECTED)
-                self.createDeviceSpectrum.emit(
-                    new_device.name, new_device.channels, new_device.name
-                )
-                self.device_registry[new_device.name] = new_device
+        self.device_registry[new_device.name] = new_device
+        new_device.set_state(DeviceWrapper.DeviceState.CONNECTED)
 
-            else:
-                new_device.set_state(DeviceWrapper.DeviceState.CONNECTION_FAILED)
-                gui_logger.error(f"Device failed to start properly {new_device.name}")
-        except CriticalNotImplementedError as e:
-            gui_logger.error(
-                f"Wrapper for device {new_device.name} has critical method '{e}' not implemented! Aborting!"
-            )
+        gui_logger.info(
+            f"Device connected: "
+            f"name={new_device.name}, "
+            f"type={device_type}, "
+            f"connection_type={'USB' if usb else 'BLE'}"
+        )
 
-        if not self._polling:
-            self._polling = True
-            self._poll_task = asyncio.create_task(self._poll_loop())
+        self.Signals.deviceConnected.emit(new_device.name)
+        self.Signals.createDeviceSpectrum.emit(
+            new_device.name,
+            new_device.channels,
+            new_device.name,
+        )
 
     def remove_all_devices(self):
-        for device_name in list(self.device_registry.keys()):
+        for device_name in list(self.device_registry):
             self.remove_device(device_name)
 
-    def remove_device(self, device_name: str, remove_spectrum: bool = False):
-        asyncio.create_task(self._remove_device(device_name, remove_spectrum))
 
-    async def _remove_device(self, device_name: str, remove_spectrum: bool = False):
+    def remove_device(self, device_name: str, remove_spectrum: bool = False):
+        asyncio.create_task(
+            self._remove_device(device_name, remove_spectrum)
+        )
+
+
+    async def _remove_device(
+        self,
+        device_name: str,
+        remove_spectrum: bool = False,
+    ):
         client = self.device_registry.pop(device_name, None)
-        if not client:
+        if client is None:
             return
 
         try:
             client.set_state(DeviceWrapper.DeviceState.STOPPING)
-            print(f"Stopping device {device_name}")
+
+            gui_logger.info(f"Stopping device {device_name}")
             await client.stop()
-            print(f"Device {device_name} stopped")
+
             gui_logger.info(f"Device disconnected: {device_name}")
-            self.deviceRemoved.emit(device_name)
+            self.Signals.deviceRemoved.emit(device_name)
+
         except Exception as e:
             gui_logger.warning(str(e))
-            self.deviceError.emit(device_name, str(e))
+            self.Signals.deviceError.emit(device_name, str(e))
+
         finally:
             client.set_state(DeviceWrapper.DeviceState.STOPPED)
+
             if remove_spectrum:
-                self.removeDeviceSpectrum.emit(device_name)
-            # --- stop polling if no devices remain ---
-            if not self.device_registry and self._poll_task:
-                self._polling = False
-                self._poll_task.cancel()
-                await asyncio.gather(self._poll_task, return_exceptions=True)
-                self._poll_task = None
+                self.Signals.removeDeviceSpectrum.emit(device_name)
 
     async def shutdown(self):
-        self.shutdownStarted.emit()
+        self.Signals.shutdownStarted.emit()
         # --- Close active loggers ---
         for logger_key in self.loaded_spectrogram.copy().keys():
             try:
@@ -297,19 +246,13 @@ class _RunManager(QObject):
 
         await asyncio.gather(*tasks, return_exceptions=True)
 
-        # --- Close the polling ---
-        if self._poll_task:
-            gui_logger.debug("Cancelling poll task")
-            self._polling = False
-            self._poll_task.cancel()
-            try:
-                await asyncio.wait_for(self._poll_task, timeout=3)
-            except asyncio.TimeoutError:
-                gui_logger.warning("Poll task did not finish in time")
-            self._poll_task = None
-
         self.device_registry.clear()
-        self.shutdownFinished.emit()
+        self.Signals.shutdownFinished.emit()
+        
+    def reset_all_spectra(self):
+        for w in self.device_registry.values():
+            w.reset_spectrum()
+        
 
     def cancel_scan_task(self):
         if self._scan_task and not self._scan_task.done():
@@ -344,15 +287,15 @@ class _RunManager(QObject):
             try:
                 gui_logger.info(f"Started bluetooth scan: scan_time={timeout}")
                 devices = await BleakScanner.discover(timeout)
-                self.bluetoothFound.emit(devices)
+                self.Signals.bluetoothFound.emit(devices)
                 return devices
             except asyncio.CancelledError:
                 gui_logger.info("Bluetooth scan cancelled")
-                self.bluetoothFound.emit([])
+                self.Signals.bluetoothFound.emit([])
             # Include handling for missing connector
             except Exception as e:
                 gui_logger.error(f"Bluetooth scan error: {e}")
-                self.bluetoothError.emit(str(e))
+                self.Signals.bluetoothError.emit(str(e))
             finally:
                 self._scan_task = None
 
@@ -398,7 +341,7 @@ class _RunManager(QObject):
 
     def add_spectrogram(self, device_name: str, new_log: bool):
         self.loaded_spectrogram[device_name] = new_log
-        self.spectrogramStarted.emit(device_name)
+        self.Signals.spectrogramStarted.emit(device_name)
         gui_logger.info(
             f"Spectrogram Opened: db_name = {new_log.db_name}, device = {new_log.device_id}"
         )
@@ -407,14 +350,14 @@ class _RunManager(QObject):
         spectrogram = self.loaded_spectrogram.pop(name, None)
         if spectrogram:
             spectrogram.close()
-            self.spectrogramClosed.emit(name)
+            self.Signals.spectrogramClosed.emit(name)
             gui_logger.info(f"Spectrogram Closed: name = {name}")
 
     def resize_spectrogram_deque(self, new_len: str):
         for spectrogram in self.loaded_spectrogram.values():
             spectrogram.resize_deque(new_len)
 
-        self.spectrogramDequeResized.emit()
+        self.Signals.spectrogramDequeResized.emit()
 
 
 RunManager = _RunManager()

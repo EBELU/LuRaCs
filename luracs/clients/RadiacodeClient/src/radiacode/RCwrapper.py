@@ -63,7 +63,25 @@ class RadiacodeAsync:
 
     @property
     def latest_status(self):
+        return self._latest_statu
+
+    async def get_realtime(self):
+        data = await self.client.data_buf()
+        self._decode_cps_packet(data)
+        return self._latest_cps
+
+    async def get_status(self):
         return self._latest_status
+
+    async def get_spectrum(self):
+        spectrum = await self.client.spectrum()
+        return SpectrumResult(
+            spectrum=np.array(spectrum.counts),
+            counts=sum(spectrum.counts),
+            uptime=spectrum.duration.total_seconds(),
+            calib_coeff=[spectrum.a0, spectrum.a1, spectrum.a2][::-1],
+            timestamp=time.time(),
+        )
 
     async def start(self):
         if self._usb:
@@ -72,7 +90,6 @@ class RadiacodeAsync:
             self.client = await RadiaCode.connect(bluetooth_mac=self.address)
 
         self._stopped = False
-        self._task = asyncio.create_task(self._poll_loop())
 
         logger.info(f'Radiacode {self.name} connected')
 
