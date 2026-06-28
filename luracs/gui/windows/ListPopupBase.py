@@ -40,29 +40,6 @@ class ListPopupNonBlocking(QDialog):
         self.list_widget.setFocusPolicy(Qt.NoFocus)
         self.list_widget.itemDoubleClicked.connect(self._on_double_click)
 
-        self.list_widget.setStyleSheet("""
-            QListWidget {
-                border: 1px solid palette(mid);
-                border-radius: 8px;
-                padding: 4px;
-                background: palette(base);
-            }
-
-            QListWidget::item {
-                padding: 8px;
-                margin: 2px;
-                border-radius: 6px;
-            }
-
-            QListWidget::item:selected {
-                background: palette(highlight);
-                color: palette(highlighted-text);
-            }
-
-            QListWidget::item:hover {
-                background: palette(alternate-base);
-            }
-        """)
 
         layout.addWidget(self.list_widget)
 

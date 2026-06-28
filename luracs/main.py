@@ -48,7 +48,7 @@ from PySide6.QtCore import QTimer
 print_progress("Loading GUI", 0)
 
 # --- Perform standard internal imports ---
-from luracs.gui import MainMenuBar, SpectrumPlotContainer, SpectrogramWidget, MapWidget
+from luracs.gui import MainMenuBar, SpectrumPlotContainer, SpectrogramWidget
 
 from luracs.gui.tabs import (
     ROIInfoTab,
@@ -83,6 +83,9 @@ try:
     IS_H3 = False
 except ModuleNotFoundError:
     IS_H3 = True
+    
+if not IS_H3:
+    from luracs.gui.mapping import MapWidget
 
 print_progress("Loading luracs.utils.", 5)
 
