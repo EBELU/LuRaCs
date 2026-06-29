@@ -1,6 +1,5 @@
 import asyncio
 import struct
-import time
 from dataclasses import dataclass
 from typing import Optional
 
@@ -33,23 +32,28 @@ class Bluetooth:
 
         self._queue: asyncio.Queue[_Request] = asyncio.Queue()
         self._task: Optional[asyncio.Task] = None
-        self._keepalive_task: Optional[asyncio.Task] = None
 
         self._running = False
 
-        # response state (owned by BLE worker only)
+        # request/response state
         self._resp_buffer = bytearray()
         self._resp_remaining = 0
         self._current_future: Optional[asyncio.Future] = None
+
+        # connection epoch guard
+        self._conn_id = 0
+        self._active_conn_id = 0
 
         # reconnect policy
         self._reconnect_cycles = 0
         self._max_reconnect_cycles = 4
 
+        # serialize disconnect vs request
+        self._lock = asyncio.Lock()
+
     async def start(self):
         if self._running:
             return
-
         self._running = True
         self._task = asyncio.create_task(self._worker())
 
@@ -61,19 +65,10 @@ class Bluetooth:
         fut = loop.create_future()
 
         await self._queue.put(_Request(req, fut))
-
-        data = await fut
-        return BytesBuffer(data)
+        return BytesBuffer(await fut)
 
     async def stop(self):
         self._running = False
-
-        if self._keepalive_task:
-            self._keepalive_task.cancel()
-            try:
-                await self._keepalive_task
-            except Exception:
-                pass
 
         if self._task:
             self._task.cancel()
@@ -100,11 +95,13 @@ class Bluetooth:
                     if not req.future.done():
                         req.future.set_exception(e)
 
+                    # any protocol failure resets transport
+                    await self._disconnect()
+
             except asyncio.CancelledError:
                 break
 
             except Exception as e:
-                # fatal reconnect failure
                 self._fail_all_pending(e)
                 await self._disconnect()
                 break
@@ -131,6 +128,10 @@ class Bluetooth:
 
                 await self._client.start_notify(NOTIFY_UUID, self._on_notify)
 
+                # new connection epoch
+                self._conn_id += 1
+                self._active_conn_id = self._conn_id
+
                 self._reconnect_cycles = 0
                 return
 
@@ -142,36 +143,56 @@ class Bluetooth:
                     await asyncio.sleep(0.5 * attempt)
 
         self._reconnect_cycles += 1
-
         if self._reconnect_cycles >= self._max_reconnect_cycles:
             raise RuntimeError('Max reconnect cycles exceeded') from last_err
 
         raise ConnectionError('Connect cycle failed') from last_err
 
     async def _handle_request(self, req: bytes) -> bytes:
-        if not self._client:
-            raise ConnectionError('Not connected')
+        async with self._lock:
+            if not self._client:
+                raise ConnectionError('Not connected')
 
-        loop = asyncio.get_running_loop()
-        self._current_future = loop.create_future()
+            loop = asyncio.get_running_loop()
+            self._current_future = loop.create_future()
 
-        self._resp_buffer = bytearray()
-        self._resp_remaining = 0
+            # reset response state
+            self._resp_buffer = bytearray()
+            self._resp_remaining = 0
 
-        for pos in range(0, len(req), 18):
-            await self._client.write_gatt_char(
-                WRITE_UUID,
-                req[pos : pos + 18],
-                response=False,
-            )
+            try:
+                for pos in range(0, len(req), 18):
+                    await self._client.write_gatt_char(
+                        WRITE_UUID,
+                        req[pos : pos + 18],
+                        response=False,
+                    )
 
-        result = await asyncio.wait_for(self._current_future, timeout=10)
+                try:
+                    return await asyncio.wait_for(self._current_future, timeout=10)
 
-        self._current_future = None
-        return result
+                except asyncio.TimeoutError:
+                    await self._disconnect()
+                    raise ConnectionError('Request timeout (transport reset)')
+
+            finally:
+                self._current_future = None
+                self._resp_buffer = bytearray()
+                self._resp_remaining = 0
 
     def _on_notify(self, _char, data: bytearray):
+        # reject stale connections
+        if self._conn_id != self._active_conn_id:
+            return
+
+        if self._current_future is None:
+            return
+
+        # first packet = frame header
         if self._resp_remaining == 0:
+            if len(data) < 4:
+                return
+
             self._resp_remaining = 4 + struct.unpack('<i', data[:4])[0]
             self._resp_buffer = bytearray(data[4:])
         else:
@@ -179,18 +200,39 @@ class Bluetooth:
 
         self._resp_remaining -= len(data)
 
+        # frame validation guard
+        if self._resp_remaining < 0:
+            if self._current_future and not self._current_future.done():
+                self._current_future.set_exception(RuntimeError('BLE frame desync detected'))
+            self._resp_remaining = 0
+            self._resp_buffer = bytearray()
+            return
+
         if self._resp_remaining == 0 and self._current_future:
             if not self._current_future.done():
                 self._current_future.set_result(bytes(self._resp_buffer))
 
     async def _disconnect(self):
-        try:
-            if self._client:
-                await self._client.disconnect()
-        except Exception:
-            pass
-        finally:
-            self._client = None
+        async with self._lock:
+            try:
+                if self._client:
+                    await self._client.disconnect()
+            except Exception:
+                pass
+            finally:
+                self._client = None
+
+                # invalidate connection epoch
+                self._conn_id += 1
+                self._active_conn_id = self._conn_id
+
+                self._resp_buffer = bytearray()
+                self._resp_remaining = 0
+
+                if self._current_future and not self._current_future.done():
+                    self._current_future.set_exception(ConnectionError())
+
+                self._current_future = None
 
     def _fail_all_pending(self, error: Exception):
         while not self._queue.empty():
