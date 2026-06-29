@@ -32,7 +32,7 @@
     <script>
         const data_points = {};
 
-        function add_data_point(id, lat, lon, colour) {
+        function add_data_point(id, lat, lon, colour, popup_text) {
             const el = document.createElement("div");
             el.id = id;
 
@@ -44,7 +44,7 @@
             el.style.boxSizing = "border-box";
 
             const popup = new maplibregl.Popup({ offset: 9 }).setText(
-                'Data point: ' + id
+                popup_text
             );
 
             const marker = new maplibregl.Marker({ element: el })
@@ -66,6 +66,17 @@
             if (!obj) return;
             obj.marker.remove();
             delete data_points[id];
+        }
+
+        function remove_all_data_points() {
+            for (const id in data_points) {
+                data_points[id].marker.remove();
+            }
+
+            // Clear the object
+            for (const id in data_points) {
+                delete data_points[id];
+            }
         }
 
         function createJsMap(style) {
@@ -92,6 +103,8 @@
                     );
                 }
             });
+
+            map.addControl(new maplibregl.NavigationControl(), 'top-right');
         }
 
         let bridge = null;

@@ -128,34 +128,42 @@ class DeviceWrapper:
 
             try:
                 while self.is_running():
-                    now = time.monotonic()
+                    try:
+                        now = time.monotonic()
 
-                    realtime = await self.get_RealTimeData()
-                    if realtime is not None:
-                        self.run_manager.currentUpdated.emit(self.name, realtime)
-                    
-                    status = await self.get_Status()
-                    if status is not None:
-                        self.run_manager.statusUpdated.emit(self.name, status)
+                        realtime = await self.get_RealTimeData()
+                        if realtime is not None:
+                            self.run_manager.Signals.currentUpdated.emit(self.name, realtime)
                         
-                    if now >= next_spectrum_time:
-                        spectrum = await self.get_Spectrum()
-                        if spectrum is not None:
-                            self.run_manager.spectrumUpdated.emit(self.name, spectrum)
+                        status = await self.get_Status()
+                        if status is not None:
+                            self.run_manager.Signals.statusUpdated.emit(self.name, status)
+                            
+                        if now >= next_spectrum_time:
+                            spectrum = await self.get_Spectrum()
+                            if spectrum is not None:
+                                self.run_manager.Signals.spectrumUpdated.emit(self.name, spectrum)
 
-                    # Schedule next spectrum update
-                    if now >= next_spectrum_time:
-                        next_spectrum_time += spectrum_delay
+                        # Schedule next spectrum update
+                        if now >= next_spectrum_time:
+                            next_spectrum_time += spectrum_delay
 
-                    # Schedule next loop iteration
-                    next_loop_time += update_delay
-                    sleep_time = next_loop_time - time.monotonic()
+                        # Schedule next loop iteration
+                        next_loop_time += update_delay
+                        sleep_time = next_loop_time - time.monotonic()
 
-                    if sleep_time > 0:
-                        await asyncio.sleep(sleep_time)
-                    else:
-                        # Were behind -> resync to avoid spiral of death
-                        next_loop_time = time.monotonic()
+                        if sleep_time > 0:
+                            await asyncio.sleep(sleep_time)
+                        else:
+                            # Were behind -> resync to avoid spiral of death
+                            next_loop_time = time.monotonic()
+                    except asyncio.exceptions.TimeoutError:
+                        gui_logger.warning("Poll request timed out")
+                    
+                    except asyncio.CancelledError:
+                        raise
+                    
+
 
             except asyncio.CancelledError:
                 raise

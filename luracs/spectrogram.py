@@ -33,9 +33,9 @@ def decompress_spectrum(blob: bytes, channel_count: int) -> np.ndarray:
 def restart_spectrogram(db_name: str):
     new_log = Spectrogram(db_name, resume=True)
 
-    RunManager.currentUpdated.connect(new_log.receive_current)
-    RunManager.statusUpdated.connect(new_log.receive_status)
-    RunManager.spectrumUpdated.connect(new_log.receive_spectrum)
+    RunManager.Signals.currentUpdated.connect(new_log.receive_current)
+    RunManager.Signals.statusUpdated.connect(new_log.receive_status)
+    RunManager.Signals.spectrumUpdated.connect(new_log.receive_spectrum)
 
     RunManager.add_spectrogram(db_name, new_log)
 
