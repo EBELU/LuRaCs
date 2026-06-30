@@ -1,12 +1,15 @@
 from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.concurrency import run_in_threadpool
+from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from threading import Thread
 import uvicorn
 from .pmtiles.reader import Reader, MmapSource
 from functools import lru_cache
 import threading
+
+from luracs.core import Settings
 
 
 class PMTilesServer:
@@ -29,6 +32,14 @@ class PMTilesServer:
         )
 
         reader = self.reader
+        
+        sprite_dir = Settings.Paths.resources / "mapping_resources" / "sprites"
+
+        self.app.mount(
+            "/sprites",
+            StaticFiles(directory=sprite_dir),
+            name="sprites"
+        )
 
         @lru_cache(maxsize=20000)
         def get_tile(z, x, y):

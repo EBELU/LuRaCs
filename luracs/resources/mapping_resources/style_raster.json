@@ -1,19 +1,18 @@
 {
-        "version": 8,
-        "name": "Raster Style",
-        "sources": {
-          "openmaptiles": {
-            "type": "raster",
-            "tiles": ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-
-            "tileSize": 512
-          }
-        },
-        "layers": [
-          {
-            "id": "raster-layer",
-            "type": "raster",
-            "source": "openmaptiles"
-          }
-        ]
-      }
+  "version": 8,
+  "name": "Raster Style",
+  "sources": {
+    "openmaptiles": {
+      "type": "raster",
+      "tiles": [],
+      "tileSize": 256
+    }
+  },
+  "layers": [
+    {
+      "id": "raster-layer",
+      "type": "raster",
+      "source": "openmaptiles"
+    }
+  ]
+}

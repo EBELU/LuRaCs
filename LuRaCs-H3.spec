@@ -2,19 +2,22 @@
 
 import os
 import sys
+from pathlib import Path
 
 # Platform detection
 is_windows = sys.platform.startswith("win")
 is_linux = sys.platform.startswith("linux")
 exe_name = "Win" if is_windows else "Linux"
 
+ROOT = Path(os.getcwd()).resolve()
+
 # Cross-platform path
 main_script = os.path.join('luracs', 'main.py')
 resources = os.path.join('luracs', 'resources')
 
 a = Analysis(
-    [main_script],
-    pathex=[],
+    [str(ROOT / "luracs" / "main.py")],
+    pathex=[str(ROOT)],
     binaries=[],
     datas=[
         (resources, 'resources'),

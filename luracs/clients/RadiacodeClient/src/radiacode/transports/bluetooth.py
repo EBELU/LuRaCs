@@ -6,6 +6,7 @@ from typing import Optional
 from bleak import BleakClient
 from bleak.exc import BleakError
 from ..bytes_buffer import BytesBuffer
+from ..logger import logger
 
 WRITE_UUID = 'e63215e6-7003-49d8-96b0-b024798fb901'
 NOTIFY_UUID = 'e63215e7-7003-49d8-96b0-b024798fb901'
@@ -109,7 +110,7 @@ class Bluetooth:
     async def _ensure_connected(self):
         if self._client and self._client.is_connected:
             return
-
+        logger.warning('Connection lost, attempting to reconnect')
         await self._disconnect()
 
         last_err = None
@@ -133,6 +134,7 @@ class Bluetooth:
                 self._active_conn_id = self._conn_id
 
                 self._reconnect_cycles = 0
+                logger.info('Reconnection successful!')
                 return
 
             except Exception as e:

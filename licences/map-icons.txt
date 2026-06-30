@@ -1,0 +1,14 @@
+Natural Earth
+--------------
+Source: https://www.naturalearthdata.com/
+License: Public Domain.
+
+OSM Liberty
+-----------
+Source: https://github.com/maputnik/osm-liberty
+License: BSD 2-Clause License.
+
+Maki Icons
+-----------
+Source: https://github.com/mapbox/maki
+License: CC0 1.0 Universal (Public Domain Dedication).

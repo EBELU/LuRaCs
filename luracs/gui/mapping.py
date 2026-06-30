@@ -531,7 +531,7 @@ class MapWidget(QWidget):
             self,
             "Export to .geojson",
             str(Settings.Paths.last_opened_dir),
-            "Geojson GIS file (*.geojson)",
+            "GeoJSON GIS File (*.geojson)",
             options=QFileDialog.Option.DontUseNativeDialog,
         )
         if not file:

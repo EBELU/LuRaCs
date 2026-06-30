@@ -15,16 +15,15 @@
       }
     ,
     "natural_earth_shaded_relief": {
-      "maxzoom": 6,
+      "maxzoom": 3,
       "tileSize": 256,
       "tiles": [
-        "https://klokantech.github.io/naturalearthtiles/tiles/natural_earth_2_shaded_relief.raster/{z}/{x}/{y}.png"
+        "./natural_earth_tiles/{z}/{x}/{y}.png"
       ],
       "type": "raster"
     }
   },
-  "sprite": "https://maputnik.github.io/osm-liberty/sprites/osm-liberty",
-  "glyphs": "https://orangemug.github.io/font-glyphs/glyphs/{fontstack}/{range}.pbf",
+  "sprite": "http://127.0.0.1:8080/sprites/osm-liberty",
   "layers": [
     {
       "id": "background",
@@ -1313,7 +1312,7 @@
       "filter": ["all", ["==", "$type", "LineString"]],
       "layout": {
         "text-field": "{name}",
-        "text-font": ["Roboto Regular"],
+
         "text-max-width": 5,
         "text-size": 12,
         "symbol-placement": "line"
@@ -1332,7 +1331,6 @@
       "filter": ["==", "$type", "Point"],
       "layout": {
         "text-field": "{name}",
-        "text-font": ["Roboto Regular"],
         "text-max-width": 5,
         "text-size": 12
       },
@@ -1390,7 +1388,6 @@
         "icon-image": "{class}",
         "text-anchor": "left",
         "text-field": ["coalesce",["get", "name:latin"],["get", "name:en"],["get", "name"]],
-        "text-font": ["Roboto Condensed Italic"],
         "text-max-width": 9,
         "text-offset": [0.9, 0],
         "text-size": 12
@@ -1412,7 +1409,7 @@
         "symbol-placement": "line",
         "text-anchor": "center",
         "text-field": "{name}",
-        "text-font": ["Roboto Regular"],
+
         "text-offset": [0, 0.15],
         "text-size": {"base": 1, "stops": [[13, 12], [14, 13]]}
       },
@@ -1435,7 +1432,7 @@
         "symbol-placement": {"base": 1, "stops": [[10, "point"], [11, "line"]]},
         "symbol-spacing": 500,
         "text-field": "{ref}",
-        "text-font": ["Roboto Regular"],
+
         "text-offset": [0, 0.1],
         "text-rotation-alignment": "viewport",
         "text-size": 10,
@@ -1462,7 +1459,7 @@
       ],
       "layout": {
         "text-field": ["coalesce",["get", "name:latin"],["get", "name:en"],["get", "name"]],
-        "text-font": ["Roboto Condensed Italic"],
+        
         "text-letter-spacing": 0.1,
         "text-max-width": 9,
         "text-size": {"base": 1.2, "stops": [[12, 10], [15, 14]]},
@@ -1482,7 +1479,7 @@
       "filter": ["all", ["==", "class", "village"]],
       "layout": {
         "text-field": ["coalesce",["get", "name:latin"],["get", "name:en"],["get", "name"]],
-        "text-font": ["Roboto Regular"],
+
         "text-max-width": 8,
         "text-size": {"base": 1.2, "stops": [[10, 12], [15, 22]]}
       },
@@ -1502,7 +1499,7 @@
         "icon-image": {"base": 1, "stops": [[0, "dot_9"], [8, ""]]},
         "text-anchor": "bottom",
         "text-field": ["coalesce",["get", "name:latin"],["get", "name:en"],["get", "name"]],
-        "text-font": ["Roboto Regular"],
+
         "text-max-width": 8,
         "text-offset": [0, 0],
         "text-size": {"base": 1.2, "stops": [[7, 12], [11, 16]]}
@@ -1546,7 +1543,7 @@
       "filter": ["all", ["==", "class", "state"]],
       "layout": {
         "text-field": ["coalesce",["get", "name:latin"],["get", "name:en"],["get", "name"]],
-        "text-font": ["Roboto Condensed Italic"],
+        
         "text-size": {"stops": [[4, 11], [6, 15]]},
         "text-transform": "uppercase"
       },
@@ -1564,7 +1561,7 @@
       "filter": ["all", [">=", "rank", 3], ["==", "class", "country"]],
       "layout": {
         "text-field": ["coalesce",["get", "name:latin"],["get", "name:en"],["get", "name"]],
-        "text-font": ["Roboto Condensed Italic"],
+        
         "text-max-width": 6.25,
         "text-size": {"stops": [[3, 11], [7, 17]]},
         "text-transform": "none"
@@ -1584,7 +1581,7 @@
       "filter": ["all", ["==", "rank", 2], ["==", "class", "country"]],
       "layout": {
         "text-field": ["coalesce",["get", "name:latin"],["get", "name:en"],["get", "name"]],
-        "text-font": ["Roboto Condensed Italic"],
+        
         "text-max-width": 6.25,
         "text-size": {"stops": [[2, 11], [5, 17]]},
         "text-transform": "none"
@@ -1604,7 +1601,7 @@
       "filter": ["all", ["==", "rank", 1], ["==", "class", "country"]],
       "layout": {
         "text-field": ["coalesce",["get", "name:latin"],["get", "name:en"],["get", "name"]],
-        "text-font": ["Roboto Condensed Italic"],
+        
         "text-max-width": 6.25,
         "text-size": {"stops": [[1, 11], [4, 17]]},
         "text-transform": "none"
@@ -1625,7 +1622,7 @@
       "filter": ["all", ["==", "class", "continent"]],
       "layout": {
         "text-field": ["coalesce",["get", "name:latin"],["get", "name:en"],["get", "name"]],
-        "text-font": ["Roboto Condensed Italic"],
+        
         "text-size": 13,
         "text-transform": "uppercase",
         "text-justify": "center"

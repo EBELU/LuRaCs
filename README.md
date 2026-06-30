@@ -40,7 +40,8 @@ If your primary goal is the analysis of previously acquired spectra, we recommen
 When an instrument is connected, measurements can be recorded as a time series in the form of a *spectrogram*. A spectrogram stores the average count rate and dose rate for each acquisition interval, together with the corresponding accumulated spectrum. This enables both temporal trend analysis and detailed examination of the spectral data collected throughout the measurement period.
 ![timeseries_view](luracs/resources/docs/imgs/timeseries_view.webp)
 ### Area Mapping
-By connecting an external GPS device via USB, area mapping can be performed by extending standard spectrogram measurements with positional data. Maps can be retrieved from an online source via URL or loaded from a locally stored file for offline use.
+By connecting an external GPS device via USB, area mapping can be performed by extending standard spectrogram measurements with positional data. Maps can be retrieved from an online source via URL or loaded from a locally stored file for offline use. Supports export of mapped data to GeoJSON for use in common GIS applications like QGis.
+![map_img](luracs/resources/docs/imgs/map_with_points.webp)
 ### CLI
 While the graphical user interface provides the primary means of interaction, LuRaCs also supports control via a Command Line Interface. This enables efficient remote operation, for example over an SSH connection to remotely deployed instruments such as a *Raspberry Pi*.
 

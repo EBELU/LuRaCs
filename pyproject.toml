@@ -41,6 +41,7 @@ dev = ["pandas", "pyinstaller", "odfpy"]
 
 [tool.setuptools.packages.find]
 where = ["."]
+include = ["luracs*"]
 exclude = ["tests*"]
 
 [tool.setuptools.package-data]

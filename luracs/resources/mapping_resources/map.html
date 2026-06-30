@@ -5,24 +5,24 @@
     <title>Data map</title>
     <meta property="og:description" content="A map of collected data" />
     <meta property="og:created" content="2025-06-25" />
-    <meta charset='utf-8'>
+    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel='stylesheet' href='https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css' />
-    <script src='https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js'></script>
+
+    <!-- Load MapLibre from the same directory as this HTML file -->
+    <link rel="stylesheet" href="maplibre-gl.css">
+    <script src="maplibre-gl.js"></script>
+
+    <!-- Qt WebChannel -->
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-        }
-
         html,
         body,
         #map {
             height: 100%;
+            margin: 0;
+            padding: 0;
         }
-
     </style>
 </head>
 
