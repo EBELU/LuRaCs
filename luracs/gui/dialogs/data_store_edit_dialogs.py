@@ -36,7 +36,7 @@ from luracs.containers.roi_classes import ROI, Fit
 
 
 class InstrumentDialog(QDialog):
-    def __init__(self, parent=None, **kwargs):
+    def __init__(self, parent=None, generic_selection: bool = True, **kwargs):
         super().__init__(parent)
         self.setWindowTitle("Instrument Dialog")
         self.resize(500, 500)
@@ -61,8 +61,7 @@ class InstrumentDialog(QDialog):
             self.generic_list.addItem(i.model, key)
         self.generic_list.setCurrentText("None")
         self.generic_list.currentIndexChanged.connect(self.generic_instrument_selected)
-        if len(kwargs) != 0:
-            self.generic_list.setEnabled(False)
+        self.generic_list.setEnabled(generic_selection)
 
         # ------------------------------------------------------------------
         # Row with 2 lines, name and model

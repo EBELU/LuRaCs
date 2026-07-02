@@ -168,6 +168,7 @@ class LibraryTab(QWidget):
         return rows
 
     def export_same(self, filter: str):
+        "Copies a file from the datastore without converting to another format "
         selection = self._get_selection()
         if selection is None:
             return
@@ -659,7 +660,7 @@ class InstrumentsTab(LibraryTab):
         dialog_data, base_instrument_key = edit_dialog.get_data()
 
         base_instrument_dict = (
-            SpectrumManager.GenericInstrumentLibrary.instrument_registry[
+            SpectrumManager.UniqueInstrumentLibrary.instrument_registry[
                 selection[0]
             ].__dict__
         )
@@ -771,8 +772,9 @@ class GenericInstrumentsTab(LibraryTab):
             return
 
         edit_dialog = InstrumentDialog(
+            generic_selection=False
             **SpectrumManager.GenericInstrumentLibrary.instrument_registry[
-                selection[0]
+                selection[0],
             ].__dict__
         )
         edit_dialog.name_input.setEnabled(False)
@@ -809,7 +811,6 @@ class GenericInstrumentsTab(LibraryTab):
         if existing_instrument_key is None:
             SpectrumManager.GenericInstrumentLibrary.add_instrument(new_instrument)
         else:
-            print("Renaming instrument", selection[0])
             SpectrumManager.GenericInstrumentLibrary.rename_instrument(
                 selection[0], new_instrument
             )

@@ -73,6 +73,7 @@ class EmittedSignals(QObject):
 
     # ---- lifecycle signals ----
     newDeviceWrapped = Signal(str, object)
+    deviceStateUpdated = Signal(str, object)
     deviceConnecting = Signal(str)
     deviceConnected = Signal(str)
     deviceCancelled = Signal(str)
@@ -157,15 +158,18 @@ class _RunManager(QObject):
                 f"Wrapper for device {new_device.name} has critical method '{e}' not implemented!"
             )
             new_device.set_state(DeviceWrapper.DeviceState.CONNECTION_FAILED)
+            self.Signals.deviceStateUpdated.emit(new_device.name, new_device.state)
             return
 
         except Exception as e:
             gui_logger.error(f"Device start threw exception {e}. Start failed!")
             new_device.set_state(DeviceWrapper.DeviceState.CONNECTION_FAILED)
+            self.Signals.deviceStateUpdated.emit(new_device.name, new_device.state)
             return
 
         self.device_registry[new_device.name] = new_device
         new_device.set_state(DeviceWrapper.DeviceState.CONNECTED)
+        self.Signals.deviceStateUpdated.emit(new_device.name, new_device.state)
 
         gui_logger.info(
             f"Device connected: "
@@ -203,6 +207,7 @@ class _RunManager(QObject):
 
         try:
             client.set_state(DeviceWrapper.DeviceState.STOPPING)
+            self.Signals.deviceStateUpdated.emit(device_name, client.state)
 
             gui_logger.info(f"Stopping device {device_name}")
             await client.stop()
@@ -216,6 +221,7 @@ class _RunManager(QObject):
 
         finally:
             client.set_state(DeviceWrapper.DeviceState.STOPPED)
+            self.Signals.deviceStateUpdated.emit(device_name, client.state)
 
             if remove_spectrum:
                 self.Signals.removeDeviceSpectrum.emit(device_name)

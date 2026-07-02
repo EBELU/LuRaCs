@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     pass
-
+from datetime import datetime
 from PySide6.QtWidgets import (
     QDialog,
     QWidget,
@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QComboBox,
     QMessageBox,
+    QLineEdit
 )
 from PySide6.QtCore import Qt
 import pyqtgraph as pg
@@ -43,6 +44,7 @@ class CalibrationWindow(QDialog):
 
         # --- Store Calculation Results ---
         self.current_new_coeff = None
+        self.current_ref_points = None
 
         # --- Spectrum Combo Box ---
         self.combo_spectrum = QComboBox()
@@ -78,6 +80,11 @@ class CalibrationWindow(QDialog):
                 sb.setEnabled(False)
 
         form.addRow("", parameter_layout)
+        
+        # --- Instrument attached to spectrum ---
+        self.line_detected_instrument = QLineEdit()
+        self.line_detected_instrument.setReadOnly(True)
+        form.addRow("Instrument", self.line_detected_instrument)
 
         # --- Calculations ---
         btn_calculate = QPushButton("Calculate")
@@ -101,6 +108,7 @@ class CalibrationWindow(QDialog):
 
         bottom_buttons = QHBoxLayout()
         self.assign_to_instrument_btn = QPushButton("Assign to instrument")
+        self.assign_to_instrument_btn.clicked.connect(self.assign_to_instrument)
 
         self.assign_to_spectrum_btn = QPushButton("Assign to spectrum")
         self.assign_to_spectrum_btn.clicked.connect(self.assign_to_spectrum)
@@ -141,6 +149,11 @@ class CalibrationWindow(QDialog):
         rois = SpectrumManager.ROIManager.get_data_from_spectrum(
             self.combo_spectrum.currentText()
         )
+        
+        spectrum = SpectrumManager.get_spectrum(self.combo_spectrum.currentText())
+        instrument = spectrum.instrument
+        if instrument is not None:
+            self.line_detected_instrument.setText(instrument.name)
 
         skipped = 0
         for row, roi in enumerate(rois.values()):
@@ -265,6 +278,7 @@ class CalibrationWindow(QDialog):
             display.setValue(new_coeff[-(i + 1)])
 
         self.current_new_coeff = new_coeff
+        self.current_ref_points = ref_points
 
     def assign_to_spectrum(self):
         if self.current_new_coeff is None:
@@ -276,6 +290,32 @@ class CalibrationWindow(QDialog):
         spectrum_name = self.combo_spectrum.currentText()
         SpectrumManager.calibrate_spectrum(spectrum_name, self.current_new_coeff)
 
+        self.set_table(spectrum_name)
+
+    def assign_to_instrument(self):
+        if self.current_new_coeff is None:
+            QMessageBox.warning(
+                self, "Error", "No new calibration points calculated to assign"
+            )
+            return
+
+        spectrum_name = self.combo_spectrum.currentText()
+        instrument = SpectrumManager.get_spectrum(spectrum_name).instrument
+        if instrument is None:
+            QMessageBox.warning(
+                self, "Error", "No instrument attached"
+            )
+            return
+
+        SpectrumManager.UniqueInstrumentLibrary.update_instrument_data(SpectrumManager.UniqueInstrumentLibrary.get_key_from_attr("name", instrument.name),
+              {
+                "calibration_poly_order": 1,
+                "calibration_coefficients": list(self.current_new_coeff),
+                "calibration_channel_points": list(self.current_ref_points[0]),
+                "calibration_energy_points": list(self.current_ref_points[1]),
+                "calibration_date": datetime.now()
+              }
+        )
         self.set_table(spectrum_name)
 
     def recalculate_difference(self, row_index: int):

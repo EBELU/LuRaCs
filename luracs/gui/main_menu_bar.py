@@ -47,9 +47,6 @@ class MainMenuBar(QMenuBar):
         # ---------- View Menu ----------
         view_menu = self.addMenu("View")
 
-        # --- Map ---
-        view_menu_map = view_menu.addMenu("&Map")
-
         # --- Real Time Data View ---
         view_menu_realtime = view_menu.addMenu("&Real Time Data    ")
         view_menu_realtime_avg_line = view_menu_realtime.addAction(

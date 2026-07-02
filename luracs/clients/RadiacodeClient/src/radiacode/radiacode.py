@@ -123,6 +123,7 @@ class RadiaCode:
             response = await self._connection.execute(full_request)
         else:
             response = self._connection.execute(full_request)
+            
 
         resp_header = response.unpack('<4s')[0]
         assert req_header == resp_header, f'req={req_header.hex()} resp={resp_header.hex()}'

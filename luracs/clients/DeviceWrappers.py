@@ -7,8 +7,10 @@ from enum import Enum, auto
 from dataclasses import dataclass
 import numpy as np
 import asyncio
+import usb
 from ..core.settings import Settings
 from ..core.gui_logger import gui_logger
+
 
 from .MockClient import MockClient
 
@@ -18,7 +20,6 @@ from .RaysidClient.RaysidClient import RaysidClientAsync
 
 class CriticalNotImplementedError(NotImplementedError):
     "Helper exception to enforce good wrappers"
-
     pass
 
 
@@ -163,11 +164,16 @@ class DeviceWrapper:
                     except asyncio.CancelledError:
                         raise
                     
-
-
+                    except usb.core.USBError:
+                        gui_logger.exception(f"USB error for {self.name}, likely disconnect")
+                        self.state = self.DeviceState.ERROR
+                        break
+                    
             except asyncio.CancelledError:
                 raise
+            
 
+                    
             except Exception:
                 gui_logger.exception(f"Polling crashed for {self.name}")
                 self.set_state(self.DeviceState.ERROR)

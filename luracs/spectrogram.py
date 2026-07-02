@@ -65,9 +65,9 @@ def start_spectrogram(db_name, device: str, save_interval: int = 1, concat: int 
         channel_concat_factor=concat,
     )
 
-    RunManager.currentUpdated.connect(new_log.receive_current)
-    RunManager.statusUpdated.connect(new_log.receive_status)
-    RunManager.spectrumUpdated.connect(new_log.receive_spectrum)
+    RunManager.Signals.currentUpdated.connect(new_log.receive_current)
+    RunManager.Signals.statusUpdated.connect(new_log.receive_status)
+    RunManager.Signals.spectrumUpdated.connect(new_log.receive_spectrum)
 
     RunManager.add_spectrogram(db_name, new_log)
     new_log.request_data()

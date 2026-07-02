@@ -3,8 +3,8 @@ requires = ["setuptools>=65", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "LuRaCs"
-version = "0.0.0"
+name = "luracs"
+version = "0.1.1"
 description = "Gamma Spectroscopy Software"
 requires-python = ">=3.10,<3.14"
 authors = [
@@ -31,12 +31,10 @@ dependencies = [
     "SciPy",
     "fastapi",
     "uvicorn",
-
-    "RaysidClient @ git+https://github.com/EBELU/RaysidClient.git",
 ]
 
 [project.optional-dependencies]
-dev = ["pandas", "pyinstaller", "odfpy"]
+dev = ["pandas", "pyinstaller", "odfpy", "bumpver", "build", "twine"]
 
 
 [tool.setuptools.packages.find]
@@ -49,3 +47,17 @@ luracs = ["resources/**/*"]
 
 [project.scripts]
 LuRaCs = "luracs.main:main"
+
+[tool.bumpver]
+current_version = "0.1.1"
+version_pattern = "MAJOR.MINOR.PATCH"
+
+[tool.bumpver.file_patterns]
+"pyproject.toml" = [
+    'current_version = "{version}"',
+    'version = "{version}"',
+]
+
+"luracs/main.py" = [
+    '__version__ = "{version}"',
+]

@@ -103,6 +103,8 @@ class Usb:
 
             try:
                 usb.util.release_interface(self._device, interface_number)
+            except usb.core.USBError:
+                pass
             except Exception as e:
                 logger.error('Release failed:', e)
 
