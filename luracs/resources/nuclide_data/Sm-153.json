@@ -1,0 +1,71 @@
+{
+    "citation_ref": "LNHB Volume 3",
+    "Nuclide": "Sm-153",
+    "Element": "Samarium",
+    "Z": "62",
+    "Daughters": [
+        [
+            "(B-)",
+            "Eu-153",
+            100.0
+        ]
+    ],
+    "Half-life (s)": [
+        166626.7,
+        4.3
+    ],
+    "Specific activity (Bq/g)": [
+        1.637346e+16,
+        420000000000.0
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 40.9024,
+            "Energy error (keV)": -1,
+            "I (%)": 16.6,
+            "I error (%)": 0.4,
+            "Type": "x-ray",
+            "Origin": "Eu-153"
+        },
+        {
+            "Energy (keV)": 41.5427,
+            "Energy error (keV)": -1,
+            "I (%)": 30.0,
+            "I error (%)": 0.7,
+            "Type": "x-ray",
+            "Origin": "Eu-153"
+        },
+        {
+            "Energy (keV)": 47.1051,
+            "Energy error (keV)": -1,
+            "I (%)": 9.45,
+            "I error (%)": 0.25,
+            "Type": "x-ray",
+            "Origin": "Eu-153"
+        },
+        {
+            "Energy (keV)": 48.38,
+            "Energy error (keV)": -1,
+            "I (%)": 2.44,
+            "I error (%)": 0.08,
+            "Type": "x-ray",
+            "Origin": "Eu-153"
+        },
+        {
+            "Energy (keV)": 69.673,
+            "Energy error (keV)": 0.00013,
+            "I (%)": 4.691,
+            "I error (%)": 0.041,
+            "Type": "g",
+            "Origin": "Eu-153"
+        },
+        {
+            "Energy (keV)": 103.18012,
+            "Energy error (keV)": 0.00017,
+            "I (%)": 29.19,
+            "I error (%)": 0.16,
+            "Type": "g",
+            "Origin": "Eu-153"
+        }
+    ]
+}

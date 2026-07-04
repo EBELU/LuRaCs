@@ -23,7 +23,7 @@ def _on_usb_device_selected(device: dict):
         return
 
     # Adjust if your RunManager function name differs
-    asyncio.create_task(RunManager.add_device(serial, product, True))
+    RunManager.add_device(serial, product, True)
 
 
 class USBListPopup(QDialog):

@@ -3,11 +3,13 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from luracs.spectrogram import Spectrogram
+    from luracs.clients.DeviceWrappers import WrappedRealTimePackage
 
 import asyncio
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Signal, Slot
 from dataclasses import dataclass
 import numpy as np
+from collections import deque
 from .settings import Settings
 
 from bleak import BleakScanner
@@ -40,33 +42,14 @@ from .gui_logger import gui_logger
 from luracs.clients.DeviceWrappers import DeviceWrapper, CriticalNotImplementedError
 
 
-@dataclass(frozen=True)
-class CurrentValuesPackage:
-    name: str
-    CPS: float
-    DR: float
-    timestamp: float
-
-
-@dataclass(frozen=True)
-class StatusPackage:
-    battery: int
-    temperature: float
-    charging: bool
-    timestamp: float
-
-
-@dataclass(frozen=True)
-class SpectrumResult:
-    y_axis: np.ndarray
-    live_time: float
-    timestamp: float
-
 class EmittedSignals(QObject):
     # ---- data signals ----
     currentUpdated = Signal(str, object)
     statusUpdated = Signal(str, object)
     spectrumUpdated = Signal(str, object)
+    gpsUpdated = Signal(float, float)
+
+    realTimeBuffersUpdated = Signal(str, object, object)
 
     createDeviceSpectrum = Signal(str, int, str)
     removeDeviceSpectrum = Signal(str)
@@ -91,40 +74,51 @@ class EmittedSignals(QObject):
     bluetoothTimer = Signal(float)
     bluetoothFound = Signal(list)
     bluetoothError = Signal(str)
-    
+
 
 class _RunManager(QObject):
     """
-    The run manager is luracs.core singleton that manages connected devices and spectrogram, since they are tightly connected to the devices. All communications with Bluetooth or USB goes through this class.
+    The run manager is a luracs.core singleton that manages connected devices and spectrogram, since they are tightly connected to the devices. All communications with Bluetooth or USB goes through this class.
     """
 
     def __init__(self):
         super().__init__()
-        
+
         self.Signals = EmittedSignals()
 
+        # Store the connection in settings for quick connection
         self.Signals.deviceConnecting.connect(Settings.add_new_connection)
+        self.Signals.currentUpdated.connect(self.receive_realtime_package)
 
+        # Connected devices
         self.device_registry: dict[str, DeviceWrapper] = {}
 
         self._scan_task: asyncio.Task | None = None
         self._scan_lock = asyncio.Lock()
         self._scanner = None
-        self._seen_devices: dict[str, object] = {}
-        self._scan_task: asyncio.Task | None = None
 
+        # Bind in the RunManager to the DeviceWrapper-class
+        # Signalling data is done from the wrapper via this binding
         DeviceWrapper.run_manager = self
 
-        self._poll_task: asyncio.Task | None = None
-        self._polling = False
-
+        # Loaded spectrogram are stored here for easy restart
+        #
         self.loaded_spectrogram: dict[str, Spectrogram] = {}
 
         self.queue_len = Settings.Advanced.real_time_values_deque_length
-        self.cps_queues = {}
-        self.dose_queues = {}
+        self.cps_buffers: dict[str, deque] = {}
+        self.dr_buffers: dict[str, deque] = {}
 
-    async def add_device(
+    # ------------------------------------------------------------------
+    # Connection and disconnection of devices
+    # ------------------------------------------------------------------
+
+    # --- Device Connection ---
+    def add_device(self, device_address: str, device_type: str, usb: bool = False):
+        "Sync interface for connecting a device to the RunManager"
+        asyncio.create_task(self._add_device(device_address, device_type, usb))
+
+    async def _add_device(
         self, device_address: str, device_type: str, usb: bool = False
     ):
         client_wrapper = DeviceWrapper.match_model_to_str(device_type)
@@ -138,9 +132,9 @@ class _RunManager(QObject):
             gui_logger.debug(f"Device {device_address} already exists")
             return
 
-        self.Signals.deviceConnecting.emit(new_device.name)
-        self.Signals.newDeviceWrapped.emit(new_device.name, new_device)
         new_device.set_state(DeviceWrapper.DeviceState.CONNECTING)
+        self.Signals.newDeviceWrapped.emit(new_device.name, new_device)
+        self.Signals.deviceStateUpdated.emit(new_device.name, new_device)
 
         try:
             await new_device.start()
@@ -150,7 +144,6 @@ class _RunManager(QObject):
 
         except asyncio.CancelledError:
             gui_logger.error(f"Device start cancelled: {new_device.name}")
-            self.deviceCancelled.emit(new_device.name)
             return
 
         except CriticalNotImplementedError as e:
@@ -158,18 +151,23 @@ class _RunManager(QObject):
                 f"Wrapper for device {new_device.name} has critical method '{e}' not implemented!"
             )
             new_device.set_state(DeviceWrapper.DeviceState.CONNECTION_FAILED)
-            self.Signals.deviceStateUpdated.emit(new_device.name, new_device.state)
+            self.Signals.deviceStateUpdated.emit(new_device.name, new_device)
             return
 
         except Exception as e:
             gui_logger.error(f"Device start threw exception {e}. Start failed!")
             new_device.set_state(DeviceWrapper.DeviceState.CONNECTION_FAILED)
-            self.Signals.deviceStateUpdated.emit(new_device.name, new_device.state)
+            self.Signals.deviceStateUpdated.emit(new_device.name, new_device)
             return
 
         self.device_registry[new_device.name] = new_device
+        
+        # Start buffers
+        self.cps_buffers[new_device.name] = deque([np.nan] * self.queue_len, self.queue_len)
+        self.dr_buffers[new_device.name] = deque([np.nan] * self.queue_len, self.queue_len)
+        
         new_device.set_state(DeviceWrapper.DeviceState.CONNECTED)
-        self.Signals.deviceStateUpdated.emit(new_device.name, new_device.state)
+        self.Signals.deviceStateUpdated.emit(new_device.name, new_device)
 
         gui_logger.info(
             f"Device connected: "
@@ -185,16 +183,15 @@ class _RunManager(QObject):
             new_device.name,
         )
 
+    # --- Device Removal ---
+    # Device removal is async but a sync interface is provided
     def remove_all_devices(self):
         for device_name in list(self.device_registry):
             self.remove_device(device_name)
 
-
     def remove_device(self, device_name: str, remove_spectrum: bool = False):
-        asyncio.create_task(
-            self._remove_device(device_name, remove_spectrum)
-        )
-
+        "Sync interface for disconnecting a device from the RunManager"
+        asyncio.create_task(self._remove_device(device_name, remove_spectrum))
 
     async def _remove_device(
         self,
@@ -227,6 +224,7 @@ class _RunManager(QObject):
                 self.Signals.removeDeviceSpectrum.emit(device_name)
 
     async def shutdown(self):
+        "Shuts down the RunManager. Is is very important this function runs correctly at shutdown! Otherwise spectrogram databases might not be closed and it can leave orphan device connections."
         self.Signals.shutdownStarted.emit()
         # --- Close active loggers ---
         for logger_key in self.loaded_spectrogram.copy().keys():
@@ -245,27 +243,30 @@ class _RunManager(QObject):
             except Exception as e:
                 gui_logger.error(f"{device.name} stop failed: {e}")
 
+        # Start the stopping tasks and then await them with gather
         tasks = [
             asyncio.create_task(stop_device(device))
             for device in self.device_registry.values()
         ]
-
         await asyncio.gather(*tasks, return_exceptions=True)
 
         self.device_registry.clear()
         self.Signals.shutdownFinished.emit()
-        
-    def reset_all_spectra(self):
-        for w in self.device_registry.values():
-            w.reset_spectrum()
-        
 
+    # ------------------------------------------------------------------
+    # Device Scanning
+    # ------------------------------------------------------------------
+
+    # Bluetooth scanning is a unique task and only one can be running at a single time
+    # Starting a new scan will cancel the previous
     def cancel_scan_task(self):
+        "Cancel the current scan task if running"
         if self._scan_task and not self._scan_task.done():
             self._scan_task.cancel()
             gui_logger.debug("Bluetooth scan cancelled")
 
-    async def connect_bluetooth_list(self, names):
+    async def connect_bluetooth_list(self, names: list[str]):
+        """Takes a list of device names to be matched. A bluetooth scan is made and if devices with names matching the listed names they are connected."""
         connections_made = 0
         gui_logger.info(f"Attepting connection to {names}")
         async with self._scan_lock:
@@ -281,18 +282,20 @@ class _RunManager(QObject):
                         gui_logger.info(
                             f"Connecting device: name={device.name}, type={device_type}"
                         )
-                        await self.add_device(device, device_type)
+                        await self._add_device(device, device_type)
                         connections_made += 1
                         await asyncio.sleep(0.2)
 
         if connections_made == 0:
             gui_logger.warning(f"No BLE devices matching {names} were found!")
 
-    async def _scan_bluetooth(self, timeout):
+    async def _scan_bluetooth(self, timeout: float):
+        # Scan is run with an async lock because attempting to run several scan tasks can break some systems
         async with self._scan_lock:
             try:
                 gui_logger.info(f"Started bluetooth scan: scan_time={timeout}")
                 devices = await BleakScanner.discover(timeout)
+                # Results are communicated using a signal for ease of use with async
                 self.Signals.bluetoothFound.emit(devices)
                 return devices
             except asyncio.CancelledError:
@@ -305,7 +308,7 @@ class _RunManager(QObject):
             finally:
                 self._scan_task = None
 
-    async def find_bluetooth(self, timeout=5):
+    async def find_bluetooth(self, timeout: float = 5):
         # Cancel any previous scan
         if self._scan_task and not self._scan_task.done():
             gui_logger.debug("Cancelling previous scan")
@@ -315,9 +318,11 @@ class _RunManager(QObject):
             except asyncio.CancelledError:
                 gui_logger.debug("Previous scan cancelled")
 
+        # Create and store the scan task
         self._scan_task = asyncio.create_task(self._scan_bluetooth(timeout))
 
-    def scan_all_usb(self):
+    def scan_all_usb(self) -> list[dict]:
+        "Scan connected usb devices and returns a dict containing device information"
         devices = usb.core.find(find_all=True)
         results = []
 
@@ -344,8 +349,24 @@ class _RunManager(QObject):
                 continue
 
         return results
+    
+    # ------------------------------------------------------------------
+    # Real time buffers
+    # ------------------------------------------------------------------
+    
+    @Slot(str, object)
+    def receive_realtime_package(self, device_name: str, packet: WrappedRealTimePackage):
+        "Slot for RealTimePackets polled from a device. Used for display of real time vales, spectrograms have their own buffers"
+        self.cps_buffers[device_name].append(packet.CPS)
+        self.dr_buffers[device_name].append(packet.DR)
+        
+        self.Signals.realTimeBuffersUpdated.emit(device_name, np.asarray(self.cps_buffers[device_name]), np.asarray(self.dr_buffers[device_name]))
 
-    def add_spectrogram(self, device_name: str, new_log: bool):
+    # ------------------------------------------------------------------
+    # Spectrogram management
+    # ------------------------------------------------------------------
+
+    def add_spectrogram(self, device_name: str, new_log: Spectrogram):
         self.loaded_spectrogram[device_name] = new_log
         self.Signals.spectrogramStarted.emit(device_name)
         gui_logger.info(
@@ -364,6 +385,14 @@ class _RunManager(QObject):
             spectrogram.resize_deque(new_len)
 
         self.Signals.spectrogramDequeResized.emit()
+
+    # ------------------------------------------------------------------
+    # Device actions applied to all connected devices
+    # ------------------------------------------------------------------
+
+    def reset_all_spectra(self):
+        for w in self.device_registry.values():
+            w.reset_spectrum()
 
 
 RunManager = _RunManager()

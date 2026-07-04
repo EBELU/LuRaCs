@@ -115,12 +115,15 @@ class SpectrumPlot(QWidget):
         self.line_cursor_info = QLineEdit()
         self.line_cursor_info.setReadOnly(True)
         self.line_cursor_info.setPlaceholderText("Cursor")
+        
+        self.btn_cps.setMinimumWidth(85)
 
         self.cbox_bkg_choises = QComboBox()
 
         self.cbox_bkg_choises.addItems(
             ["No Background", "Background Overlay", "Background Subtract"]
         )
+        self.cbox_bkg_choises.setMinimumWidth(200)
         self.cbox_bkg_choises.setCurrentIndex(0)
 
         btn_layout.addWidget(self.btn_reset_zoom)

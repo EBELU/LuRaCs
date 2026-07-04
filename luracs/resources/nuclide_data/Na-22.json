@@ -1,0 +1,39 @@
+{
+    "citation_ref": "LNHB Volume 5",
+    "Nuclide": "Na-22",
+    "Element": "Sodium",
+    "Z": "11",
+    "Daughters": [
+        [
+            "(B+, EC)",
+            "Ne-22",
+            100.0
+        ]
+    ],
+    "Half-life (s)": [
+        82140000.0,
+        25000.0
+    ],
+    "Specific activity (Bq/g)": [
+        230990000000000.0,
+        70000000000.0
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 511.0,
+            "Energy error (keV)": -1,
+            "I (%)": 180.7,
+            "I error (%)": 0.2,
+            "Type": "x-ray",
+            "Origin": "Ne-22"
+        },
+        {
+            "Energy (keV)": 1274.537,
+            "Energy error (keV)": 0.007,
+            "I (%)": 99.94,
+            "I error (%)": 0.13,
+            "Type": "g",
+            "Origin": "Ne-22"
+        }
+    ]
+}

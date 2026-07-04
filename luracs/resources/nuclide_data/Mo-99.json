@@ -1,0 +1,79 @@
+{
+    "citation_ref": "LNHB Volume 1",
+    "Nuclide": "Mo-99",
+    "Element": "Molybdenum",
+    "Z": "42",
+    "Daughters": [
+        [
+            "(B-)",
+            "Tc-99",
+            100.0
+        ]
+    ],
+    "Half-life (s)": [
+        237420.0,
+        50.0
+    ],
+    "Specific activity (Bq/g)": [
+        1.77593e+16,
+        3900000000000.0
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 20.669,
+            "Energy error (keV)": -1,
+            "I (%)": 1.61,
+            "I error (%)": 0.05,
+            "Type": "x-ray",
+            "Origin": "Tc-99"
+        },
+        {
+            "Energy (keV)": 40.58323,
+            "Energy error (keV)": 0.00017,
+            "I (%)": 1.022,
+            "I error (%)": 0.027,
+            "Type": "g",
+            "Origin": "Tc-99"
+        },
+        {
+            "Energy (keV)": 140.511,
+            "Energy error (keV)": 0.001,
+            "I (%)": 89.6,
+            "I error (%)": 1.7,
+            "Type": "g",
+            "Origin": "Tc-99"
+        },
+        {
+            "Energy (keV)": 181.068,
+            "Energy error (keV)": 0.008,
+            "I (%)": 6.01,
+            "I error (%)": 0.11,
+            "Type": "g",
+            "Origin": "Tc-99"
+        },
+        {
+            "Energy (keV)": 366.421,
+            "Energy error (keV)": 0.015,
+            "I (%)": 1.194,
+            "I error (%)": 0.023,
+            "Type": "g",
+            "Origin": "Tc-99"
+        },
+        {
+            "Energy (keV)": 739.5,
+            "Energy error (keV)": 0.017,
+            "I (%)": 12.12,
+            "I error (%)": 0.15,
+            "Type": "g",
+            "Origin": "Tc-99"
+        },
+        {
+            "Energy (keV)": 777.921,
+            "Energy error (keV)": 0.02,
+            "I (%)": 4.28,
+            "I error (%)": 0.08,
+            "Type": "g",
+            "Origin": "Tc-99"
+        }
+    ]
+}

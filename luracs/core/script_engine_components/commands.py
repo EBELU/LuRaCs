@@ -524,17 +524,15 @@ class DeviceCommand(Command):
         elif args[0] == "connect":
             if args[1] == "usb":
                 connected_usb = RunManager.scan_all_usb()
-                loop = asyncio.get_event_loop()
 
                 connections_found = []
                 for conn_device in connected_usb:
                     for target_device in args[2:]:
                         if target_device.lower() in conn_device.get("product").lower():
-                            loop.create_task(
-                                RunManager.add_device(
-                                    conn_device.get("serial_number"), "radiacode", True
-                                )
+                            RunManager.add_device(
+                                conn_device.get("serial_number"), "radiacode", True
                             )
+                            
                             connections_found.append(conn_device.get("product"))
 
                 if len(connections_found) > 0:

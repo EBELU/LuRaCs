@@ -77,13 +77,11 @@ from luracs.theme_manager import ThemeManager
 # --- Import heavy features excluded in the lightweight version ---
 try:
     import PySide6.QtWebEngineCore
-    import scipy
-    import sklearn
 
     IS_H3 = False
 except ModuleNotFoundError:
     IS_H3 = True
-    
+
 if not IS_H3:
     from luracs.gui.mapping import MapWidget
 
@@ -360,7 +358,7 @@ def main():
     # Connect Signals
     script_engine.sigShutdown.connect(lambda: asyncio.create_task(_async_close()))
     script_engine.connect_log_buffer(log_utils.log_buffer.get_messages)
-    if win is not None:
+    if win is not None: # Does the main window exist?
         win.console_tab.sigCommandEntered.connect(script_engine.submit_from_sync)
         script_engine.sigCommandAppendOutput.connect(win.console_tab.append_output)
         script_engine.sigCommandOutput.connect(win.console_tab.append_output)

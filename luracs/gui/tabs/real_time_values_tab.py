@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QTableWidgetItem,
 )
+from PySide6.QtCore import Slot
 import pyqtgraph as pg
 import numpy as np
 from collections import deque
@@ -73,16 +74,20 @@ class RealTimeValuesPlot(QWidget):
         layout.addWidget(self.table.table, 2.5)
 
         self.queue_len = Settings.Advanced.real_time_values_deque_length
-        self.cps_queues = {}
-        self.dose_queues = {}
+
+        self.x_axis = (
+            np.arange(Settings.Advanced.real_time_values_deque_length)[::-1]
+            * Settings.Advanced.update_loop_delay
+        )
 
         self.cps_lines = {}
         self.dose_lines = {}
 
         self.row_indicies = {}
 
-        RunManager.Signals.currentUpdated.connect(self.receive_data_packet)
-        RunManager.Signals.deviceRemoved.connect(self.handle_device_removal)
+        RunManager.Signals.realTimeBuffersUpdated.connect(self.receive_buffers)
+        RunManager.Signals.deviceConnected.connect(self.device_added)
+        RunManager.Signals.deviceRemoved.connect(self.device_removed)
 
         for plot_widget in (self.cps_plot_widget, self.dose_plot_widget):
             plot_widget.setLimits(
@@ -92,53 +97,40 @@ class RealTimeValuesPlot(QWidget):
         for lgd in self.legends:
             lgd.setOffset((2, 2))
 
-    def receive_data_packet(self, name: str, packet: CurrentValuesPackage):
-        cps = packet.CPS
-        dose_rate = packet.DR
-
-        pen = None
+    def device_added(self, name: str):
+        pen = self.color_rotation.next_pen()
         # --- CPS ---
-        if name not in self.cps_queues:
-            self.cps_queues[name] = deque([np.nan] * self.queue_len, self.queue_len)
-            pen = self.color_rotation.next_pen()
+        if name not in self.cps_lines:
             self.cps_lines[name] = self.cps_plot_widget.plot([], [], pen=pen, name=name)
 
-        self.cps_queues[name].append(cps)
         # --- Dose Rate ---
-        if name not in self.dose_queues:
-            self.dose_queues[name] = deque([np.nan] * self.queue_len, self.queue_len)
-            if pen is None:
-                pen = self.color_rotation.next_pen()
+        if name not in self.dose_lines:
             self.dose_lines[name] = self.dose_plot_widget.plot(
                 [], [], pen=pen, name=name
             )
+            
+    def device_removed(self, name: str):
+        line = self.cps_lines.pop(name, None)
+        if line is not None:
+            self.cps_plot_widget.removeItem(line)
 
-        self.dose_queues[name].append(dose_rate)
+        line = self.dose_lines.pop(name, None)
+        if line is not None:
+            self.dose_plot_widget.removeItem(line)
+            
+        self.table.delete_row(name)
+        
+    @Slot(str, object, object)
+    def receive_buffers(self, name: str, cps_buffer: np.ndarray, dr_buffer: np.ndarray):
+        self.update_plots(name, cps_buffer, dr_buffer)
+        self.update_values_text(name, cps_buffer, dr_buffer)
 
-        self.update_plots(name)
-        self.update_values_text(name)
+    def update_plots(self, name: str, cps_buffer: np.ndarray, dr_buffer: np.ndarray):
+        self.cps_lines[name].setData(self.x_axis, cps_buffer)
+        self.dose_lines[name].setData(self.x_axis, dr_buffer)
 
-    def update_plots(self, name: str):
-        time_interval = Settings.Advanced.update_loop_delay
-
-        x_axis = (
-            np.arange(Settings.Advanced.real_time_values_deque_length)[::-1]
-            * time_interval
-        )
-
-        self.cps_lines[name].setData(x_axis, self.cps_queues[name])
-        self.dose_lines[name].setData(x_axis, self.dose_queues[name])
-
-    def update_values_text(self, name: str):
-        # Convert deques to numpy arrays for easy calculations
-        cps_array = np.array(self.cps_queues[name], dtype=float)
-        dr_array = np.array(self.dose_queues[name], dtype=float)
-
-        # Replace None with np.nan if needed
-        cps_array = np.nan_to_num(cps_array, nan=0.0)
-        dr_array = np.nan_to_num(dr_array, nan=0.0)
-
-        # Current values = most recent
+    def update_values_text(self, name: str, cps_array: np.ndarray, dr_array: np.ndarray):
+        # Last value = most recent
         current_cps = cps_array[-1]
         current_dr = dr_array[-1]
 
@@ -159,4 +151,4 @@ class RealTimeValuesPlot(QWidget):
 
         self.dose_queues.pop(name, None)
 
-        self.table.delete_row(name)
+

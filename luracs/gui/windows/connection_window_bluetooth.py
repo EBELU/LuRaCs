@@ -21,7 +21,7 @@ def _on_bt_device_selected(device):
     else:
         print(f"Invalid device type {device.name}")
         return
-    asyncio.create_task(RunManager.add_device(device, device_type))
+    RunManager.add_device(device, device_type)
 
 
 class BluetoothListPopup(ListPopupNonBlocking):

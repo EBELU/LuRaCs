@@ -1,0 +1,89 @@
+{
+    "citation_ref": "LNHB Volume 8",
+    "Nuclide": "I-131",
+    "Element": "Iodine",
+    "Z": "53",
+    "Daughters": [
+        [
+            "(B-)",
+            "Xe-131",
+            100.0
+        ]
+    ],
+    "Parents": [
+        [
+            "Te-131",
+            100.0
+        ],
+        [
+            "Te-131m",
+            79.0
+        ]
+    ],
+    "Half-life (s)": [
+        693210.0,
+        160.0
+    ],
+    "Specific activity (Bq/g)": [
+        4596600000000000.0,
+        1100000000000.0
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 29.459,
+            "Energy error (keV)": -1,
+            "I (%)": 1.52,
+            "I error (%)": 0.04,
+            "Type": "x-ray",
+            "Origin": "Xe-131"
+        },
+        {
+            "Energy (keV)": 29.779,
+            "Energy error (keV)": -1,
+            "I (%)": 2.81,
+            "I error (%)": 0.06,
+            "Type": "x-ray",
+            "Origin": "Xe-131"
+        },
+        {
+            "Energy (keV)": 80.185,
+            "Energy error (keV)": 0.002,
+            "I (%)": 2.607,
+            "I error (%)": 0.035,
+            "Type": "g",
+            "Origin": "Xe-131"
+        },
+        {
+            "Energy (keV)": 284.305,
+            "Energy error (keV)": 0.005,
+            "I (%)": 6.14,
+            "I error (%)": 0.06,
+            "Type": "g",
+            "Origin": "Xe-131"
+        },
+        {
+            "Energy (keV)": 364.489,
+            "Energy error (keV)": 0.005,
+            "I (%)": 81.2,
+            "I error (%)": 0.5,
+            "Type": "g",
+            "Origin": "Xe-131"
+        },
+        {
+            "Energy (keV)": 636.989,
+            "Energy error (keV)": 0.004,
+            "I (%)": 7.12,
+            "I error (%)": 0.07,
+            "Type": "g",
+            "Origin": "Xe-131"
+        },
+        {
+            "Energy (keV)": 722.911,
+            "Energy error (keV)": 0.005,
+            "I (%)": 1.786,
+            "I error (%)": 0.019,
+            "Type": "g",
+            "Origin": "Xe-131"
+        }
+    ]
+}

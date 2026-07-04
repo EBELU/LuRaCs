@@ -63,6 +63,7 @@ class DevicesInfoTab(QWidget):
         return menu_button
 
     def add_device(self, name: str, wrapper: DeviceWrapper):
+        print(name)
         self.row_regestry[name] = [
             name,
             None,
@@ -82,7 +83,7 @@ class DevicesInfoTab(QWidget):
         row_cpy[6] = new_state.name
         self.table.write_row(name, row_cpy[0:])
 
-    def update_status(self, name, new_status: WrappedStatusPackage):
+    def update_status(self, name: str, new_status: WrappedStatusPackage):
         if self.status_ts_buff[name] != new_status.timestamp:
             row_cpy = self.row_regestry[name].copy()
             row_cpy[1:4] = [

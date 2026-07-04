@@ -8,7 +8,7 @@ version = "0.1.1"
 description = "Gamma Spectroscopy Software"
 requires-python = ">=3.10,<3.14"
 authors = [
-    { name = "Erik Ewald" }, 
+    {name = "Erik Ewald"}, 
     {name = "Malte Axner"}
     ]
 license = { text = "GPL-3.0" }
@@ -27,8 +27,8 @@ dependencies = [
     "plotext",
     "prompt_toolkit",
     "markdown",
-    "Scikit-Learn",
-    "SciPy",
+    # "Scikit-Learn",
+    # "SciPy",
     "fastapi",
     "uvicorn",
 ]
@@ -51,6 +51,11 @@ LuRaCs = "luracs.main:main"
 [tool.bumpver]
 current_version = "0.1.1"
 version_pattern = "MAJOR.MINOR.PATCH"
+
+commit = true
+tag = true
+push = false
+
 
 [tool.bumpver.file_patterns]
 "pyproject.toml" = [

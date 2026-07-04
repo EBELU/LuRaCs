@@ -8,6 +8,7 @@ from luracs.containers.spectrum_classes import Spectrum
 from pathlib import Path
 from glob import glob
 import os
+import shutil
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 
@@ -261,6 +262,7 @@ class _Importer(QObject):
 
     sigImportSpectrum = Signal(dict, bool)
     sigImportSpectrumAsBackground = Signal(str, dict)
+    sigImportSpectrogram = Signal(str)
 
     import_filters = {
         "spectrum": "Spectrum Files (*.xml *.n42 *.TKA *.Spe *.spe)",
@@ -332,13 +334,50 @@ class _Importer(QObject):
             return
 
         # --- Spectrum Import ---
-        if selected_filter == self.import_filters["spectrum"]:
-            for file_path in file_paths:
-                spectrum_parser = io_dispatcher(file_path)
-                if isinstance(spectrum_parser, (xml_parser, spe_parser, tka_parser)):
+        file_path = None
+        for file_path in file_paths:
+            if selected_filter == self.import_filters["spectrum"]:
+                parser = io_dispatcher(file_path)
+                if isinstance(parser, (xml_parser, spe_parser, tka_parser)):
                     self.sigImportSpectrum.emit(
-                        spectrum_parser.data, True
+                        parser.data, True
                     )  # Bool is to signal external import
+
+            elif selected_filter == self.import_filters["spectrogram"]:
+                new_name = (
+                    Settings.Paths.spectrogram_library / file_path.name
+                ).with_suffix(".db")
+                shutil.copy2(str(file_path.resolve()), str(new_name))
+                self.sigImportSpectrogram.emit(str(new_name.stem))
+
+            elif selected_filter == self.import_filters["rois"]:
+                if isinstance(parser, xml_parser):
+                    name = parser.get_header().name
+                    for peak in parser.get_rois():
+                        extented_kwargs = {
+                            "alias": peak.alias,
+                            "fit_type": peak.fit_type,
+                            "bkg_type": peak.bkg_type,
+                            "emission": peak.emission,
+                            **peak.meta,
+                        }
+
+                        SpectrumManager.ROIManager.add_roi(
+                            *peak.roi_bound,
+                            **extented_kwargs,
+                            owner_spectrum=name
+                            if Settings.Appearance.tabbed_spectrum_view
+                            else None,
+                        )
+
+            elif selected_filter == self.import_filters["instrument"]:
+                if isinstance(parser, xml_parser):
+                    instrument = parser.get_instrument()
+                    if instrument is not None:
+                        save_instrument_to_library(instrument)
+
+        if file_path is not None:
+            Settings.Paths.last_opened_dir = file_path.parent
 
     def import_spectrum_as_background(self, spectrum_name: str):
         file_path, _ = QFileDialog.getOpenFileName(

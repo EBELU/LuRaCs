@@ -15,19 +15,8 @@ from luracs.clients.DeviceWrappers import (
     WrappedStatusPackage,
 )
 
-from luracs.core import Settings, RunManager, Log, SpectrumManager
-
-
-def compress_spectrum(array: np.ndarray) -> bytes:
-    """Compress a spectrum to bytes with zlib"""
-    raw = array.astype(np.uint32).tobytes()
-    return zlib.compress(raw, level=6)
-
-
-def decompress_spectrum(blob: bytes, channel_count: int) -> np.ndarray:
-    """Uncompress spectrum from bytes to array of uint32"""
-    raw = zlib.decompress(blob)
-    return np.frombuffer(raw, dtype=np.uint32, count=channel_count)
+from luracs.core import Settings, RunManager, Log, SpectrumManager, IOManager
+from luracs.utils.numerics.compression import compress_spectrum, decompress_spectrum
 
 
 def restart_spectrogram(db_name: str):
@@ -38,7 +27,6 @@ def restart_spectrogram(db_name: str):
     RunManager.Signals.spectrumUpdated.connect(new_log.receive_spectrum)
 
     RunManager.add_spectrogram(db_name, new_log)
-
     new_log.request_data()
 
 
@@ -72,6 +60,10 @@ def start_spectrogram(db_name, device: str, save_interval: int = 1, concat: int 
     RunManager.add_spectrogram(db_name, new_log)
     new_log.request_data()
 
+# ------------------------------------------------------------------
+# Connect the IOManagers signal
+IOManager.Importer.sigImportSpectrogram.connect(restart_spectrogram)
+# ------------------------------------------------------------------
 
 @dataclass
 class WrappedSpectrogramData:

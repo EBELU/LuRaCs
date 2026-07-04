@@ -1,0 +1,31 @@
+{
+    "citation_ref": "LNHB Volume 1",
+    "Nuclide": "Be-7",
+    "Element": "Beryllium",
+    "Z": "4",
+    "Daughters": [
+        [
+            "(EC)",
+            "Li-7",
+            100.0
+        ]
+    ],
+    "Half-life (s)": [
+        4598000.0,
+        5000.0
+    ],
+    "Specific activity (Bq/g)": [
+        1.2969e+16,
+        15000000000000.0
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 477.6035,
+            "Energy error (keV)": 0.002,
+            "I (%)": 10.44,
+            "I error (%)": 0.04,
+            "Type": "g",
+            "Origin": "Li-7"
+        }
+    ]
+}
