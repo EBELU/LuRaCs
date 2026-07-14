@@ -187,7 +187,7 @@ class ROIManager(QObject):
     sigROIDeleted = Signal(object)
     sigCpsChanged = Signal(bool)
 
-    def __init__(self, spectrum_manager, title="", parent=None):
+    def __init__(self, spectrum_manager: _SpectrumManager, title="", parent=None):
         super().__init__(parent=parent)
         self.spectrum_manager: _SpectrumManager = spectrum_manager  # Keep a reference
 
@@ -212,8 +212,11 @@ class ROIManager(QObject):
     def add_roi(self, x_low=None, x_high=None, **kwargs):
         "Add a ROI to the plot, kwargs are given to the class DeletableROI"
 
+        # Give an internal tag based on the roi counter
+        # This can only increase, ensuring a unique tag for every roi
         roi_tag = f"ROI_{self.roi_counter}"
         self.roi_counter += 1
+        
         new_roi = DeletableROI(
             roi_tag,
             [x_low, x_high],
@@ -221,8 +224,10 @@ class ROIManager(QObject):
             **kwargs,
         )
 
+        # Store in the registry mapped to its tag
         self.roi_registry[roi_tag] = new_roi
 
+        # Connect signals
         new_roi.sigDeleteRequested.connect(self.remove_roi)
         new_roi.sigRegionChangeFinished.connect(
             lambda: self.on_roi_change(roi_tag=new_roi.tag)
@@ -232,14 +237,14 @@ class ROIManager(QObject):
         new_roi.sigSettingsUpdated.connect(self.propagrade_roi_settings_change)
 
         self.sigROICreated.emit(new_roi)
-        roi_bounds = [f"{int(v):4d}" for v in np.array(new_roi.getRegion()).round()]
+        # roi_bounds = [f"{int(v):4d}" for v in np.array(new_roi.getRegion()).round()]
 
-        Log.info(
-            f"ROI Added: alias={new_roi.alias}, "
-            f"bounds={roi_bounds}, "
-            f"nuclide={new_roi.emission.parent_nuclide if new_roi.emission else 'None'}, "
-            f"nuclide_energy={new_roi.emission.energy_keV if new_roi.emission else 'None'} keV"
-        )
+        # Log.info(
+        #     f"ROI Added: alias={new_roi.alias}, "
+        #     f"bounds={roi_bounds}, "
+        #     f"nuclide={new_roi.emission.parent_nuclide if new_roi.emission else 'None'}, "
+        #     f"nuclide_energy={new_roi.emission.energy_keV if new_roi.emission else 'None'} keV"
+        # )
         return new_roi
 
     def remove_roi(self, roi_tag: str, update_state: bool = True) -> None:
@@ -247,13 +252,18 @@ class ROIManager(QObject):
         popped_roi = self.roi_registry.pop(roi_tag, None)
         if not popped_roi:
             return
+        
+        # Remove the roi data from every spectrum since calculation results are owned by the respective spectrum
         for spect in self.spectrum_manager.spectrum_registry.values():
             spect.remove_roi(roi_tag)
+            
         self.sigROIDeleted.emit(popped_roi)
         self.roi_groupings = self.calculate_roi_groups()
 
         # Fix roi color after removal and update calculations
+        # If the merge status changes the color needs to change accordingly
         if update_state:
+            # Use a set to store which has been updated to ensure each roi is only updated once even if groupings change
             updated_tags = set()
             for g in self.roi_groupings:
                 for r in g:

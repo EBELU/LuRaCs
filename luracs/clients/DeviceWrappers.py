@@ -59,7 +59,8 @@ OPTIONAL_WRAPPER_METHODS = {
     "set_gain",
     "get_gain",
     "set_energy_range",
-    "get_energy_rangeclear_accumulation",
+    "get_energy_range",
+    "clear_accumulation",
 }
 
 
@@ -68,6 +69,10 @@ class DeviceWrapper:
     run_manager: _RunManager | None = None
 
     type = None
+    
+    has_calibration_settings = False
+    has_alarm_settings = False
+    has_hv_settings = False
 
     class DeviceState(Enum):
         UNINITIALIZED = auto()
@@ -166,17 +171,17 @@ class DeviceWrapper:
                     
                     except usb.core.USBError:
                         gui_logger.exception(f"USB error for {self.name}, likely disconnect")
-                        self.state = self.DeviceState.ERROR
+                        self.set_state(self.DeviceState.ERROR)
+                        self.run_manager.Signals.deviceStateUpdated.emit(self.name, self.state)
                         break
                     
             except asyncio.CancelledError:
                 raise
-            
-
                     
             except Exception:
                 gui_logger.exception(f"Polling crashed for {self.name}")
                 self.set_state(self.DeviceState.ERROR)
+                self.run_manager.Signals.deviceStateUpdated.emit(self.name, self.state)
                 
     async def start_polling(self):
         if self.poll_task is None or self.poll_task.done():
@@ -242,8 +247,10 @@ class DeviceWrapper:
     def reset_spectrum(self):
         pass
 
+
 class MockClientWrapper(DeviceWrapper):
     type = "mock"
+    has_calibration_settings = True
 
     def __init__(self, address=None, usb=None):
         super().__init__(address, usb)
@@ -317,6 +324,7 @@ class RadiacodeWrapper(DeviceWrapper):
         self.name = self.name.split("#")[-1]
         self.client = RadiacodeClientAsync(address, usb)
         self.channels = 1024
+        self.calibration_coefficients = []
 
     async def get_RealTimeData(self):
         latestRTD = await self.client.get_realtime()
@@ -344,6 +352,7 @@ class RadiacodeWrapper(DeviceWrapper):
     async def get_Spectrum(self):
         latestSpectrum = await self.client.get_spectrum()
         if latestSpectrum is not None:
+            self.calibration_coefficients = getattr(latestSpectrum, "calib_coeff", None)
             return WrappedSpectrumPackage(
                 getattr(latestSpectrum, "spectrum"),
                 getattr(latestSpectrum, "uptime"),
@@ -351,6 +360,7 @@ class RadiacodeWrapper(DeviceWrapper):
                 getattr(latestSpectrum, "calib_coeff", None),
                 getattr(latestSpectrum, "timestamp", time.time()),
             )
+            
 
     def is_running(self):
         stopped = getattr(self.client, "_stopped", True)
@@ -368,8 +378,11 @@ class RadiacodeWrapper(DeviceWrapper):
         await self.client.stop()
         await super().stop()
 
-    def set_calibration(self, coeff):
-        self.client.set_calibration(coeff)
+    def set_calibration(self, coeff: list):
+        self.client.set_calibration(reversed(coeff))
+        
+    def get_calibration(self) -> list:
+        return self.calibration_coefficients
         
     def reset_spectrum(self):
         self.client.reset()
@@ -384,7 +397,7 @@ class RaysidWrapper(DeviceWrapper):
         self.client = RaysidClientAsync(address)
         self.channels = 1800
 
-    def get_RealTimeData(self):
+    async def get_RealTimeData(self):
         latestRTD = getattr(self.client, "LatestRealTimeData", None)
         if latestRTD is not None:
             return WrappedRealTimePackage(
@@ -395,7 +408,7 @@ class RaysidWrapper(DeviceWrapper):
                 getattr(latestRTD, "timestamp", time.time()),
             )
 
-    def get_Status(self):
+    async def get_Status(self):
         latestStatus = getattr(self.client, "LatestStatusData", None)
         if latestStatus is not None:
             return WrappedStatusPackage(
@@ -407,7 +420,7 @@ class RaysidWrapper(DeviceWrapper):
                 getattr(latestStatus, "timestamp", time.time()),
             )
 
-    def get_Spectrum(self):
+    async def get_Spectrum(self):
         latestSpectrum = getattr(self.client, "LatestSpectrum", None)
         if latestSpectrum is not None:
             return WrappedSpectrumPackage(

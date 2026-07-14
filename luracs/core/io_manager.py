@@ -313,7 +313,7 @@ class _Importer(QObject):
             filter = ";;".join(self.import_filters.values())
 
         file_path, selected_filter = QFileDialog.getOpenFileName(
-            self,
+            None,
             "Import File",
             str(Settings.Paths.last_opened_dir),
             filter,
@@ -327,15 +327,20 @@ class _Importer(QObject):
         else:
             return None, None
 
-    def import_generic(self, filter=None):
-        "Import anything supported"
-        file_paths, selected_filter = self.import_files(filter)
-        if file_paths is None:
-            return
+    def import_generic(self, import_filter=None):
+        "GUI Helper for importing multiple files. Opens a QFileDialog and handles dynamic import."
+        file_paths, selected_filter = self.import_files(import_filter)
+        if file_paths is not None:
+            self.import_generic_paths(*file_paths, selected_filter=selected_filter)
 
-        # --- Spectrum Import ---
+    def import_generic_paths(self, *file_paths: Path, selected_filter=None):
+        "Import anything supported based on file path"
+
         file_path = None
         for file_path in file_paths:
+            if isinstance(file_path, str):
+                file_path = Path(file_path)
+            # --- Spectrum Import ---
             if selected_filter == self.import_filters["spectrum"]:
                 parser = io_dispatcher(file_path)
                 if isinstance(parser, (xml_parser, spe_parser, tka_parser)):
@@ -343,6 +348,8 @@ class _Importer(QObject):
                         parser.data, True
                     )  # Bool is to signal external import
 
+            # --- Spectrogram Import ---
+            # An imported spectrogram is copied to the data store and then loaded for use
             elif selected_filter == self.import_filters["spectrogram"]:
                 new_name = (
                     Settings.Paths.spectrogram_library / file_path.name
@@ -350,7 +357,10 @@ class _Importer(QObject):
                 shutil.copy2(str(file_path.resolve()), str(new_name))
                 self.sigImportSpectrogram.emit(str(new_name.stem))
 
+            # --- ROIs import ---
+            # A ROI-file is like a normal spectrum but only the roi info is used
             elif selected_filter == self.import_filters["rois"]:
+                parser = io_dispatcher(file_path)
                 if isinstance(parser, xml_parser):
                     name = parser.get_header().name
                     for peak in parser.get_rois():
@@ -370,7 +380,10 @@ class _Importer(QObject):
                             else None,
                         )
 
+            # --- Instrument Import ---
+            # Importing an instrument only copies it to the data store for later use
             elif selected_filter == self.import_filters["instrument"]:
+                parser = io_dispatcher(file_path)
                 if isinstance(parser, xml_parser):
                     instrument = parser.get_instrument()
                     if instrument is not None:

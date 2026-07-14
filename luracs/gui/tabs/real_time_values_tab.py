@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from core.run_manager import CurrentValuesPackage
+    pass
 
 from PySide6.QtWidgets import (
     QWidget,
@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Slot
 import pyqtgraph as pg
 import numpy as np
-from collections import deque
 
 
 from luracs.gui.misc.idx_table import StrIdxTable
@@ -69,7 +68,7 @@ class RealTimeValuesPlot(QWidget):
 
         layout.addLayout(plot_box, 7.5)
 
-        titles = ["Device", "Count Rate\n[s⁻¹]", "Does Rate\n[μSv/h]"]
+        titles = ["Device", "Count Rate\n[s⁻¹]", "Dose Rate\n[μSv/h]"]
         self.table = StrIdxTable(columns=titles)
         layout.addWidget(self.table.table, 2.5)
 
@@ -108,7 +107,7 @@ class RealTimeValuesPlot(QWidget):
             self.dose_lines[name] = self.dose_plot_widget.plot(
                 [], [], pen=pen, name=name
             )
-            
+
     def device_removed(self, name: str):
         line = self.cps_lines.pop(name, None)
         if line is not None:
@@ -117,9 +116,9 @@ class RealTimeValuesPlot(QWidget):
         line = self.dose_lines.pop(name, None)
         if line is not None:
             self.dose_plot_widget.removeItem(line)
-            
+
         self.table.delete_row(name)
-        
+
     @Slot(str, object, object)
     def receive_buffers(self, name: str, cps_buffer: np.ndarray, dr_buffer: np.ndarray):
         self.update_plots(name, cps_buffer, dr_buffer)
@@ -129,26 +128,11 @@ class RealTimeValuesPlot(QWidget):
         self.cps_lines[name].setData(self.x_axis, cps_buffer)
         self.dose_lines[name].setData(self.x_axis, dr_buffer)
 
-    def update_values_text(self, name: str, cps_array: np.ndarray, dr_array: np.ndarray):
+    def update_values_text(
+        self, name: str, cps_array: np.ndarray, dr_array: np.ndarray
+    ):
         # Last value = most recent
         current_cps = cps_array[-1]
         current_dr = dr_array[-1]
 
         self.table.write_row(name, [name, round(current_cps, 2), round(current_dr, 3)])
-
-    def handle_device_removal(self, name: str):
-        # Remove CPS plot and data
-        if name in self.cps_lines:
-            self.cps_plot_widget.removeItem(self.cps_lines[name])
-            del self.cps_lines[name]
-
-        self.cps_queues.pop(name, None)
-
-        # Remove Dose Rate plot and data
-        if name in self.dose_lines:
-            self.dose_plot_widget.removeItem(self.dose_lines[name])
-            del self.dose_lines[name]
-
-        self.dose_queues.pop(name, None)
-
-

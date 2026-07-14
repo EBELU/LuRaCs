@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 from luracs.gui.misc.table_menu_button import MenuButton
+from luracs.gui.dialogs.device_settings_dialog import DeviceSettingsDialog
 
 
 class DevicesInfoTab(QWidget):
@@ -46,6 +47,7 @@ class DevicesInfoTab(QWidget):
 
         RunManager.Signals.newDeviceWrapped.connect(self.add_device)
         RunManager.Signals.statusUpdated.connect(self.update_status)
+        RunManager.Signals.deviceStateUpdated.connect(self.update_state)
 
     def build_menu_button(
         self,
@@ -59,6 +61,10 @@ class DevicesInfoTab(QWidget):
         )
 
         action_settings = menu_button.add_action("Settings")
+        action_settings.triggered.connect(
+            lambda: DeviceSettingsDialog(device_wrapper=RunManager.device_registry[device_name]).exec()
+        )
+        
 
         return menu_button
 
@@ -66,9 +72,9 @@ class DevicesInfoTab(QWidget):
         print(name)
         self.row_regestry[name] = [
             name,
-            None,
-            None,
-            None,
+            "None",
+            "None",
+            "None",
             str(wrapper.state.name),
             str(wrapper.type),
             str(wrapper.connection),
@@ -78,18 +84,19 @@ class DevicesInfoTab(QWidget):
         )
         self.status_ts_buff[name] = 0
 
-    def update_state(self, name, new_state: DeviceWrapper.DeviceState):
+    def update_state(self, name: str, new_state: DeviceWrapper.DeviceState):
+        self.row_regestry[name][4] = new_state.name
         row_cpy = self.row_regestry[name].copy()
-        row_cpy[6] = new_state.name
         self.table.write_row(name, row_cpy[0:])
 
     def update_status(self, name: str, new_status: WrappedStatusPackage):
         if self.status_ts_buff[name] != new_status.timestamp:
             row_cpy = self.row_regestry[name].copy()
-            row_cpy[1:4] = [
+            self.row_regestry[name][1:4] = [
                 f"{str(round(new_status.temperature, 1))}°C",
                 f"{new_status.battery}%",
                 str(new_status.charging),
             ]
+            row_cpy = self.row_regestry[name].copy()
             self.table.write_row(name, row_cpy[0:])
             self.status_ts_buff[name] = new_status.timestamp

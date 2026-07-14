@@ -3,14 +3,13 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from main import MainWindow
+    from luracs.core.script_engine import ScriptEngine
+
 import argparse
-import os
 import asyncio
 from pathlib import Path
 from luracs.core import Log, RunManager, SpectrumManager
-from luracs.utils.file_io import xml_parser
 from luracs.utils.file_io import io_dispatcher
-from PySide6.QtCore import QTimer
 
 
 def parse_cli_args(main_window: MainWindow):
@@ -18,13 +17,9 @@ def parse_cli_args(main_window: MainWindow):
         description="""LuRaCs -- Lund Radiation analysis Computer software"""
     )
 
-    parser.add_argument(
-        "-db", "--debug", action="store_true", help="Launch in debug mode"
-    )
+    parser.add_argument("--debug", action="store_true", help="Launch in debug mode")
 
-    parser.add_argument(
-        "-is", "--import_spectrum", nargs="+", help="Load spectrum files"
-    )
+    parser.add_argument("--import_spectrum", nargs="+", help="Load spectrum files")
 
     parser.add_argument("--nuclides", nargs="+", help="Preset nuclides shown")
 
@@ -32,11 +27,23 @@ def parse_cli_args(main_window: MainWindow):
         "--headless", action="store_true", help="Run without GUI (terminal mode)"
     )
 
-    parser.add_argument("-l", "--load", nargs="+", help="Load spectrum files")
+    parser.add_argument(
+        "--map_url", nargs=1, type=str, help="Load an online map from the given URL"
+    )
+
+    parser.add_argument(
+        "--map_file", nargs=1, type=str, help="Load a local map from a .pmtiles file"
+    )
 
     parser.add_argument("--import_rois", type=str, help="Load ROI from an xml file")
 
-    parser.add_argument("-roi", nargs=2, type=float, action="append")
+    parser.add_argument(
+        "-roi",
+        nargs=2,
+        type=float,
+        action="append",
+        help="Add a roi with lower and upper bounds in keV.",
+    )
 
     parser.add_argument(
         "-bt",
@@ -70,7 +77,6 @@ def parse_cli_args(main_window: MainWindow):
                     RunManager.add_device(
                         conn_device.get("serial_number"), "radiacode", True
                     )
-                    
 
     if args.import_spectrum:
         for pth in args.import_spectrum:
@@ -84,6 +90,6 @@ def parse_cli_args(main_window: MainWindow):
         for roi_bounds in args.roi:
             SpectrumManager.ROIManager.add_roi(roi_bounds[0], roi_bounds[1])
 
-    if args.nuclides:
+    if args.nuclides and main_window is not None:
         for nuclide in args.nuclides:
             main_window.isotopics_tab.set_nuclide_check(nuclide, True)

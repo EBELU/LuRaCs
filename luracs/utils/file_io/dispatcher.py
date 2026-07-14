@@ -6,7 +6,7 @@ from .proprietary_formats import spe_parser, tka_parser
 
 def io_dispatcher(
     file_name: Path | str, meta_parsing: bool = False
-) -> xml_parser | db_parser:
+) -> xml_parser | spe_parser | tka_parser | db_parser | None:
     "Växeln, hallå hallå"
     if isinstance(file_name, Path):
         pass

@@ -1,4 +1,4 @@
-def logo(version: str, color: bool = False, is_h3: bool = False):
+def logo(version: str, color: bool = False, is_h3: bool = False, use_type = "none"):
     if color:
         bg_yellow = "\033[43m\033[30m"
         bg_blue = "\033[44m"
@@ -28,13 +28,26 @@ def logo(version: str, color: bool = False, is_h3: bool = False):
         f"  {bg_red} ====== {reset}",
     ]
 
-    end_message = [
-        "",
-        f"   Version:  {version}",
-        "   LuRaCs Console",
-        "   Type 'help' for a list of commands",
-        "",
-    ]
+    if use_type == "none":
+        end_message = []
+    elif use_type == "console":
+        end_message = [
+            "",
+            f"   Version:  {version}",
+            "   LuRaCs Console",
+            "   Type 'help' for a list of commands",
+            "",
+        ]
+    elif use_type == "log":
+        end_message = [
+            "",
+            f"   Version:  {version}",
+            "   Licence: GNU General Public License v3.0",
+            "",
+            "",
+        ]
+    else:
+        raise ValueError(f"{use_type} is not a valid use type")
 
     for i in range(len(base_message)):
         if is_h3:

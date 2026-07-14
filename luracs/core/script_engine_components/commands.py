@@ -12,6 +12,7 @@ from pathlib import Path
 
 from datetime import timedelta, datetime
 from glob import glob
+from textwrap import dedent
 
 from luracs.utils.file_io import xml_parser, db_parser
 from luracs.core import RunManager, SpectrumManager, Settings, IOManager
@@ -38,7 +39,7 @@ class Command(ABC):
 
     @property
     def help(self) -> str:
-        return self.run.__doc__ or "No help available."
+        return dedent(self.run.__doc__) or "No help available."
 
     def get_auto_complete(self) -> dict:
         return
@@ -53,7 +54,7 @@ class ClearCommand(Command):
     async def run(self, engine, *args):
         color = engine.headless
 
-        return ascii_art.logo(engine.program_version, color, engine.IS_H3)
+        return ascii_art.logo(engine.program_version, color, engine.IS_H3, "console")
 
 
 class HelpCommand(Command):
@@ -378,6 +379,37 @@ class SpectrogramCommand(Command):
     name = "spectrogram"
 
     async def run(self, engine, *args):
+        """
+        Manage spectrogram acquisition and loaded spectrograms.
+
+        Usage:
+            spectrogram start [-n <name>] [-i <save_interval>] [-c <concat>] <device|all>
+            spectrogram pause <name>
+            spectrogram unpause <name>
+            spectrogram load <path>
+            spectrogram unload <name>
+
+        Arguments:
+            start           Start a new spectrogram for a device or for all devices
+            pause           Pause a running spectrogram
+            unpause         Resume a paused spectrogram
+            load            Load a spectrogram from data store
+            unload          Close a loaded spectrogram
+
+        Options:
+            -n <name>       Specify the name of the spectrogram
+            -i <seconds>    Set the save interval (default: 1)
+            -c <count>      Number of spectra to concatenate before saving (default: 1)
+
+        Operands:
+            <device>        Name of the device to acquire from
+            all             Start a spectrogram for all connected devices
+            <name>          Name of a loaded spectrogram
+            <path>          Path to a saved spectrogram
+        """
+        if not args:
+            return self.help
+        
         if len(args) < 2:
             raise ArgumentError("Too few arguments")
 
@@ -479,6 +511,37 @@ class SpectrogramCommand(Command):
             | {key: None for key in RunManager.loaded_spectrogram.keys()},
         }
 
+class MapCommand(Command):
+    name = "map"
+    
+    async def run(self, engine: ScriptEngine, *args):
+        """
+        Load a map to the map window.
+
+        Usage:
+            map url <https-URL>
+            map file <path to .pmtiles>
+
+        Arguments:
+            url             Load an online map from the specified HTTPS URL
+            file            Load a local offline map from the specified .pmtiles file
+        """
+        if not args:
+            return self.help
+            
+        if len(args) != 2:
+            raise ArgumentError("The 'map'-command takes 2 arguments, 'url <url>' | 'file <file path>'")
+        if args[0] == "url":
+            engine.sigMapURL.emit(args[1])
+            
+        elif args[0] == "file":
+            engine.sigMapFile.emit(args[1])
+            
+        else:
+            raise InvalidCommandError(f"{args[0]} is not a valid map command! Use 'url' for an online map or 'file' for an offline map.")
+        
+    def get_auto_complete(self):
+        return {"url": None, "file": None}
 
 class DeviceCommand(Command):
     name = "device"
@@ -676,6 +739,7 @@ def register_commands(registry: CommandRegistry):
     registry.register(HelpCommand())
     registry.register(IndexCommand())
     registry.register(ListCommand())
+    registry.register(MapCommand())
     registry.register(ViewCommand())
     registry.register(ROICommand())
     registry.register(SpectrogramCommand())

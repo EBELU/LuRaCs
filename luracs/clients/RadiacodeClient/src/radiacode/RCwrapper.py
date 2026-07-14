@@ -63,7 +63,7 @@ class RadiacodeAsync:
 
     @property
     def latest_status(self):
-        return self._latest_statu
+        return self._latest_status
 
     async def get_realtime(self):
         data = await self.client.data_buf()

@@ -30,6 +30,9 @@ class ScriptEngine(QObject):
     sigShutdown = Signal()
     sigCancelCurrent = Signal()
     sigClearConsole = Signal(str)
+    
+    sigMapURL = Signal(str)
+    sigMapFile = Signal(str)
 
     def __init__(
         self,

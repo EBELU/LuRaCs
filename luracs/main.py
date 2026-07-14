@@ -344,7 +344,7 @@ def main():
 
     # --- Script engine ---
     script_engine = ScriptEngine(
-        program_version=__version__ + "--Tritium" if IS_H3 else "",
+        program_version=__version__ + "--Tritium" if IS_H3 else __version__,
         headless=Settings.headless,
         IS_H3=IS_H3,
     )
@@ -363,12 +363,15 @@ def main():
         script_engine.sigCommandAppendOutput.connect(win.console_tab.append_output)
         script_engine.sigCommandOutput.connect(win.console_tab.append_output)
         script_engine.sigClearConsole.connect(win.console_tab.set_output)
+        
+        script_engine.sigMapURL.connect(win.map_widget.load_online_map)
+        script_engine.sigMapFile.connect(win.map_widget.load_offline_map)
 
     print_progress("Done!", 10)
     print()
     # --- Log welcome ---
     Log.info(
-        "\n\n" + ascii_art.logo(__version__ + "--Tritium" if IS_H3 else "", is_h3=IS_H3)
+        "\n\n" + ascii_art.logo(__version__ + "--Tritium" if IS_H3 else __version__, is_h3=IS_H3, use_type="log")
     )
 
     # --- Start the event loop ---

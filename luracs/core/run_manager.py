@@ -7,14 +7,12 @@ if TYPE_CHECKING:
 
 import asyncio
 from PySide6.QtCore import QObject, Signal, Slot
-from dataclasses import dataclass
 import numpy as np
 from collections import deque
 from .settings import Settings
 
 from bleak import BleakScanner
 import sys
-import time
 
 
 # -----------------------------
@@ -134,7 +132,7 @@ class _RunManager(QObject):
 
         new_device.set_state(DeviceWrapper.DeviceState.CONNECTING)
         self.Signals.newDeviceWrapped.emit(new_device.name, new_device)
-        self.Signals.deviceStateUpdated.emit(new_device.name, new_device)
+        self.Signals.deviceStateUpdated.emit(new_device.name, new_device.state)
 
         try:
             await new_device.start()
@@ -151,13 +149,13 @@ class _RunManager(QObject):
                 f"Wrapper for device {new_device.name} has critical method '{e}' not implemented!"
             )
             new_device.set_state(DeviceWrapper.DeviceState.CONNECTION_FAILED)
-            self.Signals.deviceStateUpdated.emit(new_device.name, new_device)
+            self.Signals.deviceStateUpdated.emit(new_device.name, new_device.state)
             return
 
         except Exception as e:
             gui_logger.error(f"Device start threw exception {e}. Start failed!")
             new_device.set_state(DeviceWrapper.DeviceState.CONNECTION_FAILED)
-            self.Signals.deviceStateUpdated.emit(new_device.name, new_device)
+            self.Signals.deviceStateUpdated.emit(new_device.name, new_device.state)
             return
 
         self.device_registry[new_device.name] = new_device
@@ -167,7 +165,7 @@ class _RunManager(QObject):
         self.dr_buffers[new_device.name] = deque([np.nan] * self.queue_len, self.queue_len)
         
         new_device.set_state(DeviceWrapper.DeviceState.CONNECTED)
-        self.Signals.deviceStateUpdated.emit(new_device.name, new_device)
+        self.Signals.deviceStateUpdated.emit(new_device.name, new_device.state)
 
         gui_logger.info(
             f"Device connected: "

@@ -23,7 +23,7 @@ from PySide6.QtCore import Qt, Signal
 
 from ..misc.idx_table import StrIdxTable
 from luracs.utils.file_io import io_dispatcher
-from luracs.core import SpectrumManager, IOManager
+from luracs.core import SpectrumManager, IOManager, RunManager
 from luracs.spectrogram import restart_spectrogram
 from ..dialogs.data_store_edit_dialogs import InstrumentDialog, ROIDialog
 from luracs.containers.instrument_classes import UniqueInstrument, GenericInstrument
@@ -168,7 +168,7 @@ class LibraryTab(QWidget):
         return rows
 
     def export_same(self, filter: str):
-        "Copies a file from the datastore without converting to another format "
+        "Copies a file from the datastore without converting to another format"
         selection = self._get_selection()
         if selection is None:
             return
@@ -441,6 +441,7 @@ class SpectrogramTab(LibraryTab):
         )
 
         self.btn_load.clicked.connect(self.load)
+        self.btn_info.clicked.connect(self.edit)
         self.table.table.cellDoubleClicked.connect(self.load)
 
         self.include_roi_check.setText("Export Spectrum Data")
@@ -458,11 +459,15 @@ class SpectrogramTab(LibraryTab):
         self.delete_fn = IOManager.FileIndex.spectrogram_index.delete_file
 
     def set_table(self):
+        self.table.reset_table(
+            ["Name", "Start Date", "End Date", "Duration", "Instrument"],
+            (230, 150, 150, 65, 130),
+        )
         for key, parser in IOManager.FileIndex.spectrogram_index.get_index().items():
             header, summary = parser.get_header(), parser.get_summary()
 
-            start_date = header.created
-            end_date = summary.last_update
+            start_date = header.created.replace(microsecond=0)
+            end_date = summary.last_update.replace(microsecond=0)
             duration = timedelta(seconds=round(summary.total_duration))
             instrument = header.device_id
 
@@ -518,6 +523,38 @@ class SpectrogramTab(LibraryTab):
                 Path(new_path).with_suffix(".xlsx"),
                 include_spectrogram_data=self.include_roi_check.isChecked(),
             )
+
+    def edit(self):
+        selection = self._get_selection()
+        if not selection:
+            return
+
+        if len(selection) > 1:
+            QMessageBox.warning(
+                self, "Selection error", "Only one item may be edited simultaneously"
+            )
+            return
+
+        if Path(selection[0]).name in RunManager.loaded_spectrogram:
+            QMessageBox.warning(
+                self,
+                "Error",
+                "A loaded spectrogram can not be renamed. Please unload before renaming",
+            )
+            return
+
+        dialog = SaveNamingDialog(name=Path(selection[0]).stem)
+        dialog.remark_edit.setEnabled(False)
+        res = dialog.exec()
+
+        if res != ROIDialog.Accepted:
+            return
+
+        IOManager.FileIndex.spectrogram_index.rename_file(
+            selection[0],
+            (Path(selection[0]).parent / dialog.get_name()).with_suffix(".db"),
+        )
+        self.set_table()
 
 
 class ROIsTab(LibraryTab):
@@ -586,8 +623,6 @@ class ROIsTab(LibraryTab):
         IOManager.FileIndex.roi_index.save_file(dummy_spectrum)
 
         self.set_table()
-
-        print(IOManager.FileIndex.roi_index.index_registry.keys())
 
 
 class InstrumentsTab(LibraryTab):
@@ -773,7 +808,7 @@ class GenericInstrumentsTab(LibraryTab):
 
         edit_dialog = InstrumentDialog(
             generic_selection=False
-            **SpectrumManager.GenericInstrumentLibrary.instrument_registry[
+            ** SpectrumManager.GenericInstrumentLibrary.instrument_registry[
                 selection[0],
             ].__dict__
         )

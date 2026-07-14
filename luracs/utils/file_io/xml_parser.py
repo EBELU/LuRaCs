@@ -376,7 +376,7 @@ class xml_parser:
                 y = np.array([])
             else:
                 chan = spec.find("n42:ChannelData", namespaces=ns)
-                chan_data = chan.text.strip() if chan is not None else ""
+                chan_data = chan.text.strip() if chan is not None and chan.text is not None else ""
                 y = _parse_array(chan_data)
 
                 if chan is not None and chan.get("compressionCode") == "CountedZeroes":

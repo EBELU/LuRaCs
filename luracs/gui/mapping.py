@@ -170,7 +170,7 @@ class MapWidget(QWidget):
         action_export_to_geojson = QAction("To .geojson", self)
 
         # Connections
-        action_offline.triggered.connect(self.load_offline_map)
+        action_offline.triggered.connect(self.load_map_from_file)
         action_online.triggered.connect(self.load_online_map)
         action_import.triggered.connect(self.import_data)
         action_export_to_geojson.triggered.connect(self.export_to_geojson)
@@ -475,15 +475,19 @@ class MapWidget(QWidget):
             .removeprefix("https://")
             .removesuffix("/{z}/{x}/{y}.png")
         )
-
-    def load_offline_map(self):
+        
+    def load_map_from_file(self):
         path, _ = QFileDialog.getOpenFileName(
             self,
             "Load Local Map",
             filter="PM Tiles (*.pmtiles)",
             options=QFileDialog.Option.DontUseNativeDialog,
         )
+        if not path:
+            return
+        self.load_offline_map(path)
 
+    def load_offline_map(self, path: str):
         if not path:
             return
 
@@ -491,6 +495,10 @@ class MapWidget(QWidget):
             self.tile_server.stop()
 
         self.loaded_map_name = Path(path).name
+        if not Path(path).is_file():
+            Log.error(f"{path} is not a file!")
+            return
+        
         self.tile_server = TileServer(Path(path))
         self.tile_server.start()
 
