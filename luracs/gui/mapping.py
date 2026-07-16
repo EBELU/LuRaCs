@@ -415,6 +415,7 @@ class MapWidget(QWidget):
                     Settings.Paths.resources / "mapping_resources" / "style_raster.json"
                 ).open()
             )
+
             self.pending_style["sources"]["openmaptiles"] = {
                 "type": "raster",
                 "tiles": [source_url],
@@ -443,8 +444,10 @@ class MapWidget(QWidget):
         if not dialog.get_source_url():
             return
 
-        vector_source = dialog.get_vector_source()
-        if dialog.get_source_url().endswith(".png") and vector_source:
+        self.load_map_from_file(dialog.get_source_url(), dialog.get_vector_source())
+
+    def load_map_from_url(self, url: str, vector_source: bool = True):
+        if url.endswith(".png") and vector_source:
             vector_source = False
             QMessageBox.information(
                 self,
@@ -452,12 +455,12 @@ class MapWidget(QWidget):
                 "The given URL was identified as raster but vector was chosen. The map will be loaded as raster",
             )
 
-        if dialog.get_if_save_url():
-            Settings.State.map_last_online_url = str(dialog.get_source_url())
+        if url:
+            Settings.State.map_last_online_url = str(url)
         else:
             Settings.State.map_last_online_url = ""
 
-        if "{z}/{x}/{y}" not in dialog.get_source_url():
+        if "{z}/{x}/{y}" not in url:
             reply = QMessageBox.question(
                 self,
                 "Error",
@@ -468,14 +471,12 @@ class MapWidget(QWidget):
             if reply != QMessageBox.Yes:
                 return
 
-        self.start_web_engine(dialog.get_source_url(), vector_source=vector_source)
+        self.start_web_engine(url, vector_source=vector_source)
 
-        self.loaded_map_name = (
-            dialog.get_source_url()
-            .removeprefix("https://")
-            .removesuffix("/{z}/{x}/{y}.png")
+        self.loaded_map_name = url.removeprefix("https://").removesuffix(
+            "/{z}/{x}/{y}.png"
         )
-        
+
     def load_map_from_file(self):
         path, _ = QFileDialog.getOpenFileName(
             self,
@@ -498,7 +499,7 @@ class MapWidget(QWidget):
         if not Path(path).is_file():
             Log.error(f"{path} is not a file!")
             return
-        
+
         self.tile_server = TileServer(Path(path))
         self.tile_server.start()
 

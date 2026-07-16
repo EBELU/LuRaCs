@@ -4,6 +4,7 @@ if TYPE_CHECKING:
     from ..core.run_manager import _RunManager
 import time
 from enum import Enum, auto
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 import numpy as np
 import asyncio
@@ -64,7 +65,7 @@ OPTIONAL_WRAPPER_METHODS = {
 }
 
 
-class DeviceWrapper:
+class DeviceWrapper(ABC):
     _registry: dict[str, "DeviceWrapper"] = {}
     run_manager: _RunManager | None = None
 
@@ -131,7 +132,6 @@ class DeviceWrapper:
 
             next_loop_time = time.monotonic()
             next_spectrum_time = time.monotonic()
-
             try:
                 while self.is_running():
                     try:
@@ -196,6 +196,7 @@ class DeviceWrapper:
 
     # --- Critical methods that must be defined ---
     # All the following methods are used by the RunManager and must be defined for each new wrapper
+    @abstractmethod
     async def get_RealTimeData(self) -> WrappedRealTimePackage:
         """
         Retrieve the latest real-time detector measurements.
@@ -208,6 +209,7 @@ class DeviceWrapper:
         """
         raise CriticalNotImplementedError("get_RealTimeData")
 
+    @abstractmethod
     async def get_Status(self) -> WrappedStatusPackage:
         """
         Retrieve the current device status information.
@@ -219,7 +221,8 @@ class DeviceWrapper:
             charging state, accumulated dose, uptime, and timestamp.
         """
         raise CriticalNotImplementedError("get_Status")
-
+    
+    @abstractmethod
     async def get_Spectrum(self) -> WrappedSpectrumPackage:
         """
         Retrieve the latest acquired spectrum.
@@ -231,18 +234,22 @@ class DeviceWrapper:
             calibration coefficients, and acquisition timestamp.
         """
         raise CriticalNotImplementedError("get_Spectrum")
-
+    
+    @abstractmethod
     def is_running(self) -> bool:
         raise CriticalNotImplementedError("is_running")
 
+    @abstractmethod
     def is_stopped(self) -> bool:
         raise CriticalNotImplementedError("is_stopped")
 
     async def start(self):
+        await self.client.start()
         await self.start_polling()
 
     async def stop(self):
         await self.stop_polling()
+        await self.client.stop()
         
     def reset_spectrum(self):
         pass
@@ -305,13 +312,7 @@ class MockClientWrapper(DeviceWrapper):
     def is_stopped(self):
         return getattr(self.client, "_stopped", True)
 
-    async def start(self):
-        await self.client.start()
-        await self.start_polling()
 
-    async def stop(self):
-        await self.stop_polling()
-        await self.client.stop()
         
 
 
@@ -364,19 +365,10 @@ class RadiacodeWrapper(DeviceWrapper):
 
     def is_running(self):
         stopped = getattr(self.client, "_stopped", True)
-
         return not stopped
 
     def is_stopped(self):
         return getattr(self.client, "_stopped", True)
-
-    async def start(self):
-        await self.client.start()
-        await super().start()
-
-    async def stop(self):
-        await self.client.stop()
-        await super().stop()
 
     def set_calibration(self, coeff: list):
         self.client.set_calibration(reversed(coeff))

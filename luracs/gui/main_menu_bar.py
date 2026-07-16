@@ -16,7 +16,6 @@ from .misc import ConfirmCallback
 
 from luracs.gui.dialogs.settings_dialog import edit_settings, edit_advanced_settings
 
-
 class MainMenuBar(QMenuBar):
     sigSetSpectrumViewToTabs = Signal()
     sigSetSpectrumViewToCombined = Signal()
@@ -49,9 +48,8 @@ class MainMenuBar(QMenuBar):
 
         # --- Real Time Data View ---
         view_menu_realtime = view_menu.addMenu("&Real Time Data    ")
-        view_menu_realtime_avg_line = view_menu_realtime.addAction(
-            QAction("Mark Average", self, checkable=True)
-        )
+        self.view_menu_realtime_avg_line = QAction("Mark Average", self, checkable=True)
+        view_menu_realtime.addAction(self.view_menu_realtime_avg_line)
 
         # --- Spectrum View ---
         view_menu_spectrum = view_menu.addMenu("&Spectrum")

@@ -54,7 +54,7 @@ class ClearCommand(Command):
     async def run(self, engine, *args):
         color = engine.headless
 
-        return ascii_art.logo(engine.program_version, color, engine.IS_H3, "console")
+        return ascii_art.logo(engine.program_version, color, engine.IS_H3, "console") + "\n"
 
 
 class HelpCommand(Command):

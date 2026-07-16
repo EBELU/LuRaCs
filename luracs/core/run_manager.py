@@ -368,7 +368,7 @@ class _RunManager(QObject):
         self.loaded_spectrogram[device_name] = new_log
         self.Signals.spectrogramStarted.emit(device_name)
         gui_logger.info(
-            f"Spectrogram Opened: db_name = {new_log.db_name}, device = {new_log.device_id}"
+            f"Spectrogram Opened: db_name={new_log.db_name}, device={new_log.device_id}"
         )
 
     def close_spectrogram(self, name: str):
@@ -376,7 +376,7 @@ class _RunManager(QObject):
         if spectrogram:
             spectrogram.close()
             self.Signals.spectrogramClosed.emit(name)
-            gui_logger.info(f"Spectrogram Closed: name = {name}")
+            gui_logger.info(f"Spectrogram Closed: name={name}")
 
     def resize_spectrogram_deque(self, new_len: str):
         for spectrogram in self.loaded_spectrogram.values():

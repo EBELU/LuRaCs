@@ -59,17 +59,18 @@ class DevicesInfoTab(QWidget):
         action_disconnect.triggered.connect(
             lambda: RunManager.remove_device(device_name)
         )
+        
+        action_reset = menu_button.add_action("Reset Spectrum")
+        action_reset.triggered.connect(lambda: RunManager.device_registry[device_name].reset_spectrum())
 
         action_settings = menu_button.add_action("Settings")
         action_settings.triggered.connect(
             lambda: DeviceSettingsDialog(device_wrapper=RunManager.device_registry[device_name]).exec()
         )
         
-
         return menu_button
 
     def add_device(self, name: str, wrapper: DeviceWrapper):
-        print(name)
         self.row_regestry[name] = [
             name,
             "None",

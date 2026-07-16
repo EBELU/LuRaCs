@@ -8,24 +8,16 @@ from PySide6.QtWidgets import (
     QWidget,
     QHBoxLayout,
     QSizePolicy,
-    QTableWidgetItem,
 )
 from PySide6.QtCore import Slot
 import pyqtgraph as pg
 import numpy as np
-
 
 from luracs.gui.misc.idx_table import StrIdxTable
 from luracs.utils.color_rotator import ColorRotator
 from luracs.core import RunManager, Settings
 
 pg.setConfigOptions(antialias=True)
-
-
-def write_row(table, row_index, values):
-    for col_index, value in enumerate(values):
-        table.setItem(row_index, col_index, QTableWidgetItem(str(value)))
-
 
 class RealTimeValuesPlot(QWidget):
     def __init__(self, title="", parent=None):
@@ -82,6 +74,10 @@ class RealTimeValuesPlot(QWidget):
         self.cps_lines = {}
         self.dose_lines = {}
 
+        self.cps_mean_lines = {}
+        self.dr_mean_lines = {}
+        self.showing_mean_lines: bool = False
+
         self.row_indicies = {}
 
         RunManager.Signals.realTimeBuffersUpdated.connect(self.receive_buffers)
@@ -108,6 +104,11 @@ class RealTimeValuesPlot(QWidget):
                 [], [], pen=pen, name=name
             )
 
+        self.cps_mean_lines[name] = pg.InfiniteLine(angle=0, pen=pen)
+        self.dr_mean_lines[name] = pg.InfiniteLine(angle=0, pen=pen)
+
+        self.toggle_mean_lines(self.showing_mean_lines)
+
     def device_removed(self, name: str):
         line = self.cps_lines.pop(name, None)
         if line is not None:
@@ -119,6 +120,25 @@ class RealTimeValuesPlot(QWidget):
 
         self.table.delete_row(name)
 
+        cps_line = self.cps_mean_lines.pop(name)
+        dr_line = self.dr_mean_lines.pop(name)
+
+        self.cps_plot_widget.removeItem(cps_line)
+        self.dose_plot_widget.removeItem(dr_line)
+
+    def toggle_mean_lines(self, state: bool):
+        for cps_line, dr_line in zip(
+            self.cps_mean_lines.values(), self.dr_mean_lines.values()
+        ):
+            if state:
+                self.cps_plot_widget.addItem(cps_line)
+                self.dose_plot_widget.addItem(dr_line)
+            else:
+                self.cps_plot_widget.removeItem(cps_line)
+                self.dose_plot_widget.removeItem(dr_line)
+
+        self.showing_mean_lines = state
+
     @Slot(str, object, object)
     def receive_buffers(self, name: str, cps_buffer: np.ndarray, dr_buffer: np.ndarray):
         self.update_plots(name, cps_buffer, dr_buffer)
@@ -127,6 +147,9 @@ class RealTimeValuesPlot(QWidget):
     def update_plots(self, name: str, cps_buffer: np.ndarray, dr_buffer: np.ndarray):
         self.cps_lines[name].setData(self.x_axis, cps_buffer)
         self.dose_lines[name].setData(self.x_axis, dr_buffer)
+
+        self.cps_mean_lines[name].setPos(np.nanmean(cps_buffer))
+        self.dr_mean_lines[name].setPos(np.nanmean(dr_buffer))
 
     def update_values_text(
         self, name: str, cps_array: np.ndarray, dr_array: np.ndarray

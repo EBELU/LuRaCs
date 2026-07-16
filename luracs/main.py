@@ -111,7 +111,6 @@ Settings.sigSettingChanged.connect(
 
 _closing = False
 
-
 async def _async_close():
     global _closing
     if _closing:
@@ -207,6 +206,7 @@ class MainWindow(QMainWindow):
         self.bottom_tabs.setTabToolTip(
             2, "View the current values measured by a connected device"
         )
+        self.main_menu_bar.view_menu_realtime_avg_line.triggered.connect(self.current_value_tab.toggle_mean_lines)
 
         # Devices
         self.devices_tab = DevicesInfoTab()
@@ -278,8 +278,6 @@ class MainWindow(QMainWindow):
         Log.debug(f"{self.__class__}: Theme loaded '{Settings.Appearance.theme}'")
 
         # Run things that need the event loop active
-        if len(sys.argv) > 1:
-            QTimer.singleShot(0, lambda: parse_cli_args(self))
 
         if Settings.Appearance.tabbed_spectrum_view:
             self.spectrum_plot_container.set_tabbed_mode()
@@ -364,7 +362,7 @@ def main():
         script_engine.sigCommandOutput.connect(win.console_tab.append_output)
         script_engine.sigClearConsole.connect(win.console_tab.set_output)
         
-        script_engine.sigMapURL.connect(win.map_widget.load_online_map)
+        script_engine.sigMapURL.connect(win.map_widget.load_map_from_url)
         script_engine.sigMapFile.connect(win.map_widget.load_offline_map)
 
     print_progress("Done!", 10)
@@ -373,12 +371,15 @@ def main():
     Log.info(
         "\n\n" + ascii_art.logo(__version__ + "--Tritium" if IS_H3 else __version__, is_h3=IS_H3, use_type="log")
     )
+    
+    # --- Handle Command Line Arguments ---
+    if len(sys.argv) > 1:
+        QTimer.singleShot(0, lambda: parse_cli_args(win))
 
     # --- Start the event loop ---
     with loop:
         loop.create_task(script_engine.start())
         loop.run_forever()
-
 
 if __name__ == "__main__":
     main()
