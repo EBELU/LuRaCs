@@ -82,6 +82,7 @@ try:
 except ModuleNotFoundError:
     IS_H3 = True
 
+
 if not IS_H3:
     from luracs.gui.mapping import MapWidget
 
@@ -110,6 +111,7 @@ Settings.sigSettingChanged.connect(
 
 
 _closing = False
+
 
 async def _async_close():
     global _closing
@@ -206,7 +208,9 @@ class MainWindow(QMainWindow):
         self.bottom_tabs.setTabToolTip(
             2, "View the current values measured by a connected device"
         )
-        self.main_menu_bar.view_menu_realtime_avg_line.triggered.connect(self.current_value_tab.toggle_mean_lines)
+        self.main_menu_bar.view_menu_realtime_avg_line.triggered.connect(
+            self.current_value_tab.toggle_mean_lines
+        )
 
         # Devices
         self.devices_tab = DevicesInfoTab()
@@ -261,16 +265,18 @@ class MainWindow(QMainWindow):
         layout.addLayout(bottom_layout, stretch=3)
 
         # Theming
-        core_utils.ThemeManager.register_plot(self.current_value_tab.cps_plot_widget)
-        core_utils.ThemeManager.register_plot(self.current_value_tab.dose_plot_widget)
-        core_utils.ThemeManager.register_plot(self.spectrogram.plot)
-        core_utils.ThemeManager.register_plot(self.spectrogram.top_spectrum_plot)
-        core_utils.ThemeManager.register_plot(self.calc_win_efficiency.demo_plot)
         core_utils.ThemeManager.register_plot(
-            self.calc_win_calibration.calibration_plot
+            self.current_value_tab.cps_plot_widget,
+            self.current_value_tab.dose_plot_widget,
+            self.spectrogram.plot,
+            self.spectrogram.top_spectrum_plot,
+            self.calc_win_efficiency.demo_plot,
+            self.calc_win_calibration.calibration_plot,
+            self.calc_win_resolution.res_plot,
         )
-        core_utils.ThemeManager.register_plot(self.calc_win_resolution.res_plot)
-        core_utils.ThemeManager.register_legend(*self.current_value_tab.legends)
+        core_utils.ThemeManager.register_legend(
+            *self.current_value_tab.legends
+            )
         core_utils.ThemeManager.register_legend(
             self.spectrum_plot_container.single_plot.legend
         )
@@ -356,12 +362,12 @@ def main():
     # Connect Signals
     script_engine.sigShutdown.connect(lambda: asyncio.create_task(_async_close()))
     script_engine.connect_log_buffer(log_utils.log_buffer.get_messages)
-    if win is not None: # Does the main window exist?
+    if win is not None:  # Does the main window exist?
         win.console_tab.sigCommandEntered.connect(script_engine.submit_from_sync)
         script_engine.sigCommandAppendOutput.connect(win.console_tab.append_output)
         script_engine.sigCommandOutput.connect(win.console_tab.append_output)
         script_engine.sigClearConsole.connect(win.console_tab.set_output)
-        
+
         script_engine.sigMapURL.connect(win.map_widget.load_map_from_url)
         script_engine.sigMapFile.connect(win.map_widget.load_offline_map)
 
@@ -369,9 +375,14 @@ def main():
     print()
     # --- Log welcome ---
     Log.info(
-        "\n\n" + ascii_art.logo(__version__ + "--Tritium" if IS_H3 else __version__, is_h3=IS_H3, use_type="log")
+        "\n\n"
+        + ascii_art.logo(
+            __version__ + "--Tritium" if IS_H3 else __version__,
+            is_h3=IS_H3,
+            use_type="log",
+        )
     )
-    
+
     # --- Handle Command Line Arguments ---
     if len(sys.argv) > 1:
         QTimer.singleShot(0, lambda: parse_cli_args(win))
@@ -380,6 +391,7 @@ def main():
     with loop:
         loop.create_task(script_engine.start())
         loop.run_forever()
+
 
 if __name__ == "__main__":
     main()
