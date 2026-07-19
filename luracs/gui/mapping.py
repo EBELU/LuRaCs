@@ -280,6 +280,7 @@ class MapWidget(QWidget):
     # ------------------------------------------------------------------
     # Data handling
     # ------------------------------------------------------------------
+    
     def add_simple_data(self, data: SimpleMappingData):
         for i in range(self.combo_spectrogram.count()):
             if self.combo_spectrogram.itemData(i) == data:
@@ -444,23 +445,32 @@ class MapWidget(QWidget):
         if not dialog.get_source_url():
             return
 
-        self.load_map_from_file(dialog.get_source_url(), dialog.get_vector_source())
+        self.load_map_from_url(
+            dialog.get_source_url(), dialog.get_vector_source(), from_gui=True
+        )
 
-    def load_map_from_url(self, url: str, vector_source: bool = True):
+    def load_map_from_url(
+        self, url: str, vector_source: bool = True, from_gui: bool = False
+    ):
         if url.endswith(".png") and vector_source:
             vector_source = False
-            QMessageBox.information(
-                self,
-                "Raster Detected",
-                "The given URL was identified as raster but vector was chosen. The map will be loaded as raster",
-            )
+            if from_gui:
+                QMessageBox.information(
+                    self,
+                    "Raster Detected",
+                    "The given URL was identified as raster but vector was chosen. The map will be loaded as raster",
+                )
+            else:
+                Log.info(
+                    "The given URL was identified as raster but vector was chosen. The map will be loaded as raster"
+                )
 
         if url:
             Settings.State.map_last_online_url = str(url)
         else:
             Settings.State.map_last_online_url = ""
 
-        if "{z}/{x}/{y}" not in url:
+        if "{z}/{x}/{y}" not in url and from_gui:
             reply = QMessageBox.question(
                 self,
                 "Error",
@@ -468,6 +478,7 @@ class MapWidget(QWidget):
                 QMessageBox.Yes | QMessageBox.No,
                 QMessageBox.No,  # default button
             )
+
             if reply != QMessageBox.Yes:
                 return
 
@@ -513,6 +524,7 @@ class MapWidget(QWidget):
     # ------------------------------------------------------------------
     # IO
     # ------------------------------------------------------------------
+    
     def import_data(self):
         if self.web_engine_view is None:
             QMessageBox.warning(self, "Error", "Map must be loaded before a track")
@@ -551,6 +563,7 @@ class MapWidget(QWidget):
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+    
     def value_to_color(self, value, alpha=True):
         """
         Returns the RGBA color corresponding to a scalar value.
