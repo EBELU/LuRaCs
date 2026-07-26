@@ -236,7 +236,7 @@ class _SpectrumManager(QObject):
             (not external_import) or Settings.Appearance.load_rois_on_import
         ):
             for peak in data_dict["peaks"]:
-                extented_kwargs = {
+                extended_kwargs = {
                     "alias": peak.alias,
                     "fit_type": peak.fit_type,
                     "bkg_type": peak.bkg_type,
@@ -246,7 +246,7 @@ class _SpectrumManager(QObject):
 
                 self.ROIManager.add_roi(
                     *peak.roi_bound,
-                    **extented_kwargs,
+                    **extended_kwargs,
                     owner_spectrum=data_dict["name"]
                     if Settings.Appearance.tabbed_spectrum_view
                     else None,

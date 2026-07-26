@@ -1,48 +1,42 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    pass
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import numpy as np
-
-from PySide6.QtCore import QObject, Qt, Signal, Slot, QUrl
+import pyqtgraph as pg
+from PySide6.QtCore import QObject, Qt, QUrl, Signal, Slot
+from PySide6.QtGui import QAction
+from PySide6.QtWebChannel import QWebChannel
+from PySide6.QtWebEngineCore import QWebEngineSettings
+from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
     QApplication,
-    QWidget,
-    QDialog,
-    QHBoxLayout,
-    QVBoxLayout,
-    QGroupBox,
-    QPushButton,
+    QCheckBox,
     QComboBox,
-    QLineEdit,
-    QLabel,
-    QFrame,
-    QStackedLayout,
-    QFormLayout,
-    QMenu,
+    QDialog,
     QDialogButtonBox,
     QFileDialog,
+    QFormLayout,
+    QFrame,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMenu,
     QMessageBox,
-    QCheckBox,
+    QPushButton,
+    QStackedLayout,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtGui import QAction
-from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtWebEngineCore import QWebEngineSettings
-from PySide6.QtWebChannel import QWebChannel
 
-import pyqtgraph as pg
-
-from luracs.core import Settings, Log, core_utils
+from luracs.core import Log, Settings, core_utils
 from luracs.resources.mapping_resources.local_server import TileServer
 from luracs.utils.file_io import (
     MapFormatParser,
     SimpleMappingData,
-    MapPoint,
     export_geojson,
 )
 

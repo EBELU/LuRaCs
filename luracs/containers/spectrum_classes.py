@@ -171,3 +171,15 @@ class Spectrum:
 
     def get_instrument(self):
         return self.instrument
+
+    # --- Helpers ---
+    def get_channel_from_energy(self, E_keV: float) -> int:
+        if not self.calibrated:
+            return round(E_keV)
+
+        chn_axis = np.arange(self.channels)
+        return int(
+            np.interp(
+                E_keV, np.polyval(self.calibration_coefficients, chn_axis), chn_axis
+            )
+        )

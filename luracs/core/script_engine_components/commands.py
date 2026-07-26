@@ -222,7 +222,7 @@ class ListCommand(Command):
             spectrum_table = TableFormatter(
                 ["Index", "Name"], title="Loaded Spectrogram"
             )
-            for i, key in enumerate(RunManager.loaded_spectrogram):
+            for i, key in enumerate(RunManager.SpectrogramManager.spectrogram_registry):
                 spectrum_table.add_row([i, key])
             return spectrum_table.get_table()
 
@@ -443,10 +443,10 @@ class SpectrogramCommand(Command):
 
         # --- Pause a spectrogram ---
         elif args[0] == "pause":
-            if args[1] not in RunManager.loaded_spectrogram:
+            if args[1] not in RunManager.SpectrogramManager.spectrogram_registry:
                 raise ArgumentError(f"'{args[1]}' does not match a loaded spectrogram")
 
-            sg = RunManager.loaded_spectrogram[args[1]]
+            sg = RunManager.SpectrogramManager.spectrogram_registry[args[1]]
             if sg.paused:
                 return f"'{args[1]}' is already paused"
             else:
@@ -455,10 +455,10 @@ class SpectrogramCommand(Command):
 
         # --- Unpause a spectrum ---
         elif args[0] == "unpause":
-            if args[1] not in RunManager.loaded_spectrogram:
+            if args[1] not in RunManager.SpectrogramManager.spectrogram_registry:
                 raise ArgumentError(f"'{args[1]}' does not match a loaded spectrogram")
 
-            sg = RunManager.loaded_spectrogram[args[1]]
+            sg = RunManager.SpectrogramManager.spectrogram_registry[args[1]]
             if not sg.paused:
                 return f"'{args[1]}' is already running"
             else:
@@ -478,7 +478,7 @@ class SpectrogramCommand(Command):
 
         # --- Unload a spectrogram from active ---
         elif args[0] == "unload":
-            if args[1] not in RunManager.loaded_spectrogram:
+            if args[1] not in RunManager.SpectrogramManager.spectrogram_registry:
                 raise ArgumentError(f"'{args[1]}' does not match a loaded spectrogram")
 
             RunManager.close_spectrogram(args[1])
@@ -494,13 +494,13 @@ class SpectrogramCommand(Command):
             "pause": {"all": None}
             | {
                 key: None
-                for key, sg in RunManager.loaded_spectrogram.items()
+                for key, sg in RunManager.SpectrogramManager.spectrogram_registry.items()
                 if not sg.paused
             },
             "unpause": {"all": None}
             | {
                 key: None
-                for key, sg in RunManager.loaded_spectrogram.items()
+                for key, sg in RunManager.SpectrogramManager.spectrogram_registry.items()
                 if sg.paused
             },
             "load": {
@@ -508,7 +508,7 @@ class SpectrogramCommand(Command):
                 for file in IOManager.FileIndex.spectrogram_index.index_registry
             },
             "unload": {"all": None}
-            | {key: None for key in RunManager.loaded_spectrogram.keys()},
+            | {key: None for key in RunManager.SpectrogramManager.spectrogram_registry.keys()},
         }
 
 class MapCommand(Command):

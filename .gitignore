@@ -11,3 +11,4 @@ dev/raw_nuclide_data/*
 dev/kartering.txt
 *.log
 *.lock
+main.*

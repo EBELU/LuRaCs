@@ -535,7 +535,7 @@ class SpectrogramTab(LibraryTab):
             )
             return
 
-        if Path(selection[0]).name in RunManager.loaded_spectrogram:
+        if Path(selection[0]).name in RunManager.SpectrogramManager.spectrogram_registry:
             QMessageBox.warning(
                 self,
                 "Error",
@@ -566,6 +566,11 @@ class ROIsTab(LibraryTab):
         export_xml.triggered.connect(
             lambda: self.export_same("LuRaCs ROI file (*.xml)")
         )
+        
+        self.btn_load.setText("Load to Spectrum")
+        self.btn_load_to_spectrogram = QPushButton("Load to Spectrogram")
+        self.btn_load_to_spectrogram.clicked.connect(self.load_to_spectrogram)
+        self.btn_bar.insertWidget(4, self.btn_load_to_spectrogram)
 
         self.btn_info.clicked.connect(self.edit)
         self.delete_fn = IOManager.FileIndex.roi_index.delete_file
@@ -586,12 +591,21 @@ class ROIsTab(LibraryTab):
             parser = io_dispatcher(file)
             rois = parser.get_rois()
             for peak in rois:
-                extented_kwargs = {
+                extended_kwargs = {
                     **peak.__dict__,
                     **peak.meta,
                 }
-                del extented_kwargs["tag"]
-                SpectrumManager.ROIManager.add_roi(*peak.roi_bound, **extented_kwargs)
+                del extended_kwargs["tag"]
+                SpectrumManager.ROIManager.add_roi(*peak.roi_bound, **extended_kwargs)
+    
+    def load_to_spectrogram(self):
+        selection = self._get_selection()
+        if selection is None:
+            return
+
+        for file in selection:
+            parser = io_dispatcher(file)
+            RunManager.SpectrogramManager.load_rois(parser)
 
     def edit(self):
         selection = self._get_selection()

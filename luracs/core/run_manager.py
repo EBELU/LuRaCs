@@ -36,6 +36,7 @@ else:
 
 
 from .gui_logger import gui_logger
+from .spectrogram_manager import SpectrogramManager
 
 from luracs.clients.DeviceWrappers import DeviceWrapper, CriticalNotImplementedError
 
@@ -101,7 +102,7 @@ class _RunManager(QObject):
 
         # Loaded spectrogram are stored here for easy restart
         #
-        self.loaded_spectrogram: dict[str, Spectrogram] = {}
+        self.SpectrogramManager = SpectrogramManager(self)
 
         self.queue_len = Settings.Advanced.real_time_values_deque_length
         self.cps_buffers: dict[str, deque] = {}
@@ -225,7 +226,7 @@ class _RunManager(QObject):
         "Shuts down the RunManager. Is is very important this function runs correctly at shutdown! Otherwise spectrogram databases might not be closed and it can leave orphan device connections."
         self.Signals.shutdownStarted.emit()
         # --- Close active loggers ---
-        for logger_key in self.loaded_spectrogram.copy().keys():
+        for logger_key in self.SpectrogramManager.spectrogram_registry.copy().keys():
             try:
                 self.close_spectrogram(logger_key)
             except Exception as e:
@@ -364,22 +365,32 @@ class _RunManager(QObject):
     # Spectrogram management
     # ------------------------------------------------------------------
 
-    def add_spectrogram(self, device_name: str, new_log: Spectrogram):
-        self.loaded_spectrogram[device_name] = new_log
-        self.Signals.spectrogramStarted.emit(device_name)
+    def add_spectrogram(self, name: str, new_log: Spectrogram):
+        self.SpectrogramManager.spectrogram_registry[name] = new_log
+        new_log.sigDataUpdated.connect(self.SpectrogramManager.receive_buffer)
+        
+        # Buffer the calibrated energy axes for faster ROI computation
+        if new_log.calibration_coeff:
+            self.SpectrogramManager.energy_axes_buffer[name] = np.polyval(new_log.calibration_coeff, np.arange(new_log.spect_channels) * new_log.concat_factor)
+        else:
+            self.SpectrogramManager.energy_axes_buffer[name] = np.arange(new_log.spect_channels)
+            
+        self.Signals.spectrogramStarted.emit(name)
         gui_logger.info(
             f"Spectrogram Opened: db_name={new_log.db_name}, device={new_log.device_id}"
         )
 
     def close_spectrogram(self, name: str):
-        spectrogram = self.loaded_spectrogram.pop(name, None)
+        spectrogram = self.SpectrogramManager.spectrogram_registry.pop(name, None)
         if spectrogram:
             spectrogram.close()
             self.Signals.spectrogramClosed.emit(name)
             gui_logger.info(f"Spectrogram Closed: name={name}")
+        if name in self.SpectrogramManager.energy_axes_buffer:
+            del self.SpectrogramManager.energy_axes_buffer[name]
 
     def resize_spectrogram_deque(self, new_len: str):
-        for spectrogram in self.loaded_spectrogram.values():
+        for spectrogram in self.SpectrogramManager.spectrogram_registry.values():
             spectrogram.resize_deque(new_len)
 
         self.Signals.spectrogramDequeResized.emit()

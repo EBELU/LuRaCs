@@ -1,52 +1,53 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from luracs.containers.roi_classes import SpectrogramROI
+
 from datetime import datetime, timedelta
-import numpy as np
-from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QDialog,
-    QPushButton,
-    QHBoxLayout,
-    QComboBox,
-    QTextEdit,
-    QLineEdit,
-    QDoubleSpinBox,
-    QDialogButtonBox,
-    QFormLayout,
-    QFrame,
-    QRadioButton,
-    QButtonGroup,
-    QMessageBox,
-    QMenu,
-)
-from PySide6.QtCore import Signal, QRectF, Qt
-from PySide6.QtGui import QAction, QFont
-import pyqtgraph as pg
-
-
 from textwrap import dedent
 
-from luracs.core import RunManager, Settings, IOManager, Log, core_utils
+import numpy as np
+import pyqtgraph as pg
+from PySide6.QtCore import QRectF, Qt, Signal
+from PySide6.QtGui import QAction, QFont
+from PySide6.QtWidgets import (
+    QButtonGroup,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QDoubleSpinBox,
+    QFormLayout,
+    QFrame,
+    QHBoxLayout,
+    QLineEdit,
+    QMenu,
+    QMessageBox,
+    QPushButton,
+    QRadioButton,
+    QSplitter,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
+
+from luracs.core import IOManager, Log, RunManager, Settings, core_utils
+from luracs.gui.dialogs.save_dialog import SaveNamingDialog
 from luracs.spectrogram import (
     WrappedSpectrogramData,
-    start_spectrogram,
     restart_spectrogram,
+    start_spectrogram,
 )
 from luracs.utils import file_io
-from luracs.gui.dialogs.save_dialog import SaveNamingDialog
 
 pg.setConfigOptions(antialias=True)
-
-
-def combobox_has_data(combobox, target):
-    return any(combobox.itemData(i) == target for i in range(combobox.count()))
-
 
 def find_index_by_data(combobox, target):
     for i in range(combobox.count()):
         if combobox.itemData(i) == target:
             return i
     return -1
-
 
 class StartSpectrogramDialog(QDialog):
     def __init__(self, instruments, parent=None):
@@ -127,6 +128,9 @@ class SpectrogramWidget(QWidget):
     )  # Signal to the start logger function
     sigLoadSpectrogram = Signal(str)
     sigShowDataStore = Signal(int)
+    sigSetROIEditMode = Signal(bool)
+    sigAddNewROI = Signal(float, float)
+    sigRequestClearROIs = Signal()
 
     def __init__(self, parent):
         super().__init__(parent=parent)
@@ -135,7 +139,13 @@ class SpectrogramWidget(QWidget):
         self.sigStartSpectrogram.connect(start_spectrogram)
         self.sigLoadSpectrogram.connect(restart_spectrogram)
         RunManager.Signals.spectrogramStarted.connect(self.connect_logger)
-        RunManager.Signals.spectrogramDequeResized.connect(self.update_on_spectrogram_selection)
+        RunManager.Signals.spectrogramDequeResized.connect(
+            self.update_on_spectrogram_selection
+        )
+        RunManager.SpectrogramManager.sigAddROI.connect(self.add_roi)
+        RunManager.SpectrogramManager.sigRemoveROI.connect(self.remove_roi)
+
+        self.sigRequestClearROIs.connect(RunManager.SpectrogramManager.clear_rois)
 
         # Default values
         self.y_len = Settings.Advanced.spectrogram_deque_length
@@ -154,8 +164,7 @@ class SpectrogramWidget(QWidget):
 
         # --- Right layout ---
         # Contains buttons and infobox
-        right_layout = QVBoxLayout()
-        right_layout.setSpacing(0)
+        right_splitter = QSplitter(Qt.Vertical)
 
         left_layout = QVBoxLayout()
 
@@ -222,6 +231,19 @@ class SpectrogramWidget(QWidget):
         )
         self.menu.addAction(self.action_show_break_lines)
 
+        self.menu.addSeparator()
+        action_load_rois = self.menu.addAction("Load ROIs")
+        action_load_rois.triggered.connect(lambda: self.sigShowDataStore.emit(2))
+        action_import_rois = self.menu.addAction("Import ROIs")
+        action_import_rois.triggered.connect(self.import_rois)
+        action_toggle_roi_edit_mode = QAction("ROI Edit Mode", self, checkable=True)
+        action_toggle_roi_edit_mode.toggled.connect(self.sigSetROIEditMode.emit)
+        self.menu.addAction(action_toggle_roi_edit_mode)
+        action_add_new_roi = self.menu.addAction("Add new ROI")
+        action_add_new_roi.triggered.connect(self.add_new_roi)
+        action_clear_rois = self.menu.addAction("Clear ROIs")
+        action_clear_rois.triggered.connect(self.clear_rois)
+
         btn_menu.setMenu(self.menu)
 
         # Add bottom row widgets
@@ -236,7 +258,6 @@ class SpectrogramWidget(QWidget):
         self.info_label.setText("")
         self.info_label.setReadOnly(True)
         self.info_label.setLineWrapMode(QTextEdit.NoWrap)
-        self.info_label.setMaximumWidth(275)
 
         self.info_label.setFrameStyle(QFrame.Box | QFrame.Plain)
         self.info_label.setLineWidth(1)
@@ -272,11 +293,11 @@ class SpectrogramWidget(QWidget):
 
         self.top_spectrum_plot.addItem(self.bar)
 
-        right_layout.addWidget(self.top_spectrum_plot, 1)
+        right_splitter.addWidget(self.top_spectrum_plot)
 
         # Graphics layout
         self.spectrogram_plot = pg.GraphicsLayoutWidget()
-        right_layout.addWidget(self.spectrogram_plot, 4)
+        right_splitter.addWidget(self.spectrogram_plot)
 
         # Waterfall plot
         self.plot = self.spectrogram_plot.addPlot(row=0, col=0)
@@ -295,8 +316,8 @@ class SpectrogramWidget(QWidget):
 
         # HistogramLUT (used only for gradient + dual slider)
         self.hist = pg.HistogramLUTItem(orientation="horizontal")
-        self.hist.setContentsMargins(55, 0, 55, 0)
-        self.hist.vb.setMaximumHeight(25)
+        self.hist.setContentsMargins(55, 0, 5, 0)
+        self.hist.vb.setMaximumHeight(20)
         self.hist.setMinimumHeight(15)
         self.hist.setImageItem(self.img)
         self.hist.vb.enableAutoRange(axis="x")
@@ -317,8 +338,19 @@ class SpectrogramWidget(QWidget):
         )  # Connects x-axis of bar with x-axis of waterfall
         self.hist.plot.setVisible(True)
 
-        main_layout.addLayout(left_layout)
-        main_layout.addLayout(right_layout)
+        
+        left_widget = QWidget()
+        left_widget.setLayout(left_layout)
+
+
+        main_splitter = QSplitter(Qt.Horizontal)
+        main_splitter.addWidget(left_widget)
+        right_splitter.setStretchFactor(0, 1)
+        right_splitter.setStretchFactor(1, 4)
+        main_splitter.addWidget(right_splitter)
+        main_splitter.setStretchFactor(0, 1)
+        main_splitter.setStretchFactor(1, 6)
+        main_layout.addWidget(main_splitter)
 
         self.plot.invertY(True)
         self.plot.layout.setContentsMargins(0, 0, 0, 0)
@@ -333,7 +365,13 @@ class SpectrogramWidget(QWidget):
 
         # Time selector, with connection
         self.time_selector = pg.LinearRegionItem([1, 9], orientation="horizontal")
-        self.time_selector.sigRegionChanged.connect(self.time_selector_changed)
+        self.time_selector_proxy = pg.SignalProxy(
+            self.time_selector.sigRegionChanged,
+            rateLimit=15,
+            slot=self.time_selector_changed,
+        )
+
+        self.top_spectrum_plot.setXRange(0, 1023)
 
     # ------------------------------------------------------------------
     # Spectrogram state options
@@ -343,31 +381,30 @@ class SpectrogramWidget(QWidget):
         "Open the dialog to start a new spectrogram and send an accepted result off to be started"
         devices = list(RunManager.device_registry.keys())
         dialog = StartSpectrogramDialog(devices)
-        if dialog.exec():
-            if dialog.get_values()["instrument"]:
-                "db_name, device, save_interval, "
-                chosen_values = dialog.get_values()
-                self.sigStartSpectrogram.emit(
-                    chosen_values["filename"],
-                    chosen_values["instrument"],
-                    chosen_values["interval"],
-                    chosen_values["channel_truncation"],
-                    False,
-                )
+        if dialog.exec() and dialog.get_values()["instrument"]:
+            "db_name, device, save_interval, "
+            chosen_values = dialog.get_values()
+            self.sigStartSpectrogram.emit(
+                chosen_values["filename"],
+                chosen_values["instrument"],
+                chosen_values["interval"],
+                chosen_values["channel_truncation"],
+                False,
+            )
 
-                self.btn_stop.setEnabled(True)
-                self.btn_resume.setEnabled(False)
+            self.btn_stop.setEnabled(True)
+            self.btn_resume.setEnabled(False)
 
-                # remove old lines
-                for line in self.break_lines:
-                    self.plot.removeItem(line)
-                self.break_lines.clear()
+            # remove old lines
+            for line in self.break_lines:
+                self.plot.removeItem(line)
+            self.break_lines.clear()
 
     def restart_logger(self):
         "Restart a loaded spectrogram"
         current_spectrogram_name = self.spectrogram_selection.currentData()
 
-        current_spectrogram = RunManager.loaded_spectrogram.get(
+        current_spectrogram = RunManager.SpectrogramManager.spectrogram_registry.get(
             current_spectrogram_name
         )
         if (
@@ -391,7 +428,7 @@ class SpectrogramWidget(QWidget):
     def pause_logger(self):
         "Pause the data accumulation on the logger level"
         current_spectrogram_name = self.spectrogram_selection.currentData()
-        current_spectrogram = RunManager.loaded_spectrogram.get(
+        current_spectrogram = RunManager.SpectrogramManager.spectrogram_registry.get(
             current_spectrogram_name
         )
 
@@ -420,13 +457,13 @@ class SpectrogramWidget(QWidget):
         self.sigShowDataStore.emit(1)
 
     def connect_logger(self):
-        for logger in list(RunManager.loaded_spectrogram.values()):
+        for logger in list(RunManager.SpectrogramManager.spectrogram_registry.values()):
             logger.sigDataUpdated.connect(self.receive_data)
 
     def update_on_spectrogram_selection(self):
         "Update the spectrogram selected, when changing the combo box or toggling break lines"
         db_name = self.spectrogram_selection.currentData()
-        logger = RunManager.loaded_spectrogram.get(db_name)
+        logger = RunManager.SpectrogramManager.spectrogram_registry.get(db_name)
         self.y_axis = np.zeros_like(self.y_axis)  # Reset the y-axis
 
         # Ensure old breaklines are removed
@@ -442,6 +479,10 @@ class SpectrogramWidget(QWidget):
                 self.btn_resume.setEnabled(False)
                 self.btn_stop.setEnabled(True)
             logger.request_data()
+
+        for roi in RunManager.SpectrogramManager.roi_registry.values():
+            E_axis = RunManager.SpectrogramManager.energy_axes_buffer[db_name]
+            roi.set_idx_region(E_axis)
 
     # ------------------------------------------------------------------
     # Data socket
@@ -646,7 +687,7 @@ class SpectrogramWidget(QWidget):
 
     def update_spectrogram_img(self, view_buf):
         # Flip the view buffer so the earlist is at the top
-        current_spectrogram = np.array(view_buf)[::-1]
+        current_spectrogram = np.vstack(view_buf)[::-1]
         self.img.setImage(
             current_spectrogram.T,
             autoLevels=False,
@@ -672,20 +713,20 @@ class SpectrogramWidget(QWidget):
 
         self.bar.setOpts(
             height=np.sum(
-                np.array(self.current_packet_buffer.spectrogram)[::-1][
+                np.vstack(self.current_packet_buffer.spectrogram)[::-1][
                     max(ymin, 0) : min(ymax, self.y_len - 1)
                 ],
                 axis=0,
             )
         )
-        timestamps = np.array(self.current_packet_buffer.timestamp_deque)[::-1]
+        timestamps = np.asarray(self.current_packet_buffer.timestamp_deque)[::-1]
 
         if ymin >= len(timestamps):
             return
 
         start_time, stop_time = (
             timestamps[min(ymax - 1, len(timestamps) - 1)],
-            timestamps[ymin],
+            timestamps[max(ymin, 0)],
         )
         time_str = "%H:%M:%S\n%m-%d" if self.show_date_on_y else "%H:%M:%S"
 
@@ -715,7 +756,7 @@ class SpectrogramWidget(QWidget):
         "Export the total accumulated spectrum in a spectrogram to a spectrum"
 
         current_spectrogram_name = self.spectrogram_selection.currentData()
-        current_spectrogram = RunManager.loaded_spectrogram.get(
+        current_spectrogram = RunManager.SpectrogramManager.spectrogram_registry.get(
             current_spectrogram_name
         )
 
@@ -757,7 +798,7 @@ class SpectrogramWidget(QWidget):
             return
 
         current_spectrogram_name = self.spectrogram_selection.currentData()
-        current_spectrogram = RunManager.loaded_spectrogram.get(
+        current_spectrogram = RunManager.SpectrogramManager.spectrogram_registry.get(
             current_spectrogram_name
         )
 
@@ -796,6 +837,42 @@ class SpectrogramWidget(QWidget):
             )
         else:
             QMessageBox.warning(self, "Error", "No spectrogram to export")
+
+    # ------------------------------------------------------------------
+    # ROIs
+    # ------------------------------------------------------------------
+
+    def add_roi(self, roi: SpectrogramROI):
+        self.top_spectrum_plot.addItem(roi)
+
+    def remove_roi(self, roi: SpectrogramROI):
+        self.top_spectrum_plot.removeItem(roi)
+
+    def add_new_roi(self):
+        x_range_idx, _ = self.top_spectrum_plot.getViewBox().viewRange()
+        x_range = np.polyval(
+            self.current_calibration, np.array(x_range_idx) * self.current_concat_factor
+        )
+
+        RunManager.SpectrogramManager.add_roi(*x_range)
+
+    def clear_rois(self):
+        res = QMessageBox.question(None, "Clear ROIS", "Clear all spectrogram ROIs?")
+
+        if res == QMessageBox.StandardButton.Yes:
+            self.sigRequestClearROIs.emit()
+            
+    def import_rois(self):
+        file, _ = IOManager.Importer.import_file(IOManager.Importer.import_filters["rois"])
+        if file is None or not file:
+            return
+        
+        parser = file_io.xml_parser(file)
+        if len(parser.get_rois()) == 0:
+            QMessageBox.warning(self, "Warning", "No ROIs found in imported file")
+            return
+
+        RunManager.SpectrogramManager.load_rois(parser)
 
 
 if __name__ == "__main__":

@@ -17,7 +17,8 @@ def print_progress(text, progress):
 logging.basicConfig(level=logging.INFO)
 
 # --- Vital imports for core application to function ---
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QSplitter
+from PySide6.QtCore import Qt
 from qasync import QEventLoop
 from luracs.core import (
     RunManager,
@@ -93,9 +94,9 @@ print_progress("Loading luracs.utils.", 5)
 # Connect the edit dialog from the GUI to the core ROI object
 # If its not done like this we have circular import hell!
 from luracs.gui.dialogs.roi_editor import ROIEditor
-from luracs.containers.roi_classes import DeletableROI
+from luracs.containers.roi_classes import CoreSpectrumROI
 
-DeletableROI.roi_editor_dialog = ROIEditor
+CoreSpectrumROI.roi_editor_dialog = ROIEditor
 
 
 # ===================== IMPORTANT SIGNALS =====================
@@ -158,6 +159,7 @@ class MainWindow(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
         layout = QVBoxLayout(central)
+        central_splitter = QSplitter(Qt.Vertical)
 
         self.main_menu_bar = MainMenuBar(self)
         self.setMenuBar(self.main_menu_bar)
@@ -180,7 +182,7 @@ class MainWindow(QMainWindow):
         else:
             self.map_widget = None
 
-        layout.addWidget(self.spect_tab, 6)
+        central_splitter.addWidget(self.spect_tab)
 
         # ---------- Bottom Tabs ----------
 
@@ -260,9 +262,11 @@ class MainWindow(QMainWindow):
         self.bottom_tabs.addTab(self.log_tab, "System Log")
         self.bottom_tabs.setTabToolTip(6, "View messages logged by the system")
 
-        bottom_layout = QVBoxLayout()
-        bottom_layout.addWidget(self.bottom_tabs)
-        layout.addLayout(bottom_layout, stretch=3)
+        central_splitter.addWidget(self.bottom_tabs)
+        central_splitter.setStretchFactor(0, 6)
+        central_splitter.setStretchFactor(1, 5)
+        
+        layout.addWidget(central_splitter)
 
         # Theming
         core_utils.ThemeManager.register_plot(
@@ -386,6 +390,7 @@ def main():
     # --- Handle Command Line Arguments ---
     if len(sys.argv) > 1:
         QTimer.singleShot(0, lambda: parse_cli_args(win))
+    # QTimer.singleShot(0, lambda: RunManager.SpectrogramManager.add_roi(300, 400))
 
     # --- Start the event loop ---
     with loop:

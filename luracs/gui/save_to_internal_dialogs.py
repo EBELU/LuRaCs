@@ -1,9 +1,9 @@
 from PySide6.QtWidgets import QMessageBox
 
-from luracs.core import SpectrumManager, Settings, IOManager, Log
-from luracs.containers.spectrum_classes import Spectrum
-from luracs.gui.dialogs.save_dialog import SaveNamingDialog
 from luracs.containers.roi_classes import ROI
+from luracs.containers.spectrum_classes import Spectrum
+from luracs.core import IOManager, Log, Settings, SpectrumManager
+from luracs.gui.dialogs.save_dialog import SaveNamingDialog
 from luracs.utils.file_io.xml_writer import xml_writer
 
 

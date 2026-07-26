@@ -6,7 +6,7 @@ if TYPE_CHECKING:
 
 from PySide6.QtCore import Signal, QObject
 from PySide6.QtGui import QColor
-from luracs.containers.roi_classes import DeletableROI, Fit, ROI
+from luracs.containers.roi_classes import CoreSpectrumROI, Fit, ROI
 from luracs.core import Settings
 from .gui_logger import gui_logger as Log
 import numpy as np
@@ -191,7 +191,7 @@ class ROIManager(QObject):
         super().__init__(parent=parent)
         self.spectrum_manager: _SpectrumManager = spectrum_manager  # Keep a reference
 
-        self.roi_registry: dict[str, DeletableROI] = {}
+        self.roi_registry: dict[str, CoreSpectrumROI] = {}
         self.roi_counter: int = 0
 
         # Spectrum state
@@ -210,14 +210,14 @@ class ROIManager(QObject):
         self.sigCpsChanged.emit(cps_bool)
 
     def add_roi(self, x_low=None, x_high=None, **kwargs):
-        "Add a ROI to the plot, kwargs are given to the class DeletableROI"
+        "Add a ROI to the plot, kwargs are given to the class CoreSpectrumROI"
 
         # Give an internal tag based on the roi counter
         # This can only increase, ensuring a unique tag for every roi
         roi_tag = f"ROI_{self.roi_counter}"
         self.roi_counter += 1
         
-        new_roi = DeletableROI(
+        new_roi = CoreSpectrumROI(
             roi_tag,
             [x_low, x_high],
             nuclide_lib_ref=self.spectrum_manager.NuclideLibrary,

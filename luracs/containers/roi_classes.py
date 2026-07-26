@@ -4,8 +4,9 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from core.nuclide_library import NuclideLibrary
 
-from luracs.containers.nuclide_classes import Emission
+from luracs.containers.nuclide_classes import Emission, EmptyEmission
 
+from PySide6.QtWidgets import QMessageBox
 from PySide6.QtCore import Signal, Qt
 from pyqtgraph import LinearRegionItem
 from dataclasses import dataclass
@@ -25,9 +26,7 @@ class Fit:
     upper: float
 
     # Fit parameters
-    params: (
-        np.ndarray
-    )  # List of parameters so that it can be fed into the function with *params
+    params: np.ndarray # List of parameters so that they can be fed into the function with *params
     param_errs: np.ndarray  # Uncertainties from the optimization
 
     bkg_params: np.ndarray
@@ -111,7 +110,7 @@ class ROI:
                 return attr
 
 
-class DeletableROI(LinearRegionItem):
+class CoreSpectrumROI(LinearRegionItem):
     """Visual ROI selector modified to have a 'tag' and can be deleted by right clicking"""
 
     sigDeleteRequested = Signal(str)
@@ -224,3 +223,48 @@ class DeletableROI(LinearRegionItem):
             self.sigSettingsUpdated.emit(self)
 
         self.setToolTip(f"ROI: {self.alias}\nRight-click to edit or delete")
+
+
+class SpectrogramROI(LinearRegionItem):
+    sigDeleteRequested = Signal(str)
+
+    def __init__(
+        self,
+        tag: str,
+        alias: str,
+        E_region: tuple,
+        movable: bool,
+        emission: Emission | None,
+    ):
+        super().__init__(values=E_region // 3, orientation="vertical", movable=movable)
+        self.E_region = E_region
+        self.tag = tag
+        self.alias = alias
+        self.emission = emission if emission is not None else EmptyEmission
+
+        self.setToolTip(
+            f"Alias: {self.alias} \nNuclide: {self.emission.parent_nuclide} {self.emission.energy_keV}"
+        )
+
+    def mouseClickEvent(self, ev):
+        if ev.button() == Qt.RightButton:
+            ev.accept()
+            res = QMessageBox.question(
+                None, "Delete ROI", f"Delete spectrogram ROI {self.alias}"
+            )
+
+            if res == QMessageBox.StandardButton.Yes:
+                self.sigDeleteRequested.emit(self.tag)
+
+        else:
+            super().mouseClickEvent(ev)
+            
+    def set_idx_region(self, energy_axis: np.ndarray):
+        "Updates the linear region bounds on an axis with channels based on the current energy bounds."
+        print(self.E_region)
+        idx_bounds = np.interp(np.array(self.E_region), energy_axis, np.arange(len(energy_axis)))
+        print(idx_bounds)
+        self.setRegion(idx_bounds.round())
+        
+    def update_E_bounds(self, new_region: tuple, calib_coeff: np.ndarray):
+        self.E_region = np.polyval(np.array(new_region), calib_coeff)

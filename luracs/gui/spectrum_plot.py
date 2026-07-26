@@ -95,7 +95,7 @@ class SpectrumPlot(QWidget):
             minYRange=1e-4,
             maxYRange=1e16,
         )
-        self.plot_widget.getPlotItem().layout.setContentsMargins(2, 13, 13, 2)
+        self.plot_widget.getPlotItem().layout.setContentsMargins(2, 13, 13, 5)
 
         if owned_spectrum is None:
             self.legend = self.plot_widget.addLegend()
@@ -110,7 +110,9 @@ class SpectrumPlot(QWidget):
         self.btn_reset_zoom = QPushButton("Reset Zoom")
         self.btn_y_axis_lock = QPushButton("Unlock y-axis")
         self.btn_lin_log = QPushButton("Log")
+        self.btn_lin_log.setCheckable(True)
         self.btn_cps = QPushButton("CPS")
+        self.btn_cps.setCheckable(True)
         self.btn_mark_roi = QPushButton("Add ROI")
         self.line_cursor_info = QLineEdit()
         self.line_cursor_info.setReadOnly(True)
@@ -137,7 +139,7 @@ class SpectrumPlot(QWidget):
         # --- Assign button callbacks ---
         self.btn_reset_zoom.clicked.connect(self.reset_zoom)
         self.btn_mark_roi.clicked.connect(self.add_roi)
-        self.btn_lin_log.clicked.connect(self.change_lin_log)
+        self.btn_lin_log.toggled.connect(self.change_lin_log)
         self.btn_cps.clicked.connect(self._set_cps)
         self.btn_y_axis_lock.clicked.connect(lambda: self.lock_y_axis())
         self.cbox_bkg_choises.currentIndexChanged.connect(self._on_bkg_option_selection)
@@ -212,6 +214,7 @@ class SpectrumPlot(QWidget):
             self.bkg_sub = False
             self._set_cps(False, True, False)
             self.btn_cps.setEnabled(False)
+            self.btn_cps.setChecked(True)
 
         elif option == 2:
             self.cps = True
@@ -219,6 +222,7 @@ class SpectrumPlot(QWidget):
             self.bkg_sub = True
             self._set_cps(False, True, False)
             self.btn_cps.setEnabled(False)
+            self.btn_cps.setChecked(True)
 
         self.sigBkgSubUpdated.emit(self.bkg_sub)
         # Finish by redrawing
@@ -243,29 +247,25 @@ class SpectrumPlot(QWidget):
 
             self.cps = True
             self.plot_widget.setLabel("left", "CPS")
-            self.btn_cps.setText("Counts")
         else:
             self.plot_widget.setLimits(yMin=0, yMax=1e16)
             self.cps = False
             self.plot_widget.setLabel("left", "Counts")
-            self.btn_cps.setText("CPS")
 
         self.sigCpsUpdated.emit(self.cps)
         if recalculate:
             self._redraw()
 
-    def change_lin_log(self):
+    def change_lin_log(self, state: bool):
         """Change lin log at data retrieval"""
-        if not self.log:
+        if state:
             self.log = True
             self.plot_widget.plotItem.setLogMode(y=True)
             self.plot_widget.setLimits(yMin=-10, yMax=1e16)
-            self.btn_lin_log.setText("Lin")
 
         else:
             self.log = False
             self.plot_widget.plotItem.setLogMode(y=False)
-            self.btn_lin_log.setText("Log")
             self.plot_widget.setLimits(
                 yMin=0,
                 yMax=1e16,
@@ -646,7 +646,7 @@ class SpectrumPlot(QWidget):
             roi = SpectrumManager.ROIManager.roi_registry[tag]
             label.setText(
                 f"{roi.alias}\n{roi.emission.parent_nuclide if roi.emission and roi.emission.parent_nuclide != 'None' else ''}"
-            )
+            ) # \n[{round(roi.emission.energy_keV) if roi.emission and roi.emission.parent_nuclide != 'None' else ''} keV]
 
             x1, x2 = roi.getRegion()
             center_x = (x1 + x2) / 2
@@ -797,13 +797,23 @@ class SpectrumPlot(QWidget):
             matched_nuclide = (
                 matched_nuclide if matched_nuclide is not None else EmptyEmission
             )
+            # When viewing combined spectra no unique channels can be determined from the energy
+            # Thus channels and channel counts are only shown in separate view
+            if self.owned_spectrum is not None:
+                spectrum = SpectrumManager.get_spectrum(self.owned_spectrum)
+                channel = spectrum.get_channel_from_energy(x)
+                counts = spectrum.get_foreground()[channel] if not self.bkg_sub else spectrum.get_bkg_sub()[channel]
+                
+                channel_str = f"Chn: {channel}, Counts: {int(counts)}, "
+            else:
+                channel_str = ""
 
             if (
                 matched_nuclide.parent_nuclide
                 in SpectrumManager.NuclideLibrary.decay_chains["Th-232 -- Chain"]
             ):
                 self._format_line_edit(
-                    f"E: {round(x):<4} keV, [{(matched_nuclide.parent_nuclide + ' (Th-232-Chain)'):<6}]"
+                    f"E: {round(x):<4} keV, {channel_str}[{(matched_nuclide.parent_nuclide + ' (Th-232-Chain)'):<6}]"
                 )
 
             elif (
@@ -811,12 +821,14 @@ class SpectrumPlot(QWidget):
                 in SpectrumManager.NuclideLibrary.decay_chains["U-238 -- Chain"]
             ):
                 self._format_line_edit(
-                    f"E: {round(x):<4} keV, [{(matched_nuclide.parent_nuclide + ' (U-238-Chain)'):<6}]"
+                    f"E: {round(x):<4} keV, {channel_str}[{(matched_nuclide.parent_nuclide + ' (U-238-Chain)'):<6}]"
                 )
 
             else:
                 self._format_line_edit(
-                    f"E: {round(x):<4} keV, [{(matched_nuclide.parent_nuclide):<6}]"
+                    f"E: {round(x):<4} keV, {channel_str}"
+                    f"[{matched_nuclide.parent_nuclide:<6} "
+                    f"{f'{matched_nuclide.energy_keV:.1f} keV' if matched_nuclide.energy_error_keV is not None else ''}]"
                 )
 
             if (

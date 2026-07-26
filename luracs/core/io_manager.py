@@ -364,7 +364,7 @@ class _Importer(QObject):
                 if isinstance(parser, xml_parser):
                     name = parser.get_header().name
                     for peak in parser.get_rois():
-                        extented_kwargs = {
+                        extended_kwargs = {
                             "alias": peak.alias,
                             "fit_type": peak.fit_type,
                             "bkg_type": peak.bkg_type,
@@ -374,7 +374,7 @@ class _Importer(QObject):
 
                         SpectrumManager.ROIManager.add_roi(
                             *peak.roi_bound,
-                            **extented_kwargs,
+                            **extended_kwargs,
                             owner_spectrum=name
                             if Settings.Appearance.tabbed_spectrum_view
                             else None,
