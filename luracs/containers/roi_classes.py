@@ -1,16 +1,18 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from core.nuclide_library import NuclideLibrary
 
-from luracs.containers.nuclide_classes import Emission, EmptyEmission
-
-from PySide6.QtWidgets import QMessageBox
-from PySide6.QtCore import Signal, Qt
-from pyqtgraph import LinearRegionItem
 from dataclasses import dataclass
+
 import numpy as np
+from pyqtgraph import LinearRegionItem
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import QMessageBox
+
+from luracs.containers.nuclide_classes import Emission, EmptyEmission
 
 
 @dataclass(frozen=True)

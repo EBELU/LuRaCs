@@ -61,6 +61,15 @@ def curve_fit(
         Jacobian J(xdata, params) -> shape (N, M)
     weight_fn : callable, optional
         weight_fn(residuals, yfit, params) -> weights (N,)
+        
+    Returns
+    -------
+    params: np.ndarray
+        Fitted parameters
+    cov: np.ndarray
+        Covariance matrix of the fitted parameters
+    converged: bool
+        If the fit converged within the specified tolerance and maximum iterations
     """
 
     p = np.array(p0, dtype=float)
@@ -156,7 +165,7 @@ def curve_fit(
     return p, cov, converged
 
 
-def r_squared(y: np.ndarray, y_fit: np.ndarray):
+def r_squared(y: np.ndarray, y_fit: np.ndarray) -> float:
     y = np.array(y)
     y_fit = np.array(y_fit)
 

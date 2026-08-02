@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import List, Tuple
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -18,11 +17,11 @@ class Nuclide:
     nuclide: str
     element: str
     Z: int
-    daughters: List[Tuple[str, float]]
-    half_life_s: Tuple[float, float]
-    specific_activity_Bq_per_g: Tuple[float, float]
+    daughters: list[tuple[str, float]]
+    half_life_s: tuple[float, float]
+    specific_activity_Bq_per_g: tuple[float, float]
     citation_ref: str
-    emissions: List[Emission]
+    emissions: list[Emission]
 
 
 EmptyEmission = Emission(

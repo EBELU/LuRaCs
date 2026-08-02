@@ -10,7 +10,7 @@ def multi_gaussian(x, params):
     x : array_like
         Independent variable
     params : array_like
-        Parameters: [A1, mu1, sigma1, A2, mu2, sigma2, ...]
+        Parameters: [A1, mu1, variance1, A2, mu2, variance2, ...]
 
     Returns
     -------
@@ -19,8 +19,8 @@ def multi_gaussian(x, params):
     y = np.zeros_like(x, dtype=float)
     n_gauss = len(params) // 3
     for i in range(n_gauss):
-        A, mu, sigma = params[3 * i : 3 * i + 3]
-        y += A * np.exp(-0.5 * ((x - mu) ** 2 / sigma))
+        A, mu, variance = params[3 * i : 3 * i + 3]
+        y += A * np.exp(-0.5 * ((x - mu) ** 2 / variance))
     return y
 
 
@@ -37,16 +37,16 @@ def multi_gaussian_jacobian(x, params):
     n_gauss = n // 3
 
     for i in range(n_gauss):
-        A, mu, sigma = params[3 * i : 3 * i + 3]
-        exp_term = np.exp(-0.5 * ((x - mu) ** 2 / sigma))
+        A, mu, variance = params[3 * i : 3 * i + 3]
+        exp_term = np.exp(-0.5 * ((x - mu) ** 2 / variance))
 
         # Derivative w.r.t amplitude
         J[:, 3 * i] = exp_term
 
         # Derivative w.r.t mean
-        J[:, 3 * i + 1] = A * exp_term * (x - mu) / (sigma)
+        J[:, 3 * i + 1] = A * exp_term * (x - mu) / (variance)
 
-        # Derivative w.r.t sigma
-        J[:, 3 * i + 2] = A * exp_term * ((x - mu) ** 2) / (sigma**2)
+        # Derivative w.r.t variance
+        J[:, 3 * i + 2] = A * exp_term * ((x - mu) ** 2) / (variance**2) / 2
 
     return J

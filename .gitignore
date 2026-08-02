@@ -9,6 +9,8 @@ linuxVenv/*
 dev/cleaned_nuclide_data/*
 dev/raw_nuclide_data/*
 dev/kartering.txt
+dev/debug/*.so
+dev/debug/*.c
 *.log
 *.lock
 main.*

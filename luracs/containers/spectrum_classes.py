@@ -1,19 +1,22 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from luracs.containers.roi_classes import ROI
 
-import numpy as np
 from dataclasses import dataclass
-from PySide6.QtGui import QColor
 from datetime import datetime
+
+import numpy as np
+from PySide6.QtGui import QColor
+
 from luracs.containers.instrument_classes import UniqueInstrument
 
 
 @dataclass
 class SpectrumData:
-    y_axis: np.array
+    y_axis: np.ndarray
     channels: int
     total_counts: int
     live_time: float
@@ -92,7 +95,7 @@ class Spectrum:
         self.calibration_coefficients = coefficients
         self.calibrated = True
 
-    def get_foreground(self, log: bool = False, cps: bool = False):
+    def get_foreground(self, log: bool = False, cps: bool = False) -> np.ndarray:
         """
          Returns the channel counts for the primary spectrum.
 
@@ -115,7 +118,7 @@ class Spectrum:
         else:
             return y_data
 
-    def get_background(self, log: bool = False, cps: bool = False):
+    def get_background(self, log: bool = False, cps: bool = False) -> np.ndarray:
         """
          Returns the channel counts for the background spectrum. If the background is empty it returns None.
 
@@ -137,11 +140,11 @@ class Spectrum:
         else:
             return bkg_y_data
 
-    def get_bkg_sub(self, log: bool = False):
+    def get_bkg_sub(self, log: bool = False) -> np.ndarray:
         """
          Returns the channel cps, never counts, for a background subtracted spectrum. If the background is empty it returns the normal spectrum.
 
-        :param log: If True applies log10 before returning spectrum. Counts of 0 is set to NaN.
+        :param log: If True applies log10 before returning spectrum. Counts of 0 are set to NaN.
         """
         if self.foreground.live_time is None:
             return
@@ -169,7 +172,7 @@ class Spectrum:
         )
         self.instrument = instrument
 
-    def get_instrument(self):
+    def get_instrument(self) -> UniqueInstrument | None:
         return self.instrument
 
     # --- Helpers ---

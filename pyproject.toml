@@ -1,5 +1,9 @@
 [build-system]
-requires = ["setuptools>=65", "wheel"]
+requires = [
+    "setuptools>=65", 
+    "wheel",     
+    "Cython>=3.0",
+    "numpy>=1.26"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -34,7 +38,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pandas", "pyinstaller", "odfpy", "bumpver", "build", "twine"]
+dev = [
+    "pandas", 
+    "pyinstaller", 
+    "odfpy", 
+    "bumpver", 
+    "build", 
+    "twine", 
+    "Cython",
+    ]
 
 
 [tool.setuptools.packages.find]
@@ -44,6 +56,10 @@ exclude = ["tests*"]
 
 [tool.setuptools.package-data]
 luracs = ["resources/**/*"]
+
+[tool.cibuildwheel]
+build = "cp310-* cp311-* cp312-* cp313-*"
+skip = "*-musllinux_*"
 
 [project.scripts]
 LuRaCs = "luracs.main:main"

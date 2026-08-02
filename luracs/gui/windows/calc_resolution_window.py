@@ -311,6 +311,7 @@ class ResolutionWindow(QDialog):
             self.res_plot.getPlotItem().plot(x_axis, y_axis * 100)
             self.res_plot.getPlotItem().setLabel("left", "Resolution [%]")
             self.res_plot.getPlotItem().setLabel("bottom", "E [keV]")
+            
         elif mode == 2:
             self.res_plot.getPlotItem().plot(
                 1 / np.sqrt(self.current_energy_points),
