@@ -10,7 +10,6 @@ cimport numpy as cnp
 from cython.parallel import prange
 from libc.math cimport exp
 
-
 def multi_gaussian_cy(
     cnp.ndarray[double, ndim=1] x,
     cnp.ndarray[double, ndim=1] params

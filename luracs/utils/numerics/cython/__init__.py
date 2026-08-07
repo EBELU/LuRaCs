@@ -1,12 +1,21 @@
 import numpy as np
 
-from gaussian import multi_gaussian_cy, multi_gaussian_jacobian_cy
-from deconvolution import (
-    ML_EM_cy,
-    richardson_lucy_cy,
-)
+try:
+    from .gaussian import multi_gaussian_cy, multi_gaussian_jacobian_cy
+    from .deconvolution import (
+        ML_EM_cy,
+        richardson_lucy_cy,
+    )
 
-from rebin import rebin_histogram_cy
+    from .rebin import rebin_histogram_cy
+except ImportError:
+    from gaussian import multi_gaussian_cy, multi_gaussian_jacobian_cy
+    from deconvolution import (
+        ML_EM_cy,
+        richardson_lucy_cy,
+    )
+
+    from rebin import rebin_histogram_cy
 
 
 def multi_gaussian(x, params):
@@ -100,6 +109,7 @@ def ml_em(
     )
     
 def richardson_lucy(
+    x: np.ndarray,
     y: np.ndarray,
     k: float,
     *,
@@ -114,6 +124,8 @@ def richardson_lucy(
 
     Parameters
     ----------
+    x : array_like
+        Independent variable (e.g., energy axis).
     y : array_like
         Input signal.
     k : float
@@ -143,6 +155,7 @@ def richardson_lucy(
         sensitivity = np.asarray(sensitivity, dtype=np.float64)
 
     return richardson_lucy_cy(
+        x,
         y,
         float(k),
         sensitivity,
@@ -208,9 +221,9 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     data = pd.read_csv("~/Desktop/Th.csv").to_numpy()
     clipped_data = data[(data[:, 0] >= 30)]
-    print(richardson_lucy(clipped_data[:, 1], 2/100))
+    # print(richardson_lucy(clipped_data[:, 1], 2/100))
     plt.plot(clipped_data[:, 0], clipped_data[:, 1], label="Original Data")
-    plt.plot(clipped_data[:, 0], richardson_lucy(clipped_data[:, 1], 2/100, iterations=10), label="Deconvolved Data")
+    plt.plot(clipped_data[:, 0], richardson_lucy(clipped_data[:, 0], clipped_data[:, 1], 0.087/100, iterations=150, reg_tikhonov=True, reg_tikhonov_lambda=0.001), label="Deconvolved Data")
     plt.xlabel("Energy (keV)")
     plt.ylabel("Counts")
     plt.show()

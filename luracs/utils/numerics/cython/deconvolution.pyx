@@ -180,7 +180,7 @@ cpdef cnp.ndarray ML_EM_cy(
         cnp.ndarray[float64_t, ndim=1] correction
 
     # allocate once
-    x = y.copy()
+    x = np.ones(offsets.shape[0] - 1)
 
     estimate = np.empty_like(y)
     ratio = np.empty_like(y)
@@ -210,11 +210,11 @@ cpdef cnp.ndarray ML_EM_cy(
             correction,
         )
 
-        if use_sensitivity:
-            apply_sensitivity(
-                correction,
-                sensitivity,
-            )
+
+        apply_sensitivity(
+            correction,
+            sensitivity,
+        )
 
         multiply_update(
             x,
@@ -286,6 +286,7 @@ cpdef tuple build_gaussian_response(
     )
 
 cpdef cnp.ndarray richardson_lucy_cy(
+    cnp.ndarray[float64_t, ndim=1] x,
     cnp.ndarray[float64_t, ndim=1] y,
     double k,
     cnp.ndarray[float64_t, ndim=1] sensitivity,
@@ -302,7 +303,7 @@ cpdef cnp.ndarray richardson_lucy_cy(
         Py_ssize_t i
 
     for i in range(y.shape[0]):
-        sigmas[i] = get_sigma(k, y[i])
+        sigmas[i] = get_sigma(k, x[i])
 
     offsets, indices, values = build_gaussian_response(
         y,
