@@ -7,7 +7,7 @@ import numpy as np
 cimport numpy as cnp
 
 from cython.parallel import prange
-from libc.math cimport fmax
+from libc.math cimport exp, log, fmax, sqrt
 
 
 ctypedef cnp.float64_t float64_t
@@ -106,12 +106,120 @@ cdef void multiply_update(
         x[i] *= correction[i]
 
 
+cdef void tikhonov_smooth(
+    double[:] x,
+    double lam,
+) noexcept nogil:
+
+    cdef:
+        Py_ssize_t i
+        double lap
+
+    for i in range(1, x.shape[0]-1):
+        lap = x[i-1] - 2.0*x[i] + x[i+1]
+
+        x[i] += lam * lap
+
+
+cdef void entropy_step(
+    double[:] x,
+    const double[:] model,
+    double lam,
+) noexcept nogil:
+
+    cdef:
+        Py_ssize_t i
+        double ratio
+
+    for i in range(x.shape[0]):
+
+        ratio = x[i] / fmax(model[i], 1e-12)
+
+        x[i] *= exp(
+            -lam * (log(ratio) + 1.0)
+        )
+
+        x[i] = fmax(x[i], 1e-12)
+
+
+cdef void apply_sensitivity(
+    double[:] correction,
+    const double[:] sensitivity,
+) noexcept nogil:
+
+    cdef Py_ssize_t i
+
+    for i in range(correction.shape[0]):
+        correction[i] /= fmax(sensitivity[i], 1e-12)
+
+
+cdef double FWHM_C = 2.0 * sqrt(2.0 * log(2.0))
+
+cdef double get_sigma(double k, double E):
+    cdef double resolution = k * sqrt(E)
+    return resolution * E / FWHM_C
+
+
+cpdef tuple build_gaussian_response(
+    double[:] axis,
+    double[:] sigma,
+    double nsigma=5.0,
+):
+    cdef:
+        Py_ssize_t n = axis.shape[0]
+        Py_ssize_t i, j
+        Py_ssize_t low, high
+        double E, s
+        double xmin, xmax
+        double x, w
+        double norm
+
+    cdef list offsets = [0]
+    cdef list indices = []
+    cdef list values = []
+
+    for i in range(n):
+        E = axis[i]
+        s = sigma[i]
+
+        xmin = E - nsigma * s
+        xmax = E + nsigma * s
+
+        low = np.searchsorted(axis, xmin)
+        high = np.searchsorted(axis, xmax, side="right")
+
+        norm = 0.0
+        for j in range(low, high):
+            x = (axis[j] - E) / s
+            norm += exp(-0.5 * x * x)
+
+        for j in range(low, high):
+            x = (axis[j] - E) / s
+            w = exp(-0.5 * x * x) / norm
+            indices.append(j)
+            values.append(w)
+
+        offsets.append(len(values))
+
+    return (
+        np.asarray(offsets, dtype=np.int64),
+        np.asarray(indices, dtype=np.int32),
+        np.asarray(values, dtype=np.float64),
+    )
+
+
 cpdef cnp.ndarray richardson_lucy(
     cnp.ndarray[float64_t, ndim=1] y,
     cnp.ndarray[int64_t, ndim=1] offsets,
     cnp.ndarray[int32_t, ndim=1] indices,
     cnp.ndarray[float64_t, ndim=1] values,
+    cnp.ndarray[float64_t, ndim=1] sensitivity,
     int iterations=30,
+    bool reg_tikhonov=False,
+    double reg_tikhonov_lambda=0.001,
+    bool use_sensitivity=False,
+    # bool reg_entropy=False,
+    # double reg_entropy_lambda=0.001,
 ):
 
     cdef:
@@ -151,9 +259,19 @@ cpdef cnp.ndarray richardson_lucy(
             correction,
         )
 
+        if use_sensitivity:
+            apply_sensitivity(
+                correction,
+                sensitivity,
+            )
+
         multiply_update(
             x,
             correction,
         )
+
+        if reg_tikhonov:
+            tikhonov_smooth(x, reg_tikhonov_lambda)
+        
 
     return x

@@ -70,6 +70,7 @@ from luracs.gui.windows import (
     CalibrationWindow,
     EfficiencyWindow,
     ResolutionWindow,
+    DeconvolutionWindow,
 )
 
 from luracs.gui.dialogs.settings_dialog import SettingsDialog
@@ -155,6 +156,7 @@ class MainWindow(QMainWindow):
         self.calc_win_efficiency = EfficiencyWindow()
         self.calc_win_calibration = CalibrationWindow()
         self.calc_win_resolution = ResolutionWindow()
+        self.calc_win_deconvolution = DeconvolutionWindow()
 
         central = QWidget()
         self.setCentralWidget(central)

@@ -93,16 +93,15 @@ cdef void compute_ratio(
     for i in range(
         y.shape[0],
     ):
-        ratio[i] = y[i] / fmax(estimate[i], 1e-12)
+        ratio[i] = y[i] / (estimate[i] + 1e-12)
 
 
 cdef void multiply_update(
     double[:] x,
     const double[:] correction,
-) noexcept nogil:
+):
 
     cdef Py_ssize_t i
-    
     for i in range(
         x.shape[0],
     ):
@@ -123,7 +122,6 @@ cdef void tikhonov_smooth(
 
         x[i] += lam * lap
 
-
 cdef void entropy_step(
     double[:] x,
     const double[:] model,
@@ -136,7 +134,7 @@ cdef void entropy_step(
 
     for i in range(x.shape[0]):
 
-        ratio = x[i] / fmax(model[i], 1e-12)
+        ratio = x[i] / (model[i] + 1e-12)
 
         x[i] *= exp(
             -lam * (log(ratio) + 1.0)
@@ -228,12 +226,110 @@ cpdef cnp.ndarray ML_EM_cy(
     return x
 
 # -------------------------------
+# Process Response
+# -------------------------------
+
+cpdef tuple process_response_cy(
+    cnp.ndarray[float64_t, ndim=2] matrix,
+    cnp.ndarray[float64_t, ndim=1] ref_indicies,
+    cnp.ndarray[float64_t, ndim=1] ref_energy_axis,
+    cnp.ndarray[float64_t, ndim=1] requested_indices,
+    cnp.ndarray[float64_t, ndim=1] measured_energy_axis,
+):
+    cdef:
+        cnp.ndarray[float64_t, ndim=2] interp_matrix
+
+        Py_ssize_t i, j
+        Py_ssize_t low_idx
+        Py_ssize_t n_ref = matrix.shape[0]
+        Py_ssize_t n_energy = matrix.shape[1]
+        Py_ssize_t n_requested = requested_indices.shape[0]
+
+        double x
+        double x0, x1
+        double w
+        double value
+
+    # Empty matrix to hold interpolated values
+    interp_matrix = np.empty(
+        (n_ref, n_energy),
+        dtype=np.float64,
+    )
+
+    # ------------------------------------------------------------
+    # 1. Interpolate each reference response onto measured energy
+    # ------------------------------------------------------------
+
+    for i in range(n_ref):
+        interp_matrix[i] = np.interp(
+            measured_energy_axis,
+            ref_energy_axis,
+            matrix[i],
+            left=0.0,
+            right=0.0,
+        )
+
+    # ------------------------------------------------------------
+    # 2. Build CSR
+    # ------------------------------------------------------------
+
+    cdef list offsets = [0]
+    cdef list indices = []
+    cdef list values = []
+
+    low_idx = 0
+
+    for i in range(n_requested):
+
+        x = requested_indicies[i]
+
+        # Move to the lower bracketing reference index
+        while (
+            low_idx < n_ref - 2
+            and ref_indicies[low_idx + 1] <= x
+        ):
+            low_idx += 1
+
+        # Outside range -> empty CSR row
+        if x < ref_indicies[0] or x > ref_indicies[n_ref - 1]:
+            offsets.append(len(values))
+            continue
+
+        x0 = ref_indicies[low_idx]
+        x1 = ref_indicies[low_idx + 1]
+
+        w = (x - x0) / (x1 - x0)
+
+        for j in range(n_energy):
+
+            value = (
+                interp_matrix[low_idx, j]
+                + w * (
+                    interp_matrix[low_idx + 1, j]
+                    - interp_matrix[low_idx, j]
+                )
+            )
+
+            # Store only nonzero values
+            if value > 1e-12:
+                indices.append(j)
+                values.append(value)
+
+        offsets.append(len(values))
+
+    return (
+        np.asarray(offsets, dtype=np.int64),
+        np.asarray(indices, dtype=np.int32),
+        np.asarray(values, dtype=np.float64),
+    )
+
+# -------------------------------
 # Richardson-Lucy
 # -------------------------------
 
 cdef double FWHM_C = 2.0 * sqrt(2.0 * log(2.0))
 
-cdef inline double get_sigma(double k, double E):
+cdef inline double get_sigma(double k, double E) noexcept nogil:
     cdef double resolution = k * sqrt(E)
     return resolution * E / FWHM_C
 

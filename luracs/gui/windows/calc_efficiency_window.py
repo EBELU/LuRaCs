@@ -1,34 +1,32 @@
-from PySide6.QtWidgets import (
-    QDialog,
-    QVBoxLayout,
-    QFormLayout,
-    QComboBox,
-    QWidget,
-    QCheckBox,
-    QTableWidget,
-    QTableWidgetItem,
-    QPushButton,
-    QDoubleSpinBox,
-    QHBoxLayout,
-    QAbstractItemView,
-    QDateTimeEdit,
-    QLabel,
-    QHeaderView,
-    QMessageBox,
-)
-
-from PySide6.QtCore import Qt, QDate, Signal
-import pyqtgraph as pg
-import numpy as np
 import warnings
 from datetime import datetime
 
+import numpy as np
+import pyqtgraph as pg
+from PySide6.QtCore import QDate, Qt, Signal
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QCheckBox,
+    QComboBox,
+    QDateTimeEdit,
+    QDoubleSpinBox,
+    QFormLayout,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
+from uncertainties import ufloat, umath
+
 from luracs.core import SpectrumManager
-from uncertainties import ufloat
-import uncertainties.umath as umath
-from luracs.utils.numerics.efficiency import u_intrinsic_efficiency
 from luracs.utils.numerics import curve_fit
 from luracs.utils.numerics.approximation_fns import exp_polynomial
+from luracs.utils.numerics.efficiency import u_intrinsic_efficiency
 
 
 def value_with_uncertainty(has_unit=False):
@@ -54,7 +52,7 @@ def value_with_uncertainty(has_unit=False):
         return container, value, uncertainty
 
 
-class EfficiencyWindow(QDialog):
+class EfficiencyWindow(QWidget):
     sigUpdateGenericInstrument = Signal(object, dict)
     sigUpdateUniqueInstrument = Signal(object, dict)
 

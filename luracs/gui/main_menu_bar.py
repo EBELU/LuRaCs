@@ -110,8 +110,14 @@ class MainMenuBar(QMenuBar):
         calculate_menu_photoCalibration.triggered.connect(
             parent.calc_win_calibration.show
         )
+        calculate_menu_photoDeconvolution = calculate_menu.addAction("Deconvolution")
+        calculate_menu_photoDeconvolution.triggered.connect(
+            parent.calc_win_deconvolution.show
+        )
         calculate_menu_photoEff = calculate_menu.addAction("Efficiency")
-        calculate_menu_photoEff.triggered.connect(parent.calc_win_efficiency.show)
+        calculate_menu_photoEff.triggered.connect(
+            parent.calc_win_efficiency.show
+            )
         calculate_menu_photoResolution = calculate_menu.addAction("Resolution")
         calculate_menu_photoResolution.triggered.connect(
             parent.calc_win_resolution.show

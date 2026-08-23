@@ -1,8 +1,9 @@
-import numpy as np
-import zlib
-import zipfile
-import os
 import base64
+import os
+import zipfile
+import zlib
+
+import numpy as np
 
 
 def decompress_spectrum(blob: bytes, channel_count: int) -> np.ndarray:

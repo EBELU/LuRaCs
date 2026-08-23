@@ -14,3 +14,6 @@ dev/debug/*.c
 *.log
 *.lock
 main.*
+dev/*
+luracs/utils/numerics/cython/*.so
+luracs/utils/numerics/cython/*.c

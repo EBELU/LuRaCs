@@ -1,23 +1,24 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from main import MainWindow
+
     from luracs.containers.roi_classes import ROI
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
+    QMessageBox,
     QStackedWidget,
     QTabWidget,
-    QMessageBox,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Signal
+
+from luracs.core import Settings, SpectrumManager, core_utils
+
 from .spectrum_plot import SpectrumPlot
-
-from luracs.core import SpectrumManager, Settings, core_utils
-
-import numpy as np
 
 
 class SpectrumPlotContainer(QWidget):

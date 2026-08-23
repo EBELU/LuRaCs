@@ -1,5 +1,6 @@
-from PySide6.QtCore import QObject, Signal, QRunnable, QThreadPool
-from typing import Callable
+from collections.abc import Callable
+
+from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal
 
 
 class WorkerSignals(QObject):
@@ -41,8 +42,8 @@ class Calculator:
         cls,
         fn: Callable,
         *args,
-        on_result: Callable = None,
-        on_error: Callable = None,
+        on_result: Callable | None = None,
+        on_error: Callable | None = None,
         **kwargs,
     ):
         """Run a function in a background thread and signal back the result."""

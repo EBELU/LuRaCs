@@ -5,6 +5,7 @@ try:
     from .deconvolution import (
         ML_EM_cy,
         richardson_lucy_cy,
+        process_response_cy,
     )
 
     from .rebin import rebin_histogram_cy
@@ -13,6 +14,7 @@ except ImportError:
     from deconvolution import (
         ML_EM_cy,
         richardson_lucy_cy,
+        process_response_cy,
     )
 
     from rebin import rebin_histogram_cy
@@ -108,6 +110,55 @@ def ml_em(
         use_sensitivity=use_sensitivity,
     )
     
+def process_response(
+    matrix: np.ndarray,
+    ref_indices: np.ndarray,
+    ref_energy_axis: np.ndarray,
+    requested_indices: np.ndarray,
+    measured_energy_axis: np.ndarray,
+):
+    """
+    Process response matrix by interpolating reference responses onto the
+    measured energy axis and constructing a CSR representation for the
+    requested indices.
+
+    Parameters
+    ----------
+    matrix : array_like, shape (n_reference, n_energy)
+        Reference response matrix.
+    ref_indices : array_like
+        Indices corresponding to the rows of ``matrix``.
+    ref_energy_axis : array_like
+        Energy axis corresponding to the columns of ``matrix``.
+    requested_indices : array_like
+        Reference indices to generate responses for.
+    measured_energy_axis : array_like
+        Energy axis onto which the reference responses are interpolated.
+
+    Returns
+    -------
+    offsets : numpy.ndarray
+        CSR row offsets, dtype ``int64``.
+    indices : numpy.ndarray
+        CSR column indices, dtype ``int32``.
+    values : numpy.ndarray
+        CSR nonzero values, dtype ``float64``.
+    """
+
+    matrix = np.asarray(matrix, dtype=np.float64)
+    ref_indices = np.asarray(ref_indices, dtype=np.float64)
+    ref_energy_axis = np.asarray(ref_energy_axis, dtype=np.float64)
+    requested_indices = np.asarray(requested_indices, dtype=np.float64)
+    measured_energy_axis = np.asarray(measured_energy_axis, dtype=np.float64)
+
+    return process_response_cy(
+        matrix,
+        ref_indices,
+        ref_energy_axis,
+        requested_indices,
+        measured_energy_axis,
+    )
+    
 def richardson_lucy(
     x: np.ndarray,
     y: np.ndarray,
@@ -169,7 +220,7 @@ def rebin_histogram(
     energy_axis: np.ndarray,
     count_axis: np.ndarray,
     new_energy_axis: np.ndarray
-):
+) -> np.ndarray[np.float64]:
     """
     Rebin a histogram onto a new energy axis while conserving total counts.
     
@@ -219,11 +270,66 @@ def rebin_histogram(
 if __name__ == "__main__":
     import pandas as pd
     import matplotlib.pyplot as plt
-    data = pd.read_csv("~/Desktop/Th.csv").to_numpy()
-    clipped_data = data[(data[:, 0] >= 30)]
-    # print(richardson_lucy(clipped_data[:, 1], 2/100))
-    plt.plot(clipped_data[:, 0], clipped_data[:, 1], label="Original Data")
-    plt.plot(clipped_data[:, 0], richardson_lucy(clipped_data[:, 0], clipped_data[:, 1], 0.087/100, iterations=150, reg_tikhonov=True, reg_tikhonov_lambda=0.001), label="Deconvolved Data")
-    plt.xlabel("Energy (keV)")
-    plt.ylabel("Counts")
+    # data = pd.read_csv("~/Desktop/Cyklotron_Ba.csv").to_numpy()
+    # clipped_data = data[(data[:, 0] >= 30)]
+    # # print(richardson_lucy(clipped_data[:, 1], 2/100))
+    # plt.plot(clipped_data[:, 0], clipped_data[:, 1], label="Original Data")
+    # plt.plot(clipped_data[:, 0], richardson_lucy(clipped_data[:, 0], clipped_data[:, 1], 2, iterations=25, reg_tikhonov=False, reg_tikhonov_lambda=0.001), label="Deconvolved Data")
+    # plt.xlabel("Energy (keV)")
+    # plt.ylabel("Counts")
+    # plt.show()
+    
+    data = pd.read_csv("~/Desktop/Cyklotron_Ba.csv").to_numpy()
+    response_matrix = np.load("dev/Rc103_response.npz", allow_pickle=False)
+    
+
+    
+    processed_response = process_response_cy(
+        response_matrix["response_matrix"],
+        response_matrix["indices"].astype(np.float64),
+        response_matrix["bin_centres"],
+        data[:, 0],
+        data[:, 0],
+    )
+    
+    
+    ml_em_result = ml_em(
+        data[:, 1],
+        processed_response[0],
+        processed_response[1].astype(np.int32),
+        processed_response[2],
+        sensitivity=None,
+        iterations=500,
+        use_sensitivity=False,
+    )
+    
+    plt.plot(data[:, 0], data[:, 1])
+    plt.plot(data[:, 0], ml_em_result)
     plt.show()
+    
+    from luracs.utils.file_io.xml_writer import xml_writer
+    from luracs.containers.spectrum_classes import Spectrum, SpectrumData
+    
+    spectrum = Spectrum(len(ml_em_result), "deconvolved")
+    sd = SpectrumData(
+        ml_em_result,
+        len(ml_em_result),
+        np.sum(ml_em_result),
+        1
+    )
+    
+    sdb = SpectrumData(
+        data[:, 1],
+        len(data[:, 1]),
+        np.sum(data[:, 1]),
+        1
+    )
+
+    cal = np.polyfit(np.arange(len(data)), data[:, 0], 2)
+    
+    spectrum.apply_calibration(cal)
+    
+    spectrum.set_foreground(sd)
+    spectrum.set_background(sdb)
+    xml_writer(spectrum, "dev/debug/deconv")
+    

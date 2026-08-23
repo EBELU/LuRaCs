@@ -11,6 +11,7 @@ from .documentation_windows import (
 from .calc_calibration_window import CalibrationWindow
 from .calc_efficiency_window import EfficiencyWindow
 from .calc_resolution_window import ResolutionWindow
+from .calc_deconvolution import DeconvolutionWindow
 
 __all__ = [
     "BluetoothListPopup",

@@ -1,35 +1,32 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    pass
 from datetime import datetime
+
+import numpy as np
+import pyqtgraph as pg
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QDialog,
-    QWidget,
-    QHBoxLayout,
-    QVBoxLayout,
+    QAbstractItemView,
+    QCheckBox,
+    QComboBox,
+    QDoubleSpinBox,
     QFormLayout,
+    QHBoxLayout,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QSpinBox,
     QTableWidget,
     QTableWidgetItem,
-    QCheckBox,
-    QPushButton,
-    QAbstractItemView,
-    QDoubleSpinBox,
-    QSpinBox,
-    QComboBox,
-    QMessageBox,
-    QLineEdit
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt
-import pyqtgraph as pg
-import numpy as np
 
 from luracs.core import SpectrumManager
 from luracs.utils.numerics import calibrate_x_axis
 
 
-class CalibrationWindow(QDialog):
+class CalibrationWindow(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Calibration Window")
@@ -330,6 +327,7 @@ class CalibrationWindow(QDialog):
 
 if __name__ == "__main__":
     import sys
+
     from PySide6.QtWidgets import QApplication
 
     app = QApplication.instance() or QApplication(sys.argv)

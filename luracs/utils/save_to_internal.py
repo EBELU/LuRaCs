@@ -1,9 +1,6 @@
-from luracs.core import Settings, Log
-from luracs.containers.spectrum_classes import Spectrum
-
 from luracs.containers.instrument_classes import GenericInstrument, UniqueInstrument
-
-
+from luracs.containers.spectrum_classes import Spectrum
+from luracs.core import Log, Settings
 from luracs.utils.file_io.xml_writer import xml_writer
 
 
@@ -26,7 +23,7 @@ def save_instrument_to_library(instrument: UniqueInstrument | GenericInstrument)
     elif isinstance(instrument, GenericInstrument):
         new_file = Settings.Paths.generic_instrument_library / instrument.model
     else:
-        raise ValueError(f"Invalid instrument type! {type(instrument)}")
+        raise TypeError(f"Invalid instrument type! {type(instrument)}")
 
     xml_writer(dummy_spectrum, new_file, export_spectrum=False, export_rois=False)
 

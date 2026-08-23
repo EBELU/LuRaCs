@@ -46,7 +46,7 @@ def parse_cli_args(main_window: MainWindow):
     )
 
     parser.add_argument(
-        "-bt",
+        "-ble",
         "--bluetooth",
         nargs="+",
         help="Attempt bluetooth connections based on device names",
@@ -82,8 +82,8 @@ def parse_cli_args(main_window: MainWindow):
         for pth in args.import_spectrum:
             path = Path(pth)
             if path.is_file():
-                if str(path).endswith(".xml") or str(path).endswith(".n42"):
-                    parser = io_dispatcher(path)
+                parser = io_dispatcher(path)
+                if parser is not None:
                     SpectrumManager.import_spectrum(parser.data)
 
     if args.roi:

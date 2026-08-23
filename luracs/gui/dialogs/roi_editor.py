@@ -103,19 +103,19 @@ class ROIEditor(QDialog):
         auto_match.setText("Auto Match Nuclide")
         auto_match.clicked.connect(self._auto_match_nuclide)
 
-        form.addRow("\t\t", auto_match)
+        form.addRow("", auto_match)
 
         self.merge = QCheckBox("Allow merging")
         self.merge.setChecked(merge)
-        form.addRow("\t\t", self.merge)
+        form.addRow("", self.merge)
 
         self.movable = QCheckBox("Movable")
         self.movable.setChecked(movable)
-        form.addRow("\t\t", self.movable)
+        form.addRow("", self.movable)
 
         self.poisson_weights = QCheckBox("Use Poisson Weights")
         self.poisson_weights.setChecked(poisson_weights)
-        form.addRow("\t\t", self.poisson_weights)
+        form.addRow("", self.poisson_weights)
 
         def update_button_state():
             is_gaussian = self.fit_type.currentText() == "Gaussian"

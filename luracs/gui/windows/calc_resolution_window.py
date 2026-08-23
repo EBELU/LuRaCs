@@ -1,37 +1,33 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    pass
-
-from PySide6.QtWidgets import (
-    QDialog,
-    QWidget,
-    QHBoxLayout,
-    QVBoxLayout,
-    QFormLayout,
-    QTableWidget,
-    QTableWidgetItem,
-    QCheckBox,
-    QPushButton,
-    QAbstractItemView,
-    QComboBox,
-    QGroupBox,
-    QRadioButton,
-    QButtonGroup,
-    QLineEdit,
-)
-from PySide6.QtCore import Qt, Signal
-import pyqtgraph as pg
-import numpy as np
 import warnings
 from datetime import datetime
 
+import numpy as np
+import pyqtgraph as pg
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QButtonGroup,
+    QCheckBox,
+    QComboBox,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLineEdit,
+    QPushButton,
+    QRadioButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
+
 from luracs.core import SpectrumManager
-from luracs.utils.numerics import resolution, curve_fit, r_squared
+from luracs.utils.numerics import curve_fit, r_squared, resolution
 
 
-class ResolutionWindow(QDialog):
+class ResolutionWindow(QWidget):
     sigUpdateGenericInstrument = Signal(object, dict)
     sigUpdateUniqueInstrument = Signal(object, dict)
 
@@ -383,6 +379,7 @@ class ResolutionWindow(QDialog):
 
 if __name__ == "__main__":
     import sys
+
     from PySide6.QtWidgets import QApplication
 
     app = QApplication.instance() or QApplication(sys.argv)

@@ -33,6 +33,17 @@ jobs:
         env:
           CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-*"
 
+          # Linux wheels
+          CIBW_ARCHS_LINUX: "x86_64 aarch64"
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+          CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
+
+          # macOS wheels (Intel + Apple Silicon)
+          CIBW_ARCHS_MACOS: "x86_64 arm64"
+
+          # Windows currently stays x86_64
+          CIBW_ARCHS_WINDOWS: "AMD64"
+
       - uses: actions/upload-artifact@v4
         with:
           name: wheels-${{ matrix.os }}

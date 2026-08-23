@@ -1,10 +1,11 @@
-import sys
-from PySide6.QtCore import QObject, Signal, Slot
-from dataclasses import dataclass, field
-from typing import Optional, Any
 import json
-from pathlib import Path
+import sys
 from collections import deque
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+from PySide6.QtCore import QObject, Signal, Slot
 
 
 @dataclass
@@ -31,8 +32,8 @@ class _Temp:
 @dataclass
 class _State:
     last_connections: deque = field(default_factory=lambda: deque(maxlen=10))
-    loaded_spectra: Optional[Any] = None
-    roi_regions: Optional[Any] = None
+    loaded_spectra: Any | None = None
+    roi_regions: Any | None = None
     map_last_online_url: str = ""
 
     def to_dict(self):

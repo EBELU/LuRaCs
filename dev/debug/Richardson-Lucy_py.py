@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import math
 
-from richardson_lucy import richardson_lucy
+from richardson_lucy import richardson_lucy, build_gaussian_response
 
 _fwhm_c = 2 * math.sqrt(2 * math.log(2))
 
@@ -23,66 +23,66 @@ def get_sigma(k: float, E: float):
     return fwhm / _fwhm_c          # Gaussian sigma
     
 
-def build_gaussian_response(axis, sigma, nsigma=5):
-    """
-    Construct a sparse Gaussian detector response matrix.
+# def build_gaussian_response(axis, sigma, nsigma=5):
+#     """
+#     Construct a sparse Gaussian detector response matrix.
 
-    For each energy bin in ``axis``, a normalized Gaussian kernel is generated
-    with standard deviation given by ``sigma``. Only bins within
-    ``±nsigma * sigma`` are stored, producing a compressed sparse row (CSR-like)
-    representation suitable for efficient forward and back projection in
-    Richardson–Lucy deconvolution.
+#     For each energy bin in ``axis``, a normalized Gaussian kernel is generated
+#     with standard deviation given by ``sigma``. Only bins within
+#     ``±nsigma * sigma`` are stored, producing a compressed sparse row (CSR-like)
+#     representation suitable for efficient forward and back projection in
+#     Richardson–Lucy deconvolution.
 
-    Parameters
-    ----------
-    axis : ndarray of float
-        Energy (or channel) values defining both the true and measured spectrum.
-    sigma : ndarray of float
-        Gaussian standard deviation for each energy bin. Must have the same
-        length as ``axis``.
-    nsigma : float, optional
-        Number of standard deviations on either side of the Gaussian mean to
-        retain. Default is 5.
+#     Parameters
+#     ----------
+#     axis : ndarray of float
+#         Energy (or channel) values defining both the true and measured spectrum.
+#     sigma : ndarray of float
+#         Gaussian standard deviation for each energy bin. Must have the same
+#         length as ``axis``.
+#     nsigma : float, optional
+#         Number of standard deviations on either side of the Gaussian mean to
+#         retain. Default is 5.
 
-    Returns
-    -------
-    offsets : ndarray
-        Start/end positions for each true-energy kernel.
-    indices : ndarray
-        Measured-axis indices for each kernel value.
-    values : ndarray
-        Kernel probabilities.
-    """
+#     Returns
+#     -------
+#     offsets : ndarray
+#         Start/end positions for each true-energy kernel.
+#     indices : ndarray
+#         Measured-axis indices for each kernel value.
+#     values : ndarray
+#         Kernel probabilities.
+#     """
 
-    offsets = [0]
-    indices = []
-    values = []
+#     offsets = [0]
+#     indices = []
+#     values = []
 
-    for E, s in zip(axis, sigma):
+#     for E, s in zip(axis, sigma):
 
-        # Find affected measured bins
-        low = np.searchsorted(axis, E - nsigma * s)
-        high = np.searchsorted(axis, E + nsigma * s, side="right")
+#         # Find affected measured bins
+#         low = np.searchsorted(axis, E - nsigma * s)
+#         high = np.searchsorted(axis, E + nsigma * s, side="right")
 
-        idx = np.arange(low, high)
+#         idx = np.arange(low, high)
 
-        x = axis[idx] - E
+#         x = axis[idx] - E
 
-        kernel = np.exp(-0.5 * (x / s) ** 2)
+#         kernel = np.exp(-0.5 * (x / s) ** 2)
 
-        # Normalize to preserve counts
-        kernel /= kernel.sum()
+#         # Normalize to preserve counts
+#         kernel /= kernel.sum()
 
-        indices.extend(idx)
-        values.extend(kernel)
+#         indices.extend(idx)
+#         values.extend(kernel)
 
-        offsets.append(len(values))
+#         offsets.append(len(values))
 
-    return (
-        np.asarray(offsets, dtype=np.int64),
-        np.asarray(indices, dtype=np.int32),
-        np.asarray(values, dtype=np.float64),
-    )
+#     return (
+#         np.asarray(offsets, dtype=np.int64),
+#         np.asarray(indices, dtype=np.int32),
+#         np.asarray(values, dtype=np.float64),
+#     )
 
 data = pd.read_csv("~/Desktop/Raysid-GRF-Eu152 Recalib-.csv").to_numpy()
 data = pd.read_csv("~/Desktop/Th.csv").to_numpy()
@@ -149,7 +149,8 @@ from time import perf_counter
 
 # Warm up (important for fair comparison)
 # richardson_lucy_py(clipped_data[:, 1], offsets, indices, values, iterations=10)
-richardson_lucy(clipped_data[:, 1], offsets, indices, values, iterations=10)
+
+richardson_lucy(clipped_data[:, 1], offsets, indices, values, np.ones_like(clipped_data[:, 1]), iterations=10, reg_tikhonov=True)
 
 N = 1
 
@@ -171,12 +172,12 @@ for _ in range(N):
         offsets,
         indices,
         values,
-        iterations=5,
+        np.ones_like(clipped_data[:, 1]), iterations=50, reg_tikhonov=True, reg_tikhonov_lambda = 0.01
     )
 t3 = perf_counter()
 
 # print(f"Python : {(t1 - t0)/N:.6f} s/run")
-# print(f"Cython : {(t3 - t2)/N:.6f} s/run")
+print(f"Cython : {(t3 - t2)/N:.6f} s/run")
 # print(f"Speedup: {(t1 - t0)/(t3 - t2):.2f}×")
 
 plt.plot(clipped_data[:, 1])
