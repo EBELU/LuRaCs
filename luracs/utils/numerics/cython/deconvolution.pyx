@@ -281,7 +281,7 @@ cpdef tuple process_response_cy(
 
     for i in range(n_requested):
 
-        x = requested_indicies[i]
+        x = requested_indices[i]
 
         # Move to the lower bracketing reference index
         while (
