@@ -134,10 +134,13 @@ class DeconvolutionWindow(QWidget):
         response_matrix_row.addWidget(self.mlem_line_loaded_file)
         response_matrix_row.addWidget(btn_load_matrix)
         
+        self.mlem_use_efficiency = QCheckBox("Use Efficiency")
+        
         label = QLabel("Iterations")
         label.setFixedWidth(130)
         layout.addRow(label, self.mlem_iterations)
         layout.addRow("Response Matrix", response_matrix_row)
+        layout.addRow("Priors", self.mlem_use_efficiency)
 
         return page
     
@@ -188,12 +191,14 @@ class DeconvolutionWindow(QWidget):
             raise ValueError("Invalid algorithm index")
         
         spectrum_copy: Spectrum = deepcopy(SpectrumManager.spectrum_registry.get(self.combo_spectra.currentData()))
-        spectrum_copy.foreground.y_axis = deconv_y
-        
         new_name = spectrum_copy.name + "_deconvolved"
+        
+        spectrum_copy.foreground.y_axis = deconv_y
+        spectrum_copy.name = new_name
+        spectrum_copy.foreground.total_counts = np.sum(deconv_y)
+        
         SpectrumManager.create_spectrum(new_name, spectrum_copy.channels)
-        SpectrumManager.set_foreground_spectrum(new_name, spectrum_copy.foreground)
-        SpectrumManager.calibrate_spectrum(new_name, spectrum_copy.calibration_coefficients) 
+        SpectrumManager.set_spectrum(new_name, spectrum_copy)
         
             
     def calculate_mlem(self):

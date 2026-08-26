@@ -7,7 +7,6 @@
 import numpy as np
 cimport numpy as cnp
 
-from cython.parallel import prange
 from libc.math cimport exp
 
 def multi_gaussian_cy(
@@ -17,7 +16,7 @@ def multi_gaussian_cy(
     cdef:
         int m = x.shape[0]
         int n_gauss = params.shape[0] // 3
-        cnp.ndarray[double, ndim=1] y = np.zeros(m)
+        cnp.ndarray[double, ndim=1] y = np.zeros(m, dtype=np.float64)
         int i, j
         double A, mu, variance
         double dx, exponent

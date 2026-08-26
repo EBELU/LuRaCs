@@ -1,22 +1,25 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from luracs.containers.roi_classes import ROI
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QWidget,
-    QGroupBox,
-    QVBoxLayout,
-    QHBoxLayout,
-    QSizePolicy,
     QComboBox,
+    QDialog,
+    QGroupBox,
+    QHBoxLayout,
     QMessageBox,
     QPushButton,
-    QDialog,
+    QSizePolicy,
     QTextEdit,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Signal
-from luracs.core import SpectrumManager, IOManager
+
+from luracs.core import IOManager, SpectrumManager
+
 from ..misc.idx_table import StrIdxTable
 from ..save_to_internal_dialogs import save_roi_references
 

@@ -1,33 +1,29 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from luracs.containers.spectrum_classes import Spectrum
 
 from datetime import timedelta
+
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QBrush, QColor, QPainter
 from PySide6.QtWidgets import (
-    QWidget,
-    QGroupBox,
-    QVBoxLayout,
     QColorDialog,
+    QGroupBox,
     QHBoxLayout,
     QMessageBox,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor
 
-
-from luracs.core import SpectrumManager, RunManager
-from luracs.gui.misc.idx_table import StrIdxTable
-from luracs.utils.file_io import io_dispatcher
-from luracs.gui.misc.table_menu_button import MenuButton
-
-
-from PySide6.QtGui import QPainter, QBrush
-
-
-from luracs.gui.save_to_internal_dialogs import save_spectrum_to_library_dialog
+from luracs.core import RunManager, SpectrumManager
 from luracs.gui.dialogs.data_store_edit_dialogs import SpectrumEditDialog
+from luracs.gui.misc.idx_table import StrIdxTable
+from luracs.gui.misc.table_menu_button import MenuButton
+from luracs.gui.save_to_internal_dialogs import save_spectrum_to_library_dialog
+from luracs.utils.file_io import io_dispatcher
 
 
 class ColorCellWidget(QWidget):

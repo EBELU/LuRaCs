@@ -1,18 +1,20 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from main import MainWindow
     from luracs.core.script_engine import ScriptEngine
+    from luracs.main import MainWindow
 
 import argparse
 import asyncio
 from pathlib import Path
+
 from luracs.core import Log, RunManager, SpectrumManager
 from luracs.utils.file_io import io_dispatcher
 
 
-def parse_cli_args(main_window: MainWindow):
+def parse_cli_args(main_window: MainWindow, script_engine: ScriptEngine):
     parser = argparse.ArgumentParser(
         description="""LuRaCs -- Lund Radiation analysis Computer software"""
     )
@@ -28,11 +30,11 @@ def parse_cli_args(main_window: MainWindow):
     )
 
     parser.add_argument(
-        "--map_url", nargs=1, type=str, help="Load an online map from the given URL"
+        "--map_url", type=str, help="Load an online map from the given URL"
     )
 
     parser.add_argument(
-        "--map_file", nargs=1, type=str, help="Load a local map from a .pmtiles file"
+        "--map_file", type=str, help="Load a local map from a .pmtiles file"
     )
 
     parser.add_argument("--import_rois", type=str, help="Load ROI from an xml file")
@@ -93,3 +95,12 @@ def parse_cli_args(main_window: MainWindow):
     if args.nuclides and main_window is not None:
         for nuclide in args.nuclides:
             main_window.isotopics_tab.set_nuclide_check(nuclide, True)
+            
+    if not (args.map_url and args.map_file):
+        if args.map_url:
+            script_engine.submit_from_sync(f"map url {args.map_url}")
+        
+        elif args.map_file:
+            script_engine.submit_from_sync(f"map file {args.map_file}")
+    else:
+        Log.warning("Both a map url and file was given at startup, no map was loaded")

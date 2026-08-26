@@ -1,11 +1,13 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from luracs.utils.file_io import xml_parser
 
-from luracs.containers.instrument_classes import UniqueInstrument, GenericInstrument
 from PySide6.QtCore import QObject, Signal
+
+from luracs.containers.instrument_classes import GenericInstrument, UniqueInstrument
 
 from .gui_logger import gui_logger
 

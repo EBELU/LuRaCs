@@ -1,28 +1,29 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from luracs.spectrogram import Spectrogram
     from luracs.clients.DeviceWrappers import WrappedRealTimePackage
+    from luracs.spectrogram import Spectrogram
 
 import asyncio
-from PySide6.QtCore import QObject, Signal, Slot
-import numpy as np
-from collections import deque
-from .settings import Settings
-
-from bleak import BleakScanner
 import sys
+from collections import deque
 
+import numpy as np
+from bleak import BleakScanner
+from PySide6.QtCore import QObject, Signal, Slot
+
+from .settings import Settings
 
 # -----------------------------
 # Deal with windows usb BS!!! >:(
 # -----------------------------
 if sys.platform.startswith("win"):
     import libusb_package  # <- thank you!
+    import usb.backend.libusb1
     import usb.core
     import usb.util
-    import usb.backend.libusb1
 
     backend = usb.backend.libusb1.get_backend(find_library=libusb_package.find_library)
     if backend is None:
@@ -35,10 +36,10 @@ else:
     import usb.util
 
 
+from luracs.clients.DeviceWrappers import CriticalNotImplementedError, DeviceWrapper
+
 from .gui_logger import gui_logger
 from .spectrogram_manager import SpectrogramManager
-
-from luracs.clients.DeviceWrappers import DeviceWrapper, CriticalNotImplementedError
 
 
 class EmittedSignals(QObject):

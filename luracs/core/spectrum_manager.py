@@ -1,18 +1,19 @@
-from PySide6.QtCore import QObject, Signal
-from PySide6.QtGui import QColor
-from luracs.clients.DeviceWrappers import WrappedSpectrumPackage
 from datetime import datetime, timedelta
 
+from PySide6.QtCore import QObject, Signal
+from PySide6.QtGui import QColor
+
+from luracs.clients.DeviceWrappers import WrappedSpectrumPackage
 from luracs.containers.instrument_classes import GenericInstrument, UniqueInstrument
 from luracs.containers.spectrum_classes import Spectrum, SpectrumData
-
-from .gui_logger import gui_logger
-from .settings import Settings
-from .roi_manager import ROIManager
-from .instument_library import InstrumentLibrary
-from .nuclide_library import NuclideLibrary
 from luracs.utils.color_rotator import ColorRotator
 from luracs.utils.file_io import xml_writer
+
+from .gui_logger import gui_logger
+from .instument_library import InstrumentLibrary
+from .nuclide_library import NuclideLibrary
+from .roi_manager import ROIManager
+from .settings import Settings
 
 
 class EmittedSignals(QObject):
@@ -61,7 +62,7 @@ class _SpectrumManager(QObject):
         self.NuclideLibrary = NuclideLibrary(self)
 
     # --- Spectrum manipulators ---
-    def create_spectrum(self, name: str, channels: int, device: str = None):
+    def create_spectrum(self, name: str, channels: int, device: str | None = None):
         if name not in self.spectrum_registry:
             # Create spectrum and add a possible connection
             new_spect = Spectrum(channels, name)
@@ -76,17 +77,30 @@ class _SpectrumManager(QObject):
             # Emit done
             self.Signals.spectrumCreated.emit(name)
             gui_logger.info(
-                f"Spectrum added: name={name}, channels={channels}, connection={str(device)}"
+                f"Spectrum added: name={name}, channels={channels}, connection={device!s}"
             )
             return True
         else:
             return False
+        
+    def set_spectrum(self, name: str, spectrum: Spectrum):
+        if name not in self.spectrum_registry:
+            raise ValueError(f"Spectrum {name} does not exist")
+        
+        spectrum.connection = self.spectrum_registry[name].connection
+        spectrum.instrument = self.spectrum_registry[name].instrument
+        spectrum.color_foreground = self.spectrum_registry[name].color_foreground
+        spectrum.color_background = self.spectrum_registry[name].color_background
+        
+        self.spectrum_registry[name] = spectrum
+        self.Signals.spectrumUpdated.emit(name)
+        gui_logger.info(f"Spectrum set: name={name}")
 
     def set_foreground_spectrum(
         self,
         name: str,
         spectrum_data: WrappedSpectrumPackage | SpectrumData,
-        connection: str = None,
+        connection: str | None = None,
     ):
         if name not in self.spectrum_registry:
             raise ValueError(f"Spectrum {name} does not exist")

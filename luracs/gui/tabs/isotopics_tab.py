@@ -1,27 +1,26 @@
+
+import numpy as np
+import pyqtgraph as pg
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QBrush, QColor, QFont, QPainter
 from PySide6.QtWidgets import (
-    QWidget,
+    QCheckBox,
+    QColorDialog,
+    QComboBox,
     QHBoxLayout,
-    QVBoxLayout,
+    QLabel,
+    QLineEdit,
     QListWidget,
     QListWidgetItem,
-    QLineEdit,
-    QTextEdit,
     QPushButton,
-    QComboBox,
-    QCheckBox,
-    QLabel,
-    QColorDialog,
     QSpinBox,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Signal, Qt
-from PySide6.QtGui import QColor, QPainter, QBrush, QAction, QFont
-import pyqtgraph as pg
-import numpy as np
 
-from luracs.core import SpectrumManager, Settings
+from luracs.core import Settings, SpectrumManager
 from luracs.utils.numerics import find_peaks
-
-from textwrap import dedent
 
 
 # --- Helpers ---

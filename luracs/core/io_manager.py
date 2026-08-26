@@ -1,33 +1,31 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Callable
 
-if TYPE_CHECKING:
-    pass
-from luracs.containers.spectrum_classes import Spectrum
-
-from pathlib import Path
-from glob import glob
 import os
 import shutil
+from collections.abc import Callable
+from glob import glob
+from pathlib import Path
+
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 
+from luracs.containers.spectrum_classes import Spectrum
+from luracs.utils import file_io
 from luracs.utils.file_io import (
     db_parser,
-    xml_parser,
     io_dispatcher,
     spe_parser,
     tka_parser,
+    xml_parser,
 )
-from luracs.utils import file_io
 from luracs.utils.save_to_internal import (
     save_instrument_to_library,
-    save_spectrum_to_library,
     save_rois_to_internal,
+    save_spectrum_to_library,
 )
 
-from .settings import Settings
 from .gui_logger import gui_logger
+from .settings import Settings
 from .spectrum_manager import SpectrumManager
 
 
@@ -478,7 +476,7 @@ class _Exporter(QObject):
         )
 
         if not file_path:
-            return None
+            return
 
         file_path = Path(file_path).with_suffix("")
         if file_path is None:
@@ -509,7 +507,7 @@ class _Exporter(QObject):
         )
 
         if not file_path:
-            return None
+            return
 
         file_path = Path(file_path).with_suffix(".csv")
 

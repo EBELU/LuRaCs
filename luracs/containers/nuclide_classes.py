@@ -33,3 +33,13 @@ EmptyEmission = Emission(
     origin="",
     type="",
 )
+
+AnnihilationEmission = Emission(
+    parent_nuclide="Annihilation",
+    energy_keV=511,
+    energy_error_keV=1,
+    intensity_percent=100,
+    intensity_error_percent=1,
+    type="annih.",
+    origin="Annih."
+)

@@ -23,4 +23,5 @@ The isotope data used in this work are primarily sourced from publications by th
 The following isotopes could not be sourced from LNHB and data was sourced from other sites.
 
 - Th-230: *Thorium-230 - isotopic data and properties. https://chemlin.org/isotope/thorium-230* and *Isotopes of thorium. Wikipedia (2026).*
+- Lu-176: *Lutetium-176 - isotopic data and properties. https://chemlin.org/isotope/lutetium-176*
 

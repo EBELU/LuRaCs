@@ -1,13 +1,15 @@
-from luracs.core import RunManager
-from luracs.clients.DeviceWrappers import DeviceWrapper, WrappedStatusPackage
-from .roi_info_tab import StrIdxTable
 from PySide6.QtWidgets import (
-    QWidget,
     QGroupBox,
     QVBoxLayout,
+    QWidget,
 )
-from luracs.gui.misc.table_menu_button import MenuButton
+
+from luracs.clients.DeviceWrappers import DeviceWrapper, WrappedStatusPackage
+from luracs.core import RunManager
 from luracs.gui.dialogs.device_settings_dialog import DeviceSettingsDialog
+from luracs.gui.misc.table_menu_button import MenuButton
+
+from .roi_info_tab import StrIdxTable
 
 
 class DevicesInfoTab(QWidget):
@@ -94,7 +96,7 @@ class DevicesInfoTab(QWidget):
         if self.status_ts_buff[name] != new_status.timestamp:
             row_cpy = self.row_regestry[name].copy()
             self.row_regestry[name][1:4] = [
-                f"{str(round(new_status.temperature, 1))}°C",
+                f"{round(new_status.temperature, 1)!s}°C",
                 f"{new_status.battery}%",
                 str(new_status.charging),
             ]

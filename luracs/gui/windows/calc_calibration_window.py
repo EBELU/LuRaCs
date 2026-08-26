@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from luracs.core import SpectrumManager
+from luracs.core import Log, Settings, SpectrumManager
 from luracs.utils.numerics import calibrate_x_axis
 
 
@@ -276,6 +276,18 @@ class CalibrationWindow(QWidget):
 
         self.current_new_coeff = new_coeff
         self.current_ref_points = ref_points
+        
+        if Settings.Appearance.verbose_calculation_logging:
+            Log.info(
+                "\n\t".join([
+                "\n\t--- Calibration ---",
+                f"Spectrum: {spectrum.name}",
+                f"Reference Channels: {ref_points[0]}",
+                f"Reference Energies: {reference_energies}",
+                f"Polynomial Degree: {self.spin_poly_degree.value()}",
+                f"New Coefficients: {new_coeff}",
+                ])
+                )
 
     def assign_to_spectrum(self):
         if self.current_new_coeff is None:
@@ -286,6 +298,8 @@ class CalibrationWindow(QWidget):
 
         spectrum_name = self.combo_spectrum.currentText()
         SpectrumManager.calibrate_spectrum(spectrum_name, self.current_new_coeff)
+        
+        Log.info(f"Spectrum Calibrated: name={spectrum_name}, coeff={self.current_new_coeff}")
 
         self.set_table(spectrum_name)
 
@@ -313,6 +327,8 @@ class CalibrationWindow(QWidget):
                 "calibration_date": datetime.now()
               }
         )
+        
+        Log.info(f"Instrument Calibration Assigned: name={instrument.name}, coeff={self.current_new_coeff}")
         self.set_table(spectrum_name)
 
     def recalculate_difference(self, row_index: int):

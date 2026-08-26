@@ -1,18 +1,18 @@
-from PySide6.QtCore import QObject, Signal
 import asyncio
 import shlex
 import traceback
 
-from .script_engine_components.exceptions import (
-    ArgumentError,
-    InvalidCommandError,
-    ActiveGUIError,
-)
-from .script_engine_components.registry import CommandRegistry
-from .script_engine_components.commands import register_commands
-
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import NestedCompleter
+from PySide6.QtCore import QObject, Signal
+
+from .script_engine_components.commands import register_commands
+from .script_engine_components.exceptions import (
+    ActiveGUIError,
+    ArgumentError,
+    InvalidCommandError,
+)
+from .script_engine_components.registry import CommandRegistry
 
 
 # --- Helpers ---

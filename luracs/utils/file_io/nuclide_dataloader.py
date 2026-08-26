@@ -6,7 +6,7 @@ import numpy as np
 
 def load_nuclide_data(pth: str):
     assert isinstance(pth, str)
-
+    
     for file in glob.glob(pth):
         with open(file) as f:
             data = json.load(f)

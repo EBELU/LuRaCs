@@ -1,24 +1,24 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .spectrum_manager import _SpectrumManager
 
-from PySide6.QtCore import Signal, QObject
-from PySide6.QtGui import QColor
-from luracs.containers.roi_classes import CoreSpectrumROI, Fit, ROI
-from luracs.core import Settings
-from .gui_logger import gui_logger as Log
 import numpy as np
+import pyqtgraph as pg
+from PySide6.QtCore import QObject, Signal
+from PySide6.QtGui import QColor
+
+from luracs.containers.roi_classes import ROI, CoreSpectrumROI, Fit
+from luracs.containers.spectrum_classes import Spectrum
+from luracs.core import Settings
 from luracs.utils.numerics import (
     curve_fit,
-    poisson_weights,
     multi_gaussian,
     multi_gaussian_jacobian,
+    poisson_weights,
 )
-import pyqtgraph as pg
-from luracs.containers.spectrum_classes import Spectrum
-
 
 pastel_colors = [
     "#FFB3BA",  # soft pink
@@ -70,7 +70,7 @@ def fit_gaussians(
 
         p0.extend([A0, mu0, s0])
 
-    p0s = np.array(p0)
+    p0s = np.asarray(p0)
     if np.any(p0s < 1e-8):
         return None, False
 
@@ -80,8 +80,7 @@ def fit_gaussians(
         i_high = np.searchsorted(x_axis, region_max)
 
         bkg_extention_lower = i_low - bkg_fit_extension
-        if bkg_extention_lower < 0:
-            bkg_extention_lower = 0
+        bkg_extention_lower = max(bkg_extention_lower, 0)
 
         lower_bkg_points_x = x_axis[bkg_extention_lower:i_low]
         lower_bkg_points_y = y_axis[bkg_extention_lower:i_low]

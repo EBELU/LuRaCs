@@ -15,7 +15,7 @@ import numpy as np
 from luracs.core import SpectrumManager, Settings, core_utils
 
 from luracs.containers.spectrum_classes import Spectrum
-from luracs.containers.nuclide_classes import EmptyEmission
+from luracs.containers.nuclide_classes import EmptyEmission, AnnihilationEmission
 
 from luracs.utils.numerics import multi_gaussian
 
@@ -87,11 +87,11 @@ class SpectrumPlot(QWidget):
         self.plot_widget.setXRange(0, 2500, padding=0)
         self.plot_widget.setLimits(
             xMin=0,
-            xMax=3500,
+            xMax=1e4,
             yMin=0,
             yMax=1e16,
             minXRange=10,
-            maxXRange=3500,
+            maxXRange=1e4,
             minYRange=1e-4,
             maxYRange=1e16,
         )
@@ -519,8 +519,7 @@ class SpectrumPlot(QWidget):
         x_min, x_max = self.plot_widget.viewRange()[0]
 
         diff = float(x_max) - float(x_min)
-        if diff > 400:
-            diff = 400
+        diff = min(diff, 400)
 
         x_low = float(x_min) + diff * 0.15
 
@@ -868,10 +867,13 @@ class SpectrumPlot(QWidget):
         (_, _), (y_min, y_max) = vb.viewRange()
         maximum = y_max * 0.85
 
-        fetched_nuclide = SpectrumManager.NuclideLibrary.get_nuclide(nuclide)
-        if not fetched_nuclide:
-            return
-        emissions = fetched_nuclide.emissions
+        if nuclide != "Annihilation":
+            fetched_nuclide = SpectrumManager.NuclideLibrary.get_nuclide(nuclide)
+            if not fetched_nuclide:
+                return
+            emissions = fetched_nuclide.emissions
+        else:
+            emissions = [AnnihilationEmission]
 
         if not emissions:
             return

@@ -1,14 +1,15 @@
-from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QTextEdit,
-    QPushButton,
-    QHBoxLayout,
-    QLineEdit,
-)
+from collections import deque
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
-from collections import deque
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QLineEdit,
+    QPushButton,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class CommandHistory:

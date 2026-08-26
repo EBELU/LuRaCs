@@ -72,9 +72,9 @@ def curve_fit(
         If the fit converged within the specified tolerance and maximum iterations
     """
 
-    p = np.array(p0, dtype=float)
-    xdata = np.array(xdata, dtype=float)
-    ydata = np.array(ydata, dtype=float)
+    p = np.asarray(p0, dtype=float)
+    xdata = np.asarray(xdata, dtype=float)
+    ydata = np.asarray(ydata, dtype=float)
 
     converged = False
 
@@ -166,8 +166,8 @@ def curve_fit(
 
 
 def r_squared(y: np.ndarray, y_fit: np.ndarray) -> float:
-    y = np.array(y)
-    y_fit = np.array(y_fit)
+    y = np.asarray(y, dtype=float)
+    y_fit = np.asarray(y_fit, dtype=float)
 
     ss_res = np.sum((y - y_fit) ** 2)
     ss_tot = np.sum((y - np.mean(y)) ** 2)

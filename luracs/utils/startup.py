@@ -1,7 +1,8 @@
+import os
+from pathlib import Path
+
 from luracs.core import Settings, SpectrumManager
 from luracs.utils.color_rotator import ColorRotator
-from pathlib import Path
-import os
 
 
 def startup_script():

@@ -391,7 +391,7 @@ def main():
 
     # --- Handle Command Line Arguments ---
     if len(sys.argv) > 1:
-        QTimer.singleShot(0, lambda: parse_cli_args(win))
+        QTimer.singleShot(250, lambda: parse_cli_args(win, script_engine))
     # QTimer.singleShot(0, lambda: RunManager.SpectrogramManager.add_roi(300, 400))
 
     # --- Start the event loop ---

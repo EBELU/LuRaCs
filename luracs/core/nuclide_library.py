@@ -1,14 +1,19 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from luracs.core.spectrum_manager import SpectrumManagerBase
     from PySide6.QtGui import QColor
-from PySide6.QtCore import QObject, Signal
-from luracs.containers.nuclide_classes import Nuclide, Emission
-import numpy as np
+
+    from luracs.core.spectrum_manager import SpectrumManagerBase
 from collections import Counter
+
+import numpy as np
+from PySide6.QtCore import QObject, Signal
+
+from luracs.containers.nuclide_classes import AnnihilationEmission, Emission, Nuclide
 from luracs.utils.file_io.nuclide_dataloader import load_nuclide_data
+
 from .settings import Settings
 
 
@@ -149,7 +154,8 @@ class NuclideLibrary(QObject):
 
         idx = np.argmin((energies - energy) ** 2)
         closest_emission = emissions[idx]
-
+        if closest_emission is not None and np.isclose(closest_emission.energy_keV, 511):
+            return AnnihilationEmission
         return closest_emission
 
     def match_roi_to_nuclide(self, roi_tag: str, energy_search_window: float = 50):

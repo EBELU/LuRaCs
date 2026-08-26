@@ -1,6 +1,7 @@
 import logging
 import sys
 from collections import deque
+
 from .settings import Settings
 
 gui_logger = logging.getLogger("Application")

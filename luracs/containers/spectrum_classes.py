@@ -48,7 +48,7 @@ class Spectrum:
         # Axis values
         self.foreground: SpectrumData = None
         self.background: SpectrumData = None
-        self.x_axis: np.array = np.arange(channels)
+        self.x_axis: np.array = np.arange(channels, dtype=np.float64)
 
         # ROI information, only stored by the spectrum
         self.ROIs: dict[str, ROI] = {}

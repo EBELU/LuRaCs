@@ -1,21 +1,18 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    pass
-
+import numpy as np
+import pyqtgraph as pg
+from PySide6.QtCore import Qt, Slot
 from PySide6.QtWidgets import (
-    QWidget,
     QHBoxLayout,
     QSizePolicy,
+    QSplitter,
+    QWidget,
 )
-from PySide6.QtCore import Slot
-import pyqtgraph as pg
-import numpy as np
 
+from luracs.core import RunManager, Settings
 from luracs.gui.misc.idx_table import StrIdxTable
 from luracs.utils.color_rotator import ColorRotator
-from luracs.core import RunManager, Settings
 
 pg.setConfigOptions(antialias=True)
 
@@ -26,7 +23,8 @@ class RealTimeValuesPlot(QWidget):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(1, 1, 1, 1)
 
-        plot_box = QHBoxLayout()
+        main_splitter = QSplitter(Qt.Horizontal)
+        plot_splitter = QSplitter(Qt.Horizontal)
 
         self.cps_plot_widget = pg.PlotWidget()
         self.dose_plot_widget = pg.PlotWidget()
@@ -55,14 +53,20 @@ class RealTimeValuesPlot(QWidget):
         self.cps_plot_widget.setLabel("left", "CPS")
         self.dose_plot_widget.setLabel("left", "Dose Rate [μSv/h]")
 
-        plot_box.addWidget(self.cps_plot_widget)
-        plot_box.addWidget(self.dose_plot_widget)
-
-        layout.addLayout(plot_box, 7.5)
+        plot_splitter.addWidget(self.cps_plot_widget)
+        plot_splitter.addWidget(self.dose_plot_widget)
 
         titles = ["Device", "Count Rate\n[s⁻¹]", "Dose Rate\n[μSv/h]"]
         self.table = StrIdxTable(columns=titles)
-        layout.addWidget(self.table.table, 2.5)
+        main_splitter.addWidget(plot_splitter)
+        main_splitter.addWidget(self.table.table)
+        
+        plot_splitter.setStretchFactor(0, 3)
+        plot_splitter.setStretchFactor(1, 3)
+        main_splitter.setStretchFactor(0, 2)
+        main_splitter.setStretchFactor(1, 3)
+        
+        layout.addWidget(main_splitter)
 
         self.queue_len = Settings.Advanced.real_time_values_deque_length
 
