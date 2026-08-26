@@ -1,0 +1,57 @@
+{
+    "citation_ref": "Chemlin",
+    "Nuclide": "Lu-176",
+    "Element": "Lutetium",
+    "Z": "71",
+    "Daughters": [
+        [
+            "(B-)",
+            "Hf-176",
+            100.0
+        ]
+    ],
+    "Parents": [
+    ],
+    "Half-life (s)": [
+        1.1857536e+18,
+        0.0
+    ],
+    "Specific activity (Bq/g)": [
+        2000.8322733061,
+        0.0
+    ],
+    "Emissions": [
+        {
+            "Energy (keV)": 88.34,
+            "Energy error (keV)": 0.03,
+            "I (%)": 14.5,
+            "I error (%)": 0.6,
+            "Type": "g",
+            "Origin": "Hf-176"
+        },
+        {
+            "Energy (keV)": 201.83,
+            "Energy error (keV)": 0.03,
+            "I (%)": 78.0,
+            "I error (%)": 0.25,
+            "Type": "g",
+            "Origin": "Hf-176"
+        },
+        {
+            "Energy (keV)": 306.78,
+            "Energy error (keV)": 0.04,
+            "I (%)": 93.6,
+            "I error (%)": -1,
+            "Type": "g",
+            "Origin": "Hf-176"
+        },
+        {
+            "Energy (keV)": 400.99,
+            "Energy error (keV)": 0.04,
+            "I (%)": 0.37,
+            "I error (%)": 0.04,
+            "Type": "g",
+            "Origin": "Hf-176"
+        }
+    ]
+}
