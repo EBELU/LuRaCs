@@ -20,29 +20,16 @@ from luracs.utils.numerics import (
     poisson_weights,
 )
 
-pastel_colors = [
-    "#FFB3BA",  # soft pink
-    "#FFDFBA",  # peach
-    "#FFFFBA",  # light yellow
-    "#BAFFC9",  # mint green
-    "#BAE1FF",  # baby blue
-    "#D5BAFF",  # lavender
-    "#FFBAED",  # pastel magenta
-    "#C2F0FC",  # light cyan
-    "#F3E5AB",  # pastel sand
-    "#E6CCFF",  # pale violet
-]
-
 
 def fit_gaussians(
-    x_axis,
-    y_axis,
-    bounds,
-    fit_type,
-    use_poisson_weights,
-    weigh_cov_chi2,
-    bkg_type,
-    bkg_fit_extension,
+    x_axis: np.ndarray,
+    y_axis: np.ndarray,
+    bounds: tuple,
+    fit_type: str,
+    use_poisson_weights: bool,
+    weigh_cov_chi2: bool,
+    bkg_type: str,
+    bkg_est_channels: int,
 ):
     "Fit peaks to roi_group"
     region_min, region_max = np.min(bounds), np.max(bounds)
@@ -79,13 +66,13 @@ def fit_gaussians(
         i_low = np.searchsorted(x_axis, region_min)
         i_high = np.searchsorted(x_axis, region_max)
 
-        bkg_extention_lower = i_low - bkg_fit_extension
+        bkg_extention_lower = i_low - bkg_est_channels
         bkg_extention_lower = max(bkg_extention_lower, 0)
 
         lower_bkg_points_x = x_axis[bkg_extention_lower:i_low]
         lower_bkg_points_y = y_axis[bkg_extention_lower:i_low]
 
-        bkg_extention_upper = i_high + bkg_fit_extension
+        bkg_extention_upper = i_high + bkg_est_channels
         if bkg_extention_upper > len(x_axis):
             bkg_extention_lower = len(x_axis)
 
@@ -166,6 +153,7 @@ def fit_gaussians(
             fit,
             err,
             bkg_fit,
+            bkg_est_channels,
             G,
             B,
             N,
@@ -272,7 +260,7 @@ class ROIManager(QObject):
 
     def clear_all(self) -> None:
         "Remove all rois"
-        for tag in self.roi_registry.copy().keys():
+        for tag in self.roi_registry.copy():
             self.remove_roi(tag, update_state=False)
 
     def get_tag_from_alias(self, roi_alias: str) -> str:
@@ -284,7 +272,7 @@ class ROIManager(QObject):
     def on_roi_change(self, roi_tag: str, update_all: bool = True):
         """Callback for when a roi is moved, recalculates everything"""
         # Save the old group so all rois can be updated
-        old_group = set([roi_tag])  # Put this in for newly added rois
+        old_group = {roi_tag}  # Put this in for newly added rois
         for g in self.roi_groupings:
             if roi_tag in g:
                 old_group = g.copy()
@@ -298,7 +286,7 @@ class ROIManager(QObject):
         else:
             self.update_roi(roi_tag=roi_tag)
 
-    def select_roi(self, selected_roi_tag):
+    def select_roi(self, selected_roi_tag: str):
         """Callback for when a roi is clicked with M1"""  # Currently only changes color and Z-value
         for tag, roi in self.roi_registry.items():
             # Get the current color of the ROI
@@ -317,7 +305,7 @@ class ROIManager(QObject):
                 if roi.zValue() >= 25:
                     roi.setZValue(20)
 
-    def propagrade_roi_settings_change(self, roi):
+    def propagrade_roi_settings_change(self, roi: CoreSpectrumROI):
         "Some settings must be the same for an entire region. If they are changed it must propagate to the group"
         # Get the group
         for g in self.roi_groupings:
@@ -331,6 +319,7 @@ class ROIManager(QObject):
             self.roi_registry[roi_tag].update_self(
                 bkg_type=roi.bkg_type,
                 poisson_weights=roi.poisson_weights,
+                bkg_est_channels=roi.bkg_est_channels,
                 signal_update=False,
             )  # Dont created an infinite loop
 
@@ -402,7 +391,7 @@ class ROIManager(QObject):
                     roi.setHoverBrush(color)  # Ensure hover uses same color
                     roi.update()
 
-    def update_roi(self, spectrum_name: str = None, roi_tag: str = None) -> None:
+    def update_roi(self, spectrum_name: str | None = None, roi_tag: str | None = None):
         """Update fits for a ROI, if None all rois for the given spectrum is updated.
         If The spectrum is None all spectra is updated for the given ROI.
         If both are None everything is updated"""
@@ -468,6 +457,7 @@ class ROIManager(QObject):
         # Since these settings need to be the same for the entire group this is fine
         fit_type = roi_group[0].fit_type
         bkg_type = roi_group[0].bkg_type
+        bkg_est_channels = roi_group[0].bkg_est_channels
         poission_weights = roi_group[0].poisson_weights
 
         # --- Perform the fit (maybe) ---
@@ -491,7 +481,7 @@ class ROIManager(QObject):
                     poission_weights,
                     Settings.Advanced.optimizer_use_chi2_weight,
                     bkg_type,
-                    bkg_fit_extension=5,
+                    bkg_est_channels=bkg_est_channels,
                 )
         else:
             fits, converged = None, False
@@ -505,6 +495,7 @@ class ROIManager(QObject):
         common_kwargs = {
             "fit_type": fit_type,
             "bkg_type": bkg_type,
+            "bkg_est_channels": bkg_est_channels,
             "live_time": spectrum.foreground.live_time,
             "spectrum": spectrum.name,
         }

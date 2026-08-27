@@ -32,6 +32,7 @@ class Fit:
     param_errs: np.ndarray  # Uncertainties from the optimization
 
     bkg_params: np.ndarray
+    bkg_est_channels: int
 
     # --- Assumed Gaussian ---
     G: float
@@ -83,6 +84,7 @@ class ROI:
     region_bound: tuple  # Bounds of the roi group
     fit_type: str  # Can be "None" or "Gaussain", possibly more in the future
     bkg_type: str  # None, Linear or Quadratic
+    bkg_est_channels: int # Number of channels used to estimate the background edges
     fit: Fit | None  # Fitted peak
     roi_counts: float  # Counts in the region, just summed
     live_time: float  # Saved live time for cps conversion
@@ -131,11 +133,12 @@ class CoreSpectrumROI(LinearRegionItem):
         alias: str | None = None,
         fit_type: str = "Gaussian",  # Gaussian, None
         bkg_type: str = "Linear",
+        bkg_est_channels: int = 3, # Number of channels used to estimated the
         merge: bool = True,
         poisson_weights: bool = False,
         movable: bool = True,
         emission: Emission = None,
-        owner_spectrum: str = None,
+        owner_spectrum: str | None = None,
         **kwargs,
     ):
         super().__init__(values=region, orientation="vertical", movable=movable)
@@ -146,6 +149,7 @@ class CoreSpectrumROI(LinearRegionItem):
         self.alias: str = alias if alias else tag
         self.fit_type: str = fit_type
         self.bkg_type: str = bkg_type
+        self.bkg_est_channels: int = bkg_est_channels
         self.poisson_weights: bool = poisson_weights
         self.emission: Emission = emission
         self.nuclide_lib_ref = nuclide_lib_ref
@@ -166,6 +170,7 @@ class CoreSpectrumROI(LinearRegionItem):
                 *self.getRegion(),
                 fit_type=self.fit_type,
                 bkg_type=self.bkg_type,
+                bkg_est_channels=self.bkg_est_channels,
                 merge=self.merge,
                 poisson_weights=self.poisson_weights,
                 movable=self.movable,
@@ -191,6 +196,7 @@ class CoreSpectrumROI(LinearRegionItem):
         upper_bound=None,
         fit_type=None,
         bkg_type=None,
+        bkg_est_channels=None,
         merge=None,
         poisson_weights=None,
         movable=None,
@@ -208,6 +214,9 @@ class CoreSpectrumROI(LinearRegionItem):
 
         if bkg_type is not None:
             self.bkg_type = bkg_type
+        
+        if bkg_est_channels is not None:
+            self.bkg_est_channels = bkg_est_channels
 
         if merge is not None:
             self.merge = merge

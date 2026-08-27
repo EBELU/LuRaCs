@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QDialogButtonBox,
     QPushButton,
+    QSpinBox,
 )
 
 
@@ -31,6 +32,7 @@ class ROIEditor(QDialog):
         high: float,
         fit_type: str,
         bkg_type: str,
+        bkg_est_channels: int,
         merge: bool,
         poisson_weights: bool,
         movable: bool,
@@ -56,31 +58,36 @@ class ROIEditor(QDialog):
 
         self.roi_name = QLineEdit()
         self.roi_name.setText(roi_name)
-        form.addRow("ROI Name:", self.roi_name)
+        form.addRow("ROI Name", self.roi_name)
 
         self.lower_bound = QDoubleSpinBox()
         self.lower_bound.setRange(0.0, 1e6)
         self.lower_bound.setDecimals(2)
         self.lower_bound.setSuffix(" keV")
         self.lower_bound.setValue(round(low))
-        form.addRow("Lower Bound:", self.lower_bound)
+        form.addRow("Lower Bound", self.lower_bound)
 
         self.upper_bound = QDoubleSpinBox()
         self.upper_bound.setRange(0.0, 1e6)
         self.upper_bound.setDecimals(2)
         self.upper_bound.setSuffix(" keV")
         self.upper_bound.setValue(round(high))  # example default
-        form.addRow("Higher Bound:", self.upper_bound)
+        form.addRow("Higher Bound", self.upper_bound)
 
         self.fit_type = QComboBox()
         self.fit_type.addItems(["None", "Gaussian"])
         self.fit_type.setCurrentText(fit_type)
-        form.addRow("Peak Function:", self.fit_type)
+        form.addRow("Peak Function", self.fit_type)
 
         self.bkg_type = QComboBox()
         self.bkg_type.addItems(["None", "Linear", "Quadratic"])
         self.bkg_type.setCurrentText(bkg_type)
-        form.addRow("Background:", self.bkg_type)
+        form.addRow("Background", self.bkg_type)
+        
+        self.bkg_est_channels = QSpinBox()
+        self.bkg_est_channels.setRange(1, 32)
+        self.bkg_est_channels.setValue(bkg_est_channels)
+        form.addRow("Edge Channels", self.bkg_est_channels)
 
         self.nuclide = QComboBox()
         # self.nuclide.setView(QListView())  # forces Qt view
@@ -92,12 +99,12 @@ class ROIEditor(QDialog):
         )
         self.nuclide.setMaxVisibleItems(10)
         self.nuclide.currentTextChanged.connect(self._update_emissions)
-        form.addRow("Nuclide:", self.nuclide)
+        form.addRow("Nuclide", self.nuclide)
 
         self.photo_peak = QComboBox()
         self.photo_peak.addItems(["None"])
 
-        form.addRow("Photopeak:", self.photo_peak)
+        form.addRow("Photopeak", self.photo_peak)
 
         auto_match = QPushButton()
         auto_match.setText("Auto Match Nuclide")
@@ -187,6 +194,7 @@ class ROIEditor(QDialog):
             "upper_bound": self.upper_bound.value(),
             "fit_type": self.fit_type.currentText(),
             "bkg_type": self.bkg_type.currentText(),
+            "bkg_est_channels": self.bkg_est_channels.value(),
             "merge": self.merge.isChecked(),
             "movable": self.movable.isChecked(),
             "poisson_weights": self.poisson_weights.isChecked(),
