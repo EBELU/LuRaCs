@@ -28,7 +28,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-
+      # QEMU is only needed for Linux ARM64 builds
+      - name: Set up QEMU
+        if: matrix.os == 'ubuntu-latest'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
       - name: Build wheels
         uses: pypa/cibuildwheel@v3.4.1
         env:
