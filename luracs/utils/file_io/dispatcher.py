@@ -1,7 +1,8 @@
 from pathlib import Path
-from .xml_parser import xml_parser
+
 from .db_parser import db_parser
 from .proprietary_formats import spe_parser, tka_parser
+from .xml_parser import xml_parser
 
 
 def io_dispatcher(
@@ -13,7 +14,7 @@ def io_dispatcher(
     elif isinstance(file_name, str):
         file_name = Path(file_name)
     else:
-        raise ValueError(f"Unknown path type {type(file_name)}")
+        raise TypeError(f"Unknown path type {type(file_name)}")
 
     if not file_name.is_file():
         raise FileNotFoundError(f"File {file_name} could not be found at dispatch")

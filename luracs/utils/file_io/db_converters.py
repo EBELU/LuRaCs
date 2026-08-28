@@ -1,14 +1,14 @@
-import openpyxl as pyxl
+from dataclasses import asdict, is_dataclass
+from datetime import datetime
+from itertools import zip_longest
 from pathlib import Path
 
-from .db_parser import db_parser
-from itertools import zip_longest
 import numpy as np
-
-from datetime import datetime
-from dataclasses import asdict, is_dataclass
+import openpyxl as pyxl
 
 from luracs.containers.spectrum_classes import Spectrum, SpectrumData
+
+from .db_parser import db_parser
 
 
 def _dict_to_xlsx(ws, data):
@@ -110,8 +110,8 @@ class db_writer:
         cls,
         parser: db_parser,
         new_name: str | Path,
-        start_time: datetime = None,
-        stop_time: datetime = None,
+        start_time: datetime | None = None,
+        stop_time: datetime | None = None,
     ) -> Spectrum:
 
         assert isinstance(start_time, datetime) or start_time is None

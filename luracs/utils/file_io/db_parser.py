@@ -1,8 +1,10 @@
-import sqlite3 as sql
-import numpy as np
-from datetime import datetime
 import json
+import sqlite3 as sql
 from dataclasses import dataclass
+from datetime import datetime
+
+import numpy as np
+
 from luracs.utils.numerics.compression import decompress_spectrum
 
 

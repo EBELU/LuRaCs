@@ -221,7 +221,7 @@ def post_process_peaks(
             continue
 
         span = right[0] - left[-1]
-        left_edge_point = left[-1] - span if left[-1] - span >= 0 else 0
+        left_edge_point = max(left[-1] - span, 0)
         right_edge_point = (
             right[0] + span if right[0] + span < array_length else array_length - 1
         )
@@ -274,7 +274,7 @@ def find_peaks(
     right_edges = local_minima(d1, threshold_d1)
 
     # Remove duplicate nearby peaks
-    peaks = enforce_min_separation(peaks, min_sep=15)
+    peaks = enforce_min_separation(peaks, min_sep=5)
 
     # Pair edges to peaks
     peak_regions = post_process_peaks(
@@ -285,3 +285,19 @@ def find_peaks(
     )
 
     return peak_regions, d1, d2
+
+if __name__ == "__main__":
+    import pandas as pd
+    import matplotlib.pyplot as plt
+    from luracs.utils.numerics.cython.mariscotti import mariscotti_peak_search_cy
+    
+    data = pd.read_csv("~/Desktop/Th.csv").to_numpy().T
+    
+    regions, d1, d2 = find_peaks(data[1])
+    print()
+    
+    plt.plot(data[1] / np.max(d1))
+    #plt.plot(d1)
+    plt.plot(np.abs(d1))
+    plt.plot(local_mad_threshold(np.abs(d1), 501, sigma=2))
+    plt.show()

@@ -1,20 +1,17 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    pass
-
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
-from datetime import datetime
 import numpy as np
 from lxml import etree
 
-from luracs.containers.spectrum_classes import SpectrumData
+from luracs.containers.instrument_classes import GenericInstrument, UniqueInstrument
 from luracs.containers.nuclide_classes import Emission
 from luracs.containers.roi_classes import ROI, Fit
-from luracs.containers.instrument_classes import UniqueInstrument, GenericInstrument
-from dataclasses import dataclass
+from luracs.containers.spectrum_classes import SpectrumData, Spectrum
+from luracs.utils.file_io.parser_base import SpectrumParserBase
 
 
 # --- Helper Functions ---
@@ -78,7 +75,7 @@ def _safe_iso(value: str):
 
 def _build_roi(general_kwargs: dict, fit_kwargs: dict):
     if fit_kwargs is not None:
-        fit = Fit(region_lower=None, region_upper=None, **fit_kwargs)
+        fit = Fit(region_lower=None, region_upper=None, **fit_kwargs, bkg_est_channels=3)
     else:
         fit = None
 
@@ -88,7 +85,7 @@ def _build_roi(general_kwargs: dict, fit_kwargs: dict):
     else:
         emission = None
 
-    return ROI(fit=fit, emission=emission, **general_kwargs)
+    return ROI(fit=fit, emission=emission, **general_kwargs, bkg_est_channels = 3)
 
 
 def _build_spectrum(y_axis, live_time, real_time, **meta):
@@ -115,7 +112,7 @@ def str_to_bool(inpt: str):
         return
 
 
-class xml_parser:
+class xml_parser(SpectrumParserBase):
     N42_NS = {"n42": "http://physics.nist.gov/N42/2011/N42"}
     DHS_NS = {"dhs": "DHS", **N42_NS}
     LRC_NS = {"lrc": "https://example.com/n42/extensions", **N42_NS}
@@ -130,13 +127,29 @@ class xml_parser:
         remark: str
 
     def __init__(self, path: Path | str, meta_only: bool = False):
-        self.path = path if isinstance(path, Path) else Path(path)
+        self.path = Path(path)
         self.meta_only = meta_only
         self.file_name = self.path.stem
         parser = etree.XMLParser(recover=True, remove_comments=True)
         self.tree = etree.parse(str(self.path), parser)
         self.root = self.tree.getroot()
         self.data = self._dispatch_parser()
+
+    def get_spectrum(self) -> Spectrum:
+        foreground = self.get_foreground_spectrum()
+        xml_header = self.get_header()
+        new_spectrum = Spectrum(channels=foreground.channels, **xml_header.__dict__)
+        
+        new_spectrum.set_foreground(self.get_background_spectrum)
+        new_spectrum.set_background(self.get_background_spectrum)
+        new_spectrum.set_instrument(self.get_background_spectrum)
+        
+        new_spectrum.apply_calibration(xml_header.calibration)
+        
+        for roi in self.get_rois():
+            new_spectrum.set_roi(roi)
+        
+        return new_spectrum
 
     def get_foreground_spectrum(self) -> SpectrumData:
         """
@@ -198,7 +211,7 @@ class xml_parser:
         """
         return self.data.get("peak_data", [])
 
-    def get_instrument(self) -> UniqueInstrument | GenericInstrument:
+    def get_instrument(self) -> UniqueInstrument | GenericInstrument | None:
         """
         Return parsed instrument metadata and characterization data.
         """
@@ -592,7 +605,7 @@ class xml_parser:
             res = res[0]
 
             kwargs["resolution_created"] = datetime.fromisoformat(
-                (res.xpath("./n42:CreatedTS", namespaces=ns)[0].text)
+                res.xpath("./n42:CreatedTS", namespaces=ns)[0].text
             )
 
             kwargs["resolution_fn"] = res.xpath("./n42:Function", namespaces=ns)[0].text
@@ -622,7 +635,7 @@ class xml_parser:
             eff = eff[0]
 
             kwargs["int_efficiency_created"] = datetime.fromisoformat(
-                (eff.xpath("./n42:CreatedTS", namespaces=ns)[0].text)
+                eff.xpath("./n42:CreatedTS", namespaces=ns)[0].text
             )
 
             kwargs["int_efficiency_fn"] = eff.xpath("./n42:Function", namespaces=ns)[

@@ -1,12 +1,13 @@
-from pathlib import Path
-import numpy as np
 from datetime import datetime
+from pathlib import Path
 
-from luracs.containers.spectrum_classes import SpectrumData
-from luracs.containers.roi_classes import ROI
+import numpy as np
+
+from luracs.containers.spectrum_classes import Spectrum, SpectrumData
+from luracs.utils.file_io.parser_base import SpectrumParserBase
 
 
-class spe_parser:
+class spe_parser(SpectrumParserBase):
     def __init__(self, path: Path | str):
         self.data = {}
 
@@ -96,9 +97,17 @@ class spe_parser:
             ),
             "calibration": np.array(calib[::-1]),
         }
+        
+    def get_spectrum(self) -> Spectrum:
+        foreground = self.data["foreground"]
+        new_spectrum = Spectrum(foreground.channels, name=self.data["name"])
+        new_spectrum.set_foreground(foreground)
+        new_spectrum.apply_calibration(self.data["calibration"])
+        
+        return new_spectrum
 
 
-class tka_parser:
+class tka_parser(SpectrumParserBase):
     def __init__(self, path: Path | str):
         live_time = None
         real_time = None
@@ -128,3 +137,9 @@ class tka_parser:
                 spectrum_name=path.name,
             ),
         }
+        
+    def get_spectrum(self) -> Spectrum:
+        foreground = self.data["foreground"]
+        new_spectrum = Spectrum(foreground.channels, name=self.data["name"])
+        
+        return new_spectrum

@@ -1,5 +1,9 @@
 # Bibliography
 
+## Peak Detection
+- Mariscotti, M. A. A method for automatic identification of peaks in the presence of background and its application to spectrum analysis. Nuclear Instruments and Methods 50, 309–320 (1967).
+
+
 ## Detector Efficiency
 - Golovko, V. V. Simplified efficiency calibration methods for scintillation detectors used in nuclear remediation. Journal of Cleaner Production 478, 143910 (2024).
 

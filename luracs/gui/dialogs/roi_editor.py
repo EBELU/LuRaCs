@@ -1,24 +1,24 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from luracs.core.nuclide_library import NuclideLibrary
 
-from luracs.containers.nuclide_classes import Emission
-
-
 from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
     QDialog,
-    QVBoxLayout,
+    QDialogButtonBox,
+    QDoubleSpinBox,
     QFormLayout,
     QLineEdit,
-    QDoubleSpinBox,
-    QComboBox,
-    QCheckBox,
-    QDialogButtonBox,
     QPushButton,
     QSpinBox,
+    QVBoxLayout,
 )
+
+from luracs.containers.nuclide_classes import Emission
 
 
 class ROIEditor(QDialog):

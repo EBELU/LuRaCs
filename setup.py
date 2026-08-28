@@ -6,6 +6,7 @@ cython_files = [
     "gaussian",
     "deconvolution",
     "rebin",
+    "mariscotti"
 ]
 
 extensions = [
