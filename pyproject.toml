@@ -55,7 +55,10 @@ include = ["luracs*"]
 exclude = ["tests*"]
 
 [tool.setuptools.package-data]
-luracs = ["resources/**/*"]
+luracs = [
+    "resources/**/*",
+    "**/*.pyx",
+    "**/*.pxd",]
 
 [tool.cibuildwheel]
 build = "cp310-* cp311-* cp312-* cp313-*"

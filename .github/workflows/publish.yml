@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   build_wheels:
@@ -22,9 +21,11 @@ jobs:
           - macos-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.13"
 
@@ -33,45 +34,51 @@ jobs:
         env:
           CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-*"
 
-          # Linux wheels
+          # Linux
           CIBW_ARCHS_LINUX: "x86_64 aarch64"
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
           CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
 
-          # macOS wheels (Intel + Apple Silicon)
+          # macOS
           CIBW_ARCHS_MACOS: "x86_64 arm64"
 
-          # Windows currently stays x86_64
+          # Windows
           CIBW_ARCHS_WINDOWS: "AMD64"
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
         with:
           name: wheels-${{ matrix.os }}
           path: wheelhouse/*.whl
+
 
   build_sdist:
     name: Build source distribution
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.13"
 
       - name: Install build
         run: |
           python -m pip install --upgrade pip
-          pip install build
+          python -m pip install build
 
       - name: Build sdist
         run: python -m build --sdist
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload sdist
+        uses: actions/upload-artifact@v4
         with:
           name: sdist
           path: dist/*.tar.gz
+
 
   publish:
     name: Publish to PyPI
@@ -85,12 +92,19 @@ jobs:
       id-token: write
 
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
 
-      - name: Publish package
+      - name: Check artifacts
+        run: |
+          ls -lah dist
+          python -m pip install --upgrade twine
+          python -m twine check dist/*
+
+      - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist
