@@ -2,7 +2,7 @@ import sys
 import asyncio
 import logging
 
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 
 
 def print_progress(text, progress):
