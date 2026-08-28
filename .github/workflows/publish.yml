@@ -30,7 +30,7 @@ jobs:
           python-version: "3.13"
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2
+        uses: pypa/cibuildwheel@v3
         env:
           CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-*"
 
