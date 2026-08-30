@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from luracs.core import RunManager, SpectrumManager
+from luracs.core import RunManager, SpectrumManager, IOManager
 from luracs.gui.dialogs.data_store_edit_dialogs import SpectrumEditDialog
 from luracs.gui.misc.idx_table import StrIdxTable
 from luracs.gui.misc.table_menu_button import MenuButton
@@ -126,6 +126,10 @@ class SpectrumInfoTab(QWidget):
 
         self.hide_show_btn = {}
         self.hide_show_states = {}
+        
+        self.setAcceptDrops(True)
+        
+        self.setToolTip("Drag and drop spectrum files here to import them")
 
     def edit_spectrum(self, spectrum: Spectrum):
         connected = True if spectrum.connection is not None else False
@@ -337,3 +341,24 @@ class SpectrumInfoTab(QWidget):
             if self.table.get_index_from_key(name + "b") is not None:
                 self.table.delete_row(name + "b")
                 self.hide_show_btn.pop(name + "b", None)
+                
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+            
+    def dropEvent(self, event):
+        files = []
+
+        for url in event.mimeData().urls():
+            if url.isLocalFile():
+                files.append(url.toLocalFile())
+
+        if files:
+            for file in files:
+                parser = io_dispatcher(file)
+                if parser:
+                    IOManager.Importer.sigImportSpectrum.emit(parser.data, True)
+
+        event.acceptProposedAction()
