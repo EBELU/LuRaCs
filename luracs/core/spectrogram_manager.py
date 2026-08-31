@@ -1,16 +1,18 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .run_manager import _RunManager
     from luracs.spectrogram import Spectrogram, WrappedSpectrogramData
     from luracs.utils.file_io import xml_parser
 
+    from .run_manager import _RunManager
+
+
+import numpy as np
+from PySide6.QtCore import QObject, Signal
 
 from luracs.containers.roi_classes import SpectrogramROI
-
-from PySide6.QtCore import QObject, Signal
-import numpy as np
 
 
 class SpectrogramManager(QObject):
@@ -91,6 +93,6 @@ class SpectrogramManager(QObject):
             Emin, Emax = roi.E_region
             roi_counts = np.sum(sg[:, ((Emin < Eaxis) & (Eaxis < Emax))], axis=1)
 
-            results[roi.alias] = roi_counts
+            results[roi.tag] = roi_counts
 
         self.sigROICountsUpdated.emit(logger_name, results)

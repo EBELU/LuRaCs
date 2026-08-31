@@ -90,6 +90,7 @@ def save_roi_references():
             region_bound=(None, None),
             fit_type=r.fit_type,
             bkg_type=r.bkg_type,
+            bkg_est_channels=r.bkg_est_channels,
             fit=None,
             roi_counts=0,
             live_time=1,

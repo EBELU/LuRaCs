@@ -754,6 +754,7 @@ class ROIDialog(QDialog):
                     region_bound=(),
                     fit_type=old_roi.fit_type,
                     bkg_type=old_roi.bkg_type,
+                    bkg_est_channels=old_roi.bkg_est_channels,
                     fit=None,
                     roi_counts=0,
                     live_time=1,

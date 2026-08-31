@@ -107,7 +107,7 @@ class ThemeManager(QObject):
 
         return style_sheet, colors
 
-    def _style_plot_widget(self, pw, foreground, background, theme_is_dark):
+    def _style_plot_widget(self, pw: pg.PlotWidget, foreground, background, theme_is_dark):
         try:
             pw.setBackground(background)
         except AttributeError:
@@ -123,6 +123,12 @@ class ThemeManager(QObject):
             if ax:
                 ax.setPen(axis_pen)
                 ax.setTextPen(axis_pen)
+                
+        title = pw.getPlotItem().titleLabel if isinstance(pw, pg.PlotWidget) else pw.titleLabel
+        if title:
+            title.setText(title.text, color=axis_pen.color())
+
+        
 
         pw.showGrid(x=True, y=True, alpha=0.2 if theme_is_dark else 0.3)
         pw.enableAutoRange()
@@ -134,7 +140,7 @@ class ThemeManager(QObject):
             bg_color = QColor(*background)
         else:
             bg_color = QColor(background)
-        bg_color.setAlpha(100 if theme_is_dark else 220)
+        bg_color.setAlpha(100 if theme_is_dark else 150)
         legend.setBrush(pg.mkBrush(bg_color))
 
         for sample, label in legend.items:

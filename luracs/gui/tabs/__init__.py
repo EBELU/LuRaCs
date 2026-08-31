@@ -5,3 +5,4 @@ from .roi_info_tab import ROIInfoTab
 from .spectrum_info_tab import SpectrumInfoTab
 from .isotopics_tab import IsotopicsTab
 from .console_tab import ConsoleTab
+from .spectrogram_roi_tab import SpectrogramROITab

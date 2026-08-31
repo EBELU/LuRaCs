@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 from dataclasses import dataclass
 
 import numpy as np
-from pyqtgraph import LinearRegionItem
+from pyqtgraph import LinearRegionItem, mkPen
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QMessageBox
 
@@ -247,7 +247,8 @@ class SpectrogramROI(LinearRegionItem):
         movable: bool,
         emission: Emission | None,
     ):
-        super().__init__(values=E_region // 3, orientation="vertical", movable=movable)
+        super().__init__(values=E_region // 3, orientation="vertical", movable=movable, pen=mkPen("b", width=2))
+    
         self.E_region = E_region
         self.tag = tag
         self.alias = alias

@@ -440,6 +440,7 @@ class SpectrogramWidget(QWidget):
 
     def unload_logger(self):
         "Unload a spectrogram, can be ignored but nice to avoid clutter"
+        RunManager.close_spectrogram(self.spectrogram_selection.currentData())
         index = self.spectrogram_selection.currentIndex()
         if index != -1:
             self.spectrogram_selection.removeItem(index)
@@ -843,7 +844,12 @@ class SpectrogramWidget(QWidget):
     # ------------------------------------------------------------------
 
     def add_roi(self, roi: SpectrogramROI):
+        if self.current_packet_buffer:
+            roi.set_idx_region(RunManager.SpectrogramManager.energy_axes_buffer[self.current_packet_buffer.db_name])
         self.top_spectrum_plot.addItem(roi)
+        
+        for sg in RunManager.SpectrogramManager.spectrogram_registry.values():
+            sg.request_data()
 
     def remove_roi(self, roi: SpectrogramROI):
         self.top_spectrum_plot.removeItem(roi)

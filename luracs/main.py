@@ -53,6 +53,7 @@ from luracs.gui import MainMenuBar, SpectrumPlotContainer, SpectrogramWidget
 
 from luracs.gui.tabs import (
     ROIInfoTab,
+    SpectrogramROITab,
     SpectrumInfoTab,
     LogWidget,
     DevicesInfoTab,
@@ -198,13 +199,16 @@ class MainWindow(QMainWindow):
         )
 
         # ROI info
-        self.roi_info_pane = ROIInfoTab(parent=self)
-        self.roi_info_pane.clearROIs.connect(SpectrumManager.ROIManager.clear_all)
-        self.bottom_tabs.addTab(self.roi_info_pane, "ROI Info")
+        self.roi_info_tab = ROIInfoTab(parent=self)
+        self.roi_info_tab.clearROIs.connect(SpectrumManager.ROIManager.clear_all)
+        self.bottom_tabs.addTab(self.roi_info_tab, "Spectrum ROIs")
         self.bottom_tabs.setTabToolTip(
             1,
             "View detailed information about regions of interest (ROI) set in the spectra",
         )
+        
+        self.spectrogram_roi_tab = SpectrogramROITab(self)
+        self.bottom_tabs.addTab(self.spectrogram_roi_tab, "Spectrogram ROIs")
 
         # Current values
         self.current_value_tab = RealTimeValuesPlot()

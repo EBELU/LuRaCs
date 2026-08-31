@@ -213,6 +213,10 @@ class CalibrationWindow(QWidget):
         calib_coeff = SpectrumManager.get_spectrum(
             spectrum_name
         ).calibration_coefficients
+        
+        if calib_coeff is None:
+            calib_coeff = []
+            
 
         for i, display in enumerate(self.poly_spin_list):
             if i >= len(calib_coeff):

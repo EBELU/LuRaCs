@@ -1,28 +1,33 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from luracs.containers.spectrum_classes import Spectrum
 
+from copy import deepcopy
+from pathlib import Path
+
+import numpy as np
 from PySide6.QtWidgets import (
-    QWidget,
-    QPushButton,
-    QLineEdit,
     QCheckBox,
-    QFileDialog,
-    QStackedWidget,
-    QVBoxLayout,
-    QFormLayout,
     QComboBox,
-    QSpinBox,
-    QDoubleSpinBox,
+    QFileDialog,
+    QFormLayout,
     QHBoxLayout,
     QLabel,
-    QProgressBar,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QSpinBox,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
 )
-from copy import deepcopy
-import numpy as np
+
 from luracs.core import SpectrumManager
-from luracs.utils.numerics import process_response, ml_em
+from luracs.utils.numerics import ml_em, process_response
+
 
 class DeconvolutionWindow(QWidget):
     def __init__(self, parent=None):
@@ -124,7 +129,7 @@ class DeconvolutionWindow(QWidget):
 
         self.mlem_iterations = QSpinBox()
         self.mlem_iterations.setRange(1, 100000)
-        self.mlem_iterations.setValue(30)
+        self.mlem_iterations.setValue(150)
 
         response_matrix_row = QHBoxLayout()
         btn_load_matrix = QPushButton("Import")
@@ -191,6 +196,11 @@ class DeconvolutionWindow(QWidget):
             raise ValueError("Invalid algorithm index")
         
         spectrum_copy: Spectrum = deepcopy(SpectrumManager.spectrum_registry.get(self.combo_spectra.currentData()))
+        
+        if spectrum_copy is None:
+            QMessageBox.warning(None, "Error", "No spectrum loaded")
+            return
+        
         new_name = spectrum_copy.name + "_deconvolved"
         
         spectrum_copy.foreground.y_axis = deconv_y
@@ -199,6 +209,9 @@ class DeconvolutionWindow(QWidget):
         
         SpectrumManager.create_spectrum(new_name, spectrum_copy.channels)
         SpectrumManager.set_spectrum(new_name, spectrum_copy)
+        
+    def calculate_rl(self):
+        pass
         
             
     def calculate_mlem(self):
@@ -209,14 +222,22 @@ class DeconvolutionWindow(QWidget):
         if spectrum is None:
             return
         
+        if not Path(self.mlem_line_loaded_file.text()).is_file():
+            QMessageBox.warning(None, "Error", f"{self.mlem_line_loaded_file.text()} is not a file!")
+            return
+            
         response_matrix = np.load(self.mlem_line_loaded_file.text(), allow_pickle=False)
-        processed_response = process_response(
-        response_matrix["response_matrix"],
-        response_matrix["indices"].astype(np.float64),
-        response_matrix["bin_centres"],
-        spectrum.x_axis,
-        spectrum.x_axis,
-        )
+        try:
+            processed_response = process_response(
+            response_matrix["response_matrix"],
+            response_matrix["indices"].astype(np.float64),
+            response_matrix["bin_centres"],
+            spectrum.x_axis,
+            spectrum.x_axis,
+            )
+        except KeyError as e:
+            QMessageBox.warning(None, "Error", f"Key error in response matrix: {e}")
+            return
         
         return ml_em(
             spectrum.get_foreground(),

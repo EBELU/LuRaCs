@@ -7,7 +7,7 @@ if TYPE_CHECKING:
 
 from datetime import timedelta
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QPainter
 from PySide6.QtWidgets import (
     QColorDialog,
@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from luracs.core import RunManager, SpectrumManager, IOManager
+from luracs.core import IOManager, RunManager, SpectrumManager
 from luracs.gui.dialogs.data_store_edit_dialogs import SpectrumEditDialog
 from luracs.gui.misc.idx_table import StrIdxTable
 from luracs.gui.misc.table_menu_button import MenuButton
@@ -342,13 +342,13 @@ class SpectrumInfoTab(QWidget):
                 self.table.delete_row(name + "b")
                 self.hide_show_btn.pop(name + "b", None)
                 
-    def dragEnterEvent(self, event):
+    def dragEnterEvent(self, event: QEvent):
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
         else:
             event.ignore()
             
-    def dropEvent(self, event):
+    def dropEvent(self, event: QEvent):
         files = []
 
         for url in event.mimeData().urls():
