@@ -8,7 +8,7 @@ cython_files = [
     "deconvolution",
     "rebin",
     "mariscotti",
-    "process_matrix"
+    "process_matrix",
 ]
 
 extensions = [

@@ -1,22 +1,21 @@
 import numpy as np
 
-try:
+if __name__ != "__main__":
     from .gaussian import multi_gaussian_cy, multi_gaussian_jacobian_cy
     from .deconvolution import (
         ML_EM_cy,
         richardson_lucy_cy,
-        process_response_cy,
     )
     
     from .process_matrix import process_matrix_cy
 
     from .rebin import rebin_histogram_cy
-except ImportError:
+    
+else:
     from gaussian import multi_gaussian_cy, multi_gaussian_jacobian_cy
     from deconvolution import (
         ML_EM_cy,
         richardson_lucy_cy,
-        process_response_cy,
     )
     from process_matrix import process_matrix_cy
 
