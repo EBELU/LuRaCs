@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from luracs.core import SpectrumManager
+from luracs.core import SpectrumManager, Calculator, Log
 from luracs.utils.numerics import ml_em, process_response
 
 
@@ -186,68 +186,125 @@ class DeconvolutionWindow(QWidget):
         if file_path:
             self.mlem_line_loaded_file.setText(file_path)
             
-    def calculate(self):
+    def calculate(self):           
         algorithm_idx = self.combo_algorithm.currentIndex()
         if algorithm_idx == 0:
-            deconv_y = self.calculate_rl()
+            self.calculate_rl()
         elif algorithm_idx == 1:
-            deconv_y = self.calculate_mlem()
+            self.calculate_mlem()
         else:
             raise ValueError("Invalid algorithm index")
         
-        spectrum_copy: Spectrum = deepcopy(SpectrumManager.spectrum_registry.get(self.combo_spectra.currentData()))
-        
-        if spectrum_copy is None:
-            QMessageBox.warning(None, "Error", "No spectrum loaded")
-            return
-        
-        new_name = spectrum_copy.name + "_deconvolved"
-        
-        spectrum_copy.foreground.y_axis = deconv_y
-        spectrum_copy.name = new_name
-        spectrum_copy.foreground.total_counts = np.sum(deconv_y)
-        
-        SpectrumManager.create_spectrum(new_name, spectrum_copy.channels)
-        SpectrumManager.set_spectrum(new_name, spectrum_copy)
+
         
     def calculate_rl(self):
         pass
         
             
+        
     def calculate_mlem(self):
         if not self.mlem_line_loaded_file.text():
             return
 
-        spectrum = SpectrumManager.spectrum_registry.get(self.combo_spectra.currentData())
+        spectrum = SpectrumManager.spectrum_registry.get(
+            self.combo_spectra.currentData()
+        )
+
         if spectrum is None:
             return
-        
-        if not Path(self.mlem_line_loaded_file.text()).is_file():
-            QMessageBox.warning(None, "Error", f"{self.mlem_line_loaded_file.text()} is not a file!")
+
+        response_path = self.mlem_line_loaded_file.text()
+
+        if not Path(response_path).is_file():
+            QMessageBox.warning(
+                None,
+                "Error",
+                f"{response_path} is not a file!"
+            )
             return
-            
-        response_matrix = np.load(self.mlem_line_loaded_file.text(), allow_pickle=False)
-        try:
-            processed_response = process_response(
+
+        iterations = self.mlem_iterations.value()
+        response_matrix = np.load(
+            response_path,
+            allow_pickle=False,
+        )
+        
+        required = {"response_matrix", "indices", "bin_centres"}
+        missing = required - set(response_matrix.files)
+
+        if missing:
+            QMessageBox.warning(
+                None,
+                "Error",
+                f"Missing arrays in response matrix: {missing}. Aborting!"
+            )
+            Log.error(f"Missing arrays in response matrix: {missing}. Aborting!")
+            return
+
+        # Everything above this point happens on the GUI thread.
+        Calculator.run(
+            self._calculate_mlem_worker,
+            spectrum.get_foreground().copy(),
+            response_matrix,
+            spectrum.x_axis.copy(),
+            iterations,
+            on_result=self.catch_result,
+        )
+        
+    def _calculate_mlem_worker(
+        self,
+        spectrum_y,
+        response_matrix,
+        x_axis,
+        iterations,
+        ):
+
+
+        processed_response = process_response(
             response_matrix["response_matrix"],
             response_matrix["indices"].astype(np.float64),
             response_matrix["bin_centres"],
-            spectrum.x_axis,
-            spectrum.x_axis,
-            )
-        except KeyError as e:
-            QMessageBox.warning(None, "Error", f"Key error in response matrix: {e}")
-            return
-        
+            x_axis,
+            x_axis,
+        )
+
         return ml_em(
-            spectrum.get_foreground(),
+            spectrum_y,
             processed_response[0],
             processed_response[1].astype(np.int32),
             processed_response[2],
             sensitivity=None,
-            iterations=self.mlem_iterations.value(),
+            iterations=iterations,
             use_sensitivity=False,
         )
+
+            
+    def catch_result(self, deconv_y):
+        spectrum_copy = deepcopy(
+            SpectrumManager.spectrum_registry.get(
+                self.combo_spectra.currentData()
+            )
+        )
+
+        if spectrum_copy is None:
+            QMessageBox.warning(None, "Error", "No spectrum loaded")
+            return
+
+        new_name = spectrum_copy.name + "_deconvolved"
+
+        spectrum_copy.foreground.y_axis = deconv_y
+        spectrum_copy.name = new_name
+        spectrum_copy.foreground.total_counts = np.sum(deconv_y)
+
+        SpectrumManager.create_spectrum(
+            new_name,
+            spectrum_copy.channels,
+        )
+        SpectrumManager.set_spectrum(
+            new_name,
+            spectrum_copy,
+        )
+
         
     
 if __name__ == "__main__":

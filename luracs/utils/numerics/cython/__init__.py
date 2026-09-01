@@ -7,6 +7,8 @@ try:
         richardson_lucy_cy,
         process_response_cy,
     )
+    
+    from .process_matrix import process_matrix_cy
 
     from .rebin import rebin_histogram_cy
 except ImportError:
@@ -16,6 +18,7 @@ except ImportError:
         richardson_lucy_cy,
         process_response_cy,
     )
+    from process_matrix import process_matrix_cy
 
     from rebin import rebin_histogram_cy
 
@@ -151,13 +154,14 @@ def process_response(
     requested_indices = np.asarray(requested_indices, dtype=np.float64)
     measured_energy_axis = np.asarray(measured_energy_axis, dtype=np.float64)
 
-    return process_response_cy(
+    return process_matrix_cy(
         matrix,
         ref_indices,
         ref_energy_axis,
         requested_indices,
         measured_energy_axis,
     )
+
     
 def richardson_lucy(
     x: np.ndarray,
@@ -279,57 +283,77 @@ if __name__ == "__main__":
     # plt.ylabel("Counts")
     # plt.show()
     
-    data = pd.read_csv("~/Desktop/Cyklotron_Ba.csv").to_numpy()
-    response_matrix = np.load("dev/Rc103_response.npz", allow_pickle=False)
+    # data = pd.read_csv("~/Desktop/Cyklotron_Ba.csv").to_numpy()
+    # response_matrix = np.load("dev/Rc103_response.npz", allow_pickle=False)
     
 
     
-    processed_response = process_response_cy(
-        response_matrix["response_matrix"],
-        response_matrix["indices"].astype(np.float64),
-        response_matrix["bin_centres"],
-        data[:, 0],
-        data[:, 0],
-    )
+    # processed_response = process_response_cy(
+    #     response_matrix["response_matrix"],
+    #     response_matrix["indices"].astype(np.float64),
+    #     response_matrix["bin_centres"],
+    #     data[:, 0],
+    #     data[:, 0],
+    # )
     
     
-    ml_em_result = ml_em(
-        data[:, 1],
-        processed_response[0],
-        processed_response[1].astype(np.int32),
-        processed_response[2],
-        sensitivity=None,
-        iterations=500,
-        use_sensitivity=False,
-    )
+    # ml_em_result = ml_em(
+    #     data[:, 1],
+    #     processed_response[0],
+    #     processed_response[1].astype(np.int32),
+    #     processed_response[2],
+    #     sensitivity=None,
+    #     iterations=1500,
+    #     use_sensitivity=False,
+    # )
     
-    plt.plot(data[:, 0], data[:, 1])
-    plt.plot(data[:, 0], ml_em_result)
-    plt.show()
+    # plt.plot(data[:, 0], data[:, 1])
+    # plt.plot(data[:, 0], ml_em_result)
+    # plt.show()
     
-    from luracs.utils.file_io.xml_writer import xml_writer
-    from luracs.containers.spectrum_classes import Spectrum, SpectrumData
+    # from luracs.utils.file_io.xml_writer import xml_writer
+    # from luracs.containers.spectrum_classes import Spectrum, SpectrumData
     
-    spectrum = Spectrum(len(ml_em_result), "deconvolved")
-    sd = SpectrumData(
-        ml_em_result,
-        len(ml_em_result),
-        np.sum(ml_em_result),
-        1
-    )
+    # spectrum = Spectrum(len(ml_em_result), "deconvolved")
+    # sd = SpectrumData(
+    #     ml_em_result,
+    #     len(ml_em_result),
+    #     np.sum(ml_em_result),
+    #     1
+    # )
     
-    sdb = SpectrumData(
-        data[:, 1],
-        len(data[:, 1]),
-        np.sum(data[:, 1]),
-        1
-    )
+    # sdb = SpectrumData(
+    #     data[:, 1],
+    #     len(data[:, 1]),
+    #     np.sum(data[:, 1]),
+    #     1
+    # )
 
-    cal = np.polyfit(np.arange(len(data)), data[:, 0], 2)
+    # cal = np.polyfit(np.arange(len(data)), data[:, 0], 2)
     
-    spectrum.apply_calibration(cal)
+    # spectrum.apply_calibration(cal)
     
-    spectrum.set_foreground(sd)
-    spectrum.set_background(sdb)
-    xml_writer(spectrum, "dev/debug/deconv")
+    # spectrum.set_foreground(sd)
+    # spectrum.set_background(sdb)
+    # xml_writer(spectrum, "dev/debug/deconv")
     
+    
+    import pandas as pd
+    from time import time
+    
+    path = "/home/eewa/Documents/git/MySpect/dev/Rc103_response.npz"
+    response_data = dict(np.load(path))
+    
+    data = pd.read_csv("/home/eewa/Desktop/Cyklotron_Ba.csv").to_numpy().T    
+    data_region = data[0] > 30
+    
+    start = time()
+    matrix = process_matrix_cy(response_data["response_matrix"],
+                   response_data["indices"].astype(np.float64),
+                   response_data["bin_centres"], 
+                   np.linspace(50, 3000, 2**14), 
+                   data[0][data_region])
+    end = time()
+    print(f"Processing took {round(end - start, 2)}s")
+    
+    print(matrix)

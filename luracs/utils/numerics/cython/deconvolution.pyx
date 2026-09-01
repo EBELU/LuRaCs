@@ -1,6 +1,6 @@
 # cython: language_level=3
-# cython: boundscheck=False
-# cython: wraparound=False
+# cython: boundscheck=True
+# cython: wraparound=True
 # cython: cdivision=True
 
 import numpy as np
@@ -29,8 +29,8 @@ cdef void forward(
     cdef:
         Py_ssize_t j, k
         Py_ssize_t start, end
+        Py_ssize_t idx
 
-    # clear output
     for j in range(y.shape[0]):
         y[j] = 0.0
 
@@ -39,7 +39,9 @@ cdef void forward(
         end = offsets[j + 1]
 
         for k in range(start, end):
-            y[indices[k]] += x[j] * values[k]
+            idx = indices[k]
+            y[idx] += x[j] * values[k]
+
 
 
 cdef double back_project_row(
@@ -71,7 +73,7 @@ cdef void backward(
     cdef Py_ssize_t j
 
     for j in range(
-        correction.shape[0],
+        correction.shape[0] - 1
     ):
         correction[j] = back_project_row(
             j,
@@ -99,7 +101,7 @@ cdef void compute_ratio(
 cdef void multiply_update(
     double[:] x,
     const double[:] correction,
-):
+) noexcept nogil:
 
     cdef Py_ssize_t i
     for i in range(
@@ -170,158 +172,80 @@ cpdef cnp.ndarray ML_EM_cy(
     # bool reg_entropy=False,
     # double reg_entropy_lambda=0.001,
 ):
-
     cdef:
         cnp.ndarray[float64_t, ndim=1] x
         cnp.ndarray[float64_t, ndim=1] estimate
         cnp.ndarray[float64_t, ndim=1] ratio
         cnp.ndarray[float64_t, ndim=1] correction
 
-    # allocate once
-    x = np.ones(offsets.shape[0] - 1)
+        double[:] x_v
+        double[:] estimate_v
+        double[:] ratio_v
+        double[:] correction_v
 
+        const double[:] y_v
+        const int64_t[:] offsets_v
+        const int32_t[:] indices_v
+        const double[:] values_v
+        const double[:] sensitivity_v
+
+    # allocate once
+    x = np.ones_like(y)
     estimate = np.empty_like(y)
     ratio = np.empty_like(y)
     correction = np.empty_like(y)
 
 
-    for _ in range(iterations):
-        forward(
-            x,
-            offsets,
-            indices,
-            values,
-            estimate,
-        )
+    # Create memoryviews while holding the GIL
+    x_v = x
+    estimate_v = estimate
+    ratio_v = ratio
+    correction_v = correction
 
-        compute_ratio(
-            y,
-            estimate,
-            ratio,
-        )
-
-        backward(
-            ratio,
-            offsets,
-            indices,
-            values,
-            correction,
-        )
+    y_v = y
+    offsets_v = offsets
+    indices_v = indices
+    values_v = values
+    sensitivity_v = sensitivity
 
 
-        apply_sensitivity(
-            correction,
-            sensitivity,
-        )
+    with nogil:
+        for _ in range(iterations):
 
-        multiply_update(
-            x,
-            correction,
-        )
+            forward(
+                x_v,
+                offsets_v,
+                indices_v,
+                values_v,
+                estimate_v,
+            )
 
-        if reg_tikhonov:
-            tikhonov_smooth(x, reg_tikhonov_lambda)
+            compute_ratio(
+                y_v,
+                estimate_v,
+                ratio_v,
+            )
+
+            backward(
+                ratio_v,
+                offsets_v,
+                indices_v,
+                values_v,
+                correction_v,
+            )
+
+            apply_sensitivity(
+                correction_v,
+                sensitivity_v,
+            )
+
+            multiply_update(
+                x_v,
+                correction_v,
+            )
         
 
     return x
-
-# -------------------------------
-# Process Response
-# -------------------------------
-
-cpdef tuple process_response_cy(
-    cnp.ndarray[float64_t, ndim=2] matrix,
-    cnp.ndarray[float64_t, ndim=1] ref_indicies,
-    cnp.ndarray[float64_t, ndim=1] ref_energy_axis,
-    cnp.ndarray[float64_t, ndim=1] requested_indices,
-    cnp.ndarray[float64_t, ndim=1] measured_energy_axis,
-):
-    cdef:
-        cnp.ndarray[float64_t, ndim=2] interp_matrix
-
-        Py_ssize_t i, j
-        Py_ssize_t low_idx
-        Py_ssize_t n_ref = matrix.shape[0]
-        Py_ssize_t n_energy = matrix.shape[1]
-        Py_ssize_t n_requested = requested_indices.shape[0]
-
-        double x
-        double x0, x1
-        double w
-        double value
-
-    # Empty matrix to hold interpolated values
-    interp_matrix = np.empty(
-        (n_ref, n_energy),
-        dtype=np.float64,
-    )
-
-    # ------------------------------------------------------------
-    # 1. Interpolate each reference response onto measured energy
-    # ------------------------------------------------------------
-
-    for i in range(n_ref):
-        interp_matrix[i] = np.interp(
-            measured_energy_axis,
-            ref_energy_axis,
-            matrix[i],
-            left=0.0,
-            right=0.0,
-        )
-
-    # ------------------------------------------------------------
-    # 2. Build CSR
-    # ------------------------------------------------------------
-
-    cdef list offsets = [0]
-    cdef list indices = []
-    cdef list values = []
-
-    low_idx = 0
-
-    for i in range(n_requested):
-
-        x = requested_indices[i]
-
-        # Move to the lower bracketing reference index
-        while (
-            low_idx < n_ref - 2
-            and ref_indicies[low_idx + 1] <= x
-        ):
-            low_idx += 1
-
-        # Outside range -> empty CSR row
-        if x < ref_indicies[0] or x > ref_indicies[n_ref - 1]:
-            offsets.append(len(values))
-            continue
-
-        x0 = ref_indicies[low_idx]
-        x1 = ref_indicies[low_idx + 1]
-
-        w = (x - x0) / (x1 - x0)
-
-        for j in range(n_energy):
-
-            value = (
-                interp_matrix[low_idx, j]
-                + w * (
-                    interp_matrix[low_idx + 1, j]
-                    - interp_matrix[low_idx, j]
-                )
-            )
-
-            # Store only nonzero values
-            if value > 1e-12:
-                indices.append(j)
-                values.append(value)
-
-        offsets.append(len(values))
-
-    return (
-        np.asarray(offsets, dtype=np.int64),
-        np.asarray(indices, dtype=np.int32),
-        np.asarray(values, dtype=np.float64),
-    )
 
 # -------------------------------
 # Richardson-Lucy

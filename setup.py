@@ -7,7 +7,8 @@ cython_files = [
     "gaussian",
     "deconvolution",
     "rebin",
-    "mariscotti"
+    "mariscotti",
+    "process_matrix"
 ]
 
 extensions = [
