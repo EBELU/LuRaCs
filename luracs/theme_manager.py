@@ -21,7 +21,7 @@ class ThemeManager(QObject):
     _registry_legends = []
     _registry_hist_lut = []
 
-    def __init__(self, themes_path: Path, mode=themes.LIGHT):
+    def __init__(self, themes_path: Path, mode=themes.LIGHT_CATPPUCCIN):
         super().__init__()
         self.mode = mode
         self.themes_path = themes_path
@@ -60,7 +60,7 @@ class ThemeManager(QObject):
     def apply(self, style_name: themes):
         self.theme = style_name
         self.sigUpdateSettingsTheme.emit("Appearance", "theme", style_name.value)
-        theme_is_dark = True if "dark" in style_name.value.lower() else False
+        theme_is_dark = "dark" in style_name.value.lower()
 
         if style_name == self.themes.LIGHT:
             self.colors = {
@@ -93,6 +93,18 @@ class ThemeManager(QObject):
 
         for lut in self._registry_hist_lut:
             self._style_hist_lut(lut, self.colors["text"])
+            
+    def apply_to_plot(self, pw: pg.PlotWidget):
+        theme_is_dark = "dark" in self.theme.value.lower()
+        self._style_plot_widget(
+            pw, self.colors["text"], self.colors["base"], theme_is_dark
+        )
+        
+    def apply_to_legend(self, lgd: pg.LegendItem):
+        theme_is_dark = "dark" in self.theme.value.lower()
+        self._style_legend(
+            lgd, self.colors["text"], self.colors["surface0"], theme_is_dark
+        )
 
     def _load_styles(self, style_name: themes):
         style_sheet_pth = self.themes_path / "variants" / style_name.value

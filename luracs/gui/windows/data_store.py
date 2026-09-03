@@ -821,9 +821,9 @@ class GenericInstrumentsTab(LibraryTab):
             return
 
         edit_dialog = InstrumentDialog(
-            generic_selection=False
-            ** SpectrumManager.GenericInstrumentLibrary.instrument_registry[
-                selection[0],
+            generic_selection=False,
+            **SpectrumManager.GenericInstrumentLibrary.instrument_registry[
+                selection[0]
             ].__dict__
         )
         edit_dialog.name_input.setEnabled(False)

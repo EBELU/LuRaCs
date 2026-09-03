@@ -20,6 +20,8 @@ class _Appearance:
 
     load_rois_on_import: bool = True
     load_instrument_on_import: bool = True
+    load_calibration_from_instrument: bool = True
+    
 
 
 @dataclass
@@ -35,6 +37,7 @@ class _State:
     loaded_spectra: Any | None = None
     roi_regions: Any | None = None
     map_last_online_url: str = ""
+    deconv_last_response_file: str = ""
 
     def to_dict(self):
         return {
@@ -42,6 +45,7 @@ class _State:
             "loaded_spectra": self.loaded_spectra,
             "roi_regions": self.roi_regions,
             "map_last_online_url": self.map_last_online_url,
+            "deconv_last_response_file": self.deconv_last_response_file
         }
 
     def from_dict(self, data):
@@ -49,6 +53,7 @@ class _State:
         self.loaded_spectra = data.get("loaded_spectra")
         self.roi_regions = data.get("roi_regions")
         self.map_last_online_url = data.get("map_last_online_url", "")
+        self.deconv_last_response_file = data.get("deconv_last_response_file", "")
 
 
 @dataclass

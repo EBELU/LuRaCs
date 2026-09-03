@@ -68,7 +68,8 @@ class _SpectrumManager(QObject):
             new_spect = Spectrum(channels, name)
             new_spect.connection = device
             self.spectrum_registry[name] = new_spect
-
+            new_spect.instrument = self.UniqueInstrumentLibrary.get_instrument_by_name(device)
+            
             # Set colors
             fg_clr, bkg_clr = self.color_rotation.get_color_pair()
             self.set_color(name, "foreground", fg_clr)
@@ -79,6 +80,9 @@ class _SpectrumManager(QObject):
             gui_logger.info(
                 f"Spectrum added: name={name}, channels={channels}, connection={device!s}"
             )
+            
+            if Settings.Appearance.load_calibration_from_instrument and new_spect.instrument is not None and new_spect.instrument.calibration_coefficients:
+                self.calibrate_spectrum(name, new_spect.instrument.calibration_coefficients)
             return True
         else:
             return False

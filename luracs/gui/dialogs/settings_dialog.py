@@ -1,27 +1,29 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from main import MainWindow
 
 from PySide6.QtWidgets import (
-    QDialog,
-    QVBoxLayout,
-    QFormLayout,
-    QDialogButtonBox,
-    QComboBox,
-    QRadioButton,
-    QButtonGroup,
-    QSpinBox,
-    QWidget,
-    QHBoxLayout,
     QApplication,
+    QButtonGroup,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QDoubleSpinBox,
+    QFormLayout,
+    QHBoxLayout,
+    QLabel,
     QMessageBox,
+    QRadioButton,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
 )
 
-from PySide6.QtWidgets import QDoubleSpinBox, QCheckBox, QLabel
-
-from luracs.core import Settings, RunManager, log_utils, core_utils
+from luracs.core import RunManager, Settings, core_utils, log_utils
 from luracs.utils.color_rotator import ColorRotator
 
 
@@ -41,7 +43,7 @@ class SettingsDialog(QDialog):
 
         # --- Name field ---
         self.theme_combo = QComboBox()
-        for theme_option in core_utils.ThemeManager.themes:
+        for theme_option in [t for t in core_utils.ThemeManager.themes if t.value != "light"]:
             self.theme_combo.addItem(
                 theme_option.value.replace("-", " ").capitalize(), theme_option.value
             )
@@ -114,6 +116,8 @@ class SettingsDialog(QDialog):
             Settings.Appearance.verbose_calculation_logging
         )
         form.addRow("", self.verbose_calculation_logging)
+        
+        form.addRow("", QLabel("Import Options:"))
 
         self.load_rois_on_import = QCheckBox("Load ROIs on import")
         self.load_rois_on_import.setChecked(Settings.Appearance.load_rois_on_import)
@@ -124,6 +128,12 @@ class SettingsDialog(QDialog):
             Settings.Appearance.load_instrument_on_import
         )
         form.addRow("", self.load_instrument_on_import)
+        
+        self.load_calibration_from_instrument = QCheckBox("Load calibration from instrument")
+        self.load_calibration_from_instrument.setChecked(
+            Settings.Appearance.load_calibration_from_instrument
+        )
+        form.addRow("", self.load_calibration_from_instrument)
 
     def get_values(self):
         theme = self.theme_combo.currentData()
@@ -152,6 +162,7 @@ class SettingsDialog(QDialog):
             "verbose_calculation_logging": self.verbose_calculation_logging.isChecked(),
             "load_rois_on_import": self.load_rois_on_import.isChecked(),
             "load_instrument_on_import": self.load_instrument_on_import.isChecked(),
+            "load_calibration_from_instrument": self.load_calibration_from_instrument.isChecked(),
         }
 
 

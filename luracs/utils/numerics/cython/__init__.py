@@ -1,24 +1,21 @@
 import numpy as np
 
 if __name__ != "__main__":
-    from .gaussian import multi_gaussian_cy, multi_gaussian_jacobian_cy
     from .deconvolution import (
         ML_EM_cy,
         richardson_lucy_cy,
     )
-    
+    from .gaussian import multi_gaussian_cy, multi_gaussian_jacobian_cy
     from .process_matrix import process_matrix_cy
-
     from .rebin import rebin_histogram_cy
     
 else:
-    from gaussian import multi_gaussian_cy, multi_gaussian_jacobian_cy
     from deconvolution import (
         ML_EM_cy,
         richardson_lucy_cy,
     )
+    from gaussian import multi_gaussian_cy, multi_gaussian_jacobian_cy
     from process_matrix import process_matrix_cy
-
     from rebin import rebin_histogram_cy
 
 
@@ -271,8 +268,6 @@ def rebin_histogram(
     )
 
 if __name__ == "__main__":
-    import pandas as pd
-    import matplotlib.pyplot as plt
     # data = pd.read_csv("~/Desktop/Cyklotron_Ba.csv").to_numpy()
     # clipped_data = data[(data[:, 0] >= 30)]
     # # print(richardson_lucy(clipped_data[:, 1], 2/100))
@@ -281,12 +276,8 @@ if __name__ == "__main__":
     # plt.xlabel("Energy (keV)")
     # plt.ylabel("Counts")
     # plt.show()
-    
     # data = pd.read_csv("~/Desktop/Cyklotron_Ba.csv").to_numpy()
     # response_matrix = np.load("dev/Rc103_response.npz", allow_pickle=False)
-    
-
-    
     # processed_response = process_response_cy(
     #     response_matrix["response_matrix"],
     #     response_matrix["indices"].astype(np.float64),
@@ -294,8 +285,6 @@ if __name__ == "__main__":
     #     data[:, 0],
     #     data[:, 0],
     # )
-    
-    
     # ml_em_result = ml_em(
     #     data[:, 1],
     #     processed_response[0],
@@ -305,14 +294,11 @@ if __name__ == "__main__":
     #     iterations=1500,
     #     use_sensitivity=False,
     # )
-    
     # plt.plot(data[:, 0], data[:, 1])
     # plt.plot(data[:, 0], ml_em_result)
     # plt.show()
-    
     # from luracs.utils.file_io.xml_writer import xml_writer
     # from luracs.containers.spectrum_classes import Spectrum, SpectrumData
-    
     # spectrum = Spectrum(len(ml_em_result), "deconvolved")
     # sd = SpectrumData(
     #     ml_em_result,
@@ -320,25 +306,21 @@ if __name__ == "__main__":
     #     np.sum(ml_em_result),
     #     1
     # )
-    
     # sdb = SpectrumData(
     #     data[:, 1],
     #     len(data[:, 1]),
     #     np.sum(data[:, 1]),
     #     1
     # )
-
     # cal = np.polyfit(np.arange(len(data)), data[:, 0], 2)
-    
     # spectrum.apply_calibration(cal)
-    
     # spectrum.set_foreground(sd)
     # spectrum.set_background(sdb)
     # xml_writer(spectrum, "dev/debug/deconv")
-    
-    
-    import pandas as pd
     from time import time
+
+    import matplotlib.pyplot as plt
+    import pandas as pd
     
     path = "/home/eewa/Documents/git/MySpect/dev/Rc103_response.npz"
     response_data = dict(np.load(path))

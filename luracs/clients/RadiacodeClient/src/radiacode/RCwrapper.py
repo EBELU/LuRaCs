@@ -1,6 +1,7 @@
 import asyncio
 import time
 from dataclasses import dataclass
+from bleak.exc import BleakError
 
 import numpy as np
 
@@ -66,8 +67,16 @@ class RadiacodeAsync:
         return self._latest_status
 
     async def get_realtime(self):
-        data = await self.client.data_buf()
-        self._decode_cps_packet(data)
+        try:
+            data = await self.client.data_buf()
+            self._decode_cps_packet(data)
+        except BleakError as e:
+            if "Service Discovery has not been performed yet" in str(e):
+                logger.warning(
+                    "GATT services not ready; returning last buffered CPS value"
+                )
+                return self._latest_cps
+            raise
         return self._latest_cps
 
     async def get_status(self):

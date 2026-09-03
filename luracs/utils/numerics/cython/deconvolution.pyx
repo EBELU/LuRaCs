@@ -244,7 +244,6 @@ cpdef cnp.ndarray ML_EM_cy(
                 correction_v,
             )
         
-
     return x
 
 # -------------------------------

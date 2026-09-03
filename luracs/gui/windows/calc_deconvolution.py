@@ -1,10 +1,5 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from luracs.containers.spectrum_classes import Spectrum
-
 from copy import deepcopy
 from pathlib import Path
 
@@ -25,7 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from luracs.core import SpectrumManager, Calculator, Log
+from luracs.core import Calculator, Log, Settings, SpectrumManager
 from luracs.utils.numerics import ml_em, process_response
 
 
@@ -73,6 +68,7 @@ class DeconvolutionWindow(QWidget):
         # form.addRow("Progress", self.calculation_progress)
         
         main_layout.addLayout(form)
+        
         # --- Bottom Buttons ---
         bottom_buttons = QHBoxLayout()
         close_btn = QPushButton("Close")
@@ -136,16 +132,18 @@ class DeconvolutionWindow(QWidget):
         btn_load_matrix.clicked.connect(self.import_response_matrix)
         
         self.mlem_line_loaded_file = QLineEdit()       
+        if Settings.State.deconv_last_response_file:
+            self.mlem_line_loaded_file.setText(Settings.State.deconv_last_response_file)
         response_matrix_row.addWidget(self.mlem_line_loaded_file)
         response_matrix_row.addWidget(btn_load_matrix)
         
-        self.mlem_use_efficiency = QCheckBox("Use Efficiency")
+        # self.mlem_use_efficiency = QCheckBox("Use Efficiency")
         
         label = QLabel("Iterations")
         label.setFixedWidth(130)
         layout.addRow(label, self.mlem_iterations)
         layout.addRow("Response Matrix", response_matrix_row)
-        layout.addRow("Priors", self.mlem_use_efficiency)
+        # layout.addRow("Priors", self.mlem_use_efficiency)
 
         return page
     
@@ -195,12 +193,8 @@ class DeconvolutionWindow(QWidget):
         else:
             raise ValueError("Invalid algorithm index")
         
-
-        
     def calculate_rl(self):
-        pass
-        
-            
+        pass            
         
     def calculate_mlem(self):
         if not self.mlem_line_loaded_file.text():
@@ -240,11 +234,17 @@ class DeconvolutionWindow(QWidget):
             )
             Log.error(f"Missing arrays in response matrix: {missing}. Aborting!")
             return
+        
+        Settings.State.deconv_last_response_file = self.mlem_line_loaded_file.text()
+        
+        # Flatten the overflow channel to avoid issues with the deconvolution algorithm
+        y_axis = spectrum.get_foreground().copy()
+        y_axis[-1] = y_axis[-2]
 
         # Everything above this point happens on the GUI thread.
         Calculator.run(
             self._calculate_mlem_worker,
-            spectrum.get_foreground().copy(),
+            y_axis,
             response_matrix,
             spectrum.x_axis.copy(),
             iterations,
@@ -258,7 +258,6 @@ class DeconvolutionWindow(QWidget):
         x_axis,
         iterations,
         ):
-
 
         processed_response = process_response(
             response_matrix["response_matrix"],

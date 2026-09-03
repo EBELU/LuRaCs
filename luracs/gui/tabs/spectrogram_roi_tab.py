@@ -70,6 +70,8 @@ class PlotContainer(QWidget):
         
         core_utils.ThemeManager.register_plot(new_plot)
         core_utils.ThemeManager.register_legend(legend)
+        core_utils.ThemeManager.apply_to_plot(new_plot)
+        core_utils.ThemeManager.apply_to_legend(legend)
         
         self.line_registry[roi] = {}
         
@@ -104,6 +106,7 @@ class PlotContainer(QWidget):
         del self.line_registry[roi_name]
         core_utils.ThemeManager.unregister_plot(plot_widget)
         core_utils.ThemeManager.unregister_legend(self.legend_registry.pop(roi_name))
+    
 
     def resize_plot(self, roi_name: str, new_size: int):
         plot = self.plot_registry[roi_name]
@@ -176,7 +179,6 @@ class SpectrogramROITab(QWidget):
     @Slot(str, dict)
     def receive_update(self, db_name: str, roi_data: dict):
         self.plot_container.plot_line(db_name, roi_data)
-        1
         for roi, data in roi_data.items():
             if roi not in self.stats_text_containers:
                 self.stats_text_containers[roi] = StatsTextContainer(RunManager.SpectrogramManager.roi_registry[roi].alias)

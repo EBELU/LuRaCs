@@ -6,7 +6,7 @@
 import numpy as np
 cimport numpy as cnp
 
-from libc.math cimport exp, log, fmax, sqrt, NAN
+from libc.math cimport NAN
 
 ctypedef cnp.float64_t float64_t
 ctypedef cnp.int32_t int32_t

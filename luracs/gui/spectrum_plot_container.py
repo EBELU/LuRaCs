@@ -129,6 +129,8 @@ class SpectrumPlotContainer(QWidget):
     # --- Communication with plots ---
     def add_roi_to_plot(self, roi: ROI):
         if Settings.Appearance.tabbed_spectrum_view:
+            if len(SpectrumManager.spectrum_registry) == 0:
+                return
             if roi.owner_spectrum is None:
                 current_plot = self.tabs.currentWidget()
                 roi.owner_spectrum = current_plot.owned_spectrum

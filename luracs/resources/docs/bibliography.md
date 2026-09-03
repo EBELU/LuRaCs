@@ -7,6 +7,9 @@
 ## Detector Efficiency
 - Golovko, V. V. Simplified efficiency calibration methods for scintillation detectors used in nuclear remediation. Journal of Cleaner Production 478, 143910 (2024).
 
+## Deconvolution
+- Li, F. et al. Review of recent gamma spectrum unfolding algorithms and their application. Results in Physics 13, 102211 (2019).
+- Jandel, M. et al. Decomposition of continuum γ-ray spectra using synthesized response matrix. Nuclear Instruments and Methods in Physics Research Section A: Accelerators, Spectrometers, Detectors and Associated Equipment 516, 172–183 (2004).
 
 ## Isotope data
 The isotope data used in this work are primarily sourced from publications by the *Laboratoire National Henri Becquerel (LNHB)*. The specific references consulted are listed below. Recommended decay and nuclear data are available through the LNHB Nuclear Data Table.

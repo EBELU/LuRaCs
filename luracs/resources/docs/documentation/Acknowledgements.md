@@ -22,6 +22,12 @@ This application uses the following open-source projects:
 
 We gratefully acknowledge the maintainers and contributors of these projects.
 
+The following projects were forked and code included in this project but are not dependencies:
+
+- [pmtiles](https://github.com/protomaps/PMTiles)
+- [radiacode](https://github.com/cdump/radiacode/tree/master)
+- [maplibre](https://github.com/maplibre/maplibre-gl-js)
+
 ## Qt / PySide6
 
 This application uses Qt for Python (PySide6), licensed under the GNU Lesser General Public License v3 (LGPLv3).

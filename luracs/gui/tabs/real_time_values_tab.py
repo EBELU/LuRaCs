@@ -108,8 +108,9 @@ class RealTimeValuesPlot(QWidget):
                 [], [], pen=pen, name=name
             )
 
-        self.cps_mean_lines[name] = pg.InfiniteLine(angle=0, pen=pen)
-        self.dr_mean_lines[name] = pg.InfiniteLine(angle=0, pen=pen)
+        mean_pen = pg.mkPen(color=pen.color(), width=pen.width(), style=Qt.PenStyle.DashLine)
+        self.cps_mean_lines[name] = pg.InfiniteLine(angle=0, pen=mean_pen)
+        self.dr_mean_lines[name] = pg.InfiniteLine(angle=0, pen=mean_pen)
 
         self.toggle_mean_lines(self.showing_mean_lines)
 

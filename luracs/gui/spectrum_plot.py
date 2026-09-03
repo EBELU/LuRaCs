@@ -1,22 +1,20 @@
-from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QPushButton,
-    QHBoxLayout,
-    QComboBox,
-    QLineEdit,
-)
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QFont
+import numpy as np
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtWidgets
-import numpy as np
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor, QFont
+from PySide6.QtWidgets import (
+    QComboBox,
+    QHBoxLayout,
+    QLineEdit,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
-from luracs.core import SpectrumManager, Settings, core_utils
-
+from luracs.containers.nuclide_classes import AnnihilationEmission, EmptyEmission
 from luracs.containers.spectrum_classes import Spectrum
-from luracs.containers.nuclide_classes import EmptyEmission, AnnihilationEmission
-
+from luracs.core import Settings, SpectrumManager, core_utils
 from luracs.utils.numerics import multi_gaussian
 
 
@@ -88,7 +86,7 @@ class SpectrumPlot(QWidget):
         self.plot_widget.setLimits(
             xMin=0,
             xMax=1e4,
-            yMin=0,
+            yMin=1e-9,
             yMax=1e16,
             minXRange=10,
             maxXRange=1e4,
@@ -427,9 +425,17 @@ class SpectrumPlot(QWidget):
 
         background = spectrum.get_background(cps=self.cps)
         if self.log:
+            bkg = np.inf
+            if self.show_bkg and spectrum.get_background() is not None:
+                bkg = np.nanmin(spectrum.get_background(self.log, self.cps))
+
             self.bkg_lines[spectrum.name].setFillLevel(
-                np.floor(np.nanmin(background) * 2) / 2
+                np.floor(
+                    min(np.nanmin(spectrum.get_foreground(self.log, self.cps)), bkg) * 2
+                )
+                / 2
             )
+            
         self.bkg_lines[spectrum.name].setData(
             spectrum.x_axis,
             background[:-1],

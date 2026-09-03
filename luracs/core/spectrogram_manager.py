@@ -34,8 +34,6 @@ class SpectrogramManager(QObject):
         self.roi_counter = 0
         self.roi_edit_mode = False
 
-        self.sigROICountsUpdated.connect(print)
-
     def set_roi_edit_mode(self, state: bool):
         self.roi_edit_mode = state
 
@@ -93,6 +91,6 @@ class SpectrogramManager(QObject):
             Emin, Emax = roi.E_region
             roi_counts = np.sum(sg[:, ((Emin < Eaxis) & (Eaxis < Emax))], axis=1)
 
-            results[roi.tag] = roi_counts
+            results[roi.tag] = roi_counts / buffer.save_interval
 
         self.sigROICountsUpdated.emit(logger_name, results)
