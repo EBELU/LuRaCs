@@ -6,19 +6,27 @@ from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal
 class WorkerSignals(QObject):
     finished = Signal(object)
     error = Signal(Exception)
+    status = Signal(int, str)
 
 
 class Worker(QRunnable):
-    def __init__(self, fn, *args, **kwargs):
+    def __init__(self, fn, *args, signal_status: bool = False, **kwargs):
         super().__init__()
         self.fn = fn
         self.args = args
         self.kwargs = kwargs
+        self.signal_status = signal_status
         self.signals = WorkerSignals()
+        
+    def emit_status(self, progress: int, message: str):
+        self.signals.status.emit(progress, message)
 
     def run(self):
         try:
-            result = self.fn(*self.args, **self.kwargs)
+            if self.signal_status:
+                result = self.fn(*self.args, on_status=self.emit_status, **self.kwargs)
+            else:
+                result = self.fn(*self.args, **self.kwargs)
             self.signals.finished.emit(result)
         except Exception as e:
             self.signals.error.emit(e)
@@ -44,14 +52,17 @@ class Calculator:
         *args,
         on_result: Callable | None = None,
         on_error: Callable | None = None,
+        on_status: Callable | None = None,
         **kwargs,
     ):
         """Run a function in a background thread and signal back the result."""
-        worker = Worker(fn, *args, **kwargs)
+        worker = Worker(fn, *args, signal_status=on_status is not None, **kwargs)
 
-        if on_result:
+        if on_result is not None:
             worker.signals.finished.connect(on_result)
-        if on_error:
+        if on_error is not None:
             worker.signals.error.connect(on_error)
+        if on_status is not None:
+            worker.signals.status.connect(on_status)
 
         cls._pool.start(worker)

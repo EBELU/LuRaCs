@@ -321,7 +321,6 @@ class RadiacodeWrapper(DeviceWrapper):
 
     def __init__(self, address, usb):
         super().__init__(address, usb)
-
         self.name = self.name.split("#")[-1]
         self.client = RadiacodeClientAsync(address, usb)
         self.channels = 1024

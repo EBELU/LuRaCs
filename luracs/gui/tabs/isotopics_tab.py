@@ -469,7 +469,7 @@ class IsotopicsTab(QWidget):
         else:
             y_data = spectrum.get_foreground()
 
-        peaks, d1, d2 = find_peaks(y_data)
+        peaks, d1, d2 = find_peaks(y_data, spectrum.x_axis, window_length=self.search_window_length.value())
 
         self.debug_view.spectrum_y = y_data
         self.debug_view.d1 = d1
@@ -479,10 +479,8 @@ class IsotopicsTab(QWidget):
         for le, p, re in peaks:
             le_e, re_e = spectrum.x_axis[le], spectrum.x_axis[re]
 
-            width_threshold = 75 if re_e < 250 else 250
 
-            if abs(le_e - re_e) < width_threshold:
-                SpectrumManager.ROIManager.add_roi(le_e, re_e)
+            SpectrumManager.ROIManager.add_roi(le_e, re_e, merge=False)
 
     def set_search_combo(self):
         self.search_spect_combo.clear()

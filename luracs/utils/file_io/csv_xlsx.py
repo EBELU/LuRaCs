@@ -1,14 +1,15 @@
 from __future__ import annotations
+
 import csv
+from pathlib import Path
+from typing import TYPE_CHECKING
+
 import numpy as np
 import openpyxl as pyxl
 
-from typing import TYPE_CHECKING
-
 if TYPE_CHECKING:
-    from luracs.containers.spectrum_classes import Spectrum
-    from pathlib import Path
     from luracs.containers.roi_classes import ROI
+    from luracs.containers.spectrum_classes import Spectrum
 
 
 class csv_writer:

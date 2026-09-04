@@ -1,5 +1,10 @@
 import numpy as np
 import math
+from typing import Callable
+from luracs.core import Log, Settings
+
+from .optimizer import curve_fit
+from .cython import multi_gaussian, multi_gaussian_jacobian
 
 
 # --- Savitzky-Golay filtering ---
@@ -235,7 +240,9 @@ def post_process_peaks(
 
 
 def find_peaks(
-    spectrum: np.ndarray, window_length: int = 31
+    spectrum_y: np.ndarray, 
+    spectrum_x: np.ndarray,
+    window_length: int = 31
 ) -> tuple[list[tuple[float, float, float]], np.ndarray, np.ndarray]:
     """
     return (left_edge_point, p, right_edge_point)
@@ -243,28 +250,28 @@ def find_peaks(
     if window_length % 2 == 0:
         raise ValueError("Convolution window should have and off number if elements")
 
-    channels = np.arange(len(spectrum))
+    channels = np.arange(len(spectrum_y))
 
     # noise_gain = np.sqrt(np.sum(coeffs**2))
 
     # SG derivatives
     d1, d1_coeffs = savgol_filter(
-        spectrum,
+        spectrum_y,
         window_length=window_length,  # Must change for high resolution spectra
         polyorder=3,
         deriv=1,
     )
 
     d2, d2_coeffs = savgol_filter(
-        spectrum,
+        spectrum_y,
         window_length=window_length,  # --||--
         polyorder=3,
         deriv=2,
     )
 
     # Detection thresholds, set using median absolute deviation
-    threshold_d1 = MAD_threshold(d1)
-    threshold_d2 = MAD_threshold(d2)
+    threshold_d1 = MAD_threshold(d1, 1)
+    threshold_d2 = MAD_threshold(d2, 1)
 
     # Peak centers are derived from 2nd derivative minima
     peaks = local_minima(d2, threshold_d2)
@@ -284,7 +291,84 @@ def find_peaks(
         len(channels),
     )
 
-    return peak_regions, d1, d2
+    return peak_discriminator(spectrum_y, spectrum_x, peak_regions, True, 15), d1, d2
+
+def peak_discriminator(
+    spectrum_y: np.ndarray,
+    spectrum_x: np.ndarray,
+    peak_candidates: list[tuple[float, float, float]],
+    require_fit: bool,
+    min_separation: int,
+    resolution_k: float | None = None,
+    resolution_limit: float = 1.5,
+    status: Callable | None = None
+    
+) -> list[tuple[float, float, float]]:
+    """
+    Filter peaks based on their height relative to the spectrum.
+    """
+
+    accepted_fits = []
+    mus = np.zeros(len(peak_candidates))
+    rejected_sanity_check = rejected_fit_failed = rejected_bad_fit = rejected_duplicate = 0
+    for i, (left, centre, right) in enumerate(peak_candidates):
+        
+        peak_mask = np.zeros_like(spectrum_x, dtype=bool)
+        peak_mask[int(left):int(right)] = True
+
+        if peak_mask.shape[0] < 4 or left > right or left == 0 or spectrum_x[right] < 25:
+            rejected_sanity_check += 1
+            continue
+        
+        x_peak = spectrum_x[peak_mask]
+        y_peak = spectrum_y[peak_mask]
+            
+        A0 = np.max(y_peak)
+        mu0 = x_peak[np.argmax(y_peak)]
+        s0 = (right - left) / 6.0
+        
+        fit, cov, converged = curve_fit(
+            multi_gaussian,
+            x_peak,
+            y_peak,
+            [A0, mu0, s0],
+            jac=multi_gaussian_jacobian,
+        )
+        if not converged:
+            rejected_fit_failed += 1
+            continue
+        
+        A, mu, s = fit
+        
+        if math.sqrt(np.diag(cov)[2]) / s > 0.2 or A < 0:
+            rejected_bad_fit += 1
+            continue
+
+        if np.any(np.isclose(mus, mu, atol=1)):
+            rejected_duplicate += 1
+            continue
+        
+        mus[i] = mu
+        
+        if converged:
+            accepted_fits.append(peak_candidates[i])
+    
+    if Settings.Appearance.verbose_calculation_logging: 
+        Log.info(
+            "\n".join([
+            "\n--- Peak Search ---",
+            f"Peak Candidates: {len(peak_candidates)}",
+            f"Accepted: {len(accepted_fits)}",
+            "Rejections by createria:",
+            f"  Sanity Check: {rejected_sanity_check}",
+            f"  Fit Failed: {rejected_fit_failed}",
+            f"  Bad Fit: {rejected_bad_fit}",
+            f"  Duplicate: {rejected_duplicate}",
+            ]
+            ))
+    return accepted_fits
+
+
 
 if __name__ == "__main__":
     import pandas as pd
@@ -294,7 +378,7 @@ if __name__ == "__main__":
     data = pd.read_csv("~/Desktop/Th.csv").to_numpy().T
     
     regions, d1, d2 = find_peaks(data[1])
-    print()
+    peak_discriminator(data[0], data[1], regions, True, 15)
     
     plt.plot(data[1] / np.max(d1))
     #plt.plot(d1)

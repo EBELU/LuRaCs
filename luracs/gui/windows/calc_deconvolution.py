@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QStackedWidget,
     QVBoxLayout,
     QWidget,
+    QProgressBar,
 )
 
 from luracs.core import Calculator, Log, Settings, SpectrumManager
@@ -52,9 +53,9 @@ class DeconvolutionWindow(QWidget):
         self.combo_spectra = QComboBox()
         form.addRow("Spectrum", self.combo_spectra)
         
-        self.chosen_input = QLineEdit()
-        self.chosen_input.setReadOnly(True)
-        form.addRow("Input", self.chosen_input)
+        self.internal_progress = QProgressBar()
+        self.internal_progress.setRange(0, 100)
+        form.addRow("Progress", self.internal_progress)
         
         
         btn_calculate = QPushButton("Calculate")
@@ -249,6 +250,7 @@ class DeconvolutionWindow(QWidget):
             spectrum.x_axis.copy(),
             iterations,
             on_result=self.catch_result,
+            on_status=self.update_progress
         )
         
     def _calculate_mlem_worker(
@@ -257,8 +259,12 @@ class DeconvolutionWindow(QWidget):
         response_matrix,
         x_axis,
         iterations,
+        on_status = None
         ):
 
+        if on_status is not None:
+            on_status(0, "Processing response matrix...")
+            
         processed_response = process_response(
             response_matrix["response_matrix"],
             response_matrix["indices"].astype(np.float64),
@@ -266,8 +272,11 @@ class DeconvolutionWindow(QWidget):
             x_axis,
             x_axis,
         )
-
-        return ml_em(
+        
+        if on_status is not None:
+            on_status(50, "Running ML-EM...")
+            
+        result = ml_em(
             spectrum_y,
             processed_response[0],
             processed_response[1].astype(np.int32),
@@ -276,6 +285,11 @@ class DeconvolutionWindow(QWidget):
             iterations=iterations,
             use_sensitivity=False,
         )
+        
+        if on_status is not None:
+            on_status(100, "Done!")
+
+        return result
 
             
     def catch_result(self, deconv_y):
@@ -303,6 +317,10 @@ class DeconvolutionWindow(QWidget):
             new_name,
             spectrum_copy,
         )
+        
+    def update_progress(self, progress: int, message: str):
+        self.internal_progress.setValue(progress)
+        self.internal_progress.setFormat(message)
 
         
     

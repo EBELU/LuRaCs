@@ -818,7 +818,7 @@ class SpectrumPlot(QWidget):
                 in SpectrumManager.NuclideLibrary.decay_chains["Th-232 -- Chain"]
             ):
                 self._format_line_edit(
-                    f"E: {round(x):<4} keV, {channel_str}[{(matched_nuclide.parent_nuclide + ' (Th-232-Chain)'):<6}]"
+                    f"E: {round(x):<4} keV, {channel_str}[{(matched_nuclide.parent_nuclide + f' {matched_nuclide.energy_keV:.1f} keV' + ' (Th-232-Chain)'):<6}]"
                 )
 
             elif (
@@ -826,7 +826,7 @@ class SpectrumPlot(QWidget):
                 in SpectrumManager.NuclideLibrary.decay_chains["U-238 -- Chain"]
             ):
                 self._format_line_edit(
-                    f"E: {round(x):<4} keV, {channel_str}[{(matched_nuclide.parent_nuclide + ' (U-238-Chain)'):<6}]"
+                    f"E: {round(x):<4} keV, {channel_str}[{(matched_nuclide.parent_nuclide + f' {matched_nuclide.energy_keV:.1f} keV' + ' (U-238-Chain)'):<6}]"
                 )
 
             else:

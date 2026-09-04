@@ -132,7 +132,7 @@ class SpectrumInfoTab(QWidget):
         self.setToolTip("Drag and drop spectrum files here to import them")
 
     def edit_spectrum(self, spectrum: Spectrum):
-        connected = True if spectrum.connection is not None else False
+        connected = spectrum.connection is not None
         dialog = SpectrumEditDialog(spectrum=spectrum, spectrum_is_connected=connected)
         res = dialog.exec()
 
@@ -178,13 +178,34 @@ class SpectrumInfoTab(QWidget):
         if (
             role == "foreground" and spectrum.connection is not None
         ):  # Has connected device
+
+            save = menu_button.add_action("Save")
+            save.triggered.connect(lambda: save_spectrum_to_library_dialog(spectrum))
+            
+            
+            export_btn = menu_button.add_action("Export")
+            export_btn.triggered.connect(lambda _: IOManager.Exporter.export_spectrum_dialog(spectrum.name))
+
+            self.hide_show_btn[spectrum.name] = menu_button.add_action("Hide")
+            self.hide_show_btn[spectrum.name].triggered.connect(
+                lambda: self._show_hide_action(spectrum.name)
+            )
+
+            edit_action = menu_button.add_action("Edit")
+            edit_action.triggered.connect(lambda: self.edit_spectrum(spectrum))
+            
+            menu_button.add_separator()
             disconnect = menu_button.add_action("Remove and Disconnect")
             disconnect.triggered.connect(
                 lambda: RunManager.remove_device(spectrum.name, True)
             )
 
+        elif role == "foreground":
             save = menu_button.add_action("Save")
             save.triggered.connect(lambda: save_spectrum_to_library_dialog(spectrum))
+            
+            export_btn = menu_button.add_action("Export")
+            export_btn.triggered.connect(lambda _: IOManager.Exporter.export_spectrum_dialog(spectrum.name))
 
             self.hide_show_btn[spectrum.name] = menu_button.add_action("Hide")
             self.hide_show_btn[spectrum.name].triggered.connect(
@@ -193,23 +214,13 @@ class SpectrumInfoTab(QWidget):
 
             edit_action = menu_button.add_action("Edit")
             edit_action.triggered.connect(lambda: self.edit_spectrum(spectrum))
-
-        elif role == "foreground":
+            
+            
+            menu_button.add_separator()
             remove = menu_button.add_action("Remove Spectrum")
             remove.triggered.connect(
                 lambda: SpectrumManager.remove_spectrum(spectrum.name)
             )
-
-            save = menu_button.add_action("Save")
-            save.triggered.connect(lambda: save_spectrum_to_library_dialog(spectrum))
-
-            self.hide_show_btn[spectrum.name] = menu_button.add_action("Hide")
-            self.hide_show_btn[spectrum.name].triggered.connect(
-                lambda: self._show_hide_action(spectrum.name)
-            )
-
-            edit_action = menu_button.add_action("Edit")
-            edit_action.triggered.connect(lambda: self.edit_spectrum(spectrum))
 
         else:  # Background
             rm_bkg = menu_button.add_action("Remove Background")
@@ -217,8 +228,6 @@ class SpectrumInfoTab(QWidget):
                 lambda: SpectrumManager.clear_background(spectrum.name)
             )
 
-        # export_btn = menu_button.add_action("Export")
-        # export_btn.triggered.connect(lambda _:parent.file_import_export.export_spectrum(spectrum.name))
 
         wrapper = QWidget()
         layout = QHBoxLayout(wrapper)

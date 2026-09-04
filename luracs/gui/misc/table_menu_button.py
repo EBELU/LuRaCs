@@ -29,3 +29,6 @@ class MenuButton(QWidget):
         action = QAction(text, self)
         self.menu.addAction(action)
         return action
+    
+    def add_separator(self):
+        self.menu.addSeparator()

@@ -10,7 +10,7 @@ def zip_library(library_path: Path, output_file: Path) -> None:
 
     with ZipFile(output_file, "w", compression=ZIP_DEFLATED) as zf:
         for file_path in library_path.rglob("*"):
-            if file_path.is_file() and not file_path.name == "settings.json":
+            if file_path.is_file() and file_path.name != "settings.json":
                 # Store path relative to library root
                 arcname = file_path.relative_to(library_path)
                 zf.write(str(file_path), arcname)

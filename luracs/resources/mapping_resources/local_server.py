@@ -1,15 +1,17 @@
-from fastapi import FastAPI, Response
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.concurrency import run_in_threadpool
-from fastapi.staticfiles import StaticFiles
+import threading
+from functools import lru_cache
 from pathlib import Path
 from threading import Thread
+
 import uvicorn
-from .pmtiles.reader import Reader, MmapSource
-from functools import lru_cache
-import threading
+from fastapi import FastAPI, Response
+from fastapi.concurrency import run_in_threadpool
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from luracs.core import Settings
+
+from .pmtiles.reader import MmapSource, Reader
 
 
 class PMTilesServer:

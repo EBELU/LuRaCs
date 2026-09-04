@@ -45,7 +45,6 @@ class USBListPopup(ListPopupNonBlocking):
         # Base popup hooks
         self.confirmed.connect(self._on_confirmed)
         self.cancelled.connect(self.close)
-        self.list_widget.itemDoubleClicked.connect(self._on_double_click)
 
     # ------------------------------------------------
     # Public API

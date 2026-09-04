@@ -491,6 +491,8 @@ class _Exporter(QObject):
             file_io.xml_writer(spectrum, file_path)
         elif "csv" in filter.lower():
             file_io.csv_writer.export_spectrum(spectrum, str(file_path))
+        elif "xlsx" in filter.lower():
+            file_io.xlsx_writer.export_spectrum(spectrum, str(file_path))
 
     # --- ROIs ---
     def export_roi_dialog(self):

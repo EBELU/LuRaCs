@@ -560,6 +560,8 @@ class SpectrogramWidget(QWidget):
                 height=data_packet.latest_spectrum
             )  # Update bar plot above the waterfall
         self.update_spectrogram_img(data_packet.spectrogram)
+        
+        print("update", datetime.now())
 
     # ------------------------------------------------------------------
     # GUI Updaters
