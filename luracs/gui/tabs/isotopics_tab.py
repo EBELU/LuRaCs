@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from luracs.core import Settings, SpectrumManager
+from luracs.core import Settings, SpectrumManager, Log
 from luracs.utils.numerics import find_peaks
 
 
@@ -469,7 +469,10 @@ class IsotopicsTab(QWidget):
         else:
             y_data = spectrum.get_foreground()
 
-        peaks, d1, d2 = find_peaks(y_data, spectrum.x_axis, window_length=self.search_window_length.value())
+        peaks, d1, d2, log_info = find_peaks(y_data, spectrum.x_axis, window_length=self.search_window_length.value())
+        
+        if Settings.Appearance.verbose_calculation_logging:
+            Log.info(log_info)
 
         self.debug_view.spectrum_y = y_data
         self.debug_view.d1 = d1

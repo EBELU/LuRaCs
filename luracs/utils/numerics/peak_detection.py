@@ -1,7 +1,6 @@
 import numpy as np
 import math
 from typing import Callable
-from luracs.core import Log, Settings
 
 from .optimizer import curve_fit
 from .cython import multi_gaussian, multi_gaussian_jacobian
@@ -243,7 +242,7 @@ def find_peaks(
     spectrum_y: np.ndarray, 
     spectrum_x: np.ndarray,
     window_length: int = 31
-) -> tuple[list[tuple[float, float, float]], np.ndarray, np.ndarray]:
+) -> tuple[list[tuple[float, float, float]], np.ndarray, np.ndarray, str]:
     """
     return (left_edge_point, p, right_edge_point)
     """
@@ -290,8 +289,8 @@ def find_peaks(
         right_edges,
         len(channels),
     )
-
-    return peak_discriminator(spectrum_y, spectrum_x, peak_regions, True, 15), d1, d2
+    peaks, log_info = peak_discriminator(spectrum_y, spectrum_x, peak_regions, True, 15)
+    return peaks, d1, d2, log_info
 
 def peak_discriminator(
     spectrum_y: np.ndarray,
@@ -353,8 +352,8 @@ def peak_discriminator(
         if converged:
             accepted_fits.append(peak_candidates[i])
     
-    if Settings.Appearance.verbose_calculation_logging: 
-        Log.info(
+
+        log_info = (
             "\n".join([
             "\n--- Peak Search ---",
             f"Peak Candidates: {len(peak_candidates)}",
@@ -366,7 +365,7 @@ def peak_discriminator(
             f"  Duplicate: {rejected_duplicate}",
             ]
             ))
-    return accepted_fits
+    return accepted_fits, log_info
 
 
 
