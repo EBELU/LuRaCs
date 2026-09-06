@@ -784,6 +784,7 @@ class SpectrogramWidget(QWidget):
 
             new_spectrum = file_io.db_writer.build_spectrum_from_db(parser, new_name)
             new_spectrum.remark = dialog.get_remark()
+            new_spectrum.name = dialog.get_name()
 
             IOManager.FileIndex.spectrum_index.save_file(new_spectrum)
             Log.info(
@@ -794,7 +795,7 @@ class SpectrogramWidget(QWidget):
             QMessageBox.warning(self, "Error", "No spectrogram to export")
 
     def export_time_selection_to_spectrum(self):
-        "Export the spectrum created within the time selector to  to a spectrum"
+        """Export the spectrum corresponding to the selected time range."""
 
         if not self.action_time_selector.isChecked():
             QMessageBox.warning(self, "Error", "No spectrogram section is selected")
@@ -805,41 +806,53 @@ class SpectrogramWidget(QWidget):
             current_spectrogram_name
         )
 
+        if current_spectrogram is None:
+            QMessageBox.warning(self, "Error", "No spectrogram to export")
+            return
+
         ymin, ymax = self.time_selector.getRegion()
         ymin, ymax = round(ymin), round(ymax)
+
         timestamps = np.array(self.current_packet_buffer.timestamp_deque)[::-1]
-        start_index = min(ymax - 1, len(timestamps) - 1)
-        start_time, stop_time = (
-            datetime.fromtimestamp(timestamps[start_index]),
-            datetime.fromtimestamp(timestamps[ymin]),
+
+        start_index = max(0, min(ymax - 1, len(timestamps) - 1))
+        stop_index = max(0, min(ymin, len(timestamps) - 1))
+
+        start_time = datetime.fromtimestamp(timestamps[start_index])
+        stop_time = datetime.fromtimestamp(timestamps[stop_index])
+
+        parser = file_io.db_parser(connection=current_spectrogram.connection)
+
+        dialog = SaveNamingDialog(name=current_spectrogram.db_name)
+        res = dialog.exec()
+
+        if res != SaveNamingDialog.Accepted:
+            return
+
+        name = dialog.get_name()
+        if not name:
+            QMessageBox.warning(self, "Error", "Invalid name")
+            return
+
+        new_name = Settings.Paths.spectrum_library / name
+
+        new_spectrum = file_io.db_writer.build_spectrum_from_db(
+            parser,
+            new_name,
+            start_time,
+            stop_time,
         )
 
-        if current_spectrogram is not None:
-            parser = file_io.db_parser(connection=current_spectrogram.connection)
-            dialog = SaveNamingDialog(name=current_spectrogram.db_name)
-            res = dialog.exec()
-            if res != SaveNamingDialog.Accepted:
-                return
-            if not dialog.get_name:
-                QMessageBox.warning(self, "Error", "Invalid name")
-                return
+        new_spectrum.remark = dialog.get_remark()
+        new_spectrum.name = dialog.get_name()
 
-            new_name = Settings.Paths.spectrum_library / dialog.get_name()
+        IOManager.FileIndex.spectrum_index.save_file(new_spectrum)
 
-            new_spectrum = file_io.db_writer.build_spectrum_from_db(parser, new_name)
-
-            new_spectrum.remark = dialog.get_remark()
-            new_name = Settings.Paths.spectrum_library / current_spectrogram.db_name
-            new_spectrum = file_io.db_writer.build_spectrum_from_db(
-                parser, new_name, start_time, stop_time
-            )
-
-            IOManager.FileIndex.spectrum_index.save_file(new_spectrum)
-            Log.info(
-                f"Spectrum Exported from spectrogram: spectrogram={current_spectrogram.db_name}, spectrum={new_spectrum.name}"
-            )
-        else:
-            QMessageBox.warning(self, "Error", "No spectrogram to export")
+        Log.info(
+            f"Spectrum Exported from spectrogram: "
+            f"spectrogram={current_spectrogram.db_name}, "
+            f"spectrum={new_spectrum.name}"
+        )
 
     # ------------------------------------------------------------------
     # ROIs

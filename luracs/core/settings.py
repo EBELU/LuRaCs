@@ -15,6 +15,7 @@ class _Appearance:
     pen: bool = True
     brush: bool = False
     font_size: int = 10
+    spectrum_plot_E_max: float = 3000.
     tabbed_spectrum_view: bool = False
     verbose_calculation_logging: bool = True
 
@@ -62,6 +63,7 @@ class _Advanced:
     spectrum_update_delay: float = 1
     ui_scan_length: int = 5
     headless_scan_length: int = 2
+    gps_sample_frequency: float = 5.0
 
     optimizer_max_iter: int = 250
     optimizer_tolerance: float = 1e-6
@@ -91,6 +93,7 @@ class _Paths:
     roi_library: Path = field(init=False)
     datalog_library: Path = field(init=False)
     unique_instrument_library: Path = field(init=False)
+    third_party_drivers_library: Path = field(init=False)
     BASE: Path = field(init=False)
 
     settings_file: Path = field(init=False)
@@ -109,11 +112,11 @@ class _Paths:
 
         # Initialize all dependent paths relative to appdata
         self.spectrum_library = self.appdata / "spectrum_library"
-        self.datalog_library = self.appdata / "datalog_library"
         self.spectrogram_library = self.appdata / "spectrogram_library"
         self.roi_library = self.appdata / "roi_library"
         self.unique_instrument_library = self.appdata / "unique_instrument_library"
         self.generic_instrument_library = self.appdata / "generic_instrument_library"
+        self.third_party_drivers_library = self.appdata / "third_party_drivers_library"
         self.settings_file = self.appdata / "settings.json"
 
         # Track what directory files were last loaded from or saved to during runtime

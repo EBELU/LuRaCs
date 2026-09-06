@@ -1,20 +1,22 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from main import MainWindow
 
-from PySide6.QtWidgets import QMenuBar, QMessageBox
-from PySide6.QtGui import QAction, QActionGroup
-from PySide6.QtCore import Signal
 import asyncio
+import shutil
 
-from luracs.core import RunManager, Settings, IOManager
+from PySide6.QtCore import Signal
+from PySide6.QtGui import QAction, QActionGroup
+from PySide6.QtWidgets import QMenuBar, QMessageBox
 
+from luracs.core import IOManager, RunManager, Settings
+from luracs.gui.dialogs.settings_dialog import edit_advanced_settings, edit_settings
 
 from .misc import ConfirmCallback
 
-from luracs.gui.dialogs.settings_dialog import edit_settings, edit_advanced_settings
 
 class MainMenuBar(QMenuBar):
     sigSetSpectrumViewToTabs = Signal()
@@ -39,6 +41,11 @@ class MainMenuBar(QMenuBar):
         file_menu_export_library.triggered.connect(IOManager.Exporter.export_library)
         file_menu_import_library = file_menu.addAction("Import Data Store")
         file_menu_import_library.triggered.connect(IOManager.Importer.import_library)
+        file_menu.addSeparator()
+        file_menu_import_third_party_driver = file_menu.addAction("Import Drivers")
+        file_menu_import_third_party_driver.triggered.connect(self.import_thrid_party_driver)
+        file_menu_show_library = file_menu.addAction("Drivers")
+        file_menu_show_library.triggered.connect(parent.driver_dialog.show)
         file_menu.addSeparator()
         exit_action = file_menu.addAction("Exit")
         exit_action.triggered.connect(self.on_exit)
@@ -194,7 +201,15 @@ class MainMenuBar(QMenuBar):
             "About",
             "LuRaCs - Lund Radiation analysis Computer software\n\n A free and open source tool for measuring and analysing radiation spectra.\n\nCreated by Erik Ewald & Malte Axner \n\nSource code licenced under GPL-3.0\nDocumentation & Images licenced under CC BY-SA 4.0",
         )
-
+        
+    def import_thrid_party_driver(self):
+        files, _ = IOManager.Importer.import_files(filter="Driver Files (*)")
+        if files is None:
+            return
+        for file in files:
+            if file.is_file():
+                shutil.copy(str(file), str(Settings.Paths.third_party_drivers_library))
+        
     def on_exit(self):
         if self.parent:
             self.parent.close()

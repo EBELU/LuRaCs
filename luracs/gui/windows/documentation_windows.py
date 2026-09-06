@@ -1,19 +1,34 @@
-from PySide6.QtWidgets import (
-    QTextBrowser,
-    QListView,
-    QDialog,
-    QHBoxLayout,
-    QVBoxLayout,
-    QFileSystemModel,
-    QTreeView,
-    QWidget,
-    QPushButton,
-)
-from PySide6.QtCore import QUrl
-
-import markdown
 from pathlib import Path
 
+import markdown
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QFont
+from PySide6.QtWidgets import (
+    QDialog,
+    QFileSystemModel,
+    QHBoxLayout,
+    QListView,
+    QPushButton,
+    QTextBrowser,
+    QTreeView,
+    QVBoxLayout,
+    QWidget,
+)
+
+
+class MarkdownFileSystemModel(QFileSystemModel):
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
+        value = super().data(index, role)
+
+        if (
+            role == Qt.ItemDataRole.DisplayRole
+            and index.column() == 0
+            and isinstance(value, str)
+            and value.endswith(".md")
+        ):
+            return value[:-3]  # Remove ".md"
+
+        return value
 
 class SmallDocumentationDialog(QDialog):
     def __init__(self, md_file: str, parent=None):
@@ -90,8 +105,9 @@ class DocumentationDialog(QWidget):
         self.doc_list = QListView()
         self.text_browser = QTextBrowser()
         self.text_browser.setOpenExternalLinks(True)
+        self.text_browser.setFont(QFont("Arial", 15))
 
-        self.model = QFileSystemModel()
+        self.model = MarkdownFileSystemModel()
         self.model.setRootPath(str(doc_dir))
 
         self.model.setNameFilters(["*.md"])
@@ -147,15 +163,28 @@ class DocumentationDialog(QWidget):
             font-family: Arial;
             line-height: 1.3;
             padding: 12px;
+            font-size: small;
         }}
         img {{
             max-width: 100%;
             height: auto;
             display: block;
-            margin: 10px auto;
+            margin: 5px auto;
             cursor: zoom-in;
         }}
-        h1 {{ color: #1a73e8; }}
+        h1 {{ 
+            color: #1a73e8; 
+            font-size: xx-large;
+        }}
+        h2 {{
+            font-size: x-large;
+        }}
+        h3 {{
+            font-size: large;
+        }}
+        h4 {{
+            font-size: medium;
+        }}
         th, td {{
             padding: 2px 2px;
             text-align: left;

@@ -74,6 +74,8 @@ from luracs.gui.windows import (
     DeconvolutionWindow,
 )
 
+from luracs.gui.dialogs.driver_library_dialog import DriverLibraryDialog
+
 from luracs.gui.dialogs.settings_dialog import SettingsDialog
 from luracs.theme_manager import ThemeManager
 
@@ -153,6 +155,7 @@ class MainWindow(QMainWindow):
         )
 
         self.settings_dialog = SettingsDialog()
+        self.driver_dialog = DriverLibraryDialog()
 
         self.calc_win_efficiency = EfficiencyWindow()
         self.calc_win_calibration = CalibrationWindow()
@@ -209,12 +212,16 @@ class MainWindow(QMainWindow):
         
         self.spectrogram_roi_tab = SpectrogramROITab(self)
         self.bottom_tabs.addTab(self.spectrogram_roi_tab, "Spectrogram ROIs")
+        self.bottom_tabs.setTabToolTip(
+            2,
+            "View detailed information about regions of interest (ROI) set in the spectrogram",
+        )
 
         # Current values
         self.current_value_tab = RealTimeValuesPlot()
         self.bottom_tabs.addTab(self.current_value_tab, "Real Time Values")
         self.bottom_tabs.setTabToolTip(
-            2, "View the current values measured by a connected device"
+            3, "View the current values measured by a connected device"
         )
         self.main_menu_bar.view_menu_realtime_avg_line.triggered.connect(
             self.current_value_tab.toggle_mean_lines
@@ -223,7 +230,7 @@ class MainWindow(QMainWindow):
         # Devices
         self.devices_tab = DevicesInfoTab()
         self.bottom_tabs.addTab(self.devices_tab, "Devices")
-        self.bottom_tabs.setTabToolTip(3, "View connected devices and their status")
+        self.bottom_tabs.setTabToolTip(4, "View connected devices and their status")
 
         # Isotopics
         self.isotopics_tab = IsotopicsTab(
@@ -231,7 +238,7 @@ class MainWindow(QMainWindow):
         )
         self.bottom_tabs.addTab(self.isotopics_tab, "Isotopics")
         self.bottom_tabs.setTabToolTip(
-            4,
+            5,
             "View radionuclide information, set help lines in the spectrum, search peaks and auto assign peaks",
         )
         # Isotopics connections
@@ -260,13 +267,13 @@ class MainWindow(QMainWindow):
         self.console_tab = ConsoleTab()
         self.bottom_tabs.addTab(self.console_tab, "Console")
         self.bottom_tabs.setTabToolTip(
-            5, "Enter text commands and run scripts in the console"
+            6, "Enter text commands and run scripts in the console"
         )
 
         # System log
         self.log_tab = LogWidget()
         self.bottom_tabs.addTab(self.log_tab, "System Log")
-        self.bottom_tabs.setTabToolTip(6, "View messages logged by the system")
+        self.bottom_tabs.setTabToolTip(7, "View messages logged by the system")
 
         central_splitter.addWidget(self.bottom_tabs)
         central_splitter.setStretchFactor(0, 6)

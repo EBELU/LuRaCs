@@ -110,6 +110,12 @@ class SettingsDialog(QDialog):
         self.font_size_spin.setRange(2, 48)
 
         form.addRow("Font Size:", self.font_size_spin)
+        
+        self.spectrum_E_max_spin = QDoubleSpinBox()
+        self.spectrum_E_max_spin.setRange(100, 10000)
+        self.spectrum_E_max_spin.setValue(Settings.Appearance.spectrum_plot_E_max)
+        self.spectrum_E_max_spin.setSuffix(" keV")
+        form.addRow("Spectrum Plot xMax:", self.spectrum_E_max_spin)
 
         self.verbose_calculation_logging = QCheckBox("Verbose Calculation Logging")
         self.verbose_calculation_logging.setChecked(
@@ -163,6 +169,7 @@ class SettingsDialog(QDialog):
             "load_rois_on_import": self.load_rois_on_import.isChecked(),
             "load_instrument_on_import": self.load_instrument_on_import.isChecked(),
             "load_calibration_from_instrument": self.load_calibration_from_instrument.isChecked(),
+            "spectrum_plot_E_max": self.spectrum_E_max_spin.value(),
         }
 
 
@@ -178,7 +185,7 @@ def edit_settings(main_window: MainWindow):
     app = QApplication.instance()
     for key, value in new_settings.items():
         if getattr(Settings.Appearance, key) != value:
-            setattr(Settings.Appearance, key, value)
+            Settings.update_setting("Appearance", key, value)
 
             match key:
                 case "theme":

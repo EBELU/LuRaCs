@@ -170,20 +170,25 @@ class ROIInfoTab(QWidget):
 
         btn_clear = QPushButton("Clear ROIs")
         btn_clear.clicked.connect(self._clear_rois)
+        btn_clear.setToolTip("Clear all ROIs from all spectra")
 
         btn_view_info = QPushButton("View Full Info")
         btn_view_info.clicked.connect(self._open_info)
+        btn_view_info.setToolTip("View detailed information about ROIs")
 
         btn_roi_cps = QPushButton("CPS")
         btn_roi_cps.setCheckable(True)
         btn_roi_cps.toggled.connect(SpectrumManager.ROIManager.set_cps)
+        btn_roi_cps.setToolTip("Toggle ROI counts display between CPS and total counts")
         SpectrumManager.ROIManager.sigCpsChanged.connect(self.rebuild_table)
 
         btn_export_to_csv = QPushButton("Export to CSV")
         btn_export_to_csv.clicked.connect(IOManager.Exporter.export_roi_dialog)
+        btn_export_to_csv.setToolTip("Export ROI data to a CSV file")
 
         btn_export_roi_references = QPushButton("Save Reference ROIs")
         btn_export_roi_references.clicked.connect(save_roi_references)
+        btn_export_roi_references.setToolTip("Save the current ROI definitions as references to be loaded to other spectra or spectrograms")
 
         options_bar.addWidget(btn_clear)
         options_bar.addWidget(btn_view_info)

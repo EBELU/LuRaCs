@@ -67,6 +67,8 @@ class SpectrumPlot(QWidget):
         # Emitted
         self.sigRemoveROI.connect(SpectrumManager.ROIManager.remove_roi)
         self.sigBkgSubUpdated.connect(SpectrumManager.ROIManager.set_bkg_sub)
+        
+        Settings.sigSettingChanged.connect(self.set_xmax)
 
         # --- Layout ---
 
@@ -84,11 +86,11 @@ class SpectrumPlot(QWidget):
         # self.plot_widget.getAxis('left').enableAutoSIPrefix(False)
         self.plot_widget.setXRange(0, 2500, padding=0)
         self.plot_widget.setLimits(
-            xMin=0,
-            xMax=1e4,
+            xMin=-1,
+            xMax=Settings.Appearance.spectrum_plot_E_max,
             yMin=1e-9,
             yMax=1e16,
-            minXRange=10,
+            minXRange=5,
             maxXRange=1e4,
             minYRange=1e-4,
             maxYRange=1e16,
@@ -296,9 +298,9 @@ class SpectrumPlot(QWidget):
         if Settings.Temp.spectrum_view_cursor:
             self.plot_widget.getPlotItem().addItem(self.cursor_line, ignoreBounds=True)
 
-        for spect_name in SpectrumManager.get_spectra_dict().keys():
+        for spect_name in SpectrumManager.get_spectra_dict():
             self.update_plot(spect_name)
-            for roi in SpectrumManager.ROIManager.roi_registry.keys():
+            for roi in SpectrumManager.ROIManager.roi_registry:
                 self.draw_roi(roi, spectrum_name=spect_name)
 
         self.update_all_rois()
@@ -306,10 +308,16 @@ class SpectrumPlot(QWidget):
 
     def reset_zoom(self):
         self.user_scaled = False
-        self.plot_widget.setXRange(0, 2500, padding=0)
+        self.plot_widget.setXRange(0, Settings.Appearance.spectrum_plot_E_max, padding=0)
         self.plot_widget.enableAutoRange()
         self.y_axis_locked = False
         self.lock_y_axis()
+        
+    def set_xmax(self, group: str, setting: str, value: float):
+        if group == "Appearance" and setting == "spectrum_plot_E_max":
+            self.plot_widget.setLimits(xMax=value)
+            if self.plot_widget.viewRange()[0][1] > value:
+                self.plot_widget.setXRange(0, value, padding=0)
 
     # ------------------------------------------------
     # Spectrum Plotting
