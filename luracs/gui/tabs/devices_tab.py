@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from luracs.clients.DeviceWrappers import DeviceWrapper, WrappedStatusPackage
+from luracs.clients import DeviceWrapper, WrappedStatusPackage
 from luracs.core import RunManager
 from luracs.gui.dialogs.device_settings_dialog import DeviceSettingsDialog
 from luracs.gui.misc.table_menu_button import MenuButton
@@ -80,7 +80,7 @@ class DevicesInfoTab(QWidget):
             "None",
             str(wrapper.state.name),
             str(wrapper.type),
-            str(wrapper.connection),
+            str(wrapper.connection.name),
         ]
         self.table.write_row(
             name, self.row_regestry[name], menu_button=self.build_menu_button(name)

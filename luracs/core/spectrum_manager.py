@@ -3,7 +3,8 @@ from datetime import datetime, timedelta
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QColor
 
-from luracs.clients.DeviceWrappers import WrappedSpectrumPackage
+
+from luracs.clients import WrappedSpectrumPackage
 from luracs.containers.instrument_classes import GenericInstrument, UniqueInstrument
 from luracs.containers.spectrum_classes import Spectrum, SpectrumData
 from luracs.utils.color_rotator import ColorRotator

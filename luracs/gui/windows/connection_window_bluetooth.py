@@ -9,8 +9,6 @@ from luracs.core import RunManager
 
 
 def _on_bt_device_selected(device):
-    print("Selected device:", device)
-
     if not device.name:
         return
 
@@ -21,7 +19,7 @@ def _on_bt_device_selected(device):
     else:
         print(f"Invalid device type {device.name}")
         return
-    RunManager.add_device(device, device_type)
+    RunManager.add_device(device, device_type, "BLE")
 
 
 class BluetoothListPopup(ListPopupNonBlocking):

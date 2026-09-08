@@ -102,6 +102,9 @@ class MainMenuBar(QMenuBar):
         self.device_menu_retryLast = device_menu.addMenu("&Retry Last Connection   ")
         device_menu_connectUSB = device_menu.addAction("Connect USB")
         device_menu_connectUSB.triggered.connect(parent.usb_window.start_popup)
+        device_menu_network = device_menu.addAction("Connect Network")
+        device_menu_network.triggered.connect(parent.network_connect_window.exec)
+        1
         device_menu_rest_all = device_menu.addAction("Reset All Spectra")
         device_menu_rest_all.triggered.connect(lambda :ConfirmCallback(self, "Reset the accumulated spectrum of all connected devices?",RunManager.reset_all_spectra))
         device_menu_disconnect = device_menu.addAction("Disconnect All")
@@ -110,6 +113,7 @@ class MainMenuBar(QMenuBar):
                 self.parent, "Disconnect all devices?", RunManager.remove_all_devices
             )
         )
+        
 
         # ---------- Gamma Tools ----------
         calculate_menu = self.addMenu("&Gamma Tools")

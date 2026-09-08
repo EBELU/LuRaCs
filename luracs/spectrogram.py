@@ -9,7 +9,7 @@ from collections import deque
 
 from PySide6.QtCore import Signal, QObject
 
-from luracs.clients.DeviceWrappers import (
+from luracs.clients import (
     WrappedRealTimePackage,
     WrappedSpectrumPackage,
     WrappedStatusPackage,

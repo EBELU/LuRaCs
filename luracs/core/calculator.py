@@ -39,7 +39,6 @@ class Calculator:
     - Uses QRunnable + QThreadPool to execute functions in background threads.
     - Results and errors are delivered back to the GUI via Qt signals.
     - Ensures the GUI remains responsive even when running multiple optimizations.
-    - Suitable for short, repeated tasks (e.g., function optimization with ~250 iterations).
     - No progress reporting; each task simply emits the final result when done.
     """
 

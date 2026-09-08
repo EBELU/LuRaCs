@@ -3,11 +3,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from luracs.clients.DeviceWrappers import WrappedRealTimePackage
     from luracs.spectrogram import Spectrogram
+    from luracs.clients import WrappedRealTimePackage
 
 import asyncio
 import sys
+import time
 from collections import deque
 
 import numpy as np
@@ -36,7 +37,7 @@ else:
     import usb.util
 
 
-from luracs.clients.DeviceWrappers import CriticalNotImplementedError, DeviceWrapper
+from luracs.clients import CriticalNotImplementedError, DeviceWrapper, ConnectionType
 
 from .gui_logger import gui_logger
 from .spectrogram_manager import SpectrogramManager
@@ -86,6 +87,7 @@ class _RunManager(QObject):
 
         self.Signals = EmittedSignals()
 
+        self.poll_start_time = time.monotonic()
         # Store the connection in settings for quick connection
         self.Signals.deviceConnecting.connect(Settings.add_new_connection)
         self.Signals.currentUpdated.connect(self.receive_realtime_package)
@@ -114,19 +116,21 @@ class _RunManager(QObject):
     # ------------------------------------------------------------------
 
     # --- Device Connection ---
-    def add_device(self, device_address: str, device_type: str, usb: bool = False):
+    def add_device(self, device_address: str, device_type: str, conn_type: ConnectionType):
         "Sync interface for connecting a device to the RunManager"
-        asyncio.create_task(self._add_device(device_address, device_type, usb))
+        if isinstance(conn_type, str):
+            conn_type = ConnectionType(conn_type)
+        asyncio.create_task(self._add_device(device_address, device_type, conn_type))
 
     async def _add_device(
-        self, device_address: str, device_type: str, usb: bool = False
+        self, device_address: str, device_type: str, conn_type: ConnectionType
     ):
         client_wrapper = DeviceWrapper.match_model_to_str(device_type)
         if client_wrapper is None:
             gui_logger.error(f"Invalid device type! {device_type}")
             return
 
-        new_device: DeviceWrapper = client_wrapper(device_address, usb)
+        new_device: DeviceWrapper = client_wrapper(device_address, conn_type)
 
         if new_device.name in self.device_registry:
             gui_logger.debug(f"Device {device_address} already exists")
@@ -172,8 +176,8 @@ class _RunManager(QObject):
         gui_logger.info(
             f"Device connected: "
             f"name={new_device.name}, "
-            f"type={device_type}, "
-            f"connection_type={'USB' if usb else 'BLE'}"
+            f"device_type={device_type}, "
+            f"connection_type={new_device.connection.value}"
         )
 
         self.Signals.deviceConnected.emit(new_device.name)
@@ -199,7 +203,9 @@ class _RunManager(QObject):
         remove_spectrum: bool = False,
     ):
         client = self.device_registry.pop(device_name, None)
-        if client is None:
+        if client is None: 
+            if remove_spectrum:
+                self.Signals.removeDeviceSpectrum.emit(device_name)
             return
 
         try:
@@ -268,7 +274,7 @@ class _RunManager(QObject):
     async def connect_bluetooth_list(self, names: list[str]):
         """Takes a list of device names to be matched. A bluetooth scan is made and if devices with names matching the listed names they are connected."""
         connections_made = 0
-        gui_logger.info(f"Attepting connection to {names}")
+        gui_logger.info(f"Headless BLE connection: names={names}, scan_time={Settings.Advanced.headless_scan_length}s")
         async with self._scan_lock:
             devices = await BleakScanner.discover(
                 timeout=Settings.Advanced.headless_scan_length
@@ -280,9 +286,9 @@ class _RunManager(QObject):
                 for device_type in DeviceWrapper.get_registry().keys():
                     if device_type in device.name.lower():
                         gui_logger.info(
-                            f"Connecting device: name={device.name}, type={device_type}"
+                            f"Connecting BLE device: name={device.name}, type={device_type}"
                         )
-                        await self._add_device(device, device_type)
+                        await self._add_device(device, device_type, conn_type="BLE")
                         connections_made += 1
                         await asyncio.sleep(0.2)
 

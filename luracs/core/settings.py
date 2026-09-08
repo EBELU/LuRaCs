@@ -39,6 +39,7 @@ class _State:
     roi_regions: Any | None = None
     map_last_online_url: str = ""
     deconv_last_response_file: str = ""
+    last_network_connection_ip: str = ""
 
     def to_dict(self):
         return {
@@ -46,7 +47,8 @@ class _State:
             "loaded_spectra": self.loaded_spectra,
             "roi_regions": self.roi_regions,
             "map_last_online_url": self.map_last_online_url,
-            "deconv_last_response_file": self.deconv_last_response_file
+            "deconv_last_response_file": self.deconv_last_response_file,
+            "last_network_connection_ip": self.last_network_connection_ip
         }
 
     def from_dict(self, data):
@@ -55,6 +57,7 @@ class _State:
         self.roi_regions = data.get("roi_regions")
         self.map_last_online_url = data.get("map_last_online_url", "")
         self.deconv_last_response_file = data.get("deconv_last_response_file", "")
+        self.last_network_connection_ip = data.get("last_network_connection_ip", "")
 
 
 @dataclass

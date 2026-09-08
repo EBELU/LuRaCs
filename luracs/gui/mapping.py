@@ -142,6 +142,7 @@ class MapWidget(QWidget):
         self.tile_server = None
 
         main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(3,3,3,3)
 
         # --- Tool bar ---
         controls_group = QGroupBox("")
@@ -206,6 +207,10 @@ class MapWidget(QWidget):
 
         controls_group.setLayout(tool_bar)
         main_layout.addWidget(controls_group)
+        
+        # --- GPS status bar ---
+        self.gps_status_bar = QLabel()
+        
 
         # --- Map ---
         central_layout = QHBoxLayout()
@@ -254,6 +259,8 @@ class MapWidget(QWidget):
         self.color_proxy = pg.SignalProxy(
             self.view_slider.sigLevelsChanged, rateLimit=5, slot=self.change_color
         )
+        
+        self.view_slider.sigLookupTableChanged.connect(self.change_color)
 
         self.view_slider.gradient.loadPreset("viridis")
 
@@ -266,6 +273,7 @@ class MapWidget(QWidget):
         central_layout.addWidget(lut_container, stretch=2)
 
         main_layout.addLayout(central_layout)
+        main_layout.addWidget(self.gps_status_bar)
 
         # --- Data Containers ---
         self.selected_content = None

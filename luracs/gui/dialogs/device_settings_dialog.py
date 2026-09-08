@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from luracs.clients.DeviceWrappers import DeviceWrapper
+    from luracs.clients import DeviceWrapper
     from luracs.containers.instrument_classes import UniqueInstrument
 
 from PySide6.QtWidgets import (

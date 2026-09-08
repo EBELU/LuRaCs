@@ -1,7 +1,14 @@
 import time
+from dataclasses import dataclass
+
 import numpy as np
 
-from dataclasses import dataclass
+from luracs.clients.device_wrapper_base import (
+    DeviceWrapper,
+    WrappedRealTimePackage,
+    WrappedSpectrumPackage,
+    WrappedStatusPackage,
+)
 
 
 def sample_sparse_spectrum(template128):
@@ -28,135 +35,13 @@ def sample_sparse_spectrum(template128):
 
 cs137temp = (
     np.array(
-        [
-            32,
-            47,
-            49,
-            68,
-            70,
-            63,
-            69,
-            69,
-            70,
-            81,
-            78,
-            64,
-            52,
-            44,
-            39,
-            35,
-            32,
-            30,
-            29,
-            28,
-            28,
-            27,
-            25,
-            19,
-            13,
-            8,
-            6,
-            5,
-            5,
-            5,
-            9,
-            21,
-            40,
-            44,
-            27,
-            10,
-            4,
-            1,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
+        [32,47,49,68,70,63,69,69,70,81,78,64,52,44,39,
+         35,32,30,29,28,28,27,25,19,13,8,6,5,5,5,9,21,
+         40,44,27,10,4,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+         0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+         0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+         0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+         0,0,0,0,0,0,0,0,0,0,
         ]
     )
     + 1
@@ -222,3 +107,56 @@ class MockClient:
             [0.0003705, 2.3694975, 4.2583089],
             time.time(),
         )
+
+
+class MockClientWrapper(DeviceWrapper):
+    type = "mock"
+    has_calibration_settings = True
+
+    def __init__(self, address=None, usb=None):
+        super().__init__(address, usb)
+
+        self.name = "MockClient"
+        self.channels = 1024
+        self.client = MockClient(self.name)
+
+    async def get_RealTimeData(self):
+        latest = getattr(self.client, "LatestRealTimeData", None)
+        if latest is None:
+            return None
+
+        return WrappedRealTimePackage(
+            CPS = latest.CPS,
+            DR = latest.DR,
+            timestamp = getattr(latest, "timestamp", time.time()),
+        )
+
+    async def get_Status(self):
+        latest = getattr(self.client, "LatestStatusData", None)
+        if latest is None:
+            return None
+
+        return WrappedStatusPackage(
+            battery = getattr(latest, "battery", None),
+            temperature = getattr(latest, "temperature", None),
+            charging = getattr(latest, "charging", None),
+            timestamp = getattr(latest, "timestamp", time.time()),
+        )
+
+    async def get_Spectrum(self):
+        latest = getattr(self.client, "LatestSpectrum", None)
+        if latest is None:
+            return None
+
+        return WrappedSpectrumPackage(
+            y_axis = latest.spectrum,
+            live_time = latest.uptime,
+            calib_coeff = getattr(latest, "calib_coeff", None),
+            timestamp = getattr(latest, "timestamp", time.time()),
+        )
+
+    def is_running(self):
+        return getattr(self.client, "_running", False)
+
+    def is_stopped(self):
+        return getattr(self.client, "_stopped", True)

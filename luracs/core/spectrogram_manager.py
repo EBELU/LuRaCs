@@ -89,7 +89,8 @@ class SpectrogramManager(QObject):
         results = {}
         for roi in self.roi_registry.values():
             Emin, Emax = roi.E_region
-            roi_counts = np.sum(sg[:, ((Emin < Eaxis) & (Eaxis < Emax))], axis=1)
+            i0, i1 = np.searchsorted(Eaxis, Emin), np.searchsorted(Eaxis, Emax)
+            roi_counts = np.sum(sg[:, i0:i1], axis=1)
 
             results[roi.tag] = roi_counts / buffer.save_interval
 

@@ -62,7 +62,7 @@ def parse_cli_args(main_window: MainWindow, script_engine: ScriptEngine):
 
     if args.debug:
         loop = asyncio.get_event_loop()
-        RunManager.add_device("None", "mock")
+        RunManager.add_device("None", "mock", "BLE")
 
     if args.bluetooth:
         loop = asyncio.get_event_loop()

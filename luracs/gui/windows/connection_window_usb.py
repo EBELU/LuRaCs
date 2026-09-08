@@ -16,7 +16,7 @@ def _on_usb_device_selected(device: dict):
         print("Device has no serial number")
         return
 
-    RunManager.add_device(serial, product, True)
+    RunManager.add_device(serial, product, "USB")
 
 
 class USBListPopup(ListPopupNonBlocking):
