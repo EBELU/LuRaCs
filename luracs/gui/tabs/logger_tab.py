@@ -81,7 +81,7 @@ class LogWidget(QWidget):
         )
         handler.setFormatter(formatter)
 
-        loggers = ["Application", "RaysidClient", "RadiacodeClient"]
+        loggers = ["Application", "RaysidClient", "RadiacodeClient", "digiBaseClient"]
 
         for name in loggers:
             logger = logging.getLogger(name)

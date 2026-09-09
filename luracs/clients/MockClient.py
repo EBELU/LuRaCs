@@ -112,6 +112,10 @@ class MockClient:
 class MockClientWrapper(DeviceWrapper):
     type = "mock"
     has_calibration_settings = True
+    
+    @classmethod
+    def get_connection_types(cls):
+        return []
 
     def __init__(self, address=None, usb=None):
         super().__init__(address, usb)
@@ -160,3 +164,4 @@ class MockClientWrapper(DeviceWrapper):
 
     def is_stopped(self):
         return getattr(self.client, "_stopped", True)
+    

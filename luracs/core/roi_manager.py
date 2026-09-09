@@ -20,6 +20,8 @@ from luracs.utils.numerics import (
     poisson_weights,
 )
 
+import time
+
 
 def fit_gaussians(
     x_axis: np.ndarray,
@@ -33,7 +35,7 @@ def fit_gaussians(
 ):
     "Fit peaks to roi_group"
     region_min, region_max = np.min(bounds), np.max(bounds)
-    region = (region_min <= x_axis) & (x_axis <= region_max)
+    region = slice(np.searchsorted(x_axis, region_min), np.searchsorted(x_axis, region_max))
     x_region = x_axis[region].copy().astype(float)
     y_region = y_axis[region].copy().astype(float)
 
@@ -42,7 +44,7 @@ def fit_gaussians(
         lower, upper = np.min(b), np.max(b)
 
         # mask for this peak window
-        peak_mask = (lower <= x_region) & (x_region <= upper)
+        peak_mask = slice(np.searchsorted(x_region, lower), np.searchsorted(x_region, upper))
 
         x_peak = x_region[peak_mask]
         y_peak = y_region[peak_mask]
@@ -133,18 +135,19 @@ def fit_gaussians(
     results = []
     for b, fit, err in zip(bounds, fits, errs):
         lower, upper = np.min(b), np.max(b)
+        
+        i0 = np.searchsorted(x_axis, lower)
+        i1 = np.searchsorted(x_axis, upper)
 
-        peak_mask = (lower <= x_axis) & (x_axis <= upper)
-
-        x_peak = x_axis[peak_mask]
-        y_peak = y_axis[peak_mask]
+        x_peak = x_axis[i0:i1]
+        y_peak = y_axis[i0:i1]
 
         # Unnecessary?
         G = np.sum(y_peak)
         B = np.sum(np.polyval(bkg_fit, x_peak))
         N = G - B
 
-        peak_counts = np.sum(multi_gaussian(x_region, fit))
+        peak_area = np.sum(multi_gaussian(x_region, fit))
         fit_data = Fit(
             region_min,
             region_max,
@@ -157,7 +160,7 @@ def fit_gaussians(
             G,
             B,
             N,
-            peak_counts,
+            peak_area,
         )
         results.append(fit_data)
 

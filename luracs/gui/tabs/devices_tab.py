@@ -21,6 +21,7 @@ class DevicesInfoTab(QWidget):
             "Temperature",
             "Battery",
             "Charging",
+            "Voltage",
             "Status",
             "Type",
             "Connection",
@@ -95,10 +96,11 @@ class DevicesInfoTab(QWidget):
     def update_status(self, name: str, new_status: WrappedStatusPackage):
         if self.status_ts_buff[name] != new_status.timestamp:
             row_cpy = self.row_regestry[name].copy()
-            self.row_regestry[name][1:4] = [
+            self.row_regestry[name][1:5] = [
                 f"{round(new_status.temperature, 1)!s}°C",
                 f"{new_status.battery}%",
                 str(new_status.charging),
+                f"{new_status.voltage}V"
             ]
             row_cpy = self.row_regestry[name].copy()
             self.table.write_row(name, row_cpy[0:])

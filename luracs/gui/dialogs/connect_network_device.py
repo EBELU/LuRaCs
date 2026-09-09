@@ -27,6 +27,7 @@ class ConnectNetworkDeviceDialog(QDialog):
         form = QFormLayout()
 
         self.ip_line = QLineEdit()
+        self.ip_line.setMinimumWidth(250)
         self.ip_line.setText(Settings.State.last_network_connection_ip)
         form.addRow("Device IP", self.ip_line)
 

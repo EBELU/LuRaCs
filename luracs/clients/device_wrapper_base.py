@@ -38,6 +38,7 @@ class WrappedStatusPackage:
     charging: bool = False
     total_dose: float = np.nan
     total_uptime: float = np.nan
+    voltage: float = np.nan
     timestamp: float
 
 
@@ -74,19 +75,24 @@ class DeviceWrapper(ABC):
         STOPPING = auto()
         STOPPED = auto()
         ERROR = auto()
+        
+    @classmethod
+    @abstractmethod
+    def get_connection_types(cls):
+        pass
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         if hasattr(cls, "type") and cls.type:
             cls._registry[cls.type] = cls
 
-    def __init__(self, address, usb: bool, parent=None):
+    def __init__(self, address, connection: ConnectionType, parent=None):
         self.address = address
         try:
             self.name = address.name
         except AttributeError:
             self.name = str(address)
-        self.connection = ConnectionType.USB if usb else ConnectionType.BLE
+        self.connection = connection
         self.connected_timestamp = time.time()
         self.state = self.DeviceState.UNINITIALIZED
         
@@ -261,3 +267,4 @@ class DeviceWrapper(ABC):
         
     def reset_spectrum(self):
         pass
+        

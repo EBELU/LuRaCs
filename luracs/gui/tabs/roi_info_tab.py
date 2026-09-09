@@ -150,14 +150,16 @@ class ROIInfoTab(QWidget):
             "Upper",
             "Peak Center",
             "FWHM",
-            "Peak Counts",
+            "Peak Area",
             "ROI Counts",
+            "N Counts",
+            "B Counts",
             "Nuclide",
             "Photo Peak",
             "Peak Difference",
         ]
 
-        self.widths = [120, 120, 75, 75, 100, 100, 150, 150, 100, 100, 120]
+        self.widths = [120, 120, 75, 75, 100, 100, 120, 120, 120, 120, 100, 100, 120]
         self.table.reset_table(self.titles, self.widths)
 
         box_layout = QVBoxLayout(self.group_box)
@@ -232,8 +234,16 @@ class ROIInfoTab(QWidget):
         # ROI counts
         if cps:
             roi_counts = f"{round(roi.get_count_data('roi_counts', True), 4)} CPS"
+            N = f"{round(roi.get_count_data('N', True), 4)} CPS"
+            B = f"{round(roi.get_count_data('B', True), 4)} CPS"
         else:
             roi_counts = f"{int(roi.get_count_data('roi_counts', False)):,}".replace(
+                ",", " "
+            )
+            N = f"{int(roi.get_count_data('N', False)):,}".replace(
+                ",", " "
+            )
+            B = f"{int(roi.get_count_data('B', False)):,}".replace(
                 ",", " "
             )
 
@@ -253,6 +263,8 @@ class ROIInfoTab(QWidget):
                 f"{round(roi.fit.fwhm, 2)} keV",
                 peak_counts,
                 roi_counts,
+                N,
+                B,
                 roi.emission.parent_nuclide if roi.emission else "None",
                 f"{roi.emission.energy_keV} keV"
                 if roi.emission and roi.emission.energy_keV is not None
@@ -271,6 +283,8 @@ class ROIInfoTab(QWidget):
                 None,
                 None,
                 roi_counts,
+                "None",
+                "None",
                 "None",
                 "None",
                 "None",

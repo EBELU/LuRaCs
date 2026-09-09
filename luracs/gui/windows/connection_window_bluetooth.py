@@ -1,25 +1,27 @@
-import time
 import asyncio
-from PySide6.QtCore import Signal, QTimer, Qt
+import time
+
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import QListWidgetItem, QPushButton
+
+from luracs.core import RunManager
+from luracs.clients import DeviceWrapper, ConnectionType
 
 from .ListPopupBase import ListPopupNonBlocking
 
-from luracs.core import RunManager
 
-
-def _on_bt_device_selected(device):
+def _on_bt_device_selected(device, selection_type: str):
     if not device.name:
         return
 
-    if "radiacode" in device.name.lower():
-        device_type = "radiacode"
-    elif "raysid" in device.name.lower():
-        device_type = "raysid"
+    if selection_type == "auto":
+        for name in DeviceWrapper.get_registry():
+            if name.lower() in device.name.lower():
+                RunManager.add_device(device, name, "BLE")
+                break
+                
     else:
-        print(f"Invalid device type {device.name}")
-        return
-    RunManager.add_device(device, device_type, "BLE")
+        RunManager.add_device(device, selection_type, "BLE")
 
 
 class BluetoothListPopup(ListPopupNonBlocking):
@@ -31,7 +33,7 @@ class BluetoothListPopup(ListPopupNonBlocking):
     - Emits selected Bleak device
     """
 
-    deviceSelected = Signal(object)
+    deviceSelected = Signal(object, str)
     rescanRequested = Signal()
     cancelScan = Signal()
 
@@ -49,12 +51,16 @@ class BluetoothListPopup(ListPopupNonBlocking):
         self._scan_start_time = None
         self._devices_by_name: dict[str, object] = {}
 
+        for name, wrapper in DeviceWrapper.get_registry().items():
+            if ConnectionType.BLE in wrapper.get_connection_types():
+                self.alternatives_combo.addItem(name.replace("_", " ").capitalize(), name)
+
         # ------------------ Rescan button ------------------
         self.rescan_btn = QPushButton("Rescan")
         self.rescan_btn.clicked.connect(self._on_rescan)
 
         # Insert before Confirm
-        btn_layout = self.layout().itemAt(1).layout()
+        btn_layout = self.layout().itemAt(2).layout()
         btn_layout.insertWidget(0, self.rescan_btn)
 
         # ------------------ Countdown timer ------------------
@@ -164,14 +170,14 @@ class BluetoothListPopup(ListPopupNonBlocking):
             name = item.text().split(" ☢️")[0]
             dev = self._devices_by_name.get(name)
             if dev:
-                self.deviceSelected.emit(dev)
+                self.deviceSelected.emit(dev, self.alternatives_combo.currentData())
             self.close()
 
     def _on_double_click(self, item):
         name = item.text().split(" ☢️")[0]
         dev = self._devices_by_name.get(name)
         if dev:
-            self.deviceSelected.emit(dev)
+            self.deviceSelected.emit(dev, self.alternatives_combo.currentData())
         self.close()
 
     def _on_cancelled(self):

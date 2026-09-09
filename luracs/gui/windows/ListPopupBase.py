@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QPushButton,
     QHBoxLayout,
+    QComboBox
 )
 from PySide6.QtCore import Qt, Signal, QSize
 
@@ -46,6 +47,11 @@ class ListPopupNonBlocking(QDialog):
 
 
         layout.addWidget(self.list_widget)
+        
+        self.alternatives_combo = QComboBox()
+        self.alternatives_combo.addItem("Auto", "auto")
+        self.alternatives_combo.insertSeparator(self.alternatives_combo.count())
+        layout.addWidget(self.alternatives_combo)
 
         # ------------------ Buttons ------------------
         btn_layout = QHBoxLayout()

@@ -1,7 +1,15 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QListWidget, QListWidgetItem
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QListWidget,
+    QListWidgetItem,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 from luracs.core import Settings
+
 
 class DriverLibraryDialog(QWidget):
     def __init__(self, parent=None):
@@ -28,7 +36,6 @@ class DriverLibraryDialog(QWidget):
         # Load drivers from the third-party drivers library
         drivers_path = Settings.Paths.third_party_drivers_library
         for driver_file in drivers_path.glob("*"):
-            print(f"Checking driver file: {driver_file}")
             if driver_file.is_file():
                 item = QListWidgetItem(driver_file.name)
                 item.setData(Qt.UserRole, driver_file)
@@ -44,4 +51,5 @@ class DriverLibraryDialog(QWidget):
     
     def show(self):
         super().show()
+        self.driver_list.clear()
         self.load_drivers()

@@ -124,7 +124,9 @@ class _RunManager(QObject):
 
     async def _add_device(
         self, device_address: str, device_type: str, conn_type: ConnectionType
-    ):
+    ):  
+        if isinstance(conn_type, str):
+            conn_type = ConnectionType(conn_type)
         client_wrapper = DeviceWrapper.match_model_to_str(device_type)
         if client_wrapper is None:
             gui_logger.error(f"Invalid device type! {device_type}")
