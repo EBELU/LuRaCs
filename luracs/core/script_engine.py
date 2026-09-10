@@ -1,6 +1,8 @@
 import asyncio
 import shlex
+import threading
 import traceback
+from concurrent.futures import Future
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import NestedCompleter
@@ -15,22 +17,17 @@ from .script_engine_components.exceptions import (
 from .script_engine_components.registry import CommandRegistry
 
 
-# --- Helpers ---
 def clear_terminal():
     print("\033[2J\033[H", end="")
 
 
 class ScriptEngine(QObject):
-    """
-    The script engine converts text commands to actions for the application using async. It is the backbone of headless mode.
-    """
-
     sigCommandAppendOutput = Signal(str)
     sigCommandOutput = Signal(str)
     sigShutdown = Signal()
     sigCancelCurrent = Signal()
     sigClearConsole = Signal(str)
-    
+
     sigMapURL = Signal(str)
     sigMapFile = Signal(str)
 
@@ -42,65 +39,129 @@ class ScriptEngine(QObject):
         IS_H3: bool = False,
     ):
         super().__init__(parent)
-        self.queue = asyncio.Queue()
+
         self.headless = headless
         self.IS_H3 = IS_H3
         self.program_version = program_version
-        self._loop = None
-        self._tasks = []
-        self._current_command_task = None
-        self.output_suppressed = False
 
+        self._thread = threading.Thread(
+            target=self._thread_main,
+            name="ScriptEngine",
+            daemon=True,
+        )
+
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._loop_ready = threading.Event()
+
+        # These are created in the ScriptEngine thread
+        self.queue: asyncio.Queue | None = None
+        self._tasks = []
+        self._current_command_task: asyncio.Task | None = None
+
+        self.output_suppressed = False
         self.get_log_buffer = None
+        self.console_cleared = True
 
         self.registry = CommandRegistry()
         register_commands(self.registry)
+
         self.auto_completer = None
-        self.console_cleared = True
+        self.session = None
+
         if self.headless:
             self.auto_completer = self.make_autocompleter()
-            self.session = PromptSession(completer=self.auto_completer)
+            self.session = PromptSession(
+                completer=self.auto_completer
+            )
 
-    # --- Startup ---
-    async def start(self):
-        self._loop = asyncio.get_running_loop()
+        self._thread.start()
+        self._loop_ready.wait()
 
-        # Create background tasks
-        self._tasks.append(asyncio.create_task(self._run()))
+    # ------------------------------------------------------------------
+    # Thread / asyncio infrastructure
+    # ------------------------------------------------------------------
+
+    def _thread_main(self):
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        self._loop = loop
+        self.queue = asyncio.Queue()
+
+        self._loop_ready.set()
+
+        try:
+            loop.run_forever()
+        finally:
+            loop.run_until_complete(loop.shutdown_asyncgens())
+            loop.close()
+
+    def submit_to_thread(self, coro) -> Future:
+        """Submit an asyncio coroutine to the ScriptEngine thread."""
+
+        if self._loop is None:
+            raise RuntimeError("ScriptEngine thread is not running")
+
+        return asyncio.run_coroutine_threadsafe(
+            coro,
+            self._loop,
+        )
+
+    def call_soon_threadsafe(self, callback, *args):
+        if self._loop is None:
+            raise RuntimeError("ScriptEngine thread is not running")
+
+        self._loop.call_soon_threadsafe(callback, *args)
+
+    # ------------------------------------------------------------------
+    # Startup
+    # ------------------------------------------------------------------
+
+    def start(self):
+        return self.submit_to_thread(self._start())
+
+    async def _start(self):
+        self._tasks.append(
+            asyncio.create_task(self._run())
+        )
 
         if self.headless:
-            self._tasks.append(asyncio.create_task(self._read_input()))
+            self._tasks.append(
+                asyncio.create_task(self._read_input())
+            )
 
-        self.queue.put_nowait(f"clear {self.headless}")  # Show welcome message
+        self.queue.put_nowait(
+            f"clear {self.headless}"
+        )
 
-    def make_autocompleter(self) -> dict:
-        command_args = {"exit": None}
-        for cmd in self.registry.commands.values():
-            command_args[cmd.name] = cmd.get_auto_complete()
-        return NestedCompleter.from_nested_dict(command_args)
+    # ------------------------------------------------------------------
+    # Input
+    # ------------------------------------------------------------------
 
     async def _read_input(self):
         try:
             while True:
                 try:
-                    # Update the autocompleter
-                    self.session.completer = self.make_autocompleter()
+                    self.session.completer = (
+                        self.make_autocompleter()
+                    )
 
-                    # await self.queue.join()
+                    await asyncio.sleep(0.1)
 
-                    await asyncio.sleep(
-                        0.1
-                    )  # Wait so the input is under the displayed output
-                    cmd = await self.session.prompt_async("LuRaCs Console <<< ")
+                    cmd = await self.session.prompt_async(
+                        "LuRaCs Console <<< "
+                    )
 
                 except KeyboardInterrupt:
-                    # Cancel whatever is going on but dont lock up the program
                     self.sigCancelCurrent.emit()
                     self.cancel_current_command()
                     self.queue.put_nowait("clear")
                     continue
 
-                if self._current_command_task and not self._current_command_task.done():
+                if (
+                    self._current_command_task
+                    and not self._current_command_task.done()
+                ):
                     self.sigCancelCurrent.emit()
                     self.cancel_current_command()
                     self.queue.put_nowait("clear")
@@ -110,88 +171,79 @@ class ScriptEngine(QObject):
 
                 await self.queue.put(cmd.strip())
 
-                if cmd.strip().lower() in ("exit", "quit", "shutdown"):
+                if cmd.strip().lower() in (
+                    "exit",
+                    "quit",
+                    "shutdown",
+                ):
                     break
 
         except asyncio.CancelledError:
-            # Stop!
             self.cancel_current_command()
-            return
 
-    # --- Main command loop ---
+    # ------------------------------------------------------------------
+    # Command loop
+    # ------------------------------------------------------------------
+
     async def _run(self):
-        "Run the execution loop"
         try:
             while True:
                 cmd = await self.queue.get()
 
-                if cmd == "__exit__":
-                    break
-
-                cmd = cmd.strip()
-                if not cmd:
-                    continue
-
                 try:
+                    if cmd == "__exit__":
+                        break
+
+                    cmd = cmd.strip()
+
+                    if not cmd:
+                        continue
+
                     await self.command_parser(cmd)
+
                 finally:
                     self.queue.task_done()
 
         except asyncio.CancelledError:
-            return
+            pass
 
-    # --- Shutdown ---
-    async def stop(self):
-        await self.queue.put("__exit__")
+    # ------------------------------------------------------------------
+    # Commands from GUI / other threads
+    # ------------------------------------------------------------------
 
-        # cancel background tasks
-        for task in self._tasks:
-            task.cancel()
-
-        # wait for them to finish cleanly
-        await asyncio.gather(*self._tasks, return_exceptions=True)
-
-    # --- Sync-safe entry point ---
     def submit_from_sync(self, cmd: str):
-        "Put a command in the execution queue"
+        """
+        Thread-safe way to submit a command.
+        """
         if self._loop is None:
             return
 
-        self._loop.call_soon_threadsafe(self.queue.put_nowait, cmd)
+        self._loop.call_soon_threadsafe(
+            self.queue.put_nowait,
+            cmd,
+        )
 
-    def print_output(self, text: str):
-        if self.output_suppressed:
-            return
+    # ------------------------------------------------------------------
+    # Command handling
+    # ------------------------------------------------------------------
 
-        if self.headless:
-            if text:
-                clear_terminal()
-
-            print(text)
-        else:
-            if self.console_cleared:
-                self.sigClearConsole.emit("")
-                self.console_cleared = False
-
-            self.sigCommandOutput.emit(text if text else "")
-
-    # --- Command handling ---
     async def command_parser(self, cmd: str):
-        "Where the dough is made"
         if self._current_command_task:
             self.sigCancelCurrent.emit()
             self.cancel_current_command()
 
-        commands = shlex.split(cmd)  # Split it like a unix shell
+        commands = shlex.split(cmd)
+
         if not commands:
             return
 
         cmd_name = commands[0].lower()
         cmd_args = commands[1:]
 
-        # Shutdown?
         if cmd_name in ("exit", "quit", "shutdown"):
-            self.sigCommandAppendOutput.emit("Shutting down...")
+            self.sigCommandAppendOutput.emit(
+                "Shutting down..."
+            )
             self.sigShutdown.emit()
             return
 
@@ -200,16 +252,17 @@ class ScriptEngine(QObject):
             self.sigClearConsole.emit("")
 
         command = self.registry.get(cmd_name)
+
         if not command:
-            # If the command does not exist give some help
             self.sigCommandOutput.emit(
-                f"Unknown command: {cmd_name}. Type 'help' for a list of commands."
+                f"Unknown command: {cmd_name}. "
+                f"Type 'help' for a list of commands."
             )
             return
 
         res = None
+
         try:
-            # Run the command and catch the result
             self._current_command_task = asyncio.create_task(
                 command.run(self, *cmd_args)
             )
@@ -219,13 +272,14 @@ class ScriptEngine(QObject):
         except asyncio.CancelledError:
             pass
 
-        except (InvalidCommandError, ArgumentError, ActiveGUIError) as e:
-            # These are errors defined to help with the execution of the command
-            # They do not constitute a real error or crash
+        except (
+            InvalidCommandError,
+            ArgumentError,
+            ActiveGUIError,
+        ) as e:
             res = f"{type(e).__name__}: {e}"
 
         except Exception:
-            # If something crashes for real give a proper traceback
             res = traceback.format_exc()
 
         finally:
@@ -236,8 +290,75 @@ class ScriptEngine(QObject):
         if cmd_name == "clear":
             self.console_cleared = True
 
+    # ------------------------------------------------------------------
+    # Shutdown
+    # ------------------------------------------------------------------
+
+    def stop(self):
+        """
+        Thread-safe synchronous request to stop the engine.
+        """
+        return self.submit_to_thread(
+            self._stop()
+        )
+
+    async def _stop(self):
+        if self.queue:
+            await self.queue.put("__exit__")
+
+        for task in self._tasks:
+            task.cancel()
+
+        await asyncio.gather(
+            *self._tasks,
+            return_exceptions=True,
+        )
+
+        self._tasks.clear()
+
+        loop = asyncio.get_running_loop()
+        loop.stop()
+
+    # ------------------------------------------------------------------
+    # Misc
+    # ------------------------------------------------------------------
+
+    def make_autocompleter(self) -> dict:
+        command_args = {"exit": None}
+
+        for cmd in self.registry.commands.values():
+            command_args[cmd.name] = (
+                cmd.get_auto_complete()
+            )
+
+        return NestedCompleter.from_nested_dict(
+            command_args
+        )
+
+    def print_output(self, text: str):
+        if self.output_suppressed:
+            return
+
+        if self.headless:
+            if text:
+                clear_terminal()
+
+            print(text)
+
+        else:
+            if self.console_cleared:
+                self.sigClearConsole.emit("")
+                self.console_cleared = False
+
+            self.sigCommandOutput.emit(
+                text if text else ""
+            )
+
     def cancel_current_command(self):
-        if self._current_command_task and not self._current_command_task.done():
+        if (
+            self._current_command_task
+            and not self._current_command_task.done()
+        ):
             self._current_command_task.cancel()
 
     def connect_log_buffer(self, get_log_fn):

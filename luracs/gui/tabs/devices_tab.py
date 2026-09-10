@@ -1,3 +1,4 @@
+import numpy as np
 from PySide6.QtWidgets import (
     QGroupBox,
     QVBoxLayout,
@@ -26,7 +27,7 @@ class DevicesInfoTab(QWidget):
             "Type",
             "Connection",
         ]
-        widths = [10, 150] + [100] * (len(titles) - 1)
+        widths = "fit"
 
         self.table = StrIdxTable(has_menu_button=True)
         self.table.reset_table(titles, widths)
@@ -79,9 +80,10 @@ class DevicesInfoTab(QWidget):
             "None",
             "None",
             "None",
+            "None",
             str(wrapper.state.name),
             str(wrapper.type),
-            str(wrapper.connection.name),
+            wrapper.connection if isinstance(wrapper.connection, str) else str(wrapper.connection.name),
         ]
         self.table.write_row(
             name, self.row_regestry[name], menu_button=self.build_menu_button(name)
@@ -89,7 +91,7 @@ class DevicesInfoTab(QWidget):
         self.status_ts_buff[name] = 0
 
     def update_state(self, name: str, new_state: DeviceWrapper.DeviceState):
-        self.row_regestry[name][4] = new_state.name
+        self.row_regestry[name][5] = new_state.name
         row_cpy = self.row_regestry[name].copy()
         self.table.write_row(name, row_cpy[0:])
 
@@ -97,10 +99,10 @@ class DevicesInfoTab(QWidget):
         if self.status_ts_buff[name] != new_status.timestamp:
             row_cpy = self.row_regestry[name].copy()
             self.row_regestry[name][1:5] = [
-                f"{round(new_status.temperature, 1)!s}°C",
-                f"{new_status.battery}%",
+                f"{round(new_status.temperature, 1)!s}°C" if not np.isnan(new_status.temperature) else 'nan',
+                f"{new_status.battery}%" if not np.isnan(new_status.battery) else 'nan',
                 str(new_status.charging),
-                f"{new_status.voltage}V"
+                f"{str(new_status.voltage)+'V' if not np.isnan(new_status.voltage) else 'nan'}"
             ]
             row_cpy = self.row_regestry[name].copy()
             self.table.write_row(name, row_cpy[0:])

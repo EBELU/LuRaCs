@@ -61,13 +61,11 @@ def parse_cli_args(main_window: MainWindow, script_engine: ScriptEngine):
     args = parser.parse_args()
 
     if args.debug:
-        loop = asyncio.get_event_loop()
         RunManager.add_device("None", "mock", "BLE")
 
     if args.bluetooth:
-        loop = asyncio.get_event_loop()
         Log.info(f"Initializing BLE devices: {args.bluetooth}")
-        loop.create_task(RunManager.connect_bluetooth_list(args.bluetooth))
+        RunManager.submit_to_thread(RunManager.connect_bluetooth_list(args.bluetooth))
 
     if args.usb:
         connected_usb = RunManager.scan_all_usb()

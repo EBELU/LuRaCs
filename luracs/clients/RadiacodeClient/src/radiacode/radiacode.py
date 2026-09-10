@@ -118,12 +118,12 @@ class RadiaCode:
         req_header = struct.pack('<HBB', int(reqtype), 0, req_seq_no)
         request = req_header + (args or b'')
         full_request = struct.pack('<I', len(request)) + request
-
+    
         if isinstance(self._connection, Bluetooth):
             response = await self._connection.execute(full_request)
         else:
             response = self._connection.execute(full_request)
-            
+                        
 
         resp_header = response.unpack('<4s')[0]
         assert req_header == resp_header, f'req={req_header.hex()} resp={resp_header.hex()}'

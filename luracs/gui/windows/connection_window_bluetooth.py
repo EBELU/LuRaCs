@@ -191,7 +191,7 @@ class BluetoothListPopup(ListPopupNonBlocking):
 
     def _request_bt_scan(self):
         self.start_scan_ui()
-        self.scan_task = asyncio.create_task(RunManager.find_bluetooth())
+        self.scan_task = RunManager.submit_to_thread(RunManager.find_bluetooth())
 
     def receive_BT_list(self, device_list):
         self.set_devices(device_list)

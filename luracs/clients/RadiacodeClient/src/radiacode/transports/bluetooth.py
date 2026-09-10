@@ -30,7 +30,7 @@ class Bluetooth:
 
         self._client: Optional[BleakClient] = None
 
-        self._queue: asyncio.Queue[_Request] = asyncio.Queue()
+        self._queue: asyncio.Queue[_Request] | None = None
         self._task: Optional[asyncio.Task] = None
         self._keepalive_task: Optional[asyncio.Task] = None
 
@@ -50,6 +50,7 @@ class Bluetooth:
             return
 
         self._running = True
+        self._queue = asyncio.Queue()
         self._task = asyncio.create_task(self._worker())
 
     async def execute(self, req: bytes) -> BytesBuffer:
@@ -71,15 +72,21 @@ class Bluetooth:
             self._keepalive_task.cancel()
             try:
                 await self._keepalive_task
+            except asyncio.CancelledError:
+                pass
             except Exception:
                 pass
+            self._keepalive_task = None
 
         if self._task:
             self._task.cancel()
             try:
                 await self._task
+            except asyncio.CancelledError:
+                pass
             except Exception:
                 pass
+            self._task = None
 
         await self._disconnect()
 
@@ -143,9 +150,9 @@ class Bluetooth:
         self._reconnect_cycles += 1
 
         if self._reconnect_cycles >= self._max_reconnect_cycles:
-            raise RuntimeError('Max reconnect cycles exceeded') from last_err
+            raise RuntimeError("'ConnectionError(Max reconnect cycles exceeded'") from last_err
 
-        raise ConnectionError('Connect cycle failed') from last_err
+        raise ConnectionError("'ConnectionError(Bluetooth connection was lost!)'") from last_err
 
     async def _handle_request(self, req: bytes) -> bytes:
         if not self._client:

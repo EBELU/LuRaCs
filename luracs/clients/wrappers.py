@@ -104,7 +104,9 @@ class RadiacodeWrapper(DeviceWrapper):
         return self.calibration_coefficients
         
     def reset_spectrum(self):
-        self.client.reset()
+        self.run_manager.submit_to_thread(
+            self.client.client.spectrum_reset()
+        )
         
         
         

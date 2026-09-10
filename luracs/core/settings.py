@@ -1,3 +1,8 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from luracs.clients.device_wrapper_base import DeviceWrapper, ConnectionType
+    
 import json
 import sys
 from collections import deque
@@ -169,9 +174,11 @@ class _Settings(QObject):
         with open(self.Paths.settings_file, "w") as f:
             json.dump(json_content, f, indent=4)
 
-    def add_new_connection(self, name):
-        if name not in list(self.State.last_connections):
-            self.State.last_connections.append(name)
+    def add_new_connection(self, name: str, wrapper: DeviceWrapper):
+        if wrapper.connection.name != "BLE":
+            return
+        if str(wrapper.name) not in list(self.State.last_connections):
+            self.State.last_connections.append(str(wrapper.name))
         self.latestConnectionUpdated.emit(list(self.State.last_connections))
 
 

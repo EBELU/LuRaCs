@@ -232,7 +232,7 @@ class SpectrumTab(LibraryTab):
         super().__init__(
             parent,
             self.titles,
-            [150, 140, 75, 95, 50, 100],
+            "stretch",
             True,
         )
         self.include_instrument_check.setChecked(True)
@@ -263,7 +263,7 @@ class SpectrumTab(LibraryTab):
             else:
                 date = live_time = None
 
-            has_bkg = True if parser.data.get("background") is not None else False
+            has_bkg = parser.data.get("background") is not None
             peaks = (
                 parser.data.get("peaks") if parser.data.get("peaks") is not None else []
             )
@@ -436,7 +436,7 @@ class SpectrogramTab(LibraryTab):
         super().__init__(
             parent,
             ["Name", "Start Date", "End Date", "Duration", "Instrument"],
-            (230, 150, 150, 65, 130),
+            "stretch",
             True,
         )
 
@@ -461,7 +461,7 @@ class SpectrogramTab(LibraryTab):
     def set_table(self):
         self.table.reset_table(
             ["Name", "Start Date", "End Date", "Duration", "Instrument"],
-            (230, 150, 150, 65, 130),
+            "stretch",
         )
         for key, parser in IOManager.FileIndex.spectrogram_index.get_index().items():
             header, summary = parser.get_header(), parser.get_summary()
@@ -559,7 +559,7 @@ class SpectrogramTab(LibraryTab):
 
 class ROIsTab(LibraryTab):
     def __init__(self, parent):
-        super().__init__(parent, ["Name", "ROIs", "Regions"], [150, 50, 400])
+        super().__init__(parent, ["Name", "ROIs", "Regions"], "fit")
         self.btn_load.clicked.connect(self.load)
         self.table.table.cellDoubleClicked.connect(self.load)
         export_xml = self.export_menu.addAction("LuRaCs ROI File (*.xml)")
@@ -576,7 +576,7 @@ class ROIsTab(LibraryTab):
         self.delete_fn = IOManager.FileIndex.roi_index.delete_file
 
     def set_table(self):
-        self.table.reset_table(["Name", "ROIs", "Regions"], [150, 50, 400])
+        self.table.reset_table(["Name", "ROIs", "Regions"], "fit")
         for key, parser in IOManager.FileIndex.roi_index.get_index().items():
             rois = parser.get_rois()
             regions = ", ".join([str([round(rb) for rb in r.roi_bound]) for r in rois])
@@ -644,7 +644,7 @@ class InstrumentsTab(LibraryTab):
         super().__init__(
             parent,
             ["Name", "Model", "Calibration", "Resolution", "Efficiency"],
-            [200, 200, 100, 100, 100],
+            "fit",
         )
         self.btn_load.setText("New")
         self.btn_load.clicked.connect(self.new)
@@ -779,7 +779,7 @@ class InstrumentsTab(LibraryTab):
 
 class GenericInstrumentsTab(LibraryTab):
     def __init__(self, parent):
-        super().__init__(parent, ["Model", "Resolution", "Efficiency"], [200, 100, 100])
+        super().__init__(parent, ["Model", "Resolution", "Efficiency"], "fit")
         self.btn_load.setText("New")
         self.btn_load.clicked.connect(self.new)
         self.btn_info.clicked.connect(self.edit)

@@ -1,13 +1,13 @@
 import asyncio
 import time
 from dataclasses import dataclass
-from bleak.exc import BleakError
 
 import numpy as np
+from bleak.exc import BleakError
 
-from .types import RealTimeData, RawData, RareData
-from .radiacode import RadiaCode
 from .logger import logger
+from .radiacode import RadiaCode
+from .types import RareData, RealTimeData
 
 
 @dataclass(frozen=True)
@@ -71,9 +71,9 @@ class RadiacodeAsync:
             data = await self.client.data_buf()
             self._decode_cps_packet(data)
         except BleakError as e:
-            if "Service Discovery has not been performed yet" in str(e):
+            if 'Service Discovery has not been performed yet' in str(e):
                 logger.warning(
-                    "GATT services not ready; returning last buffered CPS value"
+                    'GATT services not ready; returning last buffered CPS value'
                 )
                 return self._latest_cps
             raise
@@ -115,13 +115,6 @@ class RadiacodeAsync:
         if self.client:
             await self.client.stop()
 
-    def reset(self):
-        if self.client:
-            asyncio.create_task(self.client.spectrum_reset())
-
-    def set_calibration(self, calib_coeff):
-        if self.client:
-            asyncio.create_task(self.client.set_energy_calib(calib_coeff))
 
     # ---------------- INTERNAL LOOP ----------------
 

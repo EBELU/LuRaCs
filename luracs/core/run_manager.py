@@ -3,13 +3,15 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from luracs.spectrogram import Spectrogram
     from luracs.clients import WrappedRealTimePackage
+    from luracs.spectrogram import Spectrogram
 
 import asyncio
 import sys
 import time
 from collections import deque
+import threading
+from concurrent.futures import Future
 
 import numpy as np
 from bleak import BleakScanner
@@ -37,7 +39,7 @@ else:
     import usb.util
 
 
-from luracs.clients import CriticalNotImplementedError, DeviceWrapper, ConnectionType
+from luracs.clients import ConnectionType, CriticalNotImplementedError, DeviceWrapper
 
 from .gui_logger import gui_logger
 from .spectrogram_manager import SpectrogramManager
@@ -54,6 +56,8 @@ class EmittedSignals(QObject):
 
     createDeviceSpectrum = Signal(str, int, str)
     removeDeviceSpectrum = Signal(str)
+    
+    closeSpectrogram = Signal(str)
 
     # ---- lifecycle signals ----
     newDeviceWrapped = Signal(str, object)
@@ -75,6 +79,8 @@ class EmittedSignals(QObject):
     bluetoothTimer = Signal(float)
     bluetoothFound = Signal(list)
     bluetoothError = Signal(str)
+    
+    toDeivceResetSpectrum = Signal()
 
 
 class _RunManager(QObject):
@@ -85,18 +91,30 @@ class _RunManager(QObject):
     def __init__(self):
         super().__init__()
 
+        self._thread = threading.Thread(
+            target=self._thread_main,
+            name="RunManager",
+            daemon=True,
+        )
+
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._loop_ready = threading.Event()    
+
         self.Signals = EmittedSignals()
 
         self.poll_start_time = time.monotonic()
         # Store the connection in settings for quick connection
         self.Signals.deviceConnecting.connect(Settings.add_new_connection)
         self.Signals.currentUpdated.connect(self.receive_realtime_package)
+        self.Signals.closeSpectrogram.connect(self.close_spectrogram)
+        
+        self.Signals.newDeviceWrapped.connect(Settings.add_new_connection)
 
         # Connected devices
         self.device_registry: dict[str, DeviceWrapper] = {}
 
         self._scan_task: asyncio.Task | None = None
-        self._scan_lock = asyncio.Lock()
+        self._scan_lock: asyncio.Lock | None = None
         self._scanner = None
 
         # Bind in the RunManager to the DeviceWrapper-class
@@ -110,17 +128,66 @@ class _RunManager(QObject):
         self.queue_len = Settings.Advanced.real_time_values_deque_length
         self.cps_buffers: dict[str, deque] = {}
         self.dr_buffers: dict[str, deque] = {}
+        
+        self._thread.start()
+        self._loop_ready.wait()
+        
+    def _thread_main(self):
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        self._loop = loop
+        self._scan_lock = asyncio.Lock()
+
+        self._loop_ready.set()
+
+        try:
+            loop.run_forever()
+        finally:
+            loop.run_until_complete(loop.shutdown_asyncgens())
+            loop.close()
+
+    def submit_to_thread(self, coro) -> Future:
+        """Submit an asyncio coroutine to the RunManager thread."""
+        if self._loop is None:
+            raise RuntimeError("RunManager thread is not running")
+
+        return asyncio.run_coroutine_threadsafe(
+            coro,
+            self._loop,
+        )
+        
+    async def call_in_thread(self, coro):
+        future = self.submit_to_thread(coro)
+        return await asyncio.wrap_future(future)
+    
+    async def call(self, coro):
+        """Run a coroutine on the RunManager loop and await it from another loop."""
+        future = self.submit_to_thread(coro)
+
+        return await asyncio.wrap_future(future)
+
 
     # ------------------------------------------------------------------
     # Connection and disconnection of devices
     # ------------------------------------------------------------------
 
     # --- Device Connection ---
-    def add_device(self, device_address: str, device_type: str, conn_type: ConnectionType):
-        "Sync interface for connecting a device to the RunManager"
-        if isinstance(conn_type, str):
-            conn_type = ConnectionType(conn_type)
-        asyncio.create_task(self._add_device(device_address, device_type, conn_type))
+    def add_device(
+        self,
+        device_address: str,
+        device_type: str,
+        conn_type: ConnectionType,
+    ):
+
+        return self.submit_to_thread(
+            self._add_device(
+                device_address,
+                device_type,
+                conn_type,
+            )
+        )
+
 
     async def _add_device(
         self, device_address: str, device_type: str, conn_type: ConnectionType
@@ -181,6 +248,8 @@ class _RunManager(QObject):
             f"device_type={device_type}, "
             f"connection_type={new_device.connection.value}"
         )
+        
+        self.Signals.toDeivceResetSpectrum.connect(new_device.reset_spectrum)
 
         self.Signals.deviceConnected.emit(new_device.name)
         self.Signals.createDeviceSpectrum.emit(
@@ -197,7 +266,7 @@ class _RunManager(QObject):
 
     def remove_device(self, device_name: str, remove_spectrum: bool = False):
         "Sync interface for disconnecting a device from the RunManager"
-        asyncio.create_task(self._remove_device(device_name, remove_spectrum))
+        self.submit_to_thread(self._remove_device(device_name, remove_spectrum))
 
     async def _remove_device(
         self,
@@ -215,6 +284,8 @@ class _RunManager(QObject):
             self.Signals.deviceStateUpdated.emit(device_name, client.state)
 
             gui_logger.info(f"Stopping device {device_name}")
+            self.Signals.toDeivceResetSpectrum.disconnect(client.reset_spectrum)
+            
             await client.stop()
 
             gui_logger.info(f"Device disconnected: {device_name}")
@@ -237,9 +308,9 @@ class _RunManager(QObject):
         # --- Close active loggers ---
         for logger_key in self.SpectrogramManager.spectrogram_registry.copy().keys():
             try:
-                self.close_spectrogram(logger_key)
+                self.Signals.closeSpectrogram.emit(logger_key)
             except Exception as e:
-                gui_logger.warning(f"Closing spectrogram {logger_key} raised {e}")
+                gui_logger.warning(f"Closing spectrogram {logger_key} raised: {e}")
 
         # --- Stop devices ---
         async def stop_device(device: DeviceWrapper):
@@ -256,6 +327,7 @@ class _RunManager(QObject):
             asyncio.create_task(stop_device(device))
             for device in self.device_registry.values()
         ]
+
         await asyncio.gather(*tasks, return_exceptions=True)
 
         self.device_registry.clear()
@@ -409,8 +481,7 @@ class _RunManager(QObject):
     # ------------------------------------------------------------------
 
     def reset_all_spectra(self):
-        for w in self.device_registry.values():
-            w.reset_spectrum()
+        self.Signals.toDeivceResetSpectrum.emit()
 
 
 RunManager = _RunManager()

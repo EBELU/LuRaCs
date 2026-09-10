@@ -1,5 +1,4 @@
 import sys
-import asyncio
 import logging
 
 __version__ = "0.3.1"
@@ -19,7 +18,6 @@ logging.basicConfig(level=logging.INFO)
 # --- Vital imports for core application to function ---
 from PySide6.QtWidgets import QApplication, QSplitter
 from PySide6.QtCore import Qt
-from qasync import QEventLoop
 from luracs.core import (
     RunManager,
     Log,
@@ -124,15 +122,17 @@ async def _async_close():
     if _closing:
         return
     _closing = True
-    try:
-        await RunManager.shutdown()
-    finally:
-        QApplication.quit()
+    await RunManager.shutdown()
+        
 
 
 def close():
-    Settings.save_settings()
-    asyncio.create_task(_async_close())
+    try:
+        Settings.save_settings()
+        RunManager.Signals.shutdownFinished.connect(QApplication.quit)
+        RunManager.submit_to_thread(_async_close())
+    except:
+        QApplication.quit()
 
 
 # ===================== MAIN WINDOW =====================
@@ -341,8 +341,6 @@ def main():
     app.setWindowIcon(
         QIcon(str(Settings.Paths.themes / "icons" / "main_icon_green.png"))
     )
-    loop = QEventLoop(app)
-    asyncio.set_event_loop(loop)
 
     # Check if headless
     if "--headless" in sys.argv:
@@ -379,7 +377,7 @@ def main():
     app.aboutToQuit.connect(on_quit)
 
     # Connect Signals
-    script_engine.sigShutdown.connect(lambda: asyncio.create_task(_async_close()))
+    script_engine.sigShutdown.connect(close)
     script_engine.connect_log_buffer(log_utils.log_buffer.get_messages)
     if win is not None:  # Does the main window exist?
         win.console_tab.sigCommandEntered.connect(script_engine.submit_from_sync)
@@ -389,6 +387,8 @@ def main():
 
         script_engine.sigMapURL.connect(win.map_widget.load_map_from_url)
         script_engine.sigMapFile.connect(win.map_widget.load_offline_map)
+        
+    script_engine.start()
 
     print_progress("Done!", 10)
     print()
@@ -407,11 +407,7 @@ def main():
         QTimer.singleShot(250, lambda: parse_cli_args(win, script_engine))
     # QTimer.singleShot(0, lambda: RunManager.SpectrogramManager.add_roi(300, 400))
 
-    # --- Start the event loop ---
-    with loop:
-        loop.create_task(script_engine.start())
-        loop.run_forever()
-
+    app.exec()
 
 if __name__ == "__main__":
     main()

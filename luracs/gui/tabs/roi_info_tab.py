@@ -232,20 +232,23 @@ class ROIInfoTab(QWidget):
         cps = SpectrumManager.ROIManager.spectrum_is_cps
 
         # ROI counts
+        N = B = "None"
         if cps:
             roi_counts = f"{round(roi.get_count_data('roi_counts', True), 4)} CPS"
-            N = f"{round(roi.get_count_data('N', True), 4)} CPS"
-            B = f"{round(roi.get_count_data('B', True), 4)} CPS"
+            if roi.fit is not None:
+                N = f"{round(roi.get_count_data('N', True), 4)} CPS"
+                B = f"{round(roi.get_count_data('B', True), 4)} CPS"
         else:
             roi_counts = f"{int(roi.get_count_data('roi_counts', False)):,}".replace(
                 ",", " "
             )
-            N = f"{int(roi.get_count_data('N', False)):,}".replace(
-                ",", " "
-            )
-            B = f"{int(roi.get_count_data('B', False)):,}".replace(
-                ",", " "
-            )
+            if roi.fit is not None:
+                N = f"{int(roi.get_count_data('N', False)):,}".replace(
+                    ",", " "
+                )
+                B = f"{int(roi.get_count_data('B', False)):,}".replace(
+                    ",", " "
+                )
 
         if roi.fit is not None:
             peak_counts = (

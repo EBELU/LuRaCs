@@ -1,9 +1,9 @@
 from PySide6.QtWidgets import (
-    QWidget,
+    QAbstractItemView,
+    QHeaderView,
     QTableWidget,
     QTableWidgetItem,
-    QAbstractItemView,
-    QPushButton,
+    QWidget,
 )
 
 
@@ -24,7 +24,7 @@ class StrIdxTable(QWidget):
 
         self.has_been_set = False
 
-        self.current_keys = set([])
+        self.current_keys = set()
 
         self.has_menu_button = has_menu_button
 
@@ -68,8 +68,9 @@ class StrIdxTable(QWidget):
             self.table.setColumnCount(len(titles))
             self.table.setHorizontalHeaderLabels(titles)
         self.table.setMinimumHeight(50)
+    
 
-        if widths is not None:
+        if isinstance(widths, (list, tuple)):
             if self.has_menu_button:
                 assert len(widths) == len(titles) - 1, (
                     f"Length of widths does not match, titles {len(titles)}, widths {len(widths)}"
@@ -82,6 +83,17 @@ class StrIdxTable(QWidget):
                 )
                 for i in range(len(widths)):
                     self.table.setColumnWidth(i + 1, widths[i])
+        elif isinstance(widths, str):
+            header = self.table.horizontalHeader()
+            if widths.lower() == "fit":
+                header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+            elif widths.lower() == "stretch":
+                header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+            else:
+                raise ValueError(f"Invalid width string! {widths}")
+            
+        elif widths is not None:
+            raise TypeError(f"Invalid width type! {type(widths)}")
 
         self.table.setColumnHidden(0, True)
         self.current_keys.clear()

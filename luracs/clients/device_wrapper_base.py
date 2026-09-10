@@ -93,6 +93,7 @@ class DeviceWrapper(ABC):
         except AttributeError:
             self.name = str(address)
         self.connection = connection
+        assert isinstance(self.connection, ConnectionType), f"Error connection is of type {type(self.connection)}"
         self.connected_timestamp = time.time()
         self.state = self.DeviceState.UNINITIALIZED
         

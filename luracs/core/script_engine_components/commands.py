@@ -1,32 +1,33 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from clients.DeviceWrappers import WrappedRealTimePackage, WrappedStatusPackage
     from luracs.core.script_engine import ScriptEngine
+
     from .registry import CommandRegistry
 
-from abc import ABC, abstractmethod
 import asyncio
-from pathlib import Path
-
-from datetime import timedelta, datetime
+from abc import ABC, abstractmethod
+from datetime import datetime, timedelta
 from glob import glob
+from pathlib import Path
 from textwrap import dedent
 
-from luracs.utils.file_io import xml_parser, db_parser
-from luracs.core import RunManager, SpectrumManager, Settings, IOManager
+from luracs.clients import ConnectionType, WrappedRealTimePackage, WrappedStatusPackage
+from luracs.core import IOManager, RunManager, Settings, SpectrumManager
+from luracs.spectrogram import restart_spectrogram, start_spectrogram
+from luracs.utils import ascii_art
+from luracs.utils.file_io import db_parser, xml_parser
+
+from .exceptions import ActiveGUIError, ArgumentError, InvalidCommandError
 from .helpers import (
-    print_table,
+    ArgumentParser,
     TableFormatter,
     plot_spectrum,
     print_rois,
-    ArgumentParser,
+    print_table,
 )
-from .exceptions import ArgumentError, ActiveGUIError, InvalidCommandError
-from luracs.utils import ascii_art
-
-from luracs.spectrogram import start_spectrogram, restart_spectrogram
 
 
 class Command(ABC):
@@ -547,91 +548,148 @@ class DeviceCommand(Command):
     name = "device"
 
     async def run(self, engine, *args):
+        if not args:
+            raise InvalidCommandError(
+                "Missing device command"
+            )
+
         if args[0] == "scan":
+
+            if len(args) < 2:
+                raise InvalidCommandError(
+                    "Missing scan type. Use 'ble' or 'usb'"
+                )
+
             if args[1] == "usb":
-                table = TableFormatter(["Serial", "Type"], title="Detected USB Devices")
-                for device in RunManager.scan_all_usb():
-                    table.add_row(
-                        [
-                            str(device.get("serial_number")),
-                            str(device.get("product", "Unknown")),
-                        ]
-                    )
+                table = TableFormatter(
+                    ["Serial", "Type"],
+                    title="Detected USB Devices",
+                )
+
+                devices = RunManager.scan_all_usb()
+
+
+                for device in devices:
+                    table.add_row([
+                        str(device.get("serial_number")),
+                        str(device.get("product", "Unknown")),
+                    ])
 
                 return table.get_table()
 
             elif args[1] == "ble":
-                table = TableFormatter(["Device"], title="Detected BLE Devices")
+                table = TableFormatter(
+                    ["Device"],
+                    title="Detected BLE Devices",
+                )
+
                 engine.print_output(
-                    f"Starting bluetooth scan, duration {Settings.Advanced.headless_scan_length}s. Please stand by for results."
+                    "Starting bluetooth scan, "
+                    f"duration "
+                    f"{Settings.Advanced.headless_scan_length}s. "
+                    "Please stand by for results."
                 )
-                devices = await RunManager._scan_bluetooth(
-                    Settings.Advanced.headless_scan_length
+
+                devices = await RunManager.call(
+                    RunManager._scan_bluetooth(
+                        Settings.Advanced.headless_scan_length
+                    )
                 )
+
                 if devices is None:
-                    return "BLE scan failed found, see log (Check if bluetooth is on)"
+                    return (
+                        "BLE scan failed, see log "
+                        "(Check if bluetooth is on)"
+                    )
+
                 for device in devices:
                     table.add_row([str(device)])
+
                 if devices:
                     engine.print_output("\n\n")
-                    engine.print_output(table.get_table())
+                    engine.print_output(
+                        table.get_table()
+                    )
+
                     if engine.headless:
-                        engine.print_output("Press Enter to return...")
+                        engine.print_output(
+                            "Press Enter to return..."
+                        )
+
                 return ""
 
             else:
                 raise InvalidCommandError(
-                    f"{args[1]} is not a valid argument! Valid arguments are 'ble' | 'usb'"
+                    f"{args[1]} is not a valid argument! "
+                    "Valid arguments are 'ble' | 'usb'"
                 )
 
         elif args[0] == "connect":
+
+            if len(args) < 2:
+                raise InvalidCommandError(
+                    "Missing connection type. "
+                    "Use 'ble' or 'usb'"
+                )
+
             if args[1] == "usb":
+
                 connected_usb = RunManager.scan_all_usb()
+                
 
                 connections_found = []
+
                 for conn_device in connected_usb:
+                    product = conn_device.get("product")
+
+                    if not product:
+                        continue
+
                     for target_device in args[2:]:
-                        if target_device.lower() in conn_device.get("product").lower():
+                        if target_device.lower() in product.lower():
+
                             RunManager.add_device(
-                                conn_device.get("serial_number"), "radiacode", True
+                                conn_device.get("serial_number"),
+                                "radiacode",
+                                ConnectionType.USB,
                             )
-                            
-                            connections_found.append(conn_device.get("product"))
 
-                if len(connections_found) > 0:
-                    devices_str = "\n".join(connections_found)
-                    return f"USB devices connected:\n{devices_str}"
+                            connections_found.append(
+                                product
+                            )
 
-                else:
-                    return f"No USB devices matching {args[2:]}"
+                            break
+
+                if connections_found:
+                    return (
+                        "USB devices connected:\n"
+                        + "\n".join(connections_found)
+                    )
+
+                return (
+                    f"No USB devices matching {args[2:]}"
+                )
 
             elif args[1] == "ble":
+
                 engine.print_output(
-                    f"Attempting connection to {len(args[2:])} devices..."
+                    f"Attempting connection to "
+                    f"{len(args[2:])} devices..."
                 )
-                await RunManager.connect_bluetooth_list(args[2:])
-                return
+
+                await RunManager.call(
+                    RunManager.connect_bluetooth_list(
+                        args[2:]
+                    )
+                )
+
+                return ""
 
             else:
                 raise InvalidCommandError(
-                    f"{args[1]} is not a valid argument! Valid arguments are 'ble' | 'usb'"
+                    f"{args[1]} is not a valid argument! "
+                    "Valid arguments are 'ble' | 'usb'"
                 )
-
-        elif args[0] == "disconnect":
-            if args[1] == "all":
-                RunManager.remove_all_devices()
-                return "Disconnecting all devices"
-
-            if args[1] not in RunManager.device_registry:
-                raise ArgumentError(
-                    f"'{args[1]}' was not found in the device registry!"
-                )
-            RunManager.remove_device(args[1])
-            return f"Disconnected device '{args[1]}'"
-        else:
-            raise InvalidCommandError(
-                f"{args[1]} is not a valid argument! Valid arguments are 'connect' | 'disconnect' | 'scan'"
-            )
 
     def get_auto_complete(self):
         return {
@@ -724,7 +782,7 @@ class ExecCommand(Command):
         table = TableFormatter(["Lines executed"], title=f"Executed {pth.name}")
 
         with open(str(pth)) as f:
-            for line in f.readlines():
+            for line in f:
                 table.add_row([line])
                 await engine.queue.put(line)
 
