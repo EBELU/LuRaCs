@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .spectrum_manager import _SpectrumManager
 
+
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import QObject, Signal
@@ -19,8 +20,6 @@ from luracs.utils.numerics import (
     multi_gaussian_jacobian,
     poisson_weights,
 )
-
-import time
 
 
 def fit_gaussians(
@@ -176,6 +175,7 @@ class ROIManager(QObject):
     sigROIUpdated = Signal(str, str, object)
     sigROIDeleted = Signal(object)
     sigCpsChanged = Signal(bool)
+    sigBkgSubChanged = Signal(bool)
 
     def __init__(self, spectrum_manager: _SpectrumManager, title="", parent=None):
         super().__init__(parent=parent)
@@ -193,6 +193,7 @@ class ROIManager(QObject):
     def set_bkg_sub(self, bkg_sub_bool):
         "Communication with SpectrumPlot"
         self.spectrum_is_bkg_sub = bkg_sub_bool
+        self.sigBkgSubChanged.emit(bkg_sub_bool)
 
     def set_cps(self, cps_bool):
         "Communication with SpectrumPlot"
@@ -462,6 +463,49 @@ class ROIManager(QObject):
         bkg_type = roi_group[0].bkg_type
         bkg_est_channels = roi_group[0].bkg_est_channels
         poission_weights = roi_group[0].poisson_weights
+        
+        meta_data = {
+            "background_subtracted": self.spectrum_is_bkg_sub,
+            "chi2_weighted_err": Settings.Advanced.optimizer_use_chi2_weight,
+        }
+
+        # If the fitting converged and was requested
+        common_kwargs = {
+            "fit_type": fit_type,
+            "bkg_type": bkg_type,
+            "bkg_est_channels": bkg_est_channels,
+            "live_time": spectrum.foreground.live_time,
+            "spectrum": spectrum.name,
+        }
+        
+        # Bkg subtraction is used and a spectrum does not have a background no results should be included in the roi
+        # Therefore, one is set but no data is evaluated
+        if spectrum.background is None and self.spectrum_is_bkg_sub:
+            results = [
+                ROI(
+                    tag=r.tag,
+                    alias=r.alias,
+                    roi_bound=tuple(r.getRegion()),
+                    region_bound=(np.min(bounds), np.max(bounds)),
+                    fit=None,
+                    roi_counts=0,
+                    emission=r.emission,
+                    meta={
+                        "merge": r.merge,
+                        "movable": r.movable,
+                        "poisson_weights": r.poisson_weights,
+                        **meta_data,
+                    },
+                    **common_kwargs,
+                )
+                for r in roi_group
+            ]
+            
+            for roi in results:
+                spectrum.set_roi(roi)  # Give the calculation results to the spectrum
+                self.sigROIUpdated.emit(roi.tag, spectrum.name, roi)
+            return
+            
 
         # --- Perform the fit (maybe) ---
         y_axis = (
@@ -489,19 +533,7 @@ class ROIManager(QObject):
         else:
             fits, converged = None, False
 
-        meta_data = {
-            "background_subtracted": self.spectrum_is_bkg_sub,
-            "chi2_weighted_err": Settings.Advanced.optimizer_use_chi2_weight,
-        }
 
-        # If the fitting converged and was requested
-        common_kwargs = {
-            "fit_type": fit_type,
-            "bkg_type": bkg_type,
-            "bkg_est_channels": bkg_est_channels,
-            "live_time": spectrum.foreground.live_time,
-            "spectrum": spectrum.name,
-        }
 
         if converged and fit_type != "None":
             results = [

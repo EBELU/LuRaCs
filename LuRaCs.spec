@@ -14,6 +14,7 @@ ROOT = Path(os.getcwd()).resolve()
 # Cross-platform path
 main_script = os.path.join('luracs', 'main.py')
 resources = os.path.join('luracs', 'resources')
+licences = ROOT / 'licences'
 
 a = Analysis(
     [str(ROOT / "luracs" / "main.py")],
@@ -21,13 +22,13 @@ a = Analysis(
     binaries=[],
     datas=[
         (resources, 'resources'),
+        (str(licences), 'licences')
         ],
     hiddenimports=[
         'bleak',
-        'qasync',
         'usb',
-        'scipy',
-        'numpy'
+        'numpy',
+        'requests',
     ],
     hookspath=[],
     hooksconfig={},
@@ -37,7 +38,19 @@ a = Analysis(
         'PySide6.Qt3DRender',
         'PySide6.Qt3DExtras',
         'PySide6.QtMultimedia',
+
+        # Not used - Qt Quick / QML
+        'PySide6.QtQml',
+        'PySide6.QtQml.Models',
+        'PySide6.QtQuick',
+        'PySide6.QtQuickWidgets',
+        'PySide6.QtQuickControls2',
+        'PySide6.QtQuick3D',
+
+        # Other things than qt
+        'cryptography',
         'matplotlib',
+        'pillow',
         'numba',
         'setuptools',
         'Cython',
@@ -45,11 +58,24 @@ a = Analysis(
         'pandas',
         'PyQt6',
         'PyQt5',
+        'qasync',
+        'scipy',
     ],
     
     noarchive=False,
     optimize=0,
 )
+
+# Remove unnecessary PySide6 Qt data
+a.datas = [
+    item for item in a.datas
+    if not (
+        item[0].startswith('PySide6/Qt/qml/')
+        or item[0].startswith('PySide6/Qt/translations/')
+        or item[0].endswith('qtwebengine_devtools_resources.pak')
+    )
+]
+
 
 pyz = PYZ(a.pure)
 

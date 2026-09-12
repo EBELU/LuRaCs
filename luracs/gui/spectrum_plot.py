@@ -555,7 +555,7 @@ class SpectrumPlot(QWidget):
     def draw_roi(self, roi_tag: str, spectrum_name):
         spectrum = SpectrumManager.get_spectra_dict().get(spectrum_name)
 
-        if spectrum is None or not spectrum.show_in_plot:
+        if spectrum is None or not spectrum.show_in_plot or (spectrum.background is None and self.bkg_sub):
             return
 
         roi = SpectrumManager.ROIManager.roi_registry.get(roi_tag)

@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QTextEdit,
     QVBoxLayout,
     QWidget,
+    QCheckBox
 )
 
 from luracs.core import IOManager, SpectrumManager
@@ -133,11 +134,6 @@ class ROIInfoTab(QWidget):
     def __init__(self, title="", parent=None):
         super().__init__(parent)
 
-        # --- Signals ---
-        SpectrumManager.ROIManager.sigROIUpdated.connect(self.recieve_roi)
-        SpectrumManager.ROIManager.sigROIDeleted.connect(self.delete_roi)
-        SpectrumManager.Signals.spectrumRemoved.connect(self.spectrum_deleted)
-
         # ---- UI ----
         self.group_box = QGroupBox(title)
 
@@ -191,12 +187,16 @@ class ROIInfoTab(QWidget):
         btn_export_roi_references = QPushButton("Save Reference ROIs")
         btn_export_roi_references.clicked.connect(save_roi_references)
         btn_export_roi_references.setToolTip("Save the current ROI definitions as references to be loaded to other spectra or spectrograms")
+        
+        self.is_bkgsub_check = QCheckBox("Background Subtracted")
+        self.is_bkgsub_check.setEnabled(False)
 
         options_bar.addWidget(btn_clear)
         options_bar.addWidget(btn_view_info)
         options_bar.addWidget(btn_roi_cps)
         options_bar.addWidget(btn_export_to_csv)
         options_bar.addWidget(btn_export_roi_references)
+        options_bar.addWidget(self.is_bkgsub_check)
         options_bar.addStretch()
         options_widget.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Preferred)
 
@@ -208,6 +208,12 @@ class ROIInfoTab(QWidget):
         # Initial build
         self.rebuild_table()
         SpectrumManager.Signals.spectrumRenamed.connect(lambda: self.rebuild_table())
+        
+        # --- Signals ---
+        SpectrumManager.ROIManager.sigROIUpdated.connect(self.recieve_roi)
+        SpectrumManager.ROIManager.sigROIDeleted.connect(self.delete_roi)
+        SpectrumManager.Signals.spectrumRemoved.connect(self.spectrum_deleted)
+        SpectrumManager.ROIManager.sigBkgSubChanged.connect(self.is_bkgsub_check.setChecked)
 
     # --------------------------------------------------
     # Core logic

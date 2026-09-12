@@ -114,7 +114,7 @@ class SpectrumInfoTab(QWidget):
         ]
         self.table = StrIdxTable(
             columns=titles,
-            column_widths=[65, 150, 150, 150, 100, 100, 100, 200],
+            column_widths="fit",
             has_menu_button=True,
         )
 
