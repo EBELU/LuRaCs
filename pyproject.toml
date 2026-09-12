@@ -30,6 +30,7 @@ dependencies = [
     "plotext",
     "prompt_toolkit",
     "markdown",
+    "requests",
     # "Scikit-Learn",
     # "SciPy",
     "fastapi",

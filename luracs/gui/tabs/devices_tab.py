@@ -63,13 +63,31 @@ class DevicesInfoTab(QWidget):
         action_disconnect.triggered.connect(
             lambda: RunManager.remove_device(device_name)
         )
+        menu_button.add_separator()
         
-        action_reset = menu_button.add_action("Reset Spectrum")
-        action_reset.triggered.connect(lambda: RunManager.device_registry[device_name].reset_spectrum())
+        def get_device(): # Helper function
+            return RunManager.device_registry.get(device_name)
 
+
+        action_reset = menu_button.add_action("Reset Spectrum")
+        action_reset.triggered.connect(
+            lambda: get_device() and get_device().reset_spectrum()
+        )
+
+        action_start_acq = menu_button.add_action("Start Acquisition")
+        action_start_acq.triggered.connect(
+            lambda: get_device() and get_device().start_acquisition()
+        )
+
+        action_stop_acq = menu_button.add_action("Stop Acquisition")
+        action_stop_acq.triggered.connect(
+            lambda: get_device() and get_device().stop_acquisition()
+        )
+
+        menu_button.add_separator()
         action_settings = menu_button.add_action("Settings")
         action_settings.triggered.connect(
-            lambda: DeviceSettingsDialog(device_wrapper=RunManager.device_registry[device_name]).exec()
+            lambda: get_device() and DeviceSettingsDialog(device_wrapper=get_device()).exec()
         )
         
         return menu_button

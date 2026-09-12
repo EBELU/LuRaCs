@@ -4,6 +4,7 @@ from pyqtgraph.Qt import QtWidgets
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
+    QApplication,
     QComboBox,
     QHBoxLayout,
     QLineEdit,
@@ -106,7 +107,6 @@ class SpectrumPlot(QWidget):
         self.plot_widget.enableAutoRange()
 
         # Buttons
-
         self.btn_reset_zoom = QPushButton("Reset Zoom")
         self.btn_y_axis_lock = QPushButton("Unlock y-axis")
         self.btn_lin_log = QPushButton("Log")
@@ -117,6 +117,7 @@ class SpectrumPlot(QWidget):
         self.line_cursor_info = QLineEdit()
         self.line_cursor_info.setReadOnly(True)
         self.line_cursor_info.setPlaceholderText("Cursor")
+        
         
         self.btn_cps.setMinimumWidth(85)
 
@@ -197,7 +198,11 @@ class SpectrumPlot(QWidget):
             rateLimit=15,
             slot=self.update_roi_label_pos,
         )
-
+        
+        # Force buttons to follow the font on instantiation
+        for w in [self.btn_cps, self.btn_lin_log, self.btn_mark_roi, self.btn_reset_zoom, self.btn_y_axis_lock]:
+            w.setFont(QApplication.instance().font())
+            
     # ------------------------------------------------
     # GUI Interactions
     # ------------------------------------------------
@@ -372,6 +377,7 @@ class SpectrumPlot(QWidget):
                 brush=brush,
                 fillLevel=fill_level,
                 stepMode="center",
+                antialias=False,
             )
 
         foreground = spectrum.get_foreground(cps=self.cps)
@@ -426,7 +432,9 @@ class SpectrumPlot(QWidget):
                 brush=brush,
                 fillLevel=fill_level,
                 stepMode="center",
+                antialias=False,
             )
+
             line.setZValue(1)  # Place above foreground
 
             self.bkg_lines[spectrum.name] = line
@@ -485,6 +493,7 @@ class SpectrumPlot(QWidget):
                 brush=brush,
                 fillLevel=fill_level,
                 stepMode="center",
+                antialias=False,
             )
 
         # Update the data with background-subtracted spectrum

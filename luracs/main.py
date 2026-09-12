@@ -389,6 +389,10 @@ def main():
         script_engine.sigMapFile.connect(win.map_widget.load_offline_map)
         
     script_engine.start()
+    
+    # font = app.font()
+    # for widget in app.allWidgets():
+    #     widget.setFont(font)
 
     print_progress("Done!", 10)
     print()
@@ -401,6 +405,8 @@ def main():
             use_type="log",
         )
     )
+    
+
 
     # --- Handle Command Line Arguments ---
     if len(sys.argv) > 1:

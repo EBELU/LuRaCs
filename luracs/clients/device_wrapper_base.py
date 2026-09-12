@@ -14,8 +14,8 @@ from enum import Enum, auto
 import numpy as np
 import usb
 
-from ..core.gui_logger import gui_logger
-from ..core.settings import Settings
+from luracs.core.gui_logger import gui_logger
+from luracs.core.settings import Settings
 
 
 class CriticalNotImplementedError(NotImplementedError):
@@ -39,6 +39,10 @@ class WrappedStatusPackage:
     total_dose: float = np.nan
     total_uptime: float = np.nan
     voltage: float = np.nan
+    desired_voltage: float = np.nan
+    lower_level_discriminator: float = np.nan
+    upper_level_discriminator: float = np.nan
+    fine_gain: float = np.nan
     timestamp: float
 
 
@@ -54,6 +58,10 @@ class ConnectionType(Enum):
     USB = "USB"
     BLE = "BLE"
     NETWORK = "NETWORK"
+    
+class SupportedSettings(Enum):
+    CALIBRATION = auto()
+    HV_AND_AMP = auto()
 
 
 class DeviceWrapper(ABC):
@@ -61,10 +69,6 @@ class DeviceWrapper(ABC):
     run_manager: _RunManager | None = None
 
     type = None
-    
-    has_calibration_settings = False
-    has_alarm_settings = False
-    has_hv_settings = False
 
     class DeviceState(Enum):
         UNINITIALIZED = auto()
@@ -80,6 +84,10 @@ class DeviceWrapper(ABC):
     @abstractmethod
     def get_connection_types(cls):
         pass
+    
+    @classmethod
+    def get_supported_settings(cls):
+        return set()
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -268,4 +276,14 @@ class DeviceWrapper(ABC):
         
     def reset_spectrum(self):
         pass
+    
+    def set_calibration(self):
+        raise NotImplementedError()
+    
+    def start_acquisition(self):
+        pass
+    
+    def stop_acquisition(self):
+        pass
+        
         

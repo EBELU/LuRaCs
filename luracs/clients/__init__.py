@@ -8,4 +8,5 @@ from .device_wrapper_base import (
     WrappedRealTimePackage,
     WrappedSpectrumPackage,
     WrappedStatusPackage,
+    SupportedSettings
 )

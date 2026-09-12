@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QFormLayout,
     QHBoxLayout,
+    QHeaderView,
     QLineEdit,
     QMessageBox,
     QPushButton,
@@ -48,12 +49,21 @@ class CalibrationWindow(QWidget):
         self.combo_spectrum.currentTextChanged.connect(self.set_table)
 
         form.addRow("Spectrum", self.combo_spectrum)
+        
+        # --- Add Point Btn ---
+        self.add_point_btn = QPushButton("Add New Point")
+        self.add_point_btn.clicked.connect(self.add_new_point)
+        
+        form.addRow("", self.add_point_btn)
+        
 
         # --- ROI Table ---
-        titles = ["", "ROI", "Nuclide", "Centroid", "Reference", "Difference"]
+        titles = ["", "ROI", "Nuclide", "Measured", "Reference", "Difference"]
         self.roi_table = QTableWidget(columnCount=len(titles))
         self.roi_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.roi_table.setHorizontalHeaderLabels(titles)
+        header = self.roi_table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
 
         form.addRow("ROI Peaks", self.roi_table)
 
@@ -159,56 +169,15 @@ class CalibrationWindow(QWidget):
                 continue
 
             row -= skipped
-            table.insertRow(row)
 
-            # --- Column 0: checkbox ---
-            check_box = QCheckBox()
-            check_box.setChecked(True)
+            self.add_row(
+                row=row, 
+                roi_alias=roi.alias, 
+                nuclide=roi.emission.parent_nuclide if roi.emission else "None",
+                centre_value=round(roi.fit.mu, 2),
+                photo_peak_value=roi.emission.energy_keV if roi.emission else 0
+                )
 
-            container = QWidget()
-            layout = QHBoxLayout(container)
-            layout.addWidget(check_box)
-            layout.setAlignment(check_box, Qt.AlignCenter)
-            layout.setContentsMargins(0, 0, 0, 0)
-
-            table.setCellWidget(row, 0, container)
-
-            # --- Column 1: alias (always shown) ---
-            roi_item = QTableWidgetItem(str(roi.alias))
-            roi_item.setData(Qt.UserRole, roi)
-            table.setItem(row, 1, roi_item)
-
-            # --- Column 2: Nuclide ---
-            table.setItem(
-                row,
-                2,
-                QTableWidgetItem(
-                    str(roi.emission.parent_nuclide if roi.emission else "None")
-                ),
-            )
-
-            # --- Column 3: Centroid ---
-            table.setItem(row, 3, QTableWidgetItem(str(round(roi.fit.mu, 2))))
-
-            # --- Column 4: Ref photopeak ---
-            ref_box = QDoubleSpinBox()
-            ref_box.setRange(0, 1e5)
-            ref_box.setValue(roi.emission.energy_keV if roi.emission else 0)
-            ref_box.valueChanged.connect(
-                lambda _, row=row: self.recalculate_difference(row)
-            )
-            table.setCellWidget(row, 4, ref_box)
-
-            # --- Column 5: Diff ---
-            table.setItem(
-                row,
-                5,
-                QTableWidgetItem(
-                    str(round(ref_box.value() - roi.fit.mu, 2))
-                    if roi.emission
-                    else None
-                ),
-            )
 
         calib_coeff = SpectrumManager.get_spectrum(
             spectrum_name
@@ -222,10 +191,68 @@ class CalibrationWindow(QWidget):
             if i >= len(calib_coeff):
                 break
             display.setValue(calib_coeff[-(i + 1)])
+            
+    def add_row(self, row: int, roi_alias: str, nuclide: str, centre_value: float, photo_peak_value: float):
+        table = self.roi_table
+        table.insertRow(row)
+        # --- Column 0: checkbox ---
+        check_box = QCheckBox()
+        check_box.setChecked(True)
+
+        container = QWidget()
+        layout = QHBoxLayout(container)
+        layout.addWidget(check_box)
+        layout.setAlignment(check_box, Qt.AlignCenter)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        table.setCellWidget(row, 0, container)
+
+        # --- Column 1: alias (always shown) ---
+        roi_item = QTableWidgetItem(str(roi_alias))
+        table.setItem(row, 1, roi_item)
+
+        # --- Column 2: Nuclide ---
+        table.setItem(
+            row,
+            2,
+            QTableWidgetItem(
+                str(nuclide)
+            ),
+        )
+
+        # --- Column 3: Centroid ---
+        centre_box = QDoubleSpinBox()
+        centre_box.setRange(0, 1e5)
+        centre_box.setValue(centre_value)
+        centre_box.valueChanged.connect(
+            lambda _, row=row: self.recalculate_difference(row)
+        )
+        table.setCellWidget(row, 3, centre_box)
+
+        # --- Column 4: Ref photopeak ---
+        ref_box = QDoubleSpinBox()
+        ref_box.setRange(0, 1e5)
+        ref_box.setValue(photo_peak_value)
+        ref_box.valueChanged.connect(
+            lambda _, row=row: self.recalculate_difference(row)
+        )
+        table.setCellWidget(row, 4, ref_box)
+
+        # --- Column 5: Diff ---
+        table.setItem(
+            row,
+            5,
+            QTableWidgetItem(
+                str(round(ref_box.value() - centre_box.value(), 2))
+            ),
+        )
+
 
     def calculate(self):
         spectrum = SpectrumManager.get_spectrum(self.combo_spectrum.currentText())
-
+        if spectrum is None:
+            QMessageBox.warning(self, "Error", "No spectrum loaded")
+            return
         centroids = []
         reference_energies = []
 
@@ -240,12 +267,12 @@ class CalibrationWindow(QWidget):
                 continue
 
             # Column 3 = centroid item
-            centroid_item = self.roi_table.item(i, 3)
+            centroid_item = self.roi_table.cellWidget(i, 3)
 
             if centroid_item is None:
                 continue
 
-            centroid = float(centroid_item.text())
+            centroid = float(centroid_item.value())
 
             # Column 4 = QDoubleSpinBox
             ref_box = self.roi_table.cellWidget(i, 4)
@@ -292,6 +319,15 @@ class CalibrationWindow(QWidget):
                 f"New Coefficients: {new_coeff}",
                 ])
                 )
+            
+    def add_new_point(self):
+        self.add_row(
+            self.roi_table.rowCount(),
+            "None",
+            "None",
+            0,
+            0,
+            )
 
     def assign_to_spectrum(self):
         if self.current_new_coeff is None:
@@ -336,7 +372,7 @@ class CalibrationWindow(QWidget):
         self.set_table(spectrum_name)
 
     def recalculate_difference(self, row_index: int):
-        centre_value = float(self.roi_table.item(row_index, 3).text())
+        centre_value = float(self.roi_table.cellWidget(row_index, 3).value())
         ref_box = self.roi_table.cellWidget(row_index, 4)
         self.roi_table.setItem(
             row_index,

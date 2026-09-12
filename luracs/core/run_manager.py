@@ -81,6 +81,9 @@ class EmittedSignals(QObject):
     bluetoothError = Signal(str)
     
     toDeivceResetSpectrum = Signal()
+    toDeviceStartAcquisition = Signal()
+    toDeviceStopAcquisition = Signal()
+    
 
 
 class _RunManager(QObject):
@@ -194,12 +197,15 @@ class _RunManager(QObject):
     ):  
         if isinstance(conn_type, str):
             conn_type = ConnectionType(conn_type)
+        
         client_wrapper = DeviceWrapper.match_model_to_str(device_type)
+
         if client_wrapper is None:
             gui_logger.error(f"Invalid device type! {device_type}")
             return
 
         new_device: DeviceWrapper = client_wrapper(device_address, conn_type)
+        
 
         if new_device.name in self.device_registry:
             gui_logger.debug(f"Device {device_address} already exists")
@@ -249,7 +255,10 @@ class _RunManager(QObject):
             f"connection_type={new_device.connection.value}"
         )
         
+        # Connect signals that apply to all devices
         self.Signals.toDeivceResetSpectrum.connect(new_device.reset_spectrum)
+        self.Signals.toDeviceStartAcquisition.connect(new_device.start_acquisition)
+        self.Signals.toDeviceStopAcquisition.connect(new_device.stop_acquisition)
 
         self.Signals.deviceConnected.emit(new_device.name)
         self.Signals.createDeviceSpectrum.emit(
@@ -284,7 +293,11 @@ class _RunManager(QObject):
             self.Signals.deviceStateUpdated.emit(device_name, client.state)
 
             gui_logger.info(f"Stopping device {device_name}")
+            
+            # Disconnect signals
             self.Signals.toDeivceResetSpectrum.disconnect(client.reset_spectrum)
+            self.Signals.toDeviceStartAcquisition.disconnect(client.start_acquisition)
+            self.Signals.toDeviceStopAcquisition.disconnect(client.stop_acquisition)
             
             await client.stop()
 
@@ -362,7 +375,7 @@ class _RunManager(QObject):
                         gui_logger.info(
                             f"Connecting BLE device: name={device.name}, type={device_type}"
                         )
-                        await self._add_device(device, device_type, conn_type="BLE")
+                        self.add_device(device, device_type, conn_type="BLE")
                         connections_made += 1
                         await asyncio.sleep(0.2)
 

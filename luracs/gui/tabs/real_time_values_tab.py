@@ -150,11 +150,15 @@ class RealTimeValuesPlot(QWidget):
         self.update_values_text(name, cps_buffer, dr_buffer)
 
     def update_plots(self, name: str, cps_buffer: np.ndarray, dr_buffer: np.ndarray):
-        self.cps_lines[name].setData(self.x_axis, cps_buffer)
-        self.dose_lines[name].setData(self.x_axis, dr_buffer)
+        self.cps_lines[name].setData(self.x_axis, np.clip(cps_buffer, -1, None))
+        self.dose_lines[name].setData(self.x_axis, np.clip(dr_buffer, -1, None))
 
-        self.cps_mean_lines[name].setPos(np.nanmean(cps_buffer))
-        self.dr_mean_lines[name].setPos(np.nanmean(dr_buffer))
+        if not np.all(np.isnan(cps_buffer)):
+            self.cps_mean_lines[name].setPos(np.nanmean(cps_buffer))
+
+        if not np.all(np.isnan(dr_buffer)):
+            self.dr_mean_lines[name].setPos(np.nanmean(dr_buffer))
+
 
     def update_values_text(
         self, name: str, cps_array: np.ndarray, dr_array: np.ndarray

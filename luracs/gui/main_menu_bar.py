@@ -5,12 +5,11 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from main import MainWindow
 
-import asyncio
 import shutil
 
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QAction, QActionGroup
-from PySide6.QtWidgets import QMenuBar, QMessageBox
+from PySide6.QtWidgets import QApplication, QMenuBar, QMessageBox
 
 from luracs.core import IOManager, RunManager, Settings
 from luracs.gui.dialogs.settings_dialog import edit_advanced_settings, edit_settings
@@ -26,6 +25,7 @@ class MainMenuBar(QMenuBar):
     def __init__(self, parent: MainWindow = None):
         super().__init__(parent)
         self.parent = parent
+        self.setFont(QApplication.instance().font())
 
         Settings.latestConnectionUpdated.connect(self.update_last_connections)
         self.sigUpdateSetting.connect(Settings.update_setting)
@@ -96,17 +96,33 @@ class MainMenuBar(QMenuBar):
 
         # ---------- Device Menu ----------
         device_menu = self.addMenu("&Device")
+        # --- Connections ---
+        # BLE
         device_menu_connectBT = device_menu.addAction("Connect Bluetooth")
         device_menu_connectBT.triggered.connect(parent.bt_window.start_popup)
-
         self.device_menu_retryLast = device_menu.addMenu("&Retry Last Connection   ")
+        # USB
         device_menu_connectUSB = device_menu.addAction("Connect USB")
         device_menu_connectUSB.triggered.connect(parent.usb_window.start_popup)
+        # NETWORK
         device_menu_network = device_menu.addAction("Connect Network")
         device_menu_network.triggered.connect(parent.network_connect_window.exec)
-        1
+        
+        device_menu.addSeparator()
+        
+        # --- Device Control ---
+        device_menu_start_acquisition = device_menu.addAction("Start Acquisition")
+        device_menu_start_acquisition.triggered.connect(RunManager.Signals.toDeviceStartAcquisition.emit)
+        
+        device_menu_stop_acquisition = device_menu.addAction("Stop Acquisition")
+        device_menu_stop_acquisition.triggered.connect(RunManager.Signals.toDeviceStopAcquisition.emit)
+        
         device_menu_rest_all = device_menu.addAction("Reset All Spectra")
-        device_menu_rest_all.triggered.connect(lambda :ConfirmCallback(self, "Reset the accumulated spectrum of all connected devices?",RunManager.reset_all_spectra))
+        device_menu_rest_all.triggered.connect(
+            lambda :ConfirmCallback(
+                self, "Reset the accumulated spectrum of all connected devices?",RunManager.reset_all_spectra
+            )
+        )
         device_menu_disconnect = device_menu.addAction("Disconnect All")
         device_menu_disconnect.triggered.connect(
             lambda: ConfirmCallback(
@@ -193,8 +209,7 @@ class MainMenuBar(QMenuBar):
         for name in names:
             # Create the action
             def _connect(x, n=name):  # bind current name to n
-                loop = asyncio.get_event_loop()
-                loop.create_task(RunManager.connect_bluetooth_list([n]))
+                RunManager.submit_to_thread(RunManager.connect_bluetooth_list([n]))
 
             retryDevice = self.device_menu_retryLast.addAction(name)
             retryDevice.triggered.connect(_connect)

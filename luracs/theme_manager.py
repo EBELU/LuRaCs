@@ -1,10 +1,11 @@
+import json
+from enum import Enum
+from pathlib import Path
+
+import pyqtgraph as pg
+from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QApplication
-from PySide6.QtCore import QObject, Signal
-import pyqtgraph as pg
-from enum import Enum
-import json
-from pathlib import Path
 
 
 class ThemeManager(QObject):

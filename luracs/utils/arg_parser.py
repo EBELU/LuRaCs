@@ -7,9 +7,9 @@ if TYPE_CHECKING:
     from luracs.main import MainWindow
 
 import argparse
-import asyncio
 from pathlib import Path
 
+from luracs.clients import DeviceWrapper
 from luracs.core import Log, RunManager, SpectrumManager
 from luracs.utils.file_io import io_dispatcher
 
@@ -57,6 +57,10 @@ def parse_cli_args(main_window: MainWindow, script_engine: ScriptEngine):
     parser.add_argument(
         "-usb", nargs="+", help="Attempt USB connections based on device names"
     )
+    
+    parser.add_argument(
+        "-nw", "--network", nargs="+", help="Attempt Network connections based on device ip-addresses"
+    )
 
     args = parser.parse_args()
 
@@ -70,13 +74,21 @@ def parse_cli_args(main_window: MainWindow, script_engine: ScriptEngine):
     if args.usb:
         connected_usb = RunManager.scan_all_usb()
         Log.info(f"Initializing USB devices: {args.usb}")
-
-        for conn_device in connected_usb:
-            for target_device in args.usb:
-                if target_device.lower() in conn_device.get("product").lower():
-                    RunManager.add_device(
-                        conn_device.get("serial_number"), "radiacode", True
-                    )
+                    
+        for conn_device in connected_usb: # Loop over found connections
+            product = conn_device.get("product")
+            serial = conn_device.get("serial_number")
+            
+            for target_device in args.usb: # Loop over given names
+                if target_device.lower() in product.lower(): # Match given name to product name
+                    for name in DeviceWrapper.get_registry(): # Find correct wrapper by matching wrapper name to product name
+                        if name.lower() in product.lower():
+                            RunManager.add_device(serial, name, "USB") # Add device, yay
+                            break
+    
+    if args.network:
+        for ip in args.network:
+            RunManager.add_device(ip, "detective_x", "NETWORK")
 
     if args.import_spectrum:
         for pth in args.import_spectrum:

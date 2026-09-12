@@ -232,7 +232,7 @@ class SpectrumTab(LibraryTab):
         super().__init__(
             parent,
             self.titles,
-            "stretch",
+            "fit",
             True,
         )
         self.include_instrument_check.setChecked(True)
@@ -436,7 +436,7 @@ class SpectrogramTab(LibraryTab):
         super().__init__(
             parent,
             ["Name", "Start Date", "End Date", "Duration", "Instrument"],
-            "stretch",
+            "fit",
             True,
         )
 
@@ -461,7 +461,7 @@ class SpectrogramTab(LibraryTab):
     def set_table(self):
         self.table.reset_table(
             ["Name", "Start Date", "End Date", "Duration", "Instrument"],
-            "stretch",
+            "fit",
         )
         for key, parser in IOManager.FileIndex.spectrogram_index.get_index().items():
             header, summary = parser.get_header(), parser.get_summary()

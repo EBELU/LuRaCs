@@ -8,6 +8,7 @@ from luracs.clients.device_wrapper_base import (
     WrappedRealTimePackage,
     WrappedSpectrumPackage,
     WrappedStatusPackage,
+    SupportedSettings
 )
 
 
@@ -111,11 +112,14 @@ class MockClient:
 
 class MockClientWrapper(DeviceWrapper):
     type = "mock"
-    has_calibration_settings = True
     
     @classmethod
     def get_connection_types(cls):
         return []
+
+    @classmethod
+    def get_supported_settings(cls):
+        return {SupportedSettings.CALIBRATION, SupportedSettings.HV_AND_AMP}
 
     def __init__(self, address=None, usb=None):
         super().__init__(address, usb)
