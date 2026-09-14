@@ -52,6 +52,22 @@ class MainMenuBar(QMenuBar):
 
         # ---------- View Menu ----------
         view_menu = self.addMenu("View")
+        
+        # --- Map ---
+        if parent.map_widget is not None:
+            view_menu_map = view_menu.addMenu("&Map")
+            view_menu_map_track_current_location = QAction("Track Current Location", self, checkable=True)
+            view_menu_map_track_current_location.toggled.connect(
+                parent.map_widget.track_current_location
+            )
+            view_menu_map.addAction(view_menu_map_track_current_location)
+            view_menu_map_move_to_current_location = view_menu_map.addAction("Move to Current Location")
+            view_menu_map_move_to_current_location.triggered.connect(parent.map_widget.move_to_current)
+            view_menu_map_move_to_start = view_menu_map.addAction("Move to Track Start")
+            view_menu_map_move_to_start.triggered.connect(parent.map_widget.move_to_start)
+            view_menu_map_move_to_end = view_menu_map.addAction("Move to Track End")
+            view_menu_map_move_to_end.triggered.connect(parent.map_widget.move_to_end)
+        
 
         # --- Real Time Data View ---
         view_menu_realtime = view_menu.addMenu("&Real Time Data    ")

@@ -7,11 +7,12 @@ if TYPE_CHECKING:
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import Slot
+from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QFont, QPen
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QScrollArea,
+    QSplitter,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -90,7 +91,7 @@ class PlotContainer(QWidget):
                 self.line_registry[roi][db_name] = plot_item.plot([], [], pen = self.color_buffer[db_name], name=db_name)
             
             x_axis = np.arange(len(data)) * time_interval
-            region = x_axis < 60
+            region = x_axis <= Settings.Advanced.spectrogram_roi_display_length_s
             
             self.line_registry[roi][db_name].setData(x_axis[region], data[::-1][region])
             
@@ -134,15 +135,15 @@ class StatsTextContainer:
         self.roi_name = roi_name
         self.buffers: dict[str, tuple[float, float]] = {}
     
-    def set_values(self, db_name: str, last_value: float, mean_value: float):
-        self.buffers[db_name] = (last_value, mean_value)        
+    def set_values(self, db_name: str, last_value: float, mean_value: float, std_value: float):
+        self.buffers[db_name] = (last_value, mean_value, std_value)        
         
     def get_text(self):
         longest_text = 0
         for name in self.buffers:
             longest_text = max(longest_text, len(name))
         
-        db_stats = [f"|{name:<{longest_text}}| {self.buffers[name][0]}, ({round(self.buffers[name][1], 2)})" for name in self.buffers]  
+        db_stats = [f"|{name:<{longest_text}}| {round(self.buffers[name][0], 2)}, ({round(self.buffers[name][1], 2)}+-{round(self.buffers[name][2], 2)})" for name in self.buffers]  
         return f"== {self.roi_name} ==\n" + "\n".join(db_stats)
     
     def db_removed(self, db_name: str):
@@ -160,30 +161,38 @@ class SpectrogramROITab(QWidget):
         scroll.setWidgetResizable(True)
 
         self.plot_container = PlotContainer(self)
-
         scroll.setWidget(self.plot_container)
 
-        main_layout = QHBoxLayout(self)
-        main_layout.addWidget(scroll, 2)
-        
         font = QFont("Monospace")
         font.setStyleHint(QFont.Monospace)
 
         self.statistics_edit = QTextEdit(readOnly=True)
         self.statistics_edit.setFont(font)
-        
-        main_layout.addWidget(self.statistics_edit, 1)
-        
+
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.addWidget(scroll)
+        splitter.addWidget(self.statistics_edit)
+
+        splitter.setStretchFactor(0, 5)
+        splitter.setStretchFactor(1, 1)
+
+        main_layout = QHBoxLayout(self)
+        main_layout.addWidget(splitter)
+
         self.stats_text_containers: dict[str, StatsTextContainer] = {}
     
     @Slot(str, dict)
     def receive_update(self, db_name: str, roi_data: dict):
+        time_interval = RunManager.SpectrogramManager.spectrogram_registry[db_name].save_interval  
         self.plot_container.plot_line(db_name, roi_data)
         for roi, data in roi_data.items():
             if roi not in self.stats_text_containers:
                 self.stats_text_containers[roi] = StatsTextContainer(RunManager.SpectrogramManager.roi_registry[roi].alias)
             
-            self.stats_text_containers[roi].set_values(db_name, data[-1].astype(float), float(np.nanmean(data)))
+            x_axis = np.arange(len(data)) * time_interval
+            region = x_axis <= Settings.Advanced.spectrogram_roi_display_length_s
+            
+            self.stats_text_containers[roi].set_values(db_name, data[-1].astype(float), float(np.nanmean(data[region])), float(np.nanstd(data[region])))
             
         self.set_stats_text()
             
@@ -193,7 +202,7 @@ class SpectrogramROITab(QWidget):
         scrollbar = self.statistics_edit.verticalScrollBar()
         position = scrollbar.value()
 
-        self.statistics_edit.setText("\n\n".join(roi_sections))
+        self.statistics_edit.setText("| Spectrogram | Last Value (mean+-std) |\n" + "\n\n".join(roi_sections))
 
         scrollbar.setValue(position)
         

@@ -168,6 +168,11 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
         layout = QVBoxLayout(central)
         central_splitter = QSplitter(Qt.Vertical)
+        
+        if not IS_H3:
+            self.map_widget = MapWidget()
+        else:
+            self.map_widget = None
 
         self.main_menu_bar = MainMenuBar(self)
         self.setMenuBar(self.main_menu_bar)
@@ -183,12 +188,9 @@ class MainWindow(QMainWindow):
         self.spectrogram = SpectrogramWidget(self)
         self.spectrogram.sigShowDataStore.connect(self.show_data_store)
         self.spect_tab.addTab(self.spectrogram, "Spectrogram")
-
-        if not IS_H3:
-            self.map_widget = MapWidget()
-            self.spect_tab.addTab(self.map_widget, "Map")
-        else:
-            self.map_widget = None
+        
+        if self.map_widget is not None:
+             self.spect_tab.addTab(self.map_widget, "Map")
 
         central_splitter.addWidget(self.spect_tab)
 

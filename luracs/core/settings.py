@@ -85,6 +85,7 @@ class _Advanced:
     real_time_values_deque_length: int = 60
 
     spectrogram_deque_length: int = 256
+    spectrogram_roi_display_length_s: float = 60
 
 
 def get_runtime_base() -> Path:

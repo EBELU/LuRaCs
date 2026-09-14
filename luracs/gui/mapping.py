@@ -215,6 +215,8 @@ class MapWidget(QWidget):
         
         # --- Data Containers ---
         self.selected_content = None
+        self.latest_gps: GPSData | None = None
+        self.is_tracking_current_location: bool = False
         self.current_datapoints: list = []
         self.map_buffers: dict[str, MappingDataBuffer] = {}
         self.simple_buffers: dict[str, SimpleMappingData] = {}
@@ -410,6 +412,7 @@ class MapWidget(QWidget):
         self.combo_changed(0)
         
     def get_data(self)->tuple[list, list, list]:
+        "Returns [longitude, latitude, value]"
         spectrogram_key = self.combo_spectrogram.currentText()
         current_data_key = self.combo_shown_data.currentData()
         
@@ -526,11 +529,41 @@ class MapWidget(QWidget):
     def catch_gps_update(self, data: GPSData):
         self.gps_status_bar.setText(format_gps(data))
         if self.bridge and data.valid:
+            self.latest_gps = data
             self.bridge.move_current_location_point(self.web_engine_view, data.latitude, data.longitude)
+            if self.is_tracking_current_location:
+                self.move_to_current()
     
     @Slot(str, dict)
     def catch_map_buffer(self, spectrogram_name: str, buffers: dict):
         self.map_buffers[spectrogram_name].process_buffer(buffers)
+        
+    # ------------------------------------------------------------------
+    # GUI interaction
+    # ------------------------------------------------------------------
+    
+    def move_to_current(self):
+        if self.latest_gps is not None and self.web_engine_view is not None:
+            self.bridge.move_view_to(self.web_engine_view, self.latest_gps.latitude, self.latest_gps.longitude)
+            
+    def move_to_start(self):
+        data = self.get_data()
+        if data is not None and self.web_engine_view is not None:
+            for lng, lat, _ in zip(*data):
+                if lng is not None and lat is not None:
+                    self.bridge.move_view_to(self.web_engine_view, lat, lng)
+                    return
+                
+    def move_to_end(self):
+        data = self.get_data()
+        if data is not None and self.web_engine_view is not None:
+            for lng, lat, _ in reversed(list(zip(*data))):
+                if lng is not None and lat is not None:
+                    self.bridge.move_view_to(self.web_engine_view, lat, lng)
+                    return
+                
+    def track_current_location(self, state: bool):
+        self.is_tracking_current_location = state
 
     # ------------------------------------------------------------------
     # Internal runners and callbacks
