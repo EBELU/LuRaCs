@@ -166,7 +166,7 @@ class Spectrum:
         self.ROIs.pop(roi_tag, None)
 
     # -- Instrument management ---
-    def set_instrument(self, instrument):
+    def set_instrument(self, instrument: UniqueInstrument):
         assert isinstance(instrument, UniqueInstrument), (
             f"Instrument must be of type UniqueInstrument, not {type(instrument)}"
         )
@@ -174,6 +174,9 @@ class Spectrum:
 
     def get_instrument(self) -> UniqueInstrument | None:
         return self.instrument
+    
+    def clear_instrument(self):
+        self.instrument = None
 
     # --- Helpers ---
     def get_channel_from_energy(self, E_keV: float) -> int:

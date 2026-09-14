@@ -230,6 +230,13 @@ class SpectrogramWidget(QWidget):
             self.update_on_spectrogram_selection
         )
         self.menu.addAction(self.action_show_break_lines)
+        
+        self.action_keep_aspect = QAction("Keep Aspect Ratio", self, checkable=True)
+        self.action_keep_aspect.setChecked(True)
+        self.action_keep_aspect.toggled.connect(
+            self.set_image_stretch
+        )
+        self.menu.addAction(self.action_keep_aspect)
 
         self.menu.addSeparator()
         action_load_rois = self.menu.addAction("Load ROIs")
@@ -376,6 +383,8 @@ class SpectrogramWidget(QWidget):
     # ------------------------------------------------------------------
     # Spectrogram state options
     # ------------------------------------------------------------------
+    def set_image_stretch(self, state: bool):
+        self.plot.getViewBox().setAspectLocked(state)
 
     def start_logger(self, *_):
         "Open the dialog to start a new spectrogram and send an accepted result off to be started"
@@ -482,8 +491,9 @@ class SpectrogramWidget(QWidget):
             logger.request_data()
 
         for roi in RunManager.SpectrogramManager.roi_registry.values():
-            E_axis = RunManager.SpectrogramManager.energy_axes_buffer[db_name]
-            roi.set_idx_region(E_axis)
+            E_axis = RunManager.SpectrogramManager.energy_axes_buffer.get(db_name)
+            if E_axis is not None:
+                roi.set_idx_region(E_axis)
 
     # ------------------------------------------------------------------
     # Data socket

@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
 from luracs.clients import DeviceWrapper, WrappedStatusPackage
 from luracs.core import RunManager
 from luracs.gui.dialogs.device_settings_dialog import DeviceSettingsDialog
+from luracs.gui.dialogs.instrument_from_device_dialog import NewInstrumentDialog
 from luracs.gui.misc.table_menu_button import MenuButton
 
 from .roi_info_tab import StrIdxTable
@@ -85,6 +86,11 @@ class DevicesInfoTab(QWidget):
         )
 
         menu_button.add_separator()
+        action_make_instrument = menu_button.add_action("Make Instrument")
+        action_make_instrument.triggered.connect(
+            lambda: get_device() and NewInstrumentDialog(name=get_device().name).exec()
+        )
+        
         action_settings = menu_button.add_action("Settings")
         action_settings.triggered.connect(
             lambda: get_device() and DeviceSettingsDialog(device_wrapper=get_device()).exec()

@@ -18,6 +18,12 @@ from luracs.clients import (
 from luracs.core import Settings, RunManager, Log, SpectrumManager, IOManager
 from luracs.utils.numerics.compression import compress_spectrum, decompress_spectrum
 
+import json
+
+from datetime import datetime
+
+from luracs.clients.gps import GPSData
+
 
 def restart_spectrogram(db_name: str):
     new_log = Spectrogram(db_name, resume=True)
@@ -25,6 +31,7 @@ def restart_spectrogram(db_name: str):
     RunManager.Signals.currentUpdated.connect(new_log.receive_current)
     RunManager.Signals.statusUpdated.connect(new_log.receive_status)
     RunManager.Signals.spectrumUpdated.connect(new_log.receive_spectrum)
+    RunManager.Signals.GPSUpdated.connect(new_log.receive_gps)
 
     RunManager.add_spectrogram(db_name, new_log)
     new_log.request_data()
@@ -51,11 +58,13 @@ def start_spectrogram(db_name, device: str, save_interval: int = 1, concat: int 
         else device_wrapper.name,
         calibration_coeff=calibration_coeff if calibration_coeff is not None else [],
         channel_concat_factor=concat,
+        header_meta = {"version": 1, "gps_version": 1}
     )
 
     RunManager.Signals.currentUpdated.connect(new_log.receive_current)
     RunManager.Signals.statusUpdated.connect(new_log.receive_status)
     RunManager.Signals.spectrumUpdated.connect(new_log.receive_spectrum)
+    RunManager.Signals.GPSUpdated.connect(new_log.receive_gps)
 
     RunManager.add_spectrogram(db_name, new_log)
     new_log.request_data()
@@ -65,7 +74,7 @@ def start_spectrogram(db_name, device: str, save_interval: int = 1, concat: int 
 IOManager.Importer.sigImportSpectrogram.connect(restart_spectrogram)
 # ------------------------------------------------------------------
 
-@dataclass
+@dataclass(kw_only=True)
 class WrappedSpectrogramData:
     db_name: str
     instrument: str
@@ -81,22 +90,30 @@ class WrappedSpectrogramData:
     time_delta: float
     estimated_dose: float
     status: object
+    gps_queue: deque[GPSData] | None
+    count_rate_queue: deque[float] | None
+    dose_rate_queue: deque[float] | None
 
 
-@dataclass
+@dataclass(kw_only=True)
 class Buffers:
     latest_timestamp: float = 0
     latest_spectrum: np.array = None
+    latest_gps: GPSData | None = None
     accumulated_spectrum: np.array = None
     accumulated_dose_estimate: float = 0
-    spectrum_view_queue: deque = None
-    timestamp_queue: deque = None
-    timedelta_queue: deque = None
+    spectrum_view_queue: deque | None = None
+    timestamp_queue: deque | None = None
+    timedelta_queue: deque | None = None
     temperature: float = -274
     cps: float = 0
     dose_rate: float = 0
     recieved_values: int = 0
     duration: float = 0
+    gps_queue: deque[GPSData] | None = None
+    count_rate_queue: deque[float] | None = None
+    dose_rate_queue: deque[float] | None  = None
+    
 
 
 class Spectrogram(QObject):
@@ -119,9 +136,12 @@ class Spectrogram(QObject):
             spectrum_view_queue=deque([], Settings.Advanced.spectrogram_deque_length),
             timestamp_queue=deque([], Settings.Advanced.spectrogram_deque_length),
             timedelta_queue=deque([], Settings.Advanced.spectrogram_deque_length),
+            gps_queue=deque([], Settings.Advanced.spectrogram_deque_length),
+            count_rate_queue=deque([], Settings.Advanced.spectrogram_deque_length),
+            dose_rate_queue=deque([], Settings.Advanced.spectrogram_deque_length),
         )
 
-        self.paused = True if resume else False
+        self.paused = resume
         self.state = self.State.LOADED
 
         if resume:
@@ -140,6 +160,7 @@ class Spectrogram(QObject):
             )  # Number of channels after concat
             self.device_id = kwargs["device_id"]  # What device is the spectrogram from
             self.calibration_coeff = kwargs["calibration_coeff"]
+            self.header_meta = kwargs.get("header_meta", {})
             self.start_date = time.time()
 
             if not resume and os.path.exists(self.db_path):
@@ -163,6 +184,9 @@ class Spectrogram(QObject):
                 time_delta=0,
                 estimated_dose=0,
                 status=self.State.ACTIVE,
+                gps_queue=self.buffers.gps_queue,
+                count_rate_queue=self.buffers.count_rate_queue,
+                dose_rate_queue=self.buffers.dose_rate_queue
             )
 
             self.state = self.State.ACTIVE
@@ -178,7 +202,8 @@ class Spectrogram(QObject):
                 channels INTEGER NOT NULL CHECK(channels > 0),
                 calibration TEXT,
                 concat INTEGER NOT NULL,
-                save_interval REAL NOT NULL
+                save_interval REAL NOT NULL,
+                meta TEXT
             )
         """)
 
@@ -207,10 +232,11 @@ class Spectrogram(QObject):
                 timestamp INTEGER NOT NULL,
                 avg_cps INTEGER NOT NULL,
                 avg_dr INTEGER NOT NULL,
-                temperature REAL,
+                temperature INTEGER,
                 latitude REAL,
                 longitude REAL,
-                spectrum BLOB NOT NULL
+                spectrum BLOB NOT NULL,
+                meta BLOB
             )
         """)
 
@@ -222,16 +248,17 @@ class Spectrogram(QObject):
         cursor.execute(
             """
             INSERT OR IGNORE INTO header
-            (id, created, device_id, channels, calibration, concat, save_interval)
-            VALUES (1, ?, ?, ?, ?, ?, ?)
+            (id, created, device_id, channels, calibration, concat, save_interval, meta)
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 time.time(),
                 self.device_id,
                 self.spect_channels,
-                str(self.calibration_coeff),
+                json.dumps(self.calibration_coeff),
                 self.concat_factor,
                 self.save_interval,
+                json.dumps(self.header_meta)
             ),
         )
 
@@ -259,20 +286,21 @@ class Spectrogram(QObject):
 
         # --- Load header ---
         cursor.execute("""
-            SELECT created, device_id, channels, calibration, concat, save_interval
+            SELECT created, device_id, channels, calibration, concat, save_interval, meta
             FROM header
             WHERE id = 1
         """)
         header = cursor.fetchone()
 
         if header:
-            created, device_id, channels, calibration, concat, save_interval = header
+            created, device_id, channels, calibration, concat, save_interval, header_meta = header
 
             self.device_id = device_id
             self.spect_channels = channels
             self.concat_factor = concat
             self.save_interval = save_interval
-            self.calibration_coeff = eval(calibration) if calibration else []
+            self.calibration_coeff = json.loads(calibration) if calibration else []
+            self.header_meta = header_meta
 
             # restore acquisition start time
             self.start_date = created
@@ -301,7 +329,7 @@ class Spectrogram(QObject):
         # --- Load recent spectrogram entries for view buffer ---
         cursor.execute(
             """
-            SELECT timestamp, spectrum
+            SELECT timestamp, avg_cps, avg_dr, latitude, longitude, spectrum, meta
             FROM spectrogram
             ORDER BY timestamp DESC
             LIMIT ?
@@ -311,10 +339,18 @@ class Spectrogram(QObject):
 
         rows = cursor.fetchall()
 
-        for ts, spec_blob in reversed(rows):
+        for ts, avg_cps, avg_dr, latitude, longitude, spec_blob, meta in reversed(rows):
             spectrum = decompress_spectrum(spec_blob, channels)
             self.buffers.spectrum_view_queue.append(spectrum)
             self.buffers.timestamp_queue.append(ts)
+            self.buffers.count_rate_queue.append(avg_cps / 1000.)
+            self.buffers.dose_rate_queue.append(avg_dr / 1000.)
+            self.buffers.gps_queue.append(
+                GPSData(
+                    latitude=latitude, 
+                    longitude=longitude
+                )
+            )
 
         self.data_wrapper = WrappedSpectrogramData(
             db_name=self.db_name,
@@ -331,6 +367,9 @@ class Spectrogram(QObject):
             time_delta=1,
             estimated_dose=self.buffers.accumulated_dose_estimate,
             status=self.State.LOADED,
+            gps_queue=self.buffers.gps_queue,
+            count_rate_queue=self.buffers.count_rate_queue,
+            dose_rate_queue=self.buffers.dose_rate_queue
         )
 
     def receive_current(self, name: str, current: WrappedRealTimePackage):
@@ -346,6 +385,9 @@ class Spectrogram(QObject):
             return
 
         self.buffers.temperature = status.temperature
+        
+    def receive_gps(self, data: GPSData):
+        self.buffers.latest_gps = data
 
     def receive_spectrum(self, name: str, spectrum: WrappedSpectrumPackage):
         if name != self.device_id or self.paused:
@@ -384,6 +426,9 @@ class Spectrogram(QObject):
 
         # Update buffers
         self.buffers.timedelta_queue.append(dt)
+        self.buffers.gps_queue.append(self.buffers.latest_gps)
+        self.buffers.count_rate_queue.append(self.buffers.cps / max(self.buffers.recieved_values, 1))
+        self.buffers.dose_rate_queue.append(self.buffers.dose_rate / max(self.buffers.recieved_values, 1))
         # print(self.buffers.timedelta_queue, np.mean(np.array(self.buffers.timedelta_queue)))
         self.buffers.duration += dt
         self.buffers.accumulated_dose_estimate += (
@@ -396,18 +441,24 @@ class Spectrogram(QObject):
         self.data_wrapper.estimated_dose = self.buffers.accumulated_dose_estimate
         self.data_wrapper.time_delta = dt
         self.data_wrapper.status = self.state
+        self.data_wrapper.gps_queue = self.buffers.gps_queue
+        self.data_wrapper.count_rate_queue = self.buffers.count_rate_queue
+        self.data_wrapper.dose_rate_queue = self.buffers.dose_rate_queue
 
         # Emit wrapper
         self.sigDataUpdated.emit(self.db_name, self.data_wrapper)
 
         # Compress spectrum and insert it into the database
+        meta_data = {}
         spectrum_bytes = compress_spectrum(processed_spectrum)
+        meta_bytes = zlib.compress(json.dumps(meta_data, separators=(",", ":")).encode("utf-8")) if meta_data else None
         self.insert_spectrogram(
             new_ts,
             self.buffers.cps / max(self.buffers.recieved_values, 1),
             self.buffers.dose_rate / max(self.buffers.recieved_values, 1),
             self.buffers.temperature,
             spectrum_bytes,
+            meta_bytes
         )
         self.update_summary(new_ts)
 
@@ -417,23 +468,24 @@ class Spectrogram(QObject):
         self.buffers.dose_rate = 0
 
     def insert_spectrogram(
-        self, timestamp, avg_cps, avg_dr, temperature, spectrum_bytes
+        self, timestamp, avg_cps, avg_dr, temperature, spectrum_bytes, meta_bytes,
     ):
         cursor = self.connection.cursor()
         cursor.execute(
             """
             INSERT INTO spectrogram
-            (timestamp, avg_cps, avg_dr, temperature, latitude, longitude, spectrum)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            (timestamp, avg_cps, avg_dr, temperature, latitude, longitude, spectrum, meta)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 timestamp,
                 round(avg_cps * 1000),
                 round(avg_dr * 1000),
-                temperature,
-                0,
-                0,
+                round(temperature * 1000),
+                self.buffers.latest_gps.latitude,
+                self.buffers.latest_gps.longitude,
                 spectrum_bytes,
+                meta_bytes,
             ),
         )
 

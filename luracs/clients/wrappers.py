@@ -16,6 +16,7 @@ from luracs.clients.digibase_client import digiBase
 from luracs.clients.RadiacodeClient.src import RadiacodeClientAsync
 from luracs.clients.RaysidClient.RaysidClient import RaysidClientAsync
 from luracs.core.settings import Settings
+from luracs.clients.gps import GPSData
 
 # ==========================================
 # Radiacode
@@ -371,11 +372,12 @@ class DetectiveXClient(DeviceWrapper):
     def get_connection_types(cls):
         return {ConnectionType.NETWORK}
     
-    def __init__(self, address, connection: ConnectionType):
+    def __init__(self, address, connection: ConnectionType, use_gps: bool = False):
         super().__init__(address, ConnectionType.NETWORK)
         self.name = f"DetectiveX_{address}"
         self.client = DetectiveX(address)
         self.calibration_buffer: list | None = None
+        self.use_gps = use_gps
         
         self.channels = 2**14
         
@@ -405,6 +407,9 @@ class DetectiveXClient(DeviceWrapper):
         
         self.client.start_acquisition()
         await self.start_polling()
+        if self.use_gps:
+            self.run_manager.Signals.GPSConnection.emit(True)
+        
         self.started = True
         
         
@@ -425,11 +430,17 @@ class DetectiveXClient(DeviceWrapper):
         return WrappedSpectrumPackage(**spectrum_dict, calib_coeff=self.calibration_buffer, timestamp=ts)
     
     async def get_RealTimeData(self):
-        real_time_dict = await asyncio.to_thread(self.client.get_count_data)
+        real_time_dict = await asyncio.to_thread(self.client.get_count_data)                
         return WrappedRealTimePackage(**real_time_dict, timestamp=time.time())
     
     async def get_Status(self):
         status_dict = await asyncio.to_thread(self.client.get_status)
+        coordinates = status_dict.pop("coordinates")
+        if self.use_gps:
+            if all(coordinates):
+                self.run_manager.Signals.GPSUpdated.emit(GPSData(source = "DetectiveX", latitude=coordinates[0], longitude=coordinates[1], valid=True))
+            else:
+                self.run_manager.Signals.GPSUpdated.emit(GPSData(source = "DetectiveX", latitude=0, longitude=0, valid=False))
         return WrappedStatusPackage(**status_dict, timestamp=time.time())
     
     def start_acquisition(self):

@@ -68,6 +68,7 @@ class DetectiveX:
         return {
             "battery": round(status['Battery'], 1),
             "temperature": status['CrystalTemperature'] - 273,
+            "coordinates": status["Coordinates"]
         }
 
 

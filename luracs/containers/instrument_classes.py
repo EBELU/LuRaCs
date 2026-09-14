@@ -46,7 +46,7 @@ class GenericInstrument:
 
 @dataclass(kw_only=True)
 class UniqueInstrument(GenericInstrument):
-    "Stores the data for a unique instrument, should be created from a generic instrument UniqueInstrument('Name', **template.get_copy().__dict__())"
+    "Stores the data for a unique instrument, should be created from a generic instrument UniqueInstrument('Name', **template.get_copy().__dict__)"
 
     name: str = ""  # Important
 

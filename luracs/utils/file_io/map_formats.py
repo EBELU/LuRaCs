@@ -1,3 +1,9 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from luracs.gui.mapping import MappingDataBuffer
+    
 import json
 from dataclasses import dataclass
 from datetime import datetime

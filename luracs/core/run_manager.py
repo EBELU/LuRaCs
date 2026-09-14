@@ -50,7 +50,6 @@ class EmittedSignals(QObject):
     currentUpdated = Signal(str, object)
     statusUpdated = Signal(str, object)
     spectrumUpdated = Signal(str, object)
-    gpsUpdated = Signal(float, float)
 
     realTimeBuffersUpdated = Signal(str, object, object)
 
@@ -58,6 +57,9 @@ class EmittedSignals(QObject):
     removeDeviceSpectrum = Signal(str)
     
     closeSpectrogram = Signal(str)
+    
+    GPSConnection = Signal(bool)
+    GPSUpdated = Signal(object)
 
     # ---- lifecycle signals ----
     newDeviceWrapped = Signal(str, object)
@@ -99,6 +101,8 @@ class _RunManager(QObject):
             name="RunManager",
             daemon=True,
         )
+        
+        self.has_gps: bool = False
 
         self._loop: asyncio.AbstractEventLoop | None = None
         self._loop_ready = threading.Event()    
@@ -112,6 +116,8 @@ class _RunManager(QObject):
         self.Signals.closeSpectrogram.connect(self.close_spectrogram)
         
         self.Signals.newDeviceWrapped.connect(Settings.add_new_connection)
+        
+        self.Signals.GPSConnection.connect(self.set_gps)
 
         # Connected devices
         self.device_registry: dict[str, DeviceWrapper] = {}
@@ -181,6 +187,7 @@ class _RunManager(QObject):
         device_address: str,
         device_type: str,
         conn_type: ConnectionType,
+        wrapper_kwargs: dict | None = None
     ):
 
         return self.submit_to_thread(
@@ -188,12 +195,13 @@ class _RunManager(QObject):
                 device_address,
                 device_type,
                 conn_type,
+                wrapper_kwargs,
             )
         )
 
 
     async def _add_device(
-        self, device_address: str, device_type: str, conn_type: ConnectionType
+        self, device_address: str, device_type: str, conn_type: ConnectionType, wrapper_kwargs: dict | None = None
     ):  
         if isinstance(conn_type, str):
             conn_type = ConnectionType(conn_type)
@@ -203,8 +211,10 @@ class _RunManager(QObject):
         if client_wrapper is None:
             gui_logger.error(f"Invalid device type! {device_type}")
             return
+        
+        wrapper_kwargs = {} if wrapper_kwargs is None else wrapper_kwargs
 
-        new_device: DeviceWrapper = client_wrapper(device_address, conn_type)
+        new_device: DeviceWrapper = client_wrapper(device_address, conn_type, **wrapper_kwargs)
         
 
         if new_device.name in self.device_registry:
@@ -495,6 +505,13 @@ class _RunManager(QObject):
 
     def reset_all_spectra(self):
         self.Signals.toDeivceResetSpectrum.emit()
+        
+    # ------------------------------------------------------------------
+    # GPS
+    # ------------------------------------------------------------------
+
+    def set_gps(self, state: bool):
+        self.has_gps = state
 
 
 RunManager = _RunManager()

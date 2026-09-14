@@ -14,6 +14,7 @@ from .gui_logger import gui_logger
 
 class InstrumentLibrary(QObject):
     sigInstrumentUpdated = Signal(str, object)
+    sigInstrumentRemoved = Signal(object)
     sigRemoveInstrument = Signal(str)
     sigNewInstrumentAdded = Signal(object)
     sigRegistryUpdated = Signal()
@@ -37,6 +38,7 @@ class InstrumentLibrary(QObject):
         self.instrument_registry[key] = instrument
 
     def remove_instrument(self, key: str):
+        self.sigInstrumentRemoved.emit(self.instrument_registry[key])
         del self.instrument_registry[key]
         self.sigRemoveInstrument.emit(key)
 

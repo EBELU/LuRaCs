@@ -118,6 +118,68 @@
             bridge.from_js("Web channel ready");
         });
 
+        let current_location_marker = null;
+
+        function add_current_location_point(lat, lng) {
+            // Remove an existing marker first
+            if (current_location_marker) {
+                current_location_marker.remove();
+            }
+
+            const el = document.createElement("div");
+
+            el.style.width = "16px";
+            el.style.height = "16px";
+            el.style.borderRadius = "50%";
+            el.style.backgroundColor = "#2196F3";
+            el.style.border = "3px solid white";
+            el.style.boxShadow = "0 0 0 2px #2196F3";
+            el.style.boxSizing = "border-box";
+            el.style.zIndex = "9999";
+
+            current_location_marker = new maplibregl.Marker({
+                element: el
+            })
+                .setLngLat([lng, lat])
+                .addTo(map);
+        }
+
+
+        function move_current_location_point(lat, lng) {
+            if (!current_location_marker) {
+                // If it doesn't exist yet, create it
+                add_current_location_point(lat, lng);
+                return;
+            }
+
+            current_location_marker.setLngLat([lng, lat]);
+        }
+
+
+        function remove_current_location_point() {
+            if (!current_location_marker) {
+                return;
+            }
+
+            current_location_marker.remove();
+            current_location_marker = null;
+        }
+
+        function move_view_to(lat, lng, zoom = null) {
+            const options = {
+                center: [lng, lat],
+                essential: true
+            };
+
+            if (zoom !== null) {
+                options.zoom = zoom;
+            }
+
+            map.flyTo(options);
+        }
+
+
+
     </script>
 </body>
 

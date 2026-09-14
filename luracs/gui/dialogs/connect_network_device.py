@@ -13,7 +13,7 @@ from luracs.core import Settings, RunManager
 
 
 class ConnectNetworkDeviceDialog(QDialog):
-    sigAccepted = Signal(str, str, object)
+    sigAccepted = Signal(str, str, object, dict)
     sigUseNetworkGPS = Signal(bool)
 
     def __init__(self, parent=None):
@@ -54,7 +54,7 @@ class ConnectNetworkDeviceDialog(QDialog):
         main_layout.addWidget(buttons)
 
     def emit_connection(self):
-        self.sigAccepted.emit(self.ip_line.text(), self.device_combo.currentData(), "NETWORK")
+        self.sigAccepted.emit(self.ip_line.text(), self.device_combo.currentData(), "NETWORK", {"use_gps": self.capture_gps_check.isChecked()})
         self.sigUseNetworkGPS.emit(self.capture_gps_check.isChecked())
         Settings.State.last_network_connection_ip = self.ip_line.text()
         

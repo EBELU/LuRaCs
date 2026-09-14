@@ -58,6 +58,7 @@ class _SpectrumManager(QObject):
         self.ROIManager = ROIManager(self)
 
         self.UniqueInstrumentLibrary = InstrumentLibrary(UniqueInstrument)
+        self.UniqueInstrumentLibrary.sigInstrumentRemoved.connect(self.remove_instrument_from_spectra)
         self.GenericInstrumentLibrary = InstrumentLibrary(GenericInstrument)
 
         self.NuclideLibrary = NuclideLibrary(self)
@@ -325,6 +326,12 @@ class _SpectrumManager(QObject):
     def clear_spectrum_instrument(self, spectrum_name: str):
         self.spectrum_registry[spectrum_name].instrument = None
         self.Signals.spectrumUpdated.emit(spectrum_name)
+        
+    def remove_instrument_from_spectra(self, instrument: UniqueInstrument):
+        for spect_name, spectrum in self.spectrum_registry.items():
+            if spectrum.instrument is instrument:
+                spectrum.clear_instrument()
+                self.Signals.spectrumUpdated.emit(spect_name)
 
 
 # Declare ONE instance

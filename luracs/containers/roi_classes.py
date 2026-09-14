@@ -273,9 +273,7 @@ class SpectrogramROI(LinearRegionItem):
             
     def set_idx_region(self, energy_axis: np.ndarray):
         "Updates the linear region bounds on an axis with channels based on the current energy bounds."
-        print(self.E_region)
         idx_bounds = np.interp(np.array(self.E_region), energy_axis, np.arange(len(energy_axis)))
-        print(idx_bounds)
         self.setRegion(idx_bounds.round())
         
     def update_E_bounds(self, new_region: tuple, calib_coeff: np.ndarray):

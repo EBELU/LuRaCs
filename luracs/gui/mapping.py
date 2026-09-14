@@ -1,7 +1,13 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from luracs.containers.roi_classes import SpectrogramROI
+
 import json
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -32,10 +38,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from luracs.core import Log, Settings, core_utils
+from luracs.clients.gps import GPSData, format_gps
+from luracs.core import Log, RunManager, Settings, core_utils
 from luracs.resources.mapping_resources.local_server import TileServer
 from luracs.utils.file_io import (
     MapFormatParser,
+    MapPoint,
     SimpleMappingData,
     export_geojson,
 )
@@ -129,7 +137,71 @@ class Bridge(QObject):
 
     def remove_all_data_points(self, view: QWebEngineView):
         view.page().runJavaScript("remove_all_data_points();")
+        
+    def add_current_location_point(self, view: QWebEngineView, lat: float, lng: float,
+    ):
+        js = f"add_current_location_point({lat}, {lng});"
+        view.page().runJavaScript(js)
 
+    def remove_current_location_point(self, view: QWebEngineView):
+        view.page().runJavaScript("remove_current_location_point();")
+
+    def move_current_location_point(self, view: QWebEngineView, lat: float, lng: float,
+    ):
+        js = f"move_current_location_point({lat}, {lng});"
+        view.page().runJavaScript(js)
+        
+    def move_view_to(
+        self,
+        view: QWebEngineView,
+        lat: float,
+        lng: float,
+        zoom: float | None = None,
+    ):
+        if zoom is None:
+            js = f"move_view_to({lat}, {lng});"
+        else:
+            js = f"move_view_to({lat}, {lng}, {zoom});"
+
+        view.page().runJavaScript(js)
+
+
+
+class MappingDataBuffer(QObject):
+    sigNewPointsReceived = Signal(str, str, object, object, object)
+    sigCompleteData = Signal(str, str, object, object)
+    def __init__(self, spectrogram_name: str):
+        super().__init__(parent=None)
+        self.spectrogram_name: str = spectrogram_name
+        self.current_length: int = 0
+        self.buffers: dict[np.ndarray] = {}
+    
+    def process_buffer(self, buffer: dict[np.ndarray]):
+        if buffer["gps"].shape[0] == self.current_length:
+            return
+        
+        self.buffers = buffer
+        if not np.any(self.buffers["gps"]):
+            return
+        
+        size_diff = buffer["gps"].shape[0] - self.current_length
+        self.current_length = buffer["gps"].shape[0]
+        
+        for key, value in self.buffers.items():
+            if key == "gps" or key == "timestamp":
+                continue
+            lng = [p.longitude for p in self.buffers["gps"][-size_diff:]]
+            lat = [p.latitude for p in self.buffers["gps"][-size_diff:]]
+            self.sigNewPointsReceived.emit(self.spectrogram_name, key, lng, lat, value[-size_diff:])
+            
+    def get_all_data(self, key: str):
+        return self.spectrogram_name, key, self.buffers["gps"], self.buffers[key]
+            
+    def clear(self):
+        self.buffers.clear()
+        self.current_length = 0
+            
+        
 
 class MapWidget(QWidget):
     sigLoadOnlineMapUrl = Signal(str, str)
@@ -140,6 +212,14 @@ class MapWidget(QWidget):
 
         self.pending_style = None
         self.tile_server = None
+        
+        # --- Data Containers ---
+        self.selected_content = None
+        self.current_datapoints: list = []
+        self.map_buffers: dict[str, MappingDataBuffer] = {}
+        self.simple_buffers: dict[str, SimpleMappingData] = {}
+        
+        # ----- Layout -----
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(3,3,3,3)
@@ -152,7 +232,7 @@ class MapWidget(QWidget):
         menu = QMenu(self.btn_load_map)
 
         # Load actions
-        action_offline = QAction("Load Local Map", self)
+        action_offline = QAction("Load Offline Map", self)
         action_offline.setToolTip(
             "Load a map from a locally stored .pmtiles-file and run on the embedded tile server."
         )
@@ -193,13 +273,14 @@ class MapWidget(QWidget):
         # Data source combo
         self.combo_spectrogram = QComboBox()
         self.combo_spectrogram.currentIndexChanged.connect(
-            self.combo_spectrogram_changed
+            self.combo_changed
         )
 
         # Data kind combo
         self.combo_shown_data = QComboBox()
-        self.combo_shown_data.addItems(["CPS [/s]", "DR   [uSv/h]"])
-        self.combo_shown_data.currentIndexChanged.connect(self.shown_data_changed)
+        self.combo_shown_data.addItem("Count Rate [/s]", "count_rate")
+        self.combo_shown_data.addItem("Dose Rate [uSv/h]", "dose_rate")
+        self.combo_shown_data.currentIndexChanged.connect(self.combo_changed)
 
         # Add toolbar
         tool_bar.addWidget(self.combo_spectrogram, 2)
@@ -275,75 +356,181 @@ class MapWidget(QWidget):
         main_layout.addLayout(central_layout)
         main_layout.addWidget(self.gps_status_bar)
 
-        # --- Data Containers ---
-        self.selected_content = None
-        self.current_points: int = 0
+        
+        # --- Connect Signals ---
+        RunManager.Signals.spectrogramStarted.connect(self.catch_spectrogram_added)
+        RunManager.Signals.spectrogramClosed.connect(self.catch_spectrogram_closed)
+        RunManager.SpectrogramManager.sigAddROI.connect(self.catch_roi_added)
+        RunManager.SpectrogramManager.sigRemoveROI.connect(self.catch_roi_removed)
+        RunManager.SpectrogramManager.sigMapBufferUpdated.connect(self.catch_map_buffer)
+        RunManager.Signals.GPSConnection.connect(self.catch_gps_connected)
+        RunManager.Signals.GPSUpdated.connect(self.catch_gps_update)
+
+
 
     # ------------------------------------------------------------------
     # Data handling
     # ------------------------------------------------------------------
     
-    def add_simple_data(self, data: SimpleMappingData):
+    def catch_spectrogram_added(self, spectrogram_name: str):
+        self.combo_spectrogram.addItem(spectrogram_name)
+        new_buffer = MappingDataBuffer(spectrogram_name)
+        self.map_buffers[spectrogram_name] = new_buffer
+        new_buffer.sigNewPointsReceived.connect(self.add_points)
+    
+    def catch_spectrogram_closed(self, spectrogram_name: str):
         for i in range(self.combo_spectrogram.count()):
-            if self.combo_spectrogram.itemData(i) == data:
-                self.combo_spectrogram.setItemText(i, data.title)
-                self.combo_spectrogram.setItemData(i, data)
+            if self.combo_spectrogram.itemText(i) == spectrogram_name:
+                self.combo_spectrogram.removeItem(i)
+                break
+        
+        old_buffer =  self.map_buffers.pop(spectrogram_name)
+        old_buffer.sigNewPointsReceived.disconnect(self.add_points)
+            
+    def catch_roi_added(self, roi: SpectrogramROI):
+        self.combo_shown_data.addItem(roi.alias, roi.tag)
+        for buff in self.map_buffers.values():
+            buff.clear()
+        for sg in RunManager.SpectrogramManager.spectrogram_registry.values():
+            sg.request_data()
+    
+    def catch_roi_removed(self, roi: SpectrogramROI):
+        for i in range(self.combo_shown_data.count()):
+            if self.combo_shown_data.itemData(i) == roi.tag:
+                self.combo_shown_data.removeItem(i)
+                break
+    
+    def add_simple_data(self, data: SimpleMappingData):
+        self.simple_buffers[data.title] = data
+        for i in range(self.combo_spectrogram.count()):
+            if self.combo_spectrogram.itemText(i) == data.title:
                 return
+        
+        self.combo_spectrogram.addItem(data.title)
+        self.combo_changed(0)
+        
+    def get_data(self)->tuple[list, list, list]:
+        spectrogram_key = self.combo_spectrogram.currentText()
+        current_data_key = self.combo_shown_data.currentData()
+        
+        if not spectrogram_key:
+            return
+        
+        if spectrogram_key in self.simple_buffers:
+            values = []
+            lng = []
+            lat = []
+            for p in self.simple_buffers[spectrogram_key].data_points:
+                lng.append(p.lng)
+                lat.append(p.lat)
+                if current_data_key == "count_rate":
+                    values.append(p.count_rate)
+                elif current_data_key == "dose_rate":
+                    values.append(p.dose_rate)
+                elif p.other_data_point is not None and current_data_key in p.other_data_point:
+                    values.append(p.other_data_point.get(current_data_key))
+                else:
+                    return
+                    
+            return lng, lat, values
+                
+        elif spectrogram_key in self.map_buffers:
+            _, _, gps, values = self.map_buffers[spectrogram_key].get_all_data(current_data_key)
+            
+            lng = [p.longitude for p in gps]
+            lat = [p.latitude for p in gps]
+            
+            return lng, lat, list(values)
 
-        self.combo_spectrogram.addItem(data.title, data)
+        else:
+            Log.debug(f"No data found! \n sg_key={spectrogram_key}, data_key={current_data_key}\n map_buffer={self.map_buffers.keys()}, simple_buffers={self.simple_buffers.keys()}")
+        
 
-    def combo_spectrogram_changed(self, index: int):
-        data = self.combo_spectrogram.currentData()
+    def combo_changed(self, index: int):
+        if self.bridge is None:
+            return
+        spectrogram_key = self.combo_spectrogram.currentText()
+        current_data_key = self.combo_shown_data.currentData()
+
+        self.bridge.remove_all_data_points(self.web_engine_view)
+        
+        data = self.get_data()
         if data is not None:
-            self.bridge.remove_all_data_points(self.web_engine_view)
-            self.set_points(data)
+            self.set_points(spectrogram_key, current_data_key, *data)
+        
 
-    def shown_data_changed(self, index: int):
-        data = self.combo_spectrogram.currentData()
-        if data is not None:
-            self.bridge.remove_all_data_points(self.web_engine_view)
-            self.set_points(data)
-
-    def set_points(self, mapping_data: SimpleMappingData):
-        datapoints = []
-        for i, p in enumerate(mapping_data.data_points):
-            if self.combo_shown_data.currentText() == "CPS [/s]":
-                value = p.count_rate
-                self.view_slider.axis.setLabel("CPS [/s]")
-
-            elif self.combo_shown_data.currentText() == "DR   [uSv/h]":
-                value = p.dose_rate
-                self.view_slider.axis.setLabel("DR [uSv/h]")
-
+    def set_points(self, spectrogram_name: str, data_type_key: str, longitude: list, latitude: list, values: list):
+        if self.web_engine_view is None:
+            return
+        for i, (lng, lat, p) in enumerate(zip(longitude, latitude, values)):
             self.bridge.add_data_point(
                 self.web_engine_view,
                 i,
-                p.lat,
-                p.lng,
-                f"Count Rate: {round(p.count_rate, 2)} /s\nDose Rate: {round(p.dose_rate, 3)} uSv/h",
-                self.value_to_color(value),
+                lat,
+                lng,
+                f"Value {round(p, 2)}",
+                self.value_to_color(p),
             )
-            datapoints.append(value)
-
-        image = np.asarray(datapoints, dtype=np.float32)[None, :]  # (1, N)
+            
+        self.current_datapoints = list(values)
+        image = np.asarray(values, dtype=np.float32)[None, :]  # (1, N)
         self.dummy_image.setImage(image, autoLevels=False)
         low, high = np.percentile(image, [1, 99])
         self.view_slider.setLevels(low, high)
         self.view_slider.vb.setYRange(low, high)
-
-    def change_color(self):
-        mapping_data = self.combo_spectrogram.currentData()
-        if mapping_data is None:
+        
+    def add_points(self, spectrogram_name: str, data_type_key: str, longitude: list, latitude: list, values: list):
+        if spectrogram_name != self.combo_spectrogram.currentText() or data_type_key != self.combo_shown_data.currentData() or self.web_engine_view is None:
+            # print("returned", f"{spectrogram_name} = {self.combo_spectrogram.currentText()}, {data_type_key} = {self.combo_shown_data.currentData()}")
             return
-        for i, p in enumerate(mapping_data.data_points):
-            if self.combo_shown_data.currentText() == "CPS [/s]":
-                self.bridge.change_data_point_colour(
-                    self.web_engine_view, i, self.value_to_color(p.count_rate)
-                )
-            elif self.combo_shown_data.currentText() == "DR   [uSv/h]":
-                self.bridge.change_data_point_colour(
-                    self.web_engine_view, i, self.value_to_color(p.dose_rate)
-                )
+        
+        nr_current_points = len(self.current_datapoints)
+        for i, (lng, lat, p) in enumerate(zip(longitude, latitude, values)):
+            self.bridge.add_data_point(
+                self.web_engine_view,
+                i + nr_current_points,
+                lat,
+                lng,
+                f"Value {round(p, 2)}",
+                self.value_to_color(p),
+            )
+            
+        self.current_datapoints.extend(values)
+        image = np.asarray(self.current_datapoints, dtype=np.float32)[None, :]  # (1, N)
+        self.dummy_image.setImage(image, autoLevels=False)
+        if i == len(self.current_datapoints) - 1:
+            low, high = np.percentile(image, [1, 99])
+            self.view_slider.setLevels(low, high)
+            self.view_slider.vb.setYRange(low, high)
+        
+        
+            
+    def change_color(self):
+        if not len(self.current_datapoints):
+            return
+        
+        for i, p in enumerate(self.current_datapoints):
+            self.bridge.change_data_point_colour(
+                self.web_engine_view, i, self.value_to_color(p)
+            )
+    
+    @Slot(bool)
+    def catch_gps_connected(self, gps_state: bool):
+        if self.bridge:
+            if gps_state:
+                self.bridge.add_current_location_point(self.web_engine_view, 55.5915924, 12.9980149)
+            else:
+                self.bridge.remove_current_location_point(self.web_engine_view)
+    
+    @Slot(GPSData)
+    def catch_gps_update(self, data: GPSData):
+        self.gps_status_bar.setText(format_gps(data))
+        if self.bridge and data.valid:
+            self.bridge.move_current_location_point(self.web_engine_view, data.latitude, data.longitude)
+    
+    @Slot(str, dict)
+    def catch_map_buffer(self, spectrogram_name: str, buffers: dict):
+        self.map_buffers[spectrogram_name].process_buffer(buffers)
 
     # ------------------------------------------------------------------
     # Internal runners and callbacks
@@ -358,7 +545,7 @@ class MapWidget(QWidget):
 
         self.web_engine_view.page().runJavaScript(js)
 
-        self.combo_spectrogram_changed(0)
+        self.combo_changed(0)
 
     @Slot(str, str)
     def on_mouse_move(self, point_json, lnglat_json):
@@ -545,8 +732,37 @@ class MapWidget(QWidget):
         Settings.Paths.last_opened_dir = Path(file).parent
 
     def export_to_geojson(self):
-        data = self.combo_spectrogram.currentData()
-        if data is None:
+        name = self.combo_spectrogram.currentText()
+        if name in self.simple_buffers:
+            smd = self.simple_buffers[name]
+        elif name in self.map_buffers:
+            data = self.map_buffers[name]
+            sg = RunManager.SpectrogramManager.spectrogram_registry[name]
+
+            map_points = []
+            for i in range(data.current_length):
+                mp = MapPoint(
+                    timestamp=datetime.fromtimestamp(data.buffers["timestamp"][i]),
+                    count_rate=data.buffers["count_rate"][i],
+                    dose_rate=data.buffers["count_rate"][i],
+                    lng=data.buffers["gps"][i].longitude,
+                    lat=data.buffers["gps"][i].latitude,
+                    other_data_point={
+                        RunManager.SpectrogramManager.get_roi_alias_from_tag(tag): v[i] for tag, v in data.buffers.items() if tag not in ["gps", "timestamp", "count_rate", "dose_rate"]
+                    }
+                )
+                map_points.append(mp)
+            
+            smd = SimpleMappingData(
+                title = name,
+                start=datetime.fromtimestamp(sg.start_date),
+                end=datetime.fromtimestamp(sg.buffers.latest_timestamp),
+                device_id=sg.device_id,
+                data_points=map_points,
+                meta_data={}
+            )
+            
+        else:
             QMessageBox.warning(self, "Error", "No track to export")
             return
 
@@ -560,7 +776,7 @@ class MapWidget(QWidget):
         if not file:
             return
 
-        export_geojson(data, file)
+        export_geojson(smd, file)
 
     # ------------------------------------------------------------------
     # Helpers

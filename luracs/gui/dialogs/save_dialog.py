@@ -1,10 +1,10 @@
 from PySide6.QtWidgets import (
     QDialog,
-    QVBoxLayout,
+    QDialogButtonBox,
     QFormLayout,
     QLineEdit,
-    QDialogButtonBox,
     QTextEdit,
+    QVBoxLayout,
 )
 
 

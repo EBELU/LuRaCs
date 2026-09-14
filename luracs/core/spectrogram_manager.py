@@ -13,10 +13,11 @@ import numpy as np
 from PySide6.QtCore import QObject, Signal
 
 from luracs.containers.roi_classes import SpectrogramROI
+from luracs.utils.file_io import MapPoint
 
 
 class SpectrogramManager(QObject):
-    sigMapBufferUpdated = Signal()
+    sigMapBufferUpdated = Signal(str, object)
     sigSpectrogramBufferUpdated = Signal()
 
     sigAddROI = Signal(object)
@@ -58,7 +59,6 @@ class SpectrogramManager(QObject):
 
         if popped_roi is None:
             return
-
         self.sigRemoveROI.emit(popped_roi)
 
     def clear_rois(self):
@@ -78,20 +78,41 @@ class SpectrogramManager(QObject):
                 alias=extended_kwargs["alias"],
                 emission=extended_kwargs["emission"],
             )
+            
+    def get_roi_alias_from_tag(self, tag: str):
+        return self.roi_registry[tag].alias
 
     def receive_buffer(self, logger_name: str, buffer: WrappedSpectrogramData):
-        if not self.roi_registry or len(buffer.spectrogram) < 1:
+        if len(buffer.spectrogram) < 1:
             return
+        
+        if self.roi_registry:
+            sg = np.vstack(buffer.spectrogram)
 
-        sg = np.vstack(buffer.spectrogram)
+            Eaxis = self.energy_axes_buffer[logger_name]
+            results = {}
+            for roi in self.roi_registry.values():
+                Emin, Emax = roi.E_region
+                i0, i1 = np.searchsorted(Eaxis, Emin), np.searchsorted(Eaxis, Emax)
+                roi_counts = np.sum(sg[:, i0:i1], axis=1)
 
-        Eaxis = self.energy_axes_buffer[logger_name]
-        results = {}
-        for roi in self.roi_registry.values():
-            Emin, Emax = roi.E_region
-            i0, i1 = np.searchsorted(Eaxis, Emin), np.searchsorted(Eaxis, Emax)
-            roi_counts = np.sum(sg[:, i0:i1], axis=1)
+                results[roi.tag] = roi_counts / buffer.save_interval
 
-            results[roi.tag] = roi_counts / buffer.save_interval
-
-        self.sigROICountsUpdated.emit(logger_name, results)
+            self.sigROICountsUpdated.emit(logger_name, results)
+            
+        else:
+            results = {}
+        
+        if True: #self.run_manager.has_gps and np.any(buffer.gps_queue):
+            mapping_buffer = {
+                "timestamp": np.asarray(buffer.timestamp_deque),
+                "gps": np.asarray(buffer.gps_queue),
+                "count_rate": np.asarray(buffer.count_rate_queue),
+                "dose_rate": np.asarray(buffer.dose_rate_queue),
+                **{roi_tag: arr for roi_tag, arr in results.items()}
+                }
+            
+            self.sigMapBufferUpdated.emit(logger_name, mapping_buffer)
+        
+        
+    

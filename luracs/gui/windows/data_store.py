@@ -83,6 +83,7 @@ class DataLibrary(QWidget):
 
 
 class LibraryTab(QWidget):
+    sigItemDeleted = Signal(str)
     def __init__(self, parent, columns, widths=None, include_checks=False):
         super().__init__(parent=parent)
 
@@ -220,6 +221,7 @@ class LibraryTab(QWidget):
 
         if reply == QMessageBox.Yes:
             for file in selection:
+                self.sigItemDeleted.emit(file)
                 self.delete_fn(file)
                 self.table.delete_row(file)
 
@@ -903,3 +905,4 @@ class GenericInstrumentsTab(LibraryTab):
                 existing_instrument_key, new_instrument
             )
         self.set_table()
+        

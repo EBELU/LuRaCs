@@ -1,4 +1,5 @@
 import json
+import zlib
 import sqlite3 as sql
 from dataclasses import dataclass
 from datetime import datetime
@@ -36,6 +37,7 @@ class dbDataColumns:
     longitude: np.ndarray
     latitude: np.ndarray
     spectra: np.ndarray
+    meta: list
 
 
 class db_parser:
@@ -57,7 +59,7 @@ class db_parser:
 
         cursor.execute(
             """
-            SELECT created, device_id, channels, calibration, concat, save_interval
+            SELECT created, device_id, channels, calibration, concat, save_interval, meta
             FROM header
             WHERE id = 1
             """
@@ -75,6 +77,7 @@ class db_parser:
             calibration,
             concat,
             save_interval,
+            meta
         ) = row
 
         if self._channels is None:
@@ -133,6 +136,7 @@ class db_parser:
         longitudes = []
         latitudes = []
         spectra = []
+        meta = []
 
         for (
             ts,
@@ -142,12 +146,13 @@ class db_parser:
             lat,
             lon,
             spec_blob,
+            meta_blob
         ) in rows:
             timestamps.append(ts)
             timestamps_datetime.append(datetime.fromtimestamp(ts))
-            temperatures.append(temp)
-            avg_cps.append(cps / 1000.0)
-            avg_dr.append(dr / 1000.0)
+            temperatures.append(temp / 1000.)
+            avg_cps.append(cps / 1000.)
+            avg_dr.append(dr / 1000.)
             latitudes.append(lat)
             longitudes.append(lon)
 
@@ -155,6 +160,12 @@ class db_parser:
                 decompress_spectrum(
                     spec_blob,
                     self._channels,
+                )
+            )
+            
+            meta.append(
+                json.loads(
+                    zlib.decompress(meta_blob).decode("utf-8")
                 )
             )
 
@@ -188,6 +199,8 @@ class db_parser:
                 spectra,
                 dtype=np.int32,
             ),
+            
+            meta=meta
         )
 
     def get_spectrogram_by_date(
