@@ -18,8 +18,38 @@ from .script_engine_components.registry import CommandRegistry
 
 
 def clear_terminal():
-    print("\033[2J\033[H", end="")
+    print("\033[2J\033[H", end="")       
 
+class ThreadBridge(QObject):
+    "Communication between the script engine thread and gui thread for functions where it is required"
+    sig_restart_spectrogram = Signal(str)
+    sig_start_spectrogram = Signal(str, str, int, int)
+    sig_close_spectrogram = Signal(str)
+    
+    def __init__(self, parent):
+        super().__init__(parent=parent)
+        
+        from luracs.spectrogram import restart_spectrogram, start_spectrogram
+
+        from .run_manager import RunManager
+        
+        self.sig_start_spectrogram.connect(start_spectrogram)
+        self.sig_restart_spectrogram.connect(restart_spectrogram)
+        self.sig_close_spectrogram.connect(RunManager.close_spectrogram)
+        
+    def restart_spectrogram(self, db_name: str):
+        self.sig_restart_spectrogram.emit(db_name)
+        
+    def start_spectrogram(self, db_name, device: str, save_interval: int, concat: int):
+        self.sig_start_spectrogram.emit(
+            db_name,
+            device,
+            save_interval,
+            concat
+        )
+    
+    def close_spectrogram(self, db_name: str):
+        self.sig_close_spectrogram.emit(db_name)
 
 class ScriptEngine(QObject):
     sigCommandAppendOutput = Signal(str)
@@ -39,6 +69,7 @@ class ScriptEngine(QObject):
         IS_H3: bool = False,
     ):
         super().__init__(parent)
+        self.thread_bridge = ThreadBridge(self)
 
         self.headless = headless
         self.IS_H3 = IS_H3

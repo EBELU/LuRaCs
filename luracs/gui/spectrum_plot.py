@@ -47,7 +47,7 @@ class SpectrumPlot(QWidget):
         SpectrumManager.Signals.spectrumUpdated.connect(self.update_plot)
         SpectrumManager.Signals.spectrumRemoved.connect(self.remove_plot)
         SpectrumManager.Signals.backgroundRemoved.connect(self._redraw)
-        SpectrumManager.Signals.visibilityChanged.connect(self._redraw)
+        SpectrumManager.Signals.visibilityChanged.connect(self.toggle_spectrum_visibility)
 
         # ROI manager
         SpectrumManager.ROIManager.sigROIUpdated.connect(self.draw_roi)
@@ -330,10 +330,6 @@ class SpectrumPlot(QWidget):
 
     def update_plot(self, name):
         """Primary method for updating a spectrum plot"""
-        if Settings.headless:  # Skip plotting overhead in headless mode
-            self.sigUpdateSpectumROIs.emit(name)
-            return
-
         if self.owned_spectrum is not None and name != self.owned_spectrum:
             return
 
@@ -517,6 +513,41 @@ class SpectrumPlot(QWidget):
                 self.ROI_lines_gaussian[roi_tag].pop(name, None)
 
         self._redraw()
+        
+    def toggle_spectrum_visibility(self, name: str, state: bool):
+        if state:
+            fg_line = self.primary_lines.get(name)
+            if fg_line is not None:
+                self.plot_widget.getPlotItem().addItem(fg_line)
+            bg_line = self.primary_lines.get(name)
+            if self.show_bkg and bg_line is not None:
+                self.plot_widget.getPlotItem().addItem(bg_line)
+            
+            for gauss_lines, bkg_lines in zip(self.ROI_lines_gaussian.values(), self.ROI_lines_linear.values()):
+                roi_line = gauss_lines.get(name)
+                if roi_line is not None:
+                    self.plot_widget.getPlotItem().addItem(roi_line)
+                
+                bkg_line = bkg_lines.get(name)
+                if bkg_line is not None:
+                    self.plot_widget.getPlotItem().addItem(bkg_line)
+            
+        else:
+            fg_line = self.primary_lines.get(name)
+            if fg_line is not None:
+                self.plot_widget.getPlotItem().removeItem(fg_line)
+            bg_line = self.primary_lines.get(name)
+            if self.show_bkg and bg_line is not None:
+                self.plot_widget.getPlotItem().removeItem(bg_line)
+                
+            for gauss_lines, bkg_lines in zip(self.ROI_lines_gaussian.values(), self.ROI_lines_linear.values()):
+                roi_line = gauss_lines.get(name)
+                if roi_line is not None:
+                    self.plot_widget.getPlotItem().removeItem(roi_line)
+                
+                bkg_line = bkg_lines.get(name)
+                if bkg_line is not None:
+                    self.plot_widget.getPlotItem().removeItem(bkg_line)
 
     # ------------------------------------------------
     # ROIs

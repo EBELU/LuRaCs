@@ -68,7 +68,7 @@ class SpectrumInfoTab(QWidget):
     sigColorChanged = Signal(str, str, QColor)
     sigDisconnectAndRemove = Signal(str, bool)
     sigRemoveSpectrum = Signal(str)
-    sigToggleVisibility = Signal(str)
+    sigToggleVisibility = Signal(str, bool)
     sigUpdateSpectrumInstrument = Signal(str, object)
     sigClearSpectrumInstrument = Signal(str)
 
@@ -248,11 +248,14 @@ class SpectrumInfoTab(QWidget):
     def _show_hide_action(self, name):
         spect = SpectrumManager.get_spectrum(name)
         if spect.show_in_plot:
+            spect.show_in_plot = False
             self.hide_show_btn[name].setText("Show")
-            self.sigToggleVisibility.emit(name)
+            self.sigToggleVisibility.emit(name, False)
         else:
+            spect.show_in_plot = True
             self.hide_show_btn[name].setText("Hide")
-            self.sigToggleVisibility.emit(name)
+            self.sigToggleVisibility.emit(name, True)
+
 
     def open_color_dialog(
         self, cell_widget: ColorCellWidget, spectrum_name: str, role: str

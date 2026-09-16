@@ -7,6 +7,7 @@ if TYPE_CHECKING:
 
     from .registry import CommandRegistry
 
+
 import asyncio
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
@@ -16,7 +17,6 @@ from textwrap import dedent
 
 from luracs.clients import ConnectionType, WrappedRealTimePackage, WrappedStatusPackage
 from luracs.core import IOManager, RunManager, Settings, SpectrumManager
-from luracs.spectrogram import restart_spectrogram, start_spectrogram
 from luracs.utils import ascii_art
 from luracs.utils.file_io import db_parser, xml_parser
 
@@ -379,7 +379,7 @@ class ROICommand(Command):
 class SpectrogramCommand(Command):
     name = "spectrogram"
 
-    async def run(self, engine, *args):
+    async def run(self, engine: ScriptEngine, *args):
         """
         Manage spectrogram acquisition and loaded spectrograms.
 
@@ -424,20 +424,20 @@ class SpectrogramCommand(Command):
                     raise ArgumentError("Name can not be specified when mass starting")
 
                 for device in RunManager.device_registry:
-                    start_spectrogram(
-                        db_name=f"Spectrogram_{device}_{datetime.now().replace(microsecond=0).isoformat()}",
-                        device=device,
-                        save_interval=int(parsed_args["-i"]),
-                        concat=int(parsed_args["-c"]),
+                    engine.thread_bridge.start_spectrogram(
+                        f"Spectrogram_{device}_{datetime.now().replace(microsecond=0).isoformat()}",
+                        device,
+                        int(parsed_args["-i"]),
+                        int(parsed_args["-c"]),
                     )
             else:
-                start_spectrogram(
-                    db_name=f"Spectrogram_{pos_args[0]}_{datetime.now().replace(microsecond=0).isoformat()}"
+                engine.thread_bridge.start_spectrogram(
+                    f"Spectrogram_{pos_args[0]}_{datetime.now().replace(microsecond=0).isoformat()}"
                     if parsed_args["-n"] is None
                     else parsed_args["-n"],
-                    device=pos_args[0],
-                    save_interval=int(parsed_args["-i"]),
-                    concat=int(parsed_args["-c"]),
+                    pos_args[0],
+                    int(parsed_args["-i"]),
+                    int(parsed_args["-c"]),
                 )
 
             return
@@ -474,7 +474,7 @@ class SpectrogramCommand(Command):
                     f"'{args[1]}' does not match an existing spectrogram"
                 )
 
-            restart_spectrogram(file_pth.stem)
+            engine.thread_bridge.restart_spectrogram(file_pth.stem)
             return f"'{file_pth.stem}' loaded"
 
         # --- Unload a spectrogram from active ---
@@ -482,7 +482,7 @@ class SpectrogramCommand(Command):
             if args[1] not in RunManager.SpectrogramManager.spectrogram_registry:
                 raise ArgumentError(f"'{args[1]}' does not match a loaded spectrogram")
 
-            RunManager.close_spectrogram(args[1])
+            engine.thread_bridge.close_spectrogram(args[1])
             return f"'{args[1]}' closed"
 
         else:

@@ -1,28 +1,23 @@
+import json
 import os
-import numpy as np
 import sqlite3 as sql
-import zlib
 import time
-from enum import Enum, auto
-from dataclasses import dataclass
+import zlib
 from collections import deque
+from dataclasses import dataclass
+from enum import Enum, auto
 
-from PySide6.QtCore import Signal, QObject
+import numpy as np
+from PySide6.QtCore import QObject, Signal
 
 from luracs.clients import (
     WrappedRealTimePackage,
     WrappedSpectrumPackage,
     WrappedStatusPackage,
 )
-
-from luracs.core import Settings, RunManager, Log, SpectrumManager, IOManager
-from luracs.utils.numerics.compression import compress_spectrum, decompress_spectrum
-
-import json
-
-from datetime import datetime
-
 from luracs.clients.gps import GPSData
+from luracs.core import IOManager, Log, RunManager, Settings, SpectrumManager
+from luracs.utils.numerics.compression import compress_spectrum, decompress_spectrum
 
 
 def restart_spectrogram(db_name: str):
@@ -344,13 +339,13 @@ class Spectrogram(QObject):
             self.buffers.spectrum_view_queue.append(spectrum)
             self.buffers.timestamp_queue.append(ts)
             self.buffers.count_rate_queue.append(avg_cps / 1000.)
-            self.buffers.dose_rate_queue.append(avg_dr / 1000.)
-            self.buffers.gps_queue.append(
-                GPSData(
+            _dr = avg_dr / 1000. if avg_dr is not None else np.nan
+            self.buffers.dose_rate_queue.append(_dr)
+            _gps = GPSData(
                     latitude=latitude, 
                     longitude=longitude
-                )
-            )
+                ) if latitude is not None and longitude is not None else None
+            self.buffers.gps_queue.append(_gps)
 
         self.data_wrapper = WrappedSpectrogramData(
             db_name=self.db_name,
@@ -480,10 +475,10 @@ class Spectrogram(QObject):
             (
                 timestamp,
                 round(avg_cps * 1000),
-                round(avg_dr * 1000),
-                round(temperature * 1000),
-                self.buffers.latest_gps.latitude,
-                self.buffers.latest_gps.longitude,
+                round(avg_dr * 1000) if not np.isnan(avg_dr) and avg_dr is not None else None,
+                round(temperature * 1000) if not np.isnan(temperature) and temperature is not None else None,
+                self.buffers.latest_gps.latitude if self.buffers.latest_gps is not None else None,
+                self.buffers.latest_gps.longitude if self.buffers.latest_gps is not None else None,
                 spectrum_bytes,
                 meta_bytes,
             ),

@@ -13,16 +13,16 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
+    QProgressBar,
     QPushButton,
     QSpinBox,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
-    QProgressBar,
 )
 
 from luracs.core import Calculator, Log, Settings, SpectrumManager
-from luracs.utils.numerics import ml_em, process_response
+from luracs.utils.numerics import ml_em, process_response, richardson_lucy
 
 
 class DeconvolutionWindow(QWidget):
@@ -195,7 +195,38 @@ class DeconvolutionWindow(QWidget):
             raise ValueError("Invalid algorithm index")
         
     def calculate_rl(self):
-        pass            
+        instrument_key = self.combo_instrument.currentData()
+        if instrument_key in SpectrumManager.UniqueInstrumentLibrary.instrument_registry:
+            instrument = SpectrumManager.UniqueInstrumentLibrary.instrument_registry[instrument_key]
+        elif instrument_key in SpectrumManager.GenericInstrumentLibrary.instrument_registry:
+            instrument = SpectrumManager.GenericInstrumentLibrary.instrument_registry[instrument_key]
+        else:
+            QMessageBox.warning(self, "Error", "Not instrument selected")
+            return
+        
+        k = instrument.resolution_params
+        if not k:
+            QMessageBox.warning(self, "Error", "Instrument has no resolution")
+            return
+        
+        spectrum = SpectrumManager.spectrum_registry.get(
+            self.combo_spectra.currentData()
+        )
+
+        if spectrum is None:
+            return
+        
+        y_axis = spectrum.get_foreground().copy()
+        y_axis[-1] = y_axis[-2]
+        
+        result = richardson_lucy(
+            spectrum.x_axis.copy(),
+            y_axis,
+            k,
+            iterations=self.rl_iterations.value()
+        )
+
+        self.catch_result(result)
         
     def calculate_mlem(self):
         if not self.mlem_line_loaded_file.text():

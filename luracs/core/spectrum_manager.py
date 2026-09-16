@@ -24,7 +24,7 @@ class EmittedSignals(QObject):
     spectrumRenamed = Signal(str)
 
     backgroundRemoved = Signal(str, str)
-    visibilityChanged = Signal(bool)
+    visibilityChanged = Signal(str, bool)
 
     roiCreated = Signal(str)
     roiUpdated = Signal(str)
@@ -216,19 +216,11 @@ class _SpectrumManager(QObject):
 
         self.Signals.colorUpdated.emit(name)
 
-    def update_visibility(self, name: str):
+    def update_visibility(self, name: str, state: bool):
         if name not in self.spectrum_registry:
             raise ValueError(f"Spectrum {name} does not exist")
-
-        if self.spectrum_registry[name].show_in_plot:
-            self.spectrum_registry[name].show_in_plot = False
-            self.spectrum_registry[name].fit_rois = False
-            self.Signals.visibilityChanged.emit(False)
-
-        else:
-            self.spectrum_registry[name].show_in_plot = True
-            self.spectrum_registry[name].fit_rois = True
-            self.Signals.visibilityChanged.emit(True)
+        self.Signals.visibilityChanged.emit(name, state)
+        self.ROIManager.update_roi(spectrum_name=name)
 
     # --- Getters ---
 

@@ -399,6 +399,8 @@ class ROIManager(QObject):
         """Update fits for a ROI, if None all rois for the given spectrum is updated.
         If The spectrum is None all spectra is updated for the given ROI.
         If both are None everything is updated"""
+        if not len(self.roi_registry):
+            return
         # --- Get spectra ---
         spectra_dict = self.spectrum_manager.get_spectra_dict()
 
@@ -412,7 +414,9 @@ class ROIManager(QObject):
             rois = self.roi_registry.keys()
         else:
             rois = [roi_tag]
+            
 
+            
         # --- Update each ROI in its group(s) ---
         for spect in spectra:
             updated_rois = (
@@ -506,7 +510,6 @@ class ROIManager(QObject):
                 self.sigROIUpdated.emit(roi.tag, spectrum.name, roi)
             return
             
-
         # --- Perform the fit (maybe) ---
         y_axis = (
             spectrum.get_foreground()

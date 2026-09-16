@@ -158,9 +158,16 @@ def curve_fit(
     # Chi^2 scaling
     if weight_cov_chi2:
         residuals = ydata - f(xdata, p)
+        if weight_fn is not None:
+            w = np.asarray(weight_fn(residuals, f(xdata, p), p))
+            chi2 = np.sum(w * residuals**2)
+        else:
+            chi2 = np.sum(residuals**2)
+
         dof = max(len(ydata) - len(p), 1)
-        chi2 = np.sum(residuals**2) / dof
-        cov *= chi2
+        reduced_chi2 = chi2 / dof
+
+        cov *= reduced_chi2
 
     return p, cov, converged
 

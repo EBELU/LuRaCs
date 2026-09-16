@@ -210,7 +210,7 @@ class ROIInfoTab(QWidget):
         SpectrumManager.Signals.spectrumRenamed.connect(lambda: self.rebuild_table())
         
         # --- Signals ---
-        SpectrumManager.ROIManager.sigROIUpdated.connect(self.recieve_roi)
+        SpectrumManager.ROIManager.sigROIUpdated.connect(self.receive_roi)
         SpectrumManager.ROIManager.sigROIDeleted.connect(self.delete_roi)
         SpectrumManager.Signals.spectrumRemoved.connect(self.spectrum_deleted)
         SpectrumManager.ROIManager.sigBkgSubChanged.connect(self.is_bkgsub_check.setChecked)
@@ -227,7 +227,10 @@ class ROIInfoTab(QWidget):
             rois = SpectrumManager.ROIManager.get_data_from_spectrum(spectrum_name)
 
             for tag, roi in rois.items():
-                self._put_roi(tag, spectrum_name, roi)
+                if spectrum.show_in_plot:
+                    self._put_roi(tag, spectrum_name, roi)
+                else:
+                    self._put_roi(tag, spectrum_name, roi, "Spectrum Hidden")
 
     def _put_roi(
         self, tag: str, spectrum_name: str, roi: ROI, none_fallback="Fit Failed"
@@ -256,7 +259,7 @@ class ROIInfoTab(QWidget):
                     ",", " "
                 )
 
-        if roi.fit is not None:
+        if roi.fit is not None and none_fallback != "Spectrum Hidden":
             peak_counts = (
                 f"{int(roi.get_count_data('peak_counts')):,}".replace(",", " ")
                 if not cps
@@ -286,12 +289,12 @@ class ROIInfoTab(QWidget):
             row = [
                 roi.alias,
                 spectrum_name,
-                round(roi.roi_bound[0]),
-                round(roi.roi_bound[1]),
+                f"{round(roi.roi_bound[0])} keV",
+                f"{round(roi.roi_bound[1])} keV",
                 none_fallback,
                 None,
                 None,
-                roi_counts,
+                roi_counts if none_fallback != "Spectrum Hidden" else "None",
                 "None",
                 "None",
                 "None",
@@ -307,9 +310,13 @@ class ROIInfoTab(QWidget):
     # Signal handlers
     # --------------------------------------------------
 
-    def recieve_roi(self, roi_tag, spectrum_name, roi):
+    def receive_roi(self, roi_tag: str, spectrum_name: str, roi: ROI):
         """Update or insert a single ROI row."""
-        self._put_roi(roi_tag, spectrum_name, roi)
+        spectrum = SpectrumManager.get_spectrum(spectrum_name)
+        if spectrum.show_in_plot:
+            self._put_roi(roi_tag, spectrum_name, roi)
+        else:
+            self._put_roi(roi_tag, spectrum_name, roi, "Spectrum Hidden")
 
     def delete_roi(self, roi):
         """Remove all rows belonging to a deleted ROI."""
