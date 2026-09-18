@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "luracs"
-version = "0.3.1"
+version = "0.4.0"
 description = "Gamma Spectroscopy Software"
 requires-python = ">=3.10,<3.14"
 authors = [
@@ -71,7 +71,7 @@ skip = "*-musllinux_*"
 LuRaCs = "luracs.main:main"
 
 [tool.bumpver]
-current_version = "0.3.1"
+current_version = "0.4.0"
 version_pattern = "MAJOR.MINOR.PATCH"
 
 commit = true
