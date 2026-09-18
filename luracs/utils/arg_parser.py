@@ -28,6 +28,10 @@ def parse_cli_args(main_window: MainWindow, script_engine: ScriptEngine):
     parser.add_argument(
         "--headless", action="store_true", help="Run without GUI (terminal mode)"
     )
+    
+    parser.add_argument(
+        "--clear_local_cache", action="store_true", help="Removes all locally stored files and exits the program"
+    )
 
     parser.add_argument(
         "--map_url", type=str, help="Load an online map from the given URL"

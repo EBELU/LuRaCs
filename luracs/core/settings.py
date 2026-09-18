@@ -1,7 +1,9 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
-    from luracs.clients.device_wrapper_base import DeviceWrapper, ConnectionType
+    from luracs.clients.device_wrapper_base import DeviceWrapper
     
 import json
 import sys
@@ -10,7 +12,17 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QObject, Signal, Slot
+from PySide6.QtCore import QObject, QStandardPaths, Signal, Slot
+
+
+def get_app_data_dir() -> Path:
+    path = QStandardPaths.writableLocation(
+        QStandardPaths.StandardLocation.AppLocalDataLocation
+    )
+    app_data = Path(path) / "LuRaCs"
+    app_data.mkdir(parents=True, exist_ok=True)
+
+    return app_data
 
 
 @dataclass
@@ -115,6 +127,7 @@ class _Paths:
     def __post_init__(self):
         # runtime base (where bundled resources live)
         self.BASE = get_runtime_base()
+        self.appdata = get_app_data_dir()
         self.resources = self.BASE / "resources"
 
         self.themes = self.BASE / "resources" / "themes"

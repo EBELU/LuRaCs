@@ -338,6 +338,7 @@ class MainWindow(QMainWindow):
 def main():
     startup_script()
     app = QApplication(sys.argv)
+    app.setApplicationName("LuRaCs")
     app.setStyle("Fusion")
     font = app.font()
     font.setPointSize(Settings.Appearance.font_size)  # Change the font size
