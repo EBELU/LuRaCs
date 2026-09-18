@@ -10,6 +10,7 @@ is_linux = sys.platform.startswith("linux")
 exe_name = "Win" if is_windows else "Linux"
 
 ROOT = Path(os.getcwd()).resolve()
+__version__ = "0.3.1"
 
 # Cross-platform path
 main_script = os.path.join('luracs', 'main.py')
@@ -84,7 +85,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='LuRaCs'+ exe_name,
+    name='LuRaCs'+ f"_{__version__}" + exe_name,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,   # strip only on Linux (safe)

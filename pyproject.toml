@@ -3,7 +3,8 @@ requires = [
     "setuptools>=65", 
     "wheel",     
     "Cython>=3.0",
-    "numpy>=1.26"]
+    "numpy>=1.26"
+    ]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -25,16 +26,18 @@ dependencies = [
     "openpyxl>=3.0.0",
     "pyusb>=1.0.2",
     "lxml>=4.6.0",
-    "libusb_package",
-    "uncertainties",
-    "plotext",
-    "prompt_toolkit",
-    "markdown",
-    "requests",
-    # "Scikit-Learn",
-    # "SciPy",
     "fastapi",
     "uvicorn",
+    "requests",
+    "plotext",
+    "prompt_toolkit",
+    # Drop maybe
+    "libusb_package",
+    "uncertainties",
+    "markdown",
+    # "Scikit-Learn",
+    # "SciPy",
+
 ]
 
 [project.optional-dependencies]
@@ -83,5 +86,13 @@ push = false
 ]
 
 "luracs/main.py" = [
+    '__version__ = "{version}"',
+]
+
+"LuRaCs-H3.spec" = [
+    '__version__ = "{version}"',
+]
+
+"LuRaCs.spec" = [
     '__version__ = "{version}"',
 ]

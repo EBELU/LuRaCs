@@ -164,6 +164,7 @@ class Spectrogram(QObject):
             else:
                 self.init_database()
 
+            # Initialize the wrapper
             self.data_wrapper = WrappedSpectrogramData(
                 db_name=db_name,
                 instrument=self.device_id,
@@ -224,7 +225,7 @@ class Spectrogram(QObject):
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS spectrogram (
                 id INTEGER PRIMARY KEY,
-                timestamp INTEGER NOT NULL,
+                timestamp REAL NOT NULL,
                 avg_cps INTEGER NOT NULL,
                 avg_dr INTEGER,
                 temperature INTEGER,
@@ -449,7 +450,7 @@ class Spectrogram(QObject):
         if self.buffers.latest_gps is not None and Settings.Advanced.map_save_extra_gps_data:
             meta_data["extra_gps"] = {
                 "alt": self.buffers.latest_gps.altitude,
-                "corse": self.buffers.latest_gps.course,
+                "course": self.buffers.latest_gps.course,
                 "speed": self.buffers.latest_gps.speed,
                 "hdop": self.buffers.latest_gps.hdop,
                 "vdop": self.buffers.latest_gps.vdop,
