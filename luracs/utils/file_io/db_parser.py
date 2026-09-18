@@ -1,6 +1,6 @@
 import json
-import zlib
 import sqlite3 as sql
+import zlib
 from dataclasses import dataclass
 from datetime import datetime
 

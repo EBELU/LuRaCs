@@ -61,6 +61,10 @@ def parse_cli_args(main_window: MainWindow, script_engine: ScriptEngine):
     parser.add_argument(
         "-nw", "--network", nargs="+", help="Attempt Network connections based on device ip-addresses"
     )
+    
+    parser.add_argument(
+        "--serial_gps", help="Connect a GPS with a USB Serial interface"
+    )
 
     args = parser.parse_args()
 
@@ -114,3 +118,6 @@ def parse_cli_args(main_window: MainWindow, script_engine: ScriptEngine):
             script_engine.submit_from_sync(f"map file {args.map_file}")
     else:
         Log.warning("Both a map url and file was given at startup, no map was loaded")
+        
+    if args.serial_gps:
+        RunManager.connect_serial_gps(args.serial_gps)

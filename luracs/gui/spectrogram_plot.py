@@ -533,15 +533,20 @@ class SpectrogramWidget(QWidget):
             self.plot.setLimits(yMax=self.y_len)
 
         # Change unit for readability
-        if data_packet.estimated_dose < 5e-1:
-            dose = data_packet.estimated_dose * 1e3
-            dose_unit = "nSv"
-        elif data_packet.estimated_dose > 5e2:
-            dose = data_packet.estimated_dose * 1e-3
-            dose_unit = "mSv"
+        # Set to 0 if no dose has been recorded
+        if data_packet.estimated_dose is not None:
+            if data_packet.estimated_dose < 5e-1:
+                dose = data_packet.estimated_dose * 1e3
+                dose_unit = "nSv"
+            elif data_packet.estimated_dose > 5e2:
+                dose = data_packet.estimated_dose * 1e-3
+                dose_unit = "mSv"
+            else:
+                dose = data_packet.estimated_dose
+                dose_unit = "uSv"
         else:
-            dose = data_packet.estimated_dose
-            dose_unit = "uSv"
+            dose = 0
+            dose_unit = "nSv"
 
         self.info_text_total = dedent(f"""
             Database:
@@ -587,15 +592,17 @@ class SpectrogramWidget(QWidget):
                 or self.current_concat_factor != concat_factor
             )
         ):
+            # Update buffers
             self.x_len = new_len
             self.current_calibration = calib_coeff
             self.current_concat_factor = concat_factor
 
+            # Make a new x-axis and new bars for the histogram
             self.x = np.arange(self.x_len)
             y = np.zeros(self.x_len)
             bar_width = np.mean(np.diff(self.x))
 
-            self.top_spectrum_plot.removeItem(self.bar)
+            self.top_spectrum_plot.removeItem(self.bar) # Remove the old bars and make new
             self.bar = pg.BarGraphItem(x=self.x, height=y, width=bar_width, brush="g")
             self.top_spectrum_plot.addItem(self.bar)
 
@@ -603,6 +610,7 @@ class SpectrogramWidget(QWidget):
             self.plot.setLimits(xMin=self.x[0], xMax=self.x[-1])
             self.plot.setRange(xRange=[self.x[0], self.x[-1]])
 
+            # Evaluate the calibration and create new tick-labels
             x_calib = np.polyval(calib_coeff, np.arange(self.x_len) * concat_factor)
 
             step = self.x_len // 15
@@ -660,7 +668,7 @@ class SpectrogramWidget(QWidget):
                 self.break_lines.append(line)
 
     def on_x_range_changed(self, viewbox, x_range):
-        "Updates the x-axis of both plots"
+        "Updates the x-axis of both plots when i new spectrogram i loaded"
         xmin, xmax = x_range
 
         n_ticks = 10
@@ -697,7 +705,7 @@ class SpectrogramWidget(QWidget):
         self.plot.getAxis("left").setTicks([ticks])
 
     def update_spectrogram_img(self, view_buf):
-        # Flip the view buffer so the earlist is at the top
+        # Flip the view buffer so the earliest is at the top
         current_spectrogram = np.vstack(view_buf)[::-1]
         self.img.setImage(
             current_spectrogram.T,

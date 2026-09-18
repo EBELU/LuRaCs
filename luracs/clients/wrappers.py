@@ -237,6 +237,7 @@ class DigiBaseWrapper(DeviceWrapper):
         
         self.live_time_buffer = None
         self.spectrum_buffer = None
+        self.hv_ramping = False
         
         self.stopped = False
         self.started = False
@@ -246,7 +247,7 @@ class DigiBaseWrapper(DeviceWrapper):
 
         
     async def get_RealTimeData(self):
-        if self.base.hv_readback < 10:
+        if self.base.hv_readback < 10 or self.hv_ramping:
             return
         spectrum, live_time, real_time = await asyncio.to_thread(self._read_spectrum_data)
         if self.live_time_buffer is None:
@@ -265,7 +266,7 @@ class DigiBaseWrapper(DeviceWrapper):
         )
     
     async def get_Spectrum(self):
-        if self.base.hv_readback < 10:
+        if self.base.hv_readback < 10 or self.hv_ramping:
             return
         
         spectrum, live_time, real_time = await asyncio.to_thread(self._read_spectrum_data)
@@ -333,11 +334,13 @@ class DigiBaseWrapper(DeviceWrapper):
         if not state:
             self.hv = 0
         self.base.hv_enabled = state
+
         await self._update_status(8)
 
 
     async def set_hv(self, hv: float):
         self.base.hv = hv
+
         await self._update_status(8)
 
 

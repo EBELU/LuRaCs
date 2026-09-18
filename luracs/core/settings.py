@@ -86,6 +86,9 @@ class _Advanced:
 
     spectrogram_deque_length: int = 256
     spectrogram_roi_display_length_s: float = 60
+    
+    map_move_to_current_max_rate_s: float = 1
+    map_save_extra_gps_data: bool = False
 
 
 def get_runtime_base() -> Path:

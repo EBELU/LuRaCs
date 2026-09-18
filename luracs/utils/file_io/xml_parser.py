@@ -44,7 +44,9 @@ def _parse_pair(node, path, ns):
     if not res or not res[0].text:
         return None, None
     parts = res[0].text.split()
+
     return [float(p) for p in parts] if len(parts) > 1 else None
+
 
 
 def _parse_iso8601_duration(duration: str) -> float:

@@ -10,3 +10,4 @@ from .device_wrapper_base import (
     WrappedStatusPackage,
     SupportedSettings
 )
+from .gps import GPS, GPSData

@@ -74,6 +74,7 @@ from luracs.gui.windows import (
 
 from luracs.gui.dialogs.driver_library_dialog import DriverLibraryDialog
 from luracs.gui.dialogs.connect_network_device import ConnectNetworkDeviceDialog
+from luracs.gui.dialogs.connect_serial_gps import ConnectSerialGPSDialog
 
 from luracs.gui.dialogs.settings_dialog import SettingsDialog
 from luracs.theme_manager import ThemeManager
@@ -148,6 +149,7 @@ class MainWindow(QMainWindow):
         self.bt_window = BluetoothListPopup()
         self.usb_window = USBListPopup()
         self.network_connect_window = ConnectNetworkDeviceDialog()
+        self.serial_gps_window = ConnectSerialGPSDialog()
 
         print_progress("Building GUI", 8)
 

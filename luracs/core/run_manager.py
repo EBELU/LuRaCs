@@ -16,6 +16,7 @@ from concurrent.futures import Future
 import numpy as np
 from bleak import BleakScanner
 from PySide6.QtCore import QObject, Signal, Slot
+from PySide6.QtSerialPort import QSerialPort
 
 from .settings import Settings
 
@@ -39,7 +40,7 @@ else:
     import usb.util
 
 
-from luracs.clients import ConnectionType, CriticalNotImplementedError, DeviceWrapper
+from luracs.clients import ConnectionType, CriticalNotImplementedError, DeviceWrapper, GPS
 
 from .gui_logger import gui_logger
 from .spectrogram_manager import SpectrogramManager
@@ -512,6 +513,15 @@ class _RunManager(QObject):
 
     def set_gps(self, state: bool):
         self.has_gps = state
-
+        
+    def connect_serial_gps(self, port: str, baud_rate: QSerialPort = QSerialPort.BaudRate.Baud4800):
+        self.gps = GPS(port, baud_rate)
+        if not self.gps.open():
+            self.gps.log.error(f"Failed to open: {self.gps.port.errorString()}")
+            return
+        self.has_gps = True
+        self.Signals.GPSConnection.emit(True)
+        self.gps.sigUpdated.connect(self.Signals.GPSUpdated.emit)
+        self.gps.log.info(f"GPS Opened: port={self.gps.port.portName()}")
 
 RunManager = _RunManager()

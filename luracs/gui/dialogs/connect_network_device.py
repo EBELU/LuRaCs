@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from luracs.core import Settings, RunManager
+from luracs.core import RunManager, Settings
 
 
 class ConnectNetworkDeviceDialog(QDialog):

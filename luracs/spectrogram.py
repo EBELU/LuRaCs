@@ -207,7 +207,7 @@ class Spectrogram(QObject):
                 id INTEGER PRIMARY KEY CHECK (id = 1),
                 accumulated_spectrum BLOB,
                 total_duration REAL NOT NULL,
-                total_dose REAL NOT NULL,
+                total_dose REAL,
                 last_update INTEGER
             )
         """)
@@ -226,7 +226,7 @@ class Spectrogram(QObject):
                 id INTEGER PRIMARY KEY,
                 timestamp INTEGER NOT NULL,
                 avg_cps INTEGER NOT NULL,
-                avg_dr INTEGER NOT NULL,
+                avg_dr INTEGER,
                 temperature INTEGER,
                 latitude REAL,
                 longitude REAL,
@@ -382,22 +382,23 @@ class Spectrogram(QObject):
         self.buffers.temperature = status.temperature
         
     def receive_gps(self, data: GPSData):
-        self.buffers.latest_gps = data
+        if data.valid and data.longitude is not None and data.longitude is not None:
+            self.buffers.latest_gps = data
 
-    def receive_spectrum(self, name: str, spectrum: WrappedSpectrumPackage):
+    def receive_spectrum(self, name: str, spectrum_package: WrappedSpectrumPackage):
         if name != self.device_id or self.paused:
             return
 
         # Extract y_axis
-        spectrum = spectrum.y_axis
+        spectrum = spectrum_package.y_axis
 
         if self.buffers.latest_spectrum is None:
             # Fill the buffer with the first data recieved
             self.buffers.latest_spectrum = spectrum
-            self.buffers.latest_timestamp = time.time()
+            self.buffers.latest_timestamp = spectrum_package.timestamp
             return
 
-        new_ts = time.time()
+        new_ts = spectrum_package.timestamp
 
         if not round(new_ts) >= round(
             self.buffers.latest_timestamp + self.save_interval
@@ -428,7 +429,7 @@ class Spectrogram(QObject):
         self.buffers.duration += dt
         self.buffers.accumulated_dose_estimate += (
             (self.buffers.dose_rate / max(self.buffers.recieved_values, 1)) / 3600 * dt
-        )
+        ) if self.buffers.dose_rate else 0
 
         # Update wrapped data package
         self.data_wrapper.latest_spectrum = processed_spectrum
@@ -436,15 +437,25 @@ class Spectrogram(QObject):
         self.data_wrapper.estimated_dose = self.buffers.accumulated_dose_estimate
         self.data_wrapper.time_delta = dt
         self.data_wrapper.status = self.state
-        self.data_wrapper.gps_queue = self.buffers.gps_queue
-        self.data_wrapper.count_rate_queue = self.buffers.count_rate_queue
-        self.data_wrapper.dose_rate_queue = self.buffers.dose_rate_queue
+        self.data_wrapper.gps_queue = np.asarray(self.buffers.gps_queue)
+        self.data_wrapper.count_rate_queue = np.asarray(self.buffers.count_rate_queue)
+        self.data_wrapper.dose_rate_queue = np.asarray(self.buffers.dose_rate_queue)
 
         # Emit wrapper
         self.sigDataUpdated.emit(self.db_name, self.data_wrapper)
 
         # Compress spectrum and insert it into the database
         meta_data = {}
+        if self.buffers.latest_gps is not None and Settings.Advanced.map_save_extra_gps_data:
+            meta_data["extra_gps"] = {
+                "alt": self.buffers.latest_gps.altitude,
+                "corse": self.buffers.latest_gps.course,
+                "speed": self.buffers.latest_gps.speed,
+                "hdop": self.buffers.latest_gps.hdop,
+                "vdop": self.buffers.latest_gps.vdop,
+                "ts": self.buffers.latest_gps.timestamp
+            }
+            
         spectrum_bytes = compress_spectrum(processed_spectrum)
         meta_bytes = zlib.compress(json.dumps(meta_data, separators=(",", ":")).encode("utf-8")) if meta_data else None
         self.insert_spectrogram(
@@ -499,7 +510,7 @@ class Spectrogram(QObject):
         """,
             (
                 self.buffers.duration,
-                self.buffers.accumulated_dose_estimate,
+                self.buffers.accumulated_dose_estimate if self.buffers.accumulated_dose_estimate else 0,
                 compress_spectrum(self.buffers.accumulated_spectrum),
                 ts,
             ),

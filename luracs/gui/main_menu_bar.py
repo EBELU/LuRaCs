@@ -124,6 +124,9 @@ class MainMenuBar(QMenuBar):
         device_menu_network = device_menu.addAction("Connect Network")
         device_menu_network.triggered.connect(parent.network_connect_window.exec)
         
+        device_menu_serial_gps = device_menu.addAction("Connect Serial GPS")
+        device_menu_serial_gps.triggered.connect(parent.serial_gps_window.exec)
+        
         device_menu.addSeparator()
         
         # --- Device Control ---

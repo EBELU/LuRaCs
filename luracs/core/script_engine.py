@@ -69,7 +69,7 @@ class ScriptEngine(QObject):
         IS_H3: bool = False,
     ):
         super().__init__(parent)
-        self.thread_bridge = ThreadBridge(self)
+        self.thread_bridge = ThreadBridge(None)
 
         self.headless = headless
         self.IS_H3 = IS_H3

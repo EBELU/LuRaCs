@@ -206,6 +206,7 @@ class MappingDataBuffer(QObject):
 class MapWidget(QWidget):
     sigLoadOnlineMapUrl = Signal(str, str)
     sigLoadOfflineMapPath = Signal(str)
+    sigMoveToCurrent = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent=parent)
@@ -367,6 +368,11 @@ class MapWidget(QWidget):
         RunManager.SpectrogramManager.sigMapBufferUpdated.connect(self.catch_map_buffer)
         RunManager.Signals.GPSConnection.connect(self.catch_gps_connected)
         RunManager.Signals.GPSUpdated.connect(self.catch_gps_update)
+        self.move_to_current_proxy = pg.SignalProxy(
+            self.sigMoveToCurrent,
+            delay=Settings.Advanced.map_move_to_current_max_rate_s,
+            slot=self.move_to_current
+        )
 
 
 
@@ -466,6 +472,8 @@ class MapWidget(QWidget):
         if self.web_engine_view is None:
             return
         for i, (lng, lat, p) in enumerate(zip(longitude, latitude, values)):
+            if p is None or np.isnan(p):
+                return
             self.bridge.add_data_point(
                 self.web_engine_view,
                 i,
@@ -532,7 +540,8 @@ class MapWidget(QWidget):
             self.latest_gps = data
             self.bridge.move_current_location_point(self.web_engine_view, data.latitude, data.longitude)
             if self.is_tracking_current_location:
-                self.move_to_current()
+                self.sigMoveToCurrent.emit()
+
     
     @Slot(str, dict)
     def catch_map_buffer(self, spectrogram_name: str, buffers: dict):
@@ -835,7 +844,7 @@ class MapWidget(QWidget):
         vmin, vmax = self.view_slider.getLevels()
 
         # Normalize to [0, 1]
-        t = np.clip((value - vmin) / (vmax - vmin), 0.0, 1.0)
+        t = np.clip((value - vmin) / max((vmax - vmin), 1), 0.0, 1.0)
 
         # Get the ColorMap
         cmap = self.view_slider.gradient.colorMap()
