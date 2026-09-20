@@ -32,7 +32,7 @@ def restart_spectrogram(db_name: str):
     new_log.request_data()
 
 
-def start_spectrogram(db_name, device: str, save_interval: int = 1, concat: int = 0):
+def start_spectrogram(db_name: str, device: str, save_interval: int = 1, concat: int = 0):
     device_wrapper = RunManager.device_registry.get(device, None)
     if not device_wrapper:
         Log.warning(f"Logging could not be started as {device} does not exist")
@@ -43,7 +43,8 @@ def start_spectrogram(db_name, device: str, save_interval: int = 1, concat: int 
         if device == spectrum.connection:
             calibration_coeff = spectrum.calibration_coefficients
             break
-
+    
+    db_name = db_name.replace(":", "-") # Replace forbidden characters on windows
     new_log = Spectrogram(
         db_name,
         save_interval=save_interval,
@@ -61,7 +62,7 @@ def start_spectrogram(db_name, device: str, save_interval: int = 1, concat: int 
     RunManager.Signals.spectrumUpdated.connect(new_log.receive_spectrum)
     RunManager.Signals.GPSUpdated.connect(new_log.receive_gps)
 
-    RunManager.add_spectrogram(db_name, new_log)
+    RunManager.add_spectrogram(new_log.db_name, new_log)
     new_log.request_data()
 
 # ------------------------------------------------------------------
