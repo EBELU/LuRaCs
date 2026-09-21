@@ -1,8 +1,10 @@
+import platform
+
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import QListWidgetItem, QPushButton
 
+from luracs.clients import ConnectionType, DeviceWrapper
 from luracs.core import Log, RunManager
-from luracs.clients import DeviceWrapper, ConnectionType
 
 from .ListPopupBase import ListPopupNonBlocking
 
@@ -13,8 +15,8 @@ def _on_usb_device_selected(device: dict, selection_type: str):
     serial = device.get("serial_number")
     product = (device.get("product") or "").lower()
 
-    if not serial:
-        print("Device has no serial number")
+    if not serial and platform.system() != "Windows":
+        Log.error("Device has no serial number")
         return
     
     if selection_type == "auto":
@@ -24,7 +26,10 @@ def _on_usb_device_selected(device: dict, selection_type: str):
                 break
                 
     else:
-        RunManager.add_device(serial, selection_type, "USB")
+        if platform.system() == "Windows":
+            RunManager.add_device(serial, selection_type, "USB", port=device.get("port_number"))
+        else:
+            RunManager.add_device(serial, selection_type, "USB")
 
 
 class USBListPopup(ListPopupNonBlocking):
@@ -42,6 +47,11 @@ class USBListPopup(ListPopupNonBlocking):
         self.deviceSelected.connect(_on_usb_device_selected)
 
         self._devices: list[dict] = []
+        
+        # Auto detection currently does not work on windows
+        # Should make one based on vendor and product id
+        if platform.system() == "Windows":
+            self.alternatives_combo.removeItem(0)
         
         for name, wrapper in DeviceWrapper.get_registry().items():
             if ConnectionType.USB in wrapper.get_connection_types():
@@ -81,10 +91,16 @@ class USBListPopup(ListPopupNonBlocking):
             return
 
         for dev in self._devices:
-            product = dev.get("product") or "Unknown"
-            serial = dev.get("serial_number") or "No SN"
+            if platform.system() == "Windows":
+                product = dev.get("product") or "Unknown"
+                port = dev.get("port_number") or "None"
+                bus = dev.get("bus") or "None"
+                display_name = f"{product} (bus={bus}, port={port})"
+            else:
+                product = dev.get("product") or "Unknown"
+                serial = dev.get("serial_number") or "No SN"
 
-            display_name = f"{product} ({serial})"
+                display_name = f"{product} ({serial})"
 
             item = QListWidgetItem(display_name)
             item.setTextAlignment(Qt.AlignCenter)

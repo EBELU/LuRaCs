@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 import json
 import sys
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +39,13 @@ class _Appearance:
     load_rois_on_import: bool = True
     load_instrument_on_import: bool = True
     load_calibration_from_instrument: bool = True
+    
+    def __init__(self, **kwargs):
+        valid_fields = {f.name for f in fields(self)}
+
+        for key, value in kwargs.items():
+            if key in valid_fields:
+                setattr(self, key, value)
     
 
 
@@ -101,6 +108,13 @@ class _Advanced:
     
     map_move_to_current_max_rate_s: float = 1
     map_save_extra_gps_data: bool = False
+    
+    def __init__(self, **kwargs):
+        valid_fields = {f.name for f in fields(self)}
+
+        for key, value in kwargs.items():
+            if key in valid_fields:
+                setattr(self, key, value)
 
 
 def get_runtime_base() -> Path:

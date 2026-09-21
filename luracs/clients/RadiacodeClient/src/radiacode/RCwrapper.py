@@ -9,6 +9,8 @@ from .logger import logger
 from .radiacode import RadiaCode
 from .types import RareData, RealTimeData
 
+from usb.core import Device
+
 
 @dataclass(frozen=True)
 class CurrentValuesPackage:
@@ -37,11 +39,13 @@ class SpectrumResult:
 
 
 class RadiacodeAsync:
-    def __init__(self, address, usb=False):
+    def __init__(self, address, usb=False, usb_device: Device | None = None):
         self.address = address
         self._usb = usb
 
         self.name = getattr(address, 'name', str(address))
+        
+        self.usb_device = usb_device
 
         self.client: RadiaCode | None = None
 
@@ -94,7 +98,7 @@ class RadiacodeAsync:
 
     async def start(self):
         if self._usb:
-            self.client = await RadiaCode.connect(serial_number=self.address)
+            self.client = await RadiaCode.connect(serial_number=self.address, usb_device=self.usb_device)
         else:
             self.client = await RadiaCode.connect(bluetooth_mac=self.address)
 

@@ -23,6 +23,12 @@
             margin: 0;
             padding: 0;
         }
+        
+        .maplibregl-ctrl-scale {
+            background: transparent !important;
+            color: #222;
+            border-color: #222;
+        }
     </style>
 </head>
 
@@ -103,6 +109,14 @@
                     );
                 }
             });
+            map.addControl(
+                new maplibregl.ScaleControl({
+                    maxWidth: 150,
+                    unit: 'metric'
+                }),
+                'bottom-left'
+            );
+
 
             map.addControl(new maplibregl.NavigationControl(), 'top-right');
         }

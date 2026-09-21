@@ -69,6 +69,9 @@ class DeviceWrapper(ABC):
     run_manager: _RunManager | None = None
 
     type = None
+    
+    usb_id_vendor: int | None = None
+    usb_id_product: int | None = None
 
     class DeviceState(Enum):
         UNINITIALIZED = auto()

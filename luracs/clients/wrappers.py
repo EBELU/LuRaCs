@@ -2,6 +2,7 @@ import asyncio
 import time
 
 import numpy as np
+import usb
 
 from luracs.clients.detective_x_client import DetectiveX
 from luracs.clients.device_wrapper_base import (
@@ -13,10 +14,10 @@ from luracs.clients.device_wrapper_base import (
     WrappedStatusPackage,
 )
 from luracs.clients.digibase_client import digiBase
+from luracs.clients.gps import GPSData
 from luracs.clients.RadiacodeClient.src import RadiacodeClientAsync
 from luracs.clients.RaysidClient.RaysidClient import RaysidClientAsync
 from luracs.core.settings import Settings
-from luracs.clients.gps import GPSData
 
 # ==========================================
 # Radiacode
@@ -24,6 +25,9 @@ from luracs.clients.gps import GPSData
 
 class RadiacodeWrapper(DeviceWrapper):
     type = "radiacode"
+    
+    usb_id_product=0xF123
+    usb_id_vendor=0x0483
     
     @classmethod
     def get_connection_types(cls):
@@ -33,10 +37,10 @@ class RadiacodeWrapper(DeviceWrapper):
     def get_supported_settings(cls):
         return {SupportedSettings.CALIBRATION}
         
-    def __init__(self, address, connection: ConnectionType):
+    def __init__(self, address, connection: ConnectionType, usb_device: usb.core.Device = None):
         super().__init__(address, connection)
         self.name = self.name.split("#")[-1]
-        self.client = RadiacodeClientAsync(address, connection == ConnectionType.USB)
+        self.client = RadiacodeClientAsync(address, connection == ConnectionType.USB, usb_device=usb_device)
         self.channels = 1024
         self.calibration_coefficients = []
 
@@ -228,11 +232,11 @@ class DigiBaseWrapper(DeviceWrapper):
     def get_supported_settings(cls):
         return {SupportedSettings.HV_AND_AMP}
     
-    def __init__(self, address, connection: ConnectionType):
+    def __init__(self, address, connection: ConnectionType, usb_device: usb.core.Device = None):
         address = address.rstrip('\x00')
         super().__init__(address, ConnectionType.USB)
         self.name = f"digiBase-{address}"
-        self.base = digiBase(Settings.Paths.third_party_drivers_library, address)
+        self.base = digiBase(Settings.Paths.third_party_drivers_library, address, dev=usb_device)
         self.channels = 1024
         
         self.live_time_buffer = None
@@ -457,4 +461,10 @@ class DetectiveXClient(DeviceWrapper):
 
     async def _stop_acquisition(self):
         await asyncio.to_thread(self.client.stop_acquisition)
+        
+    def reset_spectrum(self):
+        self.run_manager.submit_to_thread(self._reset_spectrum)
+        
+    async def _reset_spectrum(self):
+        await asyncio.to_thread(self.client.clear_spectrum)
         

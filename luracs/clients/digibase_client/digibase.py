@@ -158,25 +158,26 @@ class ExtGateMode(Enum):
 class digiBase:
     VENDOR_ID: int  = 0x0a2d
 
-    def __init__(self, firmware_dir_path: str | Path, serialNumber=None):
+    def __init__(self, firmware_dir_path: str | Path, serialNumber=None, dev = None):
         firmware_dir_path = Path(firmware_dir_path)
         self.log = logging.getLogger('digiBaseClient')
-        self.dev = None
+        self.dev = dev
 
-        if serialNumber is None:
-            self.dev = usb.core.find(idVendor=digiBase.VENDOR_ID)
-        else:
-            # Find all devices and match serial number
-            if not isinstance(serialNumber, str): serialNumber = str(serialNumber)
-            serialNumber = serialNumber.rstrip('\x00')
-            for dev in usb.core.find(idVendor=digiBase.VENDOR_ID, find_all=True):
-                sn = dev.serial_number.strip('\x00')
-                self.log.debug(f'Bus {dev.bus:03d} Device {dev.address:03d}: '
-                               f'ID {dev.idVendor:04x}:{dev.idProduct:04x} '
-                               ' S/N', sn)
-                if sn == serialNumber:
-                    self.dev = dev
-                    break
+        if self.dev is None:
+            if serialNumber is None:
+                self.dev = usb.core.find(idVendor=digiBase.VENDOR_ID)
+            else:
+                # Find all devices and match serial number
+                if not isinstance(serialNumber, str): serialNumber = str(serialNumber)
+                serialNumber = serialNumber.rstrip('\x00')
+                for dev in usb.core.find(idVendor=digiBase.VENDOR_ID, find_all=True):
+                    sn = dev.serial_number.strip('\x00')
+                    self.log.debug(f'Bus {dev.bus:03d} Device {dev.address:03d}: '
+                                f'ID {dev.idVendor:04x}:{dev.idProduct:04x} '
+                                ' S/N', sn)
+                    if sn == serialNumber:
+                        self.dev = dev
+                        break
 
         if self.dev is None: raise ValueError("Device not found")
         self.log.info(f'Found ORTEC digiBase device {self.dev.idVendor:04x}:{self.dev.idProduct:04x}')

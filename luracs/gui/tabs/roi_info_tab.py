@@ -155,7 +155,7 @@ class ROIInfoTab(QWidget):
             "Peak Difference",
         ]
 
-        self.widths = [120, 120, 75, 75, 100, 100, 120, 120, 120, 120, 100, 100, 120]
+        self.widths = "fit"
         self.table.reset_table(self.titles, self.widths)
 
         box_layout = QVBoxLayout(self.group_box)

@@ -320,6 +320,8 @@ class SpectrogramWidget(QWidget):
         self.plot.getAxis("left").setStyle(
             tickFont=QFont("Arial", Settings.Appearance.font_size - 2)
         )
+        
+        self.plot.getAxis("bottom").setLabel("Energy [keV]")
 
         # HistogramLUT (used only for gradient + dual slider)
         self.hist = pg.HistogramLUTItem(orientation="horizontal")

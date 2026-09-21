@@ -68,6 +68,7 @@ class RadiaCode:
         cls,
         bluetooth_mac: Optional[str] = None,
         serial_number: Optional[str] = None,
+        usb_device: Optional[str] = None,
         ignore_firmware_compatibility_check: bool = False,
     ) -> 'RadiaCode':
 
@@ -79,6 +80,7 @@ class RadiaCode:
             conn = await asyncio.to_thread(
                 Usb,
                 serial_number=serial_number,
+                usb_device=usb_device
             )
         else:
             raise RuntimeError('Connection failed')

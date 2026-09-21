@@ -355,7 +355,7 @@ def main():
         # If not headless, show the GUI
         win = MainWindow()
         win.show()
-    Log.setLevel(level=logging.DEBUG if "-db" in sys.argv else logging.INFO)
+    Log.setLevel(level=logging.DEBUG if "--debug" in sys.argv else logging.INFO)
     Log.debug(f"headless: {Settings.headless}")
 
     # --- Set Handlers for the logger ---
@@ -390,8 +390,9 @@ def main():
         script_engine.sigCommandOutput.connect(win.console_tab.append_output)
         script_engine.sigClearConsole.connect(win.console_tab.set_output)
 
-        script_engine.sigMapURL.connect(win.map_widget.load_map_from_url)
-        script_engine.sigMapFile.connect(win.map_widget.load_offline_map)
+        if not IS_H3:
+            script_engine.sigMapURL.connect(win.map_widget.load_map_from_url)
+            script_engine.sigMapFile.connect(win.map_widget.load_offline_map)
         
     script_engine.start()
     

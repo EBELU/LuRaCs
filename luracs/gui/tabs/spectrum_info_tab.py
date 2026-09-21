@@ -25,6 +25,8 @@ from luracs.gui.misc.table_menu_button import MenuButton
 from luracs.gui.save_to_internal_dialogs import save_spectrum_to_library_dialog
 from luracs.utils.file_io import io_dispatcher
 
+import pyqtgraph as pg
+
 
 class ColorCellWidget(QWidget):
     """Clean color swatch for QTableWidget cells."""
@@ -174,7 +176,9 @@ class SpectrumInfoTab(QWidget):
         self, spectrum: Spectrum, role: str, color: QColor, parent=None
     ) -> MenuButton:
         menu_button = MenuButton(parent=parent, title="...")
-        color_widget = ColorCellWidget(color)
+        color_widget = pg.ColorButton(color=color)
+        color_widget.setMaximumWidth(40)
+        color_widget.sigColorChanged.connect(lambda b, n=spectrum.name, r=role: self.sigColorChanged.emit(n, r, b.color()))
         if (
             role == "foreground" and spectrum.connection is not None
         ):  # Has connected device
@@ -238,9 +242,6 @@ class SpectrumInfoTab(QWidget):
         wrapper.setLayout(layout)
 
         # Connect click
-        color_widget.clicked.connect(
-            lambda cw=color_widget: self.open_color_dialog(cw, spectrum.name, role)
-        )
 
         return wrapper
 
@@ -256,14 +257,6 @@ class SpectrumInfoTab(QWidget):
             self.hide_show_btn[name].setText("Hide")
             self.sigToggleVisibility.emit(name, True)
 
-
-    def open_color_dialog(
-        self, cell_widget: ColorCellWidget, spectrum_name: str, role: str
-    ):
-        color = QColorDialog.getColor(cell_widget.color, self, "Select color")
-        if color.isValid():
-            cell_widget.set_color(color)
-            self.sigColorChanged.emit(spectrum_name, role, color)
 
     # ----------------- Table update -----------------
     def format_large_int(self, value: int) -> str:

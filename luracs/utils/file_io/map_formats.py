@@ -17,7 +17,7 @@ class MapPoint:
     dose_rate: float | None
     lng: float
     lat: float
-    other_data_point: dict[float] | None = None
+    other_data_points: dict[float] | None = None
 
 
 @dataclass
@@ -92,7 +92,7 @@ class MapFormatParser:
                     dose_rate=props.get("dose_rate"),
                     lng=lon,
                     lat=lat,
-                    other_data_point=props.get("other_data_point"),
+                    other_data_points=props.get("other_data_points"),
                 )
             )
 
@@ -124,7 +124,7 @@ def export_geojson(mapping_data: SimpleMappingData, file_path: str | Path):
             "timestamp": point.timestamp.isoformat(),
             "count_rate": point.count_rate,
             "dose_rate": point.dose_rate,
-            "other_data_point": point.other_data_point,
+            "other_data_points": point.other_data_points,
         }
 
         features.append({

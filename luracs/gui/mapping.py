@@ -195,6 +195,8 @@ class MappingDataBuffer(QObject):
             self.sigNewPointsReceived.emit(self.spectrogram_name, key, lng, lat, value[-size_diff:])
             
     def get_all_data(self, key: str):
+        if not np.any(self.buffers["gps"]):
+            return self.spectrogram_name, key, None, None
         return self.spectrogram_name, key, self.buffers["gps"], self.buffers[key]
             
     def clear(self):
@@ -417,7 +419,7 @@ class MapWidget(QWidget):
         self.combo_spectrogram.addItem(data.title)
         self.combo_changed(0)
         
-    def get_data(self)->tuple[list, list, list]:
+    def get_data(self)->tuple[list, list, list] | None:
         "Returns [longitude, latitude, value]"
         spectrogram_key = self.combo_spectrogram.currentText()
         current_data_key = self.combo_shown_data.currentData()
@@ -445,7 +447,8 @@ class MapWidget(QWidget):
                 
         elif spectrogram_key in self.map_buffers:
             _, _, gps, values = self.map_buffers[spectrogram_key].get_all_data(current_data_key)
-            
+            if gps is None:
+                return
             lng = [p.longitude for p in gps]
             lat = [p.latitude for p in gps]
             
@@ -789,7 +792,7 @@ class MapWidget(QWidget):
                     dose_rate=data.buffers["count_rate"][i],
                     lng=data.buffers["gps"][i].longitude,
                     lat=data.buffers["gps"][i].latitude,
-                    other_data_point={
+                    other_data_points={
                         RunManager.SpectrogramManager.get_roi_alias_from_tag(tag): v[i] for tag, v in data.buffers.items() if tag not in ["gps", "timestamp", "count_rate", "dose_rate"]
                     }
                 )

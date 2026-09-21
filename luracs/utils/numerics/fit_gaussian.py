@@ -81,6 +81,9 @@ def fit_gaussians(
         background_std = np.sqrt(np.maximum(y_points, 1.0))
         background_weights = 1.0 / background_std
 
+        # Perform the polynomial fit with weights based on the poisson distribution of each channel
+        # cov is not scaled with chi2 since the uncertainty is known is does not need to be estimated
+        # from generic noise
         bkg_fit, poly_cov = np.polyfit(
             x_points,
             y_points,
@@ -116,7 +119,7 @@ def fit_gaussians(
     # Vectorize!
     p0 = p0s.flatten()
 
-    # If you want to emulate PML
+    # If you want to emulate Poission maximum likelihood
     weight = None
     if use_poisson_weights:
         weight = poisson_weights
@@ -141,6 +144,8 @@ def fit_gaussians(
     ):
         return None, False
     
+    # Propagate correlated background-model uncertainty
+    # through the local least-squares parameter sensitivity
     if bkg_type != "None":
         J = multi_gaussian_jacobian(
             x_region,
@@ -266,7 +271,7 @@ if __name__ == "__main__":
     # ------------------------------------------------------------
 
     bounds = (
-        (550, 800),
+        (550, 750),
     )
     
     
@@ -285,7 +290,7 @@ if __name__ == "__main__":
         bkg_est_channels=5,
     )
     end = time()
-    print(f"Timing: {(end - start) *1e3}")
+    print(f"Timing: {(end - start) *1e3} ms")
 
     print()
     print("========== RESULT ==========")

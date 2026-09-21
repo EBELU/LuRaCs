@@ -2,6 +2,7 @@
 
 import os
 import sys
+import platform
 from pathlib import Path
 
 # Platform detection
@@ -16,6 +17,14 @@ __version__ = "0.4.1"
 main_script = os.path.join('luracs', 'main.py')
 resources = os.path.join('luracs', 'resources')
 licences = ROOT / 'licences'
+
+arch = platform.machine().lower()
+if arch in ("x86_64", "amd64", "i386", "i686"):
+    system_platform = "x86"
+elif arch in ("aarch64", "arm64", "armv7l", "armv6l"):
+    system_platform = "ARM"
+
+exe_name = system_platform + exe_name
 
 a = Analysis(
     [str(ROOT / "luracs" / "main.py")],
@@ -90,7 +99,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='LuRaCs-H3' + f"_{__version__}" + exe_name,
+    name='LuRaCs-H3',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,   # strip only on Linux (safe)
@@ -111,5 +120,5 @@ coll = COLLECT(
     strip=False,
     upx=is_windows,
     upx_exclude=[],
-    name='LuRaCs-H3',
+    name=f'LuRaCs-H3_{__version__}_{exe_name}',
 )

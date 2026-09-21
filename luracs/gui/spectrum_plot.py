@@ -86,6 +86,8 @@ class SpectrumPlot(QWidget):
         self.plot_widget.showGrid(x=True, y=True, alpha=0.2)
         # self.plot_widget.getAxis('left').enableAutoSIPrefix(False)
         self.plot_widget.setXRange(0, 2500, padding=0)
+
+
         self.plot_widget.setLimits(
             xMin=-1,
             xMax=Settings.Appearance.spectrum_plot_E_max,
@@ -113,13 +115,12 @@ class SpectrumPlot(QWidget):
         self.btn_lin_log.setCheckable(True)
         self.btn_cps = QPushButton("CPS")
         self.btn_cps.setCheckable(True)
+        self.btn_cursor = QPushButton("Cursor")
+        self.btn_cursor.setCheckable(True)
         self.btn_mark_roi = QPushButton("Add ROI")
         self.line_cursor_info = QLineEdit()
         self.line_cursor_info.setReadOnly(True)
         self.line_cursor_info.setPlaceholderText("Cursor")
-        
-        
-        self.btn_cps.setMinimumWidth(85)
 
         self.cbox_bkg_choises = QComboBox()
 
@@ -133,6 +134,7 @@ class SpectrumPlot(QWidget):
         btn_layout.addWidget(self.btn_y_axis_lock)
         btn_layout.addWidget(self.btn_lin_log)
         btn_layout.addWidget(self.btn_cps)
+        btn_layout.addWidget(self.btn_cursor)
         btn_layout.addWidget(self.btn_mark_roi)
         btn_layout.addWidget(self.cbox_bkg_choises)
         btn_layout.addWidget(self.line_cursor_info)
@@ -142,6 +144,7 @@ class SpectrumPlot(QWidget):
         self.btn_mark_roi.clicked.connect(self.add_roi)
         self.btn_lin_log.toggled.connect(self.change_lin_log)
         self.btn_cps.clicked.connect(self._set_cps)
+        self.btn_cursor.clicked.connect(lambda b: Settings.update_setting("Temp", "spectrum_view_cursor", b))
         self.btn_y_axis_lock.clicked.connect(lambda: self.lock_y_axis())
         self.cbox_bkg_choises.currentIndexChanged.connect(self._on_bkg_option_selection)
 
@@ -202,6 +205,8 @@ class SpectrumPlot(QWidget):
         # Force buttons to follow the font on instantiation
         for w in [self.btn_cps, self.btn_lin_log, self.btn_mark_roi, self.btn_reset_zoom, self.btn_y_axis_lock]:
             w.setFont(QApplication.instance().font())
+            
+
             
     # ------------------------------------------------
     # GUI Interactions
@@ -855,9 +860,12 @@ class SpectrumPlot(QWidget):
             if self.owned_spectrum is not None:
                 spectrum = SpectrumManager.get_spectrum(self.owned_spectrum)
                 channel = spectrum.get_channel_from_energy(x)
-                counts = spectrum.get_foreground()[channel] if not self.bkg_sub else spectrum.get_bkg_sub()[channel]
+                counts = spectrum.get_foreground(cps=self.cps)[channel] if not self.bkg_sub else spectrum.get_bkg_sub()[channel]
                 
-                channel_str = f"Chn: {channel}, Counts: {int(counts)}, "
+                if self.cps:
+                    channel_str = f"Chn: {channel}, #: {round(counts,4)} CPS "
+                else:
+                    channel_str = f"Chn: {channel}, #: {int(counts)} "
             else:
                 channel_str = ""
 

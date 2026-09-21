@@ -17,9 +17,9 @@ class GPSData:
     satellites: int = 0          # satellites used in fix
     satellites_in_view: int = 0  # satellites detected by GSV
 
-    hdop: float | None = None
-    vdop: float | None = None
-    pdop: float | None = None
+    hdop: float | None = None    # horizontal position accuracy
+    vdop: float | None = None    # vertical position accuracy
+    pdop: float | None = None    # overall 3D position accuracy
 
     fix_type: int = 0            # 0=no fix, 1=2D, 2=3D, etc.
     valid: bool = False
@@ -384,9 +384,13 @@ class GPS(QObject):
                 if new_data.fix_type != 0
                 else self.data.fix_type
             ),
+            # Estimate the number of rate of packages received
             update_rate = round(self.packets_received / max(time.monotonic() - self.connection_time, 1)),
+            # Data is emitted even if it is not valid but the spectrogram only stores the new value
+            # if valid = True
             valid=new_data.valid,
-            timestamp = time.time()
+            # A new timestamp is only collected if the position data updated
+            timestamp = time.time() if new_data.latitude is not None else self.data.timestamp
         )
 
 

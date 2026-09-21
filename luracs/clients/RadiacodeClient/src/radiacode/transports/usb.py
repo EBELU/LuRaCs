@@ -18,14 +18,17 @@ class MultipleUSBReadFailure(Exception):
 
 
 class Usb:
-    def __init__(self, serial_number=None, timeout_ms=2000):
+    def __init__(self, serial_number=None, usb_device=None, timeout_ms=2000):
         _vid = 0x0483
         _pid = 0xF123
 
-        if serial_number:
-            self._device = usb.core.find(idVendor=_vid, idProduct=_pid, serial_number=serial_number)
+        if usb_device is None:
+            if serial_number:
+                self._device = usb.core.find(idVendor=_vid, idProduct=_pid, serial_number=serial_number)
+            else:
+                self._device = usb.core.find(idVendor=_vid, idProduct=_pid)
         else:
-            self._device = usb.core.find(idVendor=_vid, idProduct=_pid)
+            self._device = usb_device
 
         if self._device is None:
             raise DeviceNotFound

@@ -77,15 +77,6 @@ class MainMenuBar(QMenuBar):
         # --- Spectrum View ---
         view_menu_spectrum = view_menu.addMenu("&Spectrum")
 
-        # Cursor
-        view_menu_spectrum_show_cursor = QAction("Show Cursor", self, checkable=True)
-        view_menu_spectrum_show_cursor.triggered.connect(
-            lambda checked: self.sigUpdateSetting.emit(
-                "Temp", "spectrum_view_cursor", checked
-            )
-        )
-        view_menu_spectrum.addAction(view_menu_spectrum_show_cursor)
-
         # Cursor emissions
         view_menu_spectrum_show_cursor_emissions = QAction(
             "Show Cursor Emissions", self, checkable=True
