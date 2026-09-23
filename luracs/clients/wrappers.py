@@ -108,6 +108,7 @@ class RadiacodeWrapper(DeviceWrapper):
         return getattr(self.client, "_stopped", True)
 
     def set_calibration(self, coeff: list):
+        print("Set calibration", coeff)
         self.run_manager.submit_to_thread(
         self.client.client.set_energy_calib(reversed(coeff))
         )
@@ -330,22 +331,35 @@ class DigiBaseWrapper(DeviceWrapper):
     async def _update_status(self, count: int):
         for _ in range(count):
             status = await self.get_Status()
-            self.run_manager.Signals.statusUpdated(self.name, status)
+            self.run_manager.Signals.statusUpdated.emit(self.name, status)
             await asyncio.sleep(0.25)
 
 
     async def set_hv_enabled(self, state: bool):
-        if not state:
-            self.hv = 0
-        self.base.hv_enabled = state
+        try:
+            self.hv_ramping = True
 
-        await self._update_status(8)
+            if not state:
+                self.hv = 0
+            self.base.hv_enabled = state
+
+            await self._update_status(12)
+
+        finally:
+            self.hv_ramping = False
+            self.base.log.info(f"HV enabled for {self.name}, resetting spectrum")
+            self.reset_spectrum()
 
 
     async def set_hv(self, hv: float):
-        self.base.hv = hv
-
-        await self._update_status(8)
+        try:
+            self.hv_ramping = True
+            self.base.hv = hv
+            await self._update_status(8)
+        finally:
+            self.hv_ramping = False            
+            self.base.log.info(f"HV set to {hv} V for {self.name}, resetting spectrum")
+            self.reset_spectrum()
 
 
     async def set_lld(self, lld: float):

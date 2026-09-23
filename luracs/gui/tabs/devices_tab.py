@@ -59,7 +59,7 @@ class DevicesInfoTab(QWidget):
         device_name: str,
     ) -> MenuButton:
 
-        menu_button = MenuButton(parent=self, title="...")
+        menu_button = MenuButton(parent=None, title="...")
         action_disconnect = menu_button.add_action("Disconnect")
         action_disconnect.triggered.connect(
             lambda: RunManager.remove_device(device_name)

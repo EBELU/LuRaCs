@@ -348,34 +348,32 @@ class _RunManager(QObject):
                 self.Signals.removeDeviceSpectrum.emit(device_name)
 
     async def shutdown(self):
-        "Shuts down the RunManager. Is is very important this function runs correctly at shutdown! Otherwise spectrogram databases might not be closed and it can leave orphan device connections."
         self.Signals.shutdownStarted.emit()
-        # --- Close active loggers ---
-        for logger_key in self.SpectrogramManager.spectrogram_registry.copy().keys():
-            try:
-                self.Signals.closeSpectrogram.emit(logger_key)
-            except Exception as e:
-                gui_logger.warning(f"Closing spectrogram {logger_key} raised: {e}")
 
-        # --- Stop devices ---
-        async def stop_device(device: DeviceWrapper):
-            gui_logger.debug(f"Shutting down {device.name}")
+        # Close spectrograms
+        for name in list(self.SpectrogramManager.spectrogram_registry):
             try:
-                await asyncio.wait_for(device.stop(), timeout=5)
-            except asyncio.TimeoutError:
-                gui_logger.warning(f"{device.name} stop timed out")
+                self.close_spectrogram(name)
             except Exception as e:
-                gui_logger.error(f"{device.name} stop failed: {e}")
+                gui_logger.warning(
+                    f"Closing spectrogram {name} raised: {e}"
+                )
 
-        # Start the stopping tasks and then await them with gather
+        device_names = list(self.device_registry)
+
         tasks = [
-            asyncio.create_task(stop_device(device))
-            for device in self.device_registry.values()
+            asyncio.create_task(self._remove_device(device_name))
+            for device_name in device_names
         ]
 
-        await asyncio.gather(*tasks, return_exceptions=True)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        self.device_registry.clear()
+        for device_name, result in zip(device_names, results):
+            if isinstance(result, Exception):
+                gui_logger.error(
+                    f"Failed to remove device {device_name}: {result}"
+                )
+
         self.Signals.shutdownFinished.emit()
 
     # ------------------------------------------------------------------
@@ -455,7 +453,7 @@ class _RunManager(QObject):
             try:
                 try:
                     dev.set_configuration()
-                except usb.core.USBError:
+                except (usb.core.USBError, NotImplementedError):
                     pass
 
                 results.append(
@@ -508,11 +506,9 @@ class _RunManager(QObject):
             gui_logger.error(f"USB not found: idVendor={vendor_id}, idProduct={product_id}, serial_number={serial_number}, port_number={port_number}")
             return       
         
-        
-        if serial_number is None and port_number is not None:
-            for dev in devices:
-                if str(dev.port_number) == str(port_number):
-                    return dev
+        for dev in devices:
+            if str(dev.port_number) == str(port_number):
+                return dev
                 
         gui_logger.error(f"USB not found: idVendor={vendor_id}, idProduct={product_id}, serial_number={serial_number}, port_number={port_number}")
         

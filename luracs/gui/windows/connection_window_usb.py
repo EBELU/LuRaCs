@@ -27,7 +27,7 @@ def _on_usb_device_selected(device: dict, selection_type: str):
                 
     else:
         if platform.system() == "Windows":
-            RunManager.add_device(serial, selection_type, "USB", port=device.get("port_number"))
+            RunManager.add_device(serial, selection_type, "USB", {"port_number": device.get("port_number")})
         else:
             RunManager.add_device(serial, selection_type, "USB")
 
