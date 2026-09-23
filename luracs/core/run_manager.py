@@ -102,6 +102,8 @@ class _RunManager(QObject):
             name="RunManager",
             daemon=True,
         )
+        self._thread_stopped = threading.Event()
+
         
         self.has_gps: bool = False
 
@@ -152,10 +154,33 @@ class _RunManager(QObject):
         self._loop_ready.set()
 
         try:
-            loop.run_forever()
+            loop.run_forever()            
         finally:
-            loop.run_until_complete(loop.shutdown_asyncgens())
+            gui_logger.debug("RunManager asyncio loop stopping")
+
+            try:
+                loop.run_until_complete(
+                    loop.shutdown_asyncgens()
+                )
+            except Exception as e:
+                gui_logger.warning(
+                    f"Async generator shutdown failed: {e}"
+                )
+
+            try:
+                loop.run_until_complete(
+                    loop.shutdown_default_executor()
+                )
+            except Exception as e:
+                gui_logger.warning(
+                    f"Async executor shutdown failed: {e}"
+                )
+
             loop.close()
+
+            self._loop = None
+            self._thread_stopped.set()
+            gui_logger.debug("RunManager asyncio loop closed")
 
     def submit_to_thread(self, coro) -> Future:
         """Submit an asyncio coroutine to the RunManager thread."""
@@ -374,7 +399,9 @@ class _RunManager(QObject):
                     f"Failed to remove device {device_name}: {result}"
                 )
 
-        self.Signals.shutdownFinished.emit()
+        loop = asyncio.get_running_loop()
+        loop.stop()
+
 
     # ------------------------------------------------------------------
     # Device Scanning

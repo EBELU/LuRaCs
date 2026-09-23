@@ -28,6 +28,7 @@ from luracs.core import (
 )
 from luracs.core.script_engine import ScriptEngine  # Not normally exposed in the api
 
+
 from luracs.utils.arg_parser import parse_cli_args
 from luracs.utils.startup import startup_script
 from luracs.utils import ascii_art
@@ -75,6 +76,7 @@ from luracs.gui.windows import (
 from luracs.gui.dialogs.driver_library_dialog import DriverLibraryDialog
 from luracs.gui.dialogs.connect_network_device import ConnectNetworkDeviceDialog
 from luracs.gui.dialogs.connect_serial_gps import ConnectSerialGPSDialog
+from luracs.gui.dialogs.calc_peak_features import PeakFeaturesDialog
 
 from luracs.gui.dialogs.settings_dialog import SettingsDialog
 from luracs.theme_manager import ThemeManager
@@ -130,10 +132,30 @@ async def _async_close():
 def close():
     try:
         Settings.save_settings()
-        RunManager.Signals.shutdownFinished.connect(QApplication.quit)
-        RunManager.submit_to_thread(_async_close())
-    except:
+
+        future = RunManager.submit_to_thread(
+            RunManager.shutdown()
+        )
+
+        # Wait for the shutdown coroutine itself
+        future.result(timeout=10)
+
+        # Wait for the actual RunManager thread to exit
+        if not RunManager._thread_stopped.wait(timeout=10):
+            raise RuntimeError(
+                "RunManager thread did not stop"
+            )
+
+        Log.info("RunManager stopped")
+
+        # Now, and only now, shut down Qt
         QApplication.quit()
+
+    except Exception as e:
+        print("Error during application shutdown", str(e))
+        QApplication.quit()
+
+
 
 
 # ===================== MAIN WINDOW =====================
@@ -165,6 +187,7 @@ class MainWindow(QMainWindow):
         self.calc_win_calibration = CalibrationWindow()
         self.calc_win_resolution = ResolutionWindow()
         self.calc_win_deconvolution = DeconvolutionWindow()
+        self.calc_win_peak_features = PeakFeaturesDialog()
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -336,6 +359,7 @@ class MainWindow(QMainWindow):
 
 # ===================== ENTRY =====================
 def main():
+    global script_engine # Global instance
     startup_script()
     app = QApplication(sys.argv)
     app.setApplicationName("LuRaCs")

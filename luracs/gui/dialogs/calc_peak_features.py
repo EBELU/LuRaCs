@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
 
 
 class PeakFeaturesDialog(QDialog):
-    sigLineUpdated = Signal(bool, str, float, object) # Show state, label, energy, Qcolor
+    sigLineUpdated = Signal(str, bool, float, object) # Show label, state, energy, Qcolor
     def __init__(self, parent=None):
         super().__init__(parent)
 
@@ -37,14 +37,16 @@ class PeakFeaturesDialog(QDialog):
         results_form = QFormLayout()
 
         self.result_rows: dict[str, QHBoxLayout] = {}
-
-        for feature in [
+        
+        self.features = [
             "Backscatter",
             "Compton Edge",
             "Photopeak",
             "1st Escape Peak",
             "2nd Escape Peak",
-        ]:
+        ]
+
+        for feature in self.features:
             row_layout = QHBoxLayout()
 
             check = QCheckBox()
@@ -66,10 +68,13 @@ class PeakFeaturesDialog(QDialog):
         main_layout.addLayout(results_form)
 
         button_box = QDialogButtonBox(
-            QDialogButtonBox.Apply
+            QDialogButtonBox.Reset
+            | QDialogButtonBox.Apply
             | QDialogButtonBox.Ok
             | QDialogButtonBox.Cancel
         )
+        
+        button_box.button(QDialogButtonBox.Reset).setText("Remove Lines")
 
         # Use "Accept" instead of the platform's default "OK".
         button_box.button(QDialogButtonBox.Ok)
@@ -107,19 +112,26 @@ class PeakFeaturesDialog(QDialog):
 
         elif role == QDialogButtonBox.RejectRole:
             self.reject()
+            
+        elif role == QDialogButtonBox.ResetRole:
+            self.clear_lines()
 
     def apply(self):
-        for layout in self.result_rows.values():
+        for i, layout in enumerate(self.result_rows.values()):
             check = layout.itemAt(0).widget().isChecked()
             value_text = layout.itemAt(1).widget().text().removesuffix(" keV")
             value = float(value_text) if value_text and value_text != "nan" else 0
             color = layout.itemAt(2).widget().color()
             
             if value:
-            
-                print(check, value, color)
+                self.sigLineUpdated.emit(self.features[i], check, value, color)
 
-            
+    def clear_lines(self):
+        for i, layout in enumerate(self.result_rows.values()):
+            color = layout.itemAt(2).widget().color()
+
+            self.sigLineUpdated.emit(self.features[i], False, 0., color)
+
 
     def accept(self):
         self.apply()

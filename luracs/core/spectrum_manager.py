@@ -82,7 +82,7 @@ class _SpectrumManager(QObject):
                 f"Spectrum added: name={name}, channels={channels}, connection={device!s}"
             )
             
-            if Settings.Appearance.load_calibration_from_instrument and new_spect.instrument is not None and new_spect.instrument.calibration_coefficients:
+            if Settings.Appearance.load_calibration_from_instrument and new_spect.instrument is not None and new_spect.instrument.calibration_coefficients is not None:
                 self.calibrate_spectrum(name, new_spect.instrument.calibration_coefficients)
             return True
         else:

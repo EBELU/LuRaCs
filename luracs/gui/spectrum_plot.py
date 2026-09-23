@@ -1,7 +1,7 @@
 import numpy as np
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtWidgets
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, Slot
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QApplication,
@@ -202,6 +202,8 @@ class SpectrumPlot(QWidget):
             slot=self.update_roi_label_pos,
         )
         
+        self.feature_lines: dict[str, pg.InfiniteLine] = {}
+        
         # Force buttons to follow the font on instantiation
         for w in [self.btn_cps, self.btn_lin_log, self.btn_mark_roi, self.btn_reset_zoom, self.btn_y_axis_lock]:
             w.setFont(QApplication.instance().font())
@@ -312,6 +314,9 @@ class SpectrumPlot(QWidget):
             self.update_plot(spect_name)
             for roi in SpectrumManager.ROIManager.roi_registry:
                 self.draw_roi(roi, spectrum_name=spect_name)
+                
+        for fl in self.feature_lines.values():
+            self.plot_widget.getPlotItem().addItem(fl)
 
         self.update_all_rois()
         self.sigRedrawRequested.emit()
@@ -962,3 +967,20 @@ class SpectrumPlot(QWidget):
             self.cursor_emission_lines.append(line)
 
         self.cursor_nuclide = nuclide
+
+    @Slot(str, bool, float, QColor)
+    def set_feature_line(self, name: str, check: bool, value: float, color: QColor):
+        if check:
+            if name not in self.feature_lines:
+                new_line = pg.InfiniteLine(pos=value, pen=pg.mkPen(color, width=2))
+                self.feature_lines[name] = new_line
+                self.plot_widget.getPlotItem().addItem(new_line)
+            else:
+                pen=pg.mkPen(color, width=2)
+                self.feature_lines[name].setPen(pen)
+                self.feature_lines[name].setPos(value)
+                
+        else:
+            line = self.feature_lines.pop(name)
+            if line is not None:
+                self.plot_widget.getPlotItem().removeItem(line)

@@ -264,6 +264,8 @@ class SpectrumInfoTab(QWidget):
 
     def recieve_update(self, name):
         new_spect = SpectrumManager.get_spectrum(name)
+        if new_spect.foreground is None:
+            return
 
         # Get instrument
         instr = (

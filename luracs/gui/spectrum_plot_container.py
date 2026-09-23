@@ -52,6 +52,7 @@ class SpectrumPlotContainer(QWidget):
             lambda: self.sigRedrawRequested.emit()
         )
         self._sigRedraw.connect(self.single_plot._redraw)
+        self.main_window.calc_win_peak_features.sigLineUpdated.connect(self.single_plot.set_feature_line)
 
         core_utils.ThemeManager.register_plot(self.single_plot.plot_widget)
 
@@ -103,6 +104,8 @@ class SpectrumPlotContainer(QWidget):
 
         self._sigRedraw.connect(plot_widget._redraw)
         plot_widget.sigRedrawRequested.connect(lambda: self.sigRedrawRequested.emit())
+        
+        self.main_window.calc_win_peak_features.sigLineUpdated.connect(plot_widget.set_feature_line)
 
         core_utils.ThemeManager.register_plot(plot_widget.plot_widget)
         self.tab_spectrum_plots[spectrum_name] = plot_widget
@@ -110,6 +113,9 @@ class SpectrumPlotContainer(QWidget):
 
     def remove_tab(self, spectrum_name):
         plot_widget = self.tab_spectrum_plots.pop(spectrum_name)
+        
+        self.main_window.calc_win_peak_features.sigLineUpdated.disconnect(plot_widget.set_feature_line)
+        
         core_utils.ThemeManager.unregister_plot(plot_widget)
         index = self.tabs.indexOf(plot_widget)
         self.tabs.removeTab(index)

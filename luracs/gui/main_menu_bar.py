@@ -155,6 +155,11 @@ class MainMenuBar(QMenuBar):
         calculate_menu_photoEff.triggered.connect(
             parent.calc_win_efficiency.show
             )
+        calculate_menu_photoResolution = calculate_menu.addAction("Peak Features")
+        calculate_menu_photoResolution.triggered.connect(
+            parent.calc_win_peak_features.show
+        )
+        
         calculate_menu_photoResolution = calculate_menu.addAction("Resolution")
         calculate_menu_photoResolution.triggered.connect(
             parent.calc_win_resolution.show

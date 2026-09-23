@@ -456,13 +456,16 @@ def write_instrument_data(instrument: GenericInstrument | UniqueInstrument, root
         points_section = etree.SubElement(
             calibration, "CalibrationPoints", energy_unit="keV"
         )
-        write_coupled_points(
-            points_section,
-            "DataPoint",
-            ["Energy", "Channel"],
-            instrument.calibration_energy_points,
-            instrument.calibration_channel_points,
+        
+        if instrument.calibration_energy_points is not None and instrument.calibration_channel_points is not None:
+            write_coupled_points(
+                points_section,
+                "DataPoint",
+                ["Energy", "Channel"],
+                instrument.calibration_energy_points,
+                instrument.calibration_channel_points,
         )
+        
 
         if instrument.calibration_date:
             write_text_to_SubElement(
