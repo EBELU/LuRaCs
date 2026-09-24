@@ -378,7 +378,8 @@ class _RunManager(QObject):
         # Close spectrograms
         for name in list(self.SpectrogramManager.spectrogram_registry):
             try:
-                self.close_spectrogram(name)
+                # Since spectrograms live in GUI thread but this runs in the RunManager thread signal the closure
+                self.Signals.closeSpectrogram.emit(name)
             except Exception as e:
                 gui_logger.warning(
                     f"Closing spectrogram {name} raised: {e}"
@@ -386,6 +387,7 @@ class _RunManager(QObject):
 
         device_names = list(self.device_registry)
 
+        # Start simultainious 
         tasks = [
             asyncio.create_task(self._remove_device(device_name))
             for device_name in device_names

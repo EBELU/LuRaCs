@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from core.nuclide_library import NuclideLibrary
+    from luracs.gui.dialogs.roi_editor import ROIEditor
 
 from dataclasses import dataclass
 
@@ -123,7 +124,7 @@ class CoreSpectrumROI(LinearRegionItem):
 
     # Container components can not depend on gui components!
     # Dialog is set during initialisation of main
-    roi_editor_dialog = None
+    roi_editor_dialog: ROIEditor = None
 
     def __init__(
         self,

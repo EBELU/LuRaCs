@@ -49,6 +49,9 @@ dev = [
     "build", 
     "twine", 
     "Cython",
+    "pytest",
+    "pytest-qt",
+    "pytest-order"
     ]
 
 

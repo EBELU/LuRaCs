@@ -161,6 +161,24 @@ class _Paths:
         # Track what directory files were last loaded from or saved to during runtime
         # For the users convenience :)
         self.last_opened_dir = Path.home()
+        
+    def set_appdata(self, path: Path):
+        self.appdata = Path(path)
+
+        self.spectrum_library = self.appdata / "spectrum_library"
+        self.spectrogram_library = self.appdata / "spectrogram_library"
+        self.roi_library = self.appdata / "roi_library"
+        self.datalog_library = self.appdata / "datalog_library"
+        self.unique_instrument_library = (
+            self.appdata / "unique_instrument_library"
+        )
+        self.generic_instrument_library = (
+            self.appdata / "generic_instrument_library"
+        )
+        self.third_party_drivers_library = (
+            self.appdata / "third_party_drivers_library"
+        )
+        self.settings_file = self.appdata / "settings.json"
 
 
 class _Settings(QObject):

@@ -331,8 +331,8 @@ class _Importer(QObject):
         if file_paths is not None:
             self.import_generic_paths(*file_paths, selected_filter=selected_filter)
 
-    def import_generic_paths(self, *file_paths: Path, selected_filter=None):
-        "Import anything supported based on file path"
+    def import_generic_paths(self, *file_paths: Path, selected_filter: str):
+        "Import anything supported based on file path based on selected filter"
 
         file_path = None
         for file_path in file_paths:

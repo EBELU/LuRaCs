@@ -139,14 +139,14 @@ class ROIEditor(QDialog):
         update_button_state()
 
         # --- Bottom Buttons
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        delete_button = QPushButton("Delete")
-        delete_button.clicked.connect(self.on_delete)
-        buttons.addButton(delete_button, QDialogButtonBox.ActionRole)
+        self.buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.buttons.accepted.connect(self.accept)
+        self.buttons.rejected.connect(self.reject)
+        self.delete_button = QPushButton("Delete")
+        self.delete_button.clicked.connect(self.on_delete)
+        self.buttons.addButton(self.delete_button, QDialogButtonBox.ActionRole)
 
-        main_layout.addWidget(buttons)
+        main_layout.addWidget(self.buttons)
 
         if emission is not None:
             self.nuclide.setCurrentText(emission.parent_nuclide)

@@ -27,7 +27,7 @@ from luracs.core import (
     core_utils,
 )
 from luracs.core.script_engine import ScriptEngine  # Not normally exposed in the api
-
+script_engine: ScriptEngine | None = None
 
 from luracs.utils.arg_parser import parse_cli_args
 from luracs.utils.startup import startup_script
@@ -117,22 +117,26 @@ Settings.sigSettingChanged.connect(
 )
 
 
-_closing = False
-
-
-async def _async_close():
-    global _closing
-    if _closing:
-        return
-    _closing = True
-    await RunManager.shutdown()
-        
+_closing = False       
 
 
 def close():
+    global script_engine, _closing
+    if _closing:
+        return
+    _closing = True
+    
     try:
         Settings.save_settings()
+        
+        # Shutdown script engine
+        if script_engine is not None:
+            script_engine._loop.stop()
+            Log.debug("ScriptEngine stopped")
+        else:
+            Log.error("ScriptEngine was None at shutdown")
 
+        # Start shutdown
         future = RunManager.submit_to_thread(
             RunManager.shutdown()
         )
@@ -146,8 +150,8 @@ def close():
                 "RunManager thread did not stop"
             )
 
-        Log.info("RunManager stopped")
-
+        Log.debug("RunManager stopped")
+        Log.info("Module shutdown complete, closing Qt...")
         # Now, and only now, shut down Qt
         QApplication.quit()
 
@@ -358,10 +362,15 @@ class MainWindow(QMainWindow):
 
 
 # ===================== ENTRY =====================
-def main():
+def build_application() -> tuple[QApplication, MainWindow, ScriptEngine]:
     global script_engine # Global instance
     startup_script()
-    app = QApplication(sys.argv)
+    app = QApplication.instance()
+
+    if app is None:
+        app = QApplication(sys.argv)
+        
+    app.aboutToQuit.connect(close)
     app.setApplicationName("LuRaCs")
     app.setStyle("Fusion")
     font = app.font()
@@ -437,13 +446,16 @@ def main():
     )
     
 
-
     # --- Handle Command Line Arguments ---
     if len(sys.argv) > 1:
-        QTimer.singleShot(250, lambda: parse_cli_args(win, script_engine))
+        QTimer.singleShot(100, lambda: parse_cli_args(win, script_engine))
     # QTimer.singleShot(0, lambda: RunManager.SpectrogramManager.add_roi(300, 400))
 
-    app.exec()
+    return app, win, script_engine
+
+def main():
+    app, win, script_engine = build_application()
+    return app.exec()
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
