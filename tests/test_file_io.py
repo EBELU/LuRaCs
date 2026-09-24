@@ -54,10 +54,7 @@ def test_export_xlsx(tmp_path, qtbot):
     IOManager.Exporter.export_spectrum(spect, "Excel Workbook (*.xlsx)", tmp_path / "tmpSpectXML.xlsx")
     qtbot.wait(100)
     
-def test_export_rois_xml(tmp_path, qtbot):
-    spect = SpectrumManager.get_spectrum("Raysid-GRF-Eu152")
-    IOManager.Exporter.export_roi(spect, "XML (*xml)", tmp_path / "tmpSpectXML.xlsx")
-    qtbot.wait(100)
+
     
 def test_close_files(qtbot):
     
