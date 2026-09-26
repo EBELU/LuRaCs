@@ -46,4 +46,4 @@ jobs:
           QT_QPA_PLATFORM: offscreen
           QTWEBENGINE_CHROMIUM_FLAGS: --no-sandbox
         run: |
-          pytest tests/test_gui.py -vv -s
+          pytest
