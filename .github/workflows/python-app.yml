@@ -42,4 +42,8 @@ jobs:
           python -c "import luracs; print('LuRaCs imported successfully')"
       
       - name: Run tests
-        run: pytest
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QTWEBENGINE_CHROMIUM_FLAGS: --no-sandbox
+        run: |
+          pytest tests/test_gui.py -vv -s
