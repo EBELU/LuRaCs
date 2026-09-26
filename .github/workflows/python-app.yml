@@ -40,8 +40,6 @@ jobs:
       - name: Verify import
         run: |
           python -c "import luracs; print('LuRaCs imported successfully')"
-
-      # Uncomment for tests
-      #
-      # - name: Run tests
-      #   run: pytest
+      
+      - name: Run tests
+        run: pytest
