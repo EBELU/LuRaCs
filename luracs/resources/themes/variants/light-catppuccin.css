@@ -47,12 +47,14 @@ QTextEdit,
 QPlainTextEdit,
 QComboBox,
 QSpinBox,
+QDoubleSpinBox,
+QDateTimeEdit,
 QDoubleSpinBox {
-    background-color: #dce0e8;
+    background-color: #e6e9ef;
     color: #4c4f69;
     border: 1px solid #ccd0da;
     border-radius: 4px;
-    padding: 1px;
+    padding: 0px;
 }
 
 QTableView::item:selected,
@@ -314,20 +316,13 @@ QScrollBar::sub-page {
     background: none;
 }
 
-QSpinBox, QDoubleSpinBox {
-    background-color: #ffffff;
-    color: #4c4f69;
-    border: 1px solid #ccd0da;
-    border-radius: 4px;
-    padding-right: 20px;
-}
 
 QAbstractSpinBox::up-button {
     subcontrol-origin: border;
     subcontrol-position: top right;
     width: 18px;
     border-left: 1px solid #ccd0da;
-    background: #ffffff;
+    background: #e6e9ef;
 }
 
 QAbstractSpinBox::down-button {
@@ -335,7 +330,7 @@ QAbstractSpinBox::down-button {
     subcontrol-position: bottom right;
     width: 18px;
     border-left: 1px solid #ccd0da;
-    background: #ffffff;
+    background: #e6e9ef;
 }
 
 QAbstractSpinBox::up-arrow {
@@ -372,7 +367,7 @@ QPlainTextEdit:disabled,
 QComboBox:disabled,
 QSpinBox:disabled,
 QDoubleSpinBox:disabled {
-    background-color: #ffffff;
+    background-color: #e6e9ef;
     color: #9ca0b0;
     border: 1px solid #ccd0da;
 }

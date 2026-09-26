@@ -625,7 +625,13 @@ class SpectrogramWidget(QWidget):
 
     def update_spectrogram_y(self, timestamp_queue):
         "Spectrogram y-axis updated from receive data"
-        self.y_axis[: len(timestamp_queue)] = np.asarray(timestamp_queue)[::-1]
+        
+        if len(timestamp_queue) != self.y_axis.shape[0]:
+            # Only triggered by resize deque while having a spectrogram loaded
+            # Ensure the y_axis length keeps up
+            self.y_axis = np.zeros(self.y_len)
+            
+        self.y_axis[:len(timestamp_queue)] = np.asarray(timestamp_queue)[::-1]
 
         ymin, ymax = self.plot.getViewBox().viewRange()[1]
 

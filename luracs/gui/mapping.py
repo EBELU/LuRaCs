@@ -409,6 +409,11 @@ class MapWidget(QWidget):
             if self.combo_shown_data.itemData(i) == roi.tag:
                 self.combo_shown_data.removeItem(i)
                 break
+        
+        # Remove the ROIs data from buffers when the ROI goes
+        for buffer in self.map_buffers.values():
+            if roi.tag in buffer.buffers:
+                del buffer.buffers[roi.tag]
     
     def add_simple_data(self, data: SimpleMappingData):
         self.simple_buffers[data.title] = data
