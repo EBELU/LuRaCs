@@ -2,7 +2,7 @@ from luracs.core import IOManager, SpectrumManager
 from luracs.utils import file_io
 import pytest
 
-pytestmark = pytest.mark.order(2)
+pytestmark = pytest.mark.order(3)
 
 def test_spe_import(test_data, qtbot):
     file = test_data / "fontan.Spe"

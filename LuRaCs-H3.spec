@@ -75,6 +75,7 @@ a = Analysis(
         'PyQt5',
         'qasync',
         'scipy',
+        'PIL',
     ],
     
     noarchive=False,
@@ -93,13 +94,14 @@ a.datas = [
 
 
 pyz = PYZ(a.pure)
+exe_suffix = ".exe" if is_windows else ""
 
 exe = EXE(
     pyz,
     a.scripts,
     [],
     exclude_binaries=True,
-    name='LuRaCs-H3',
+    name='LuRaCs-H3'+ exe_suffix,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,   # strip only on Linux (safe)
