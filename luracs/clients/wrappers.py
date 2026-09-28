@@ -14,6 +14,7 @@ from luracs.clients.device_wrapper_base import (
     WrappedStatusPackage,
 )
 from luracs.clients.digibase_client import digiBase
+from luracs.clients.digidart_client import digiDart
 from luracs.clients.gps import GPSData
 from luracs.clients.RadiacodeClient.src import RadiacodeClientAsync
 from luracs.clients.RaysidClient.RaysidClient import RaysidClientAsync
@@ -380,7 +381,313 @@ class DigiBaseWrapper(DeviceWrapper):
         
         
         
-        
+
+# ==========================================
+# digiDART
+# ==========================================
+class DigiDartWrapper(DeviceWrapper):
+    type = "digidart"
+    
+    usb_id_product=0x0a2d
+    usb_id_vendor=0x0005
+
+    @classmethod
+    def get_connection_types(cls):
+        return {ConnectionType.USB}
+
+    @classmethod
+    def get_supported_settings(cls):
+        return {SupportedSettings.HV_AND_AMP}
+
+    def __init__(
+        self,
+        address,
+        connection: ConnectionType,
+        usb_device: usb.core.Device = None,
+    ):
+        address = address.rstrip("\x00")
+
+        super().__init__(address, ConnectionType.USB)
+
+        self.name = f"digiDART-{address}"
+
+        self.dart = digiDart(dev=usb_device)
+
+        # digiDART conversion gain determines the number of channels.
+        self.channels = self.dart.show_conversion_gain()
+
+        self.live_time_buffer = None
+        self.spectrum_buffer = None
+
+        self.hv_ramping = False
+
+        self.stopped = True
+        self.started = False
+
+    # Helpers
+    def _read_spectrum_data(self):
+        """
+        Read the complete spectrum and timing information.
+
+        digiDART timing is reported in 20 ms ticks.
+        """
+        spectrum = np.asarray(
+            self.dart.spectrum(
+                start=0,
+                count=self.channels,
+            )
+        )
+
+        live_ticks = self.dart.show_live()
+        real_ticks = self.dart.show_true()
+
+        live_time = float(live_ticks) * 0.020
+        real_time = float(real_ticks) * 0.020
+
+        return spectrum, live_time, real_time
+
+    def _read_status(self):
+        """
+        Construct the common WrappedStatusPackage.
+
+        digiDART reports HV target and actual voltage separately.
+        """
+        hv_target, target_flags = self.dart.show_hv_target()
+        hv_actual, actual_flags = self.dart.show_hv_actual()
+
+        return WrappedStatusPackage(
+            voltage=float(hv_actual),
+            desired_voltage=float(hv_target),
+            lower_level_discriminator=float(self.dart.show_lld()),
+            upper_level_discriminator=np.nan,
+            fine_gain=np.nan,
+            timestamp=time.time(),
+        )
+
+    # Data
+    async def get_RealTimeData(self):
+        hv_actual, _ = self.dart.show_hv_actual()
+
+        if hv_actual < 10 or self.hv_ramping:
+            return
+
+        spectrum, live_time, real_time = await asyncio.to_thread(
+            self._read_spectrum_data
+        )
+
+        if self.live_time_buffer is None:
+            self.live_time_buffer = live_time
+            self.spectrum_buffer = spectrum
+            return
+
+        delta_live = live_time - self.live_time_buffer
+
+        if delta_live <= 0:
+            self.live_time_buffer = live_time
+            self.spectrum_buffer = spectrum
+            return
+
+        cps = (
+            np.sum(spectrum) - np.sum(self.spectrum_buffer)
+        ) / max(1e-4, delta_live)
+
+        self.live_time_buffer = live_time
+        self.spectrum_buffer = spectrum
+
+        return WrappedRealTimePackage(
+            CPS=cps,
+            DR=np.nan,
+            timestamp=time.time(),
+        )
+
+    async def get_Spectrum(self):
+        hv_actual, _ = await asyncio.to_thread(
+            self.dart.show_hv_actual
+        )
+
+        if hv_actual < 10 or self.hv_ramping:
+            return
+
+        spectrum, live_time, real_time = await asyncio.to_thread(
+            self._read_spectrum_data
+        )
+
+        return WrappedSpectrumPackage(
+            y_axis=spectrum,
+            live_time=live_time,
+            real_time=real_time,
+            timestamp=time.time(),
+        )
+
+    async def get_Status(self):
+        return await asyncio.to_thread(self._read_status)
+
+    # Acquisition
+    async def start(self):
+        await asyncio.to_thread(self.dart.clear)
+        await asyncio.to_thread(self.dart.start)
+
+        await self.start_polling()
+
+        self.started = True
+        self.stopped = False
+
+        hv_target, _ = await asyncio.to_thread(
+            self.dart.show_hv_target
+        )
+
+        self.dart.log.info(
+            f"Client started: id={self.name}, "
+            f"set_voltage={hv_target}V"
+        )
+
+    async def stop(self):
+        await asyncio.to_thread(self.dart.stop)
+
+        # Disable HV before stopping the polling loop.
+        try:
+            await asyncio.to_thread(self.dart.disable_hv)
+        except OSError as e:
+            self.dart.log.warning(
+                f"Failed to disable HV for {self.name}: {e}"
+            )
+
+        self.dart.log.info(
+            f"Client stopping, wait 2s for HV shutdown: "
+            f"id={self.name}"
+        )
+
+        await self.stop_polling()
+
+        await asyncio.sleep(2)
+
+        self.stopped = True
+        self.started = False
+
+    def is_running(self):
+        return self.started and not self.stopped
+
+    def is_stopped(self):
+        return self.stopped
+
+
+    # Spectrum
+    def reset_spectrum(self):
+        self.dart.clear()
+
+        self.live_time_buffer = None
+        self.spectrum_buffer = None
+
+    def start_acquisition(self):
+        self.dart.start()
+
+    def stop_acquisition(self):
+        self.dart.stop()
+
+
+    # Status polling
+    async def _update_status(self, count: int):
+        for _ in range(count):
+            status = await self.get_Status()
+
+            self.run_manager.Signals.statusUpdated.emit(
+                self.name,
+                status,
+            )
+
+            await asyncio.sleep(0.25)
+
+
+    # High voltage
+    async def set_hv_enabled(self, state: bool):
+        try:
+            self.hv_ramping = True
+
+            if state:
+                await asyncio.to_thread(
+                    self.dart.enable_hv
+                )
+            else:
+                await asyncio.to_thread(
+                    self.dart.disable_hv
+                )
+
+            # Allow HV state to settle and update status.
+            await self._update_status(12)
+
+        finally:
+            self.hv_ramping = False
+
+            self.dart.log.info(
+                f"HV enabled={state} for {self.name}, "
+                f"resetting spectrum"
+            )
+
+            self.reset_spectrum()
+
+    async def set_hv(self, hv: float):
+        try:
+            self.hv_ramping = True
+
+            await asyncio.to_thread(
+                self.dart.set_hv,
+                hv,
+            )
+
+            await self._update_status(8)
+
+        finally:
+            self.hv_ramping = False
+
+            self.dart.log.info(
+                f"HV set to {hv} V for {self.name}, "
+                f"resetting spectrum"
+            )
+
+            self.reset_spectrum()
+
+    # Discriminators
+    async def set_lld(self, lld: float):
+        await asyncio.to_thread(
+            self.dart.set_lld,
+            int(lld),
+        )
+
+        await self._update_status(4)
+
+    async def set_uld(self, uld: float):
+        raise NotImplementedError(
+            "digiDART wrapper does not currently expose SET_ULD"
+        )
+
+
+    # Gain
+    async def set_fine_gain(self, fine_gain: float):
+        raise NotImplementedError(
+            "digiDART does not currently expose fine gain"
+        )
+
+    # Cleanup
+    def close(self):
+        """
+        Stop acquisition, disable HV and release the USB interface.
+        """
+        try:
+            try:
+                self.dart.stop()
+            except Exception:
+                pass
+
+            try:
+                self.dart.disable_hv()
+            except Exception:
+                pass
+
+        finally:
+            self.dart.close()
+
+
+
 
 # ==========================================
 # Detective X

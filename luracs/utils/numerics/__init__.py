@@ -1,5 +1,5 @@
 from . import compression
-from .approximation_fns import *
+from .approximation_fns import EfficiencyFn, ResolutionFn
 from .calibration import calibrate_x_axis
 from .cython import (
     ml_em,
