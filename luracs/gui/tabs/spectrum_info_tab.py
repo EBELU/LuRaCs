@@ -6,6 +6,7 @@ if TYPE_CHECKING:
     from luracs.containers.spectrum_classes import Spectrum
 
 from datetime import timedelta
+import math
 
 from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QPainter
@@ -260,7 +261,10 @@ class SpectrumInfoTab(QWidget):
 
     # ----------------- Table update -----------------
     def format_large_int(self, value: int) -> str:
-        return f"{int(value):,}".replace(",", " ")
+        if math.isinf(value):
+            return "Inf"
+        else:
+            return f"{int(value):,}".replace(",", " ")
 
     def recieve_update(self, name):
         new_spect = SpectrumManager.get_spectrum(name)

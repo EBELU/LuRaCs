@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from luracs.core import SpectrumManager
-from luracs.utils.numerics import curve_fit, r_squared, resolution
+from luracs.utils.numerics import curve_fit, r_squared, ResolutionFn
 
 
 class ResolutionWindow(QWidget):
@@ -262,18 +262,18 @@ class ResolutionWindow(QWidget):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             self.current_params, _, _ = curve_fit(
-                resolution, centroids, self.current_resolution_points, [2]
+                ResolutionFn.lookup(ResolutionFn.Signatures.K_OVER_SQRT_E), centroids, self.current_resolution_points, [2]
             )
 
         # Calculate error
         r2 = r_squared(
             self.current_resolution_points,
-            resolution(self.current_energy_points, self.current_params),
+            ResolutionFn.lookup(ResolutionFn.Signatures.K_OVER_SQRT_E)(self.current_energy_points, self.current_params),
         )
 
         # Display results
         self.result_line.setText(
-            f"R(E) = {round(self.current_params[0], 4)} / √(E),\t R² = {round(r2, 4)}"
+            f"R(E) = {ResolutionFn.Signatures.K_OVER_SQRT_E.value}".format(round(self.current_params[0], 4)) + f"\t R² = {round(r2, 4)}"
         )
         self.plot_data(self.button_group.checkedId())
 
@@ -285,7 +285,7 @@ class ResolutionWindow(QWidget):
 
         self.res_plot.clear()
         x_axis = np.linspace(25, max(self.current_energy_points) + 500, 1000)
-        y_axis = resolution(x_axis, self.current_params)
+        y_axis = ResolutionFn.lookup(ResolutionFn.Signatures.K_OVER_SQRT_E)(x_axis, self.current_params)
 
         if mode == 0:
             self.res_plot.getPlotItem().plot(
@@ -321,7 +321,7 @@ class ResolutionWindow(QWidget):
 
     def assign_to_instruments(self, include_all_of_model: bool = False):
         data_dict = {
-            "resolution_fn": "k/sqrt(E)",
+            "resolution_fn": ResolutionFn.Signatures.K_OVER_SQRT_E.value,
             "resolution_params": list(self.current_params),
             "resolution_E_points": list(self.current_energy_points),
             "resolution_FWHM_points": list(self.current_fwhm_points),

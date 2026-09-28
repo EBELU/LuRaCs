@@ -31,7 +31,7 @@ import pyqtgraph as pg
 import numpy as np
 
 from luracs.core import SpectrumManager, IOManager
-from luracs.utils.numerics import resolution, exp_polynomial
+from luracs.utils.numerics import ResolutionFn, EfficiencyFn
 from luracs.containers.roi_classes import ROI, Fit
 
 
@@ -238,7 +238,7 @@ class InstrumentDialog(QDialog):
         self.eff_plot_widget.getPlotItem().layout.setContentsMargins(2, 13, 13, 2)
         self.eff_plot_widget.setMouseEnabled(x=False, y=False)
         self.eff_plot_widget.getPlotItem().setLabel(axis="bottom", text="Energy [keV]")
-        self.res_plot_widget.getPlotItem().setLabel(axis="left", text="Int. Eff. [%]")
+        self.eff_plot_widget.getPlotItem().setLabel(axis="left", text="Int. Eff. [%]")
         form_layout.addRow("", self.eff_plot_widget)
 
         # ------------------------------------------------------------------
@@ -320,8 +320,10 @@ class InstrumentDialog(QDialog):
         res_created = kwargs.get("resolution_created")
         if res_created is not None:
             res_created = res_created.strftime("%Y-%m-%d %H:%M")
+        
+        res_fn, res_param = kwargs.get('resolution_fn', ''), kwargs.get('resolution_params', '')
         self.resolution.setText(
-            f"[{res_created}] fn = {kwargs.get('resolution_fn', '')}, params = {kwargs.get('resolution_params', '')}"
+            f"[{res_created}] fn = {ResolutionFn.Signatures.K_OVER_SQRT_E.value.format(*np.round(res_param, 3))}"
         )
 
         # Resolution plot
@@ -339,7 +341,7 @@ class InstrumentDialog(QDialog):
                 symbol="o",
             )
             res_x = np.linspace(25, max(kwargs.get("resolution_E_points")) + 500, 1000)
-            res_y = resolution(res_x, np.array(kwargs.get("resolution_params"))) * 100
+            res_y = ResolutionFn.lookup(ResolutionFn.Signatures.K_OVER_SQRT_E)(res_x, np.array(kwargs.get("resolution_params"))) * 100
             self.res_plot_widget.plot(res_x, res_y)
 
         # --- Intrinsic efficiency ---
@@ -367,7 +369,7 @@ class InstrumentDialog(QDialog):
                 25, max(kwargs.get("int_efficiency_E_points")) + 500, 1000
             )
             res_y = (
-                exp_polynomial(res_x, np.array(kwargs.get("int_efficiency_params")))
+                EfficiencyFn.lookup(EfficiencyFn.Signatures.EXP_POLY)(res_x, np.array(kwargs.get("int_efficiency_params")))
                 * 100
             )
             self.eff_plot_widget.plot(res_x, res_y)
