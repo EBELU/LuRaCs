@@ -12,7 +12,10 @@ from luracs.utils.numerics import (
 
 def fit_gaussians(
     x_axis: np.ndarray,
-    y_axis: np.ndarray,
+    fg_y_axis: np.ndarray,
+    fg_live_time: float,
+    bg_y_axis: np.ndarray,
+    bg_live_time: float,
     bounds: tuple,
     fit_type: str,
     use_poisson_weights: bool,
@@ -20,7 +23,16 @@ def fit_gaussians(
     bkg_type: str,
     bkg_est_channels: int,
 ) -> tuple[list[Fit], bool]:
-    "Fit peaks to roi_group"
+    "Fit peaks to roi_group"    
+    
+    if bg_y_axis is not None and bg_live_time is not None:
+        y_axis = (fg_y_axis / fg_live_time - bg_y_axis / bg_live_time) * fg_live_time
+        y_axis_uncert = np.sqrt(fg_y_axis / fg_live_time**2+ bg_y_axis / bg_live_time**2) * fg_live_time
+        
+    else:
+        y_axis = fg_y_axis
+        y_axis_uncert = np.sqrt(y_axis)
+        
     region_min, region_max = np.min(bounds), np.max(bounds)
     region = slice(np.searchsorted(x_axis, region_min), np.searchsorted(x_axis, region_max))
     x_region = x_axis[region].copy().astype(float)
@@ -60,12 +72,14 @@ def fit_gaussians(
 
         lower_bkg_points_x = x_axis[i_low:bkg_extention_lower]
         lower_bkg_points_y = y_axis[i_low:bkg_extention_lower]
+        lower_uncert_points = y_axis_uncert[i_low:bkg_extention_lower]
 
         bkg_extention_upper = i_high - bkg_est_channels
         bkg_extention_upper = min(bkg_extention_upper, len(x_axis) - 1)
 
         upper_bkg_points_x = x_axis[bkg_extention_upper:i_high]
         upper_bkg_points_y = y_axis[bkg_extention_upper:i_high]
+        upper_uncert_points = y_axis_uncert[bkg_extention_upper:i_high]
 
         if bkg_type == "Linear":
             poly_order = 1
@@ -76,10 +90,9 @@ def fit_gaussians(
         
         x_points = np.concatenate((lower_bkg_points_x, upper_bkg_points_x))
         y_points = np.concatenate((lower_bkg_points_y, upper_bkg_points_y))
+        y_uncert_points = np.concatenate((lower_uncert_points, upper_uncert_points))
         
-        
-        background_std = np.sqrt(np.maximum(y_points, 1.0))
-        background_weights = 1.0 / background_std
+        background_weights = 1.0 / y_uncert_points
 
         # Perform the polynomial fit with weights based on the poisson distribution of each channel
         # cov is not scaled with chi2 since the uncertainty is known is does not need to be estimated
@@ -192,10 +205,6 @@ def fit_gaussians(
         x_peak = x_axis[i0:i1]
         y_peak = y_axis[i0:i1]
 
-        G = np.sum(y_peak)
-        B = np.sum(np.polyval(bkg_fit, x_peak))
-        N = G - B
-
         A, mu, v = fit
 
         g = multi_gaussian(x_region, fit)
@@ -228,8 +237,33 @@ def fit_gaussians(
             max(peak_area_var, 0.0)
         )
         
-        print(peak_area, "+-", peak_area_std)
-        print(N)
+        G = np.sum(y_peak)
+        B = np.sum(np.polyval(bkg_fit, x_peak))
+        N = G - B
+
+        # Uncertainty of net counts N = G - B
+        N_var_stat = np.sum(y_axis_uncert[i0:i1] ** 2)
+
+        if bkg_type != "None":
+            X_peak = np.vander(
+                x_peak,
+                N=poly_order + 1
+            )
+
+            bkg_peak_cov = X_peak @ poly_cov @ X_peak.T
+
+            ones = np.ones(len(x_peak))
+            B_var = ones @ bkg_peak_cov @ ones
+        else:
+            B_var = 0.0
+
+        N_uncert = np.sqrt(
+            max(N_var_stat + B_var, 0.0)
+        )
+
+        print("peak area", peak_area, "+-", peak_area_std)
+        print("N", N, "+-", N_uncert)
+
         
 
         
@@ -257,7 +291,6 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import pandas as pd
     x_axis, y_axis, _ = pd.read_csv("/home/eewa/Desktop/Cyklotron_Cs.csv").to_numpy().T   
-    
     print()
     print("========== DATA ==========")
     print(f"Number of channels: {len(x_axis)}")
@@ -281,7 +314,10 @@ if __name__ == "__main__":
     start = time()
     results, converged = fit_gaussians(
         x_axis=x_axis,
-        y_axis=y_axis,
+        fg_y_axis=y_axis,
+        fg_live_time=4353.,
+        bg_live_time=None,
+        bg_y_axis=None,
         bounds=bounds,
         fit_type="Gaussian",
         use_poisson_weights=False,

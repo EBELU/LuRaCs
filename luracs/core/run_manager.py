@@ -564,7 +564,7 @@ class _RunManager(QObject):
         new_log.sigDataUpdated.connect(self.SpectrogramManager.receive_buffer)
         
         # Buffer the calibrated energy axes for faster ROI computation
-        if new_log.calibration_coeff:
+        if new_log.calibration_coeff is not None and len(new_log.calibration_coeff):
             self.SpectrogramManager.energy_axes_buffer[name] = np.polyval(new_log.calibration_coeff, np.arange(new_log.spect_channels) * new_log.concat_factor)
         else:
             self.SpectrogramManager.energy_axes_buffer[name] = np.arange(new_log.spect_channels)

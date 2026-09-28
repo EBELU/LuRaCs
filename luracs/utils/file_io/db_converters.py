@@ -61,11 +61,14 @@ def _write_logged_data_to_xlsx(
             continue
 
         headers.append(key)
+        
+        if key == "meta":
+            values = [str(v) for v in values]
 
         if isinstance(values, np.ndarray):
             values = values.tolist()
         elif isinstance(values, (list, tuple)):
-            values = list(values)
+            values = list(values)   
         else:
             values = [values]
 

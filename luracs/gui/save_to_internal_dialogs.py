@@ -104,6 +104,9 @@ def save_roi_references():
 
         dummy_spectrum.set_roi(dummy_roi)
 
-    xml_writer(dummy_spectrum, new_file, export_spectrum=False, export_instrument=False)
-    Log.debug(f"ROI References saved to library: {new_file}")
+    try: 
+        xml_writer(dummy_spectrum, new_file, export_spectrum=False, export_instrument=False)
+        Log.debug(f"ROI References saved to library: {new_file}")
+    except FileNotFoundError:
+        Log.error(f"Save reference ROIs failed with FileNotFound for path: {new_file}")
     return new_file.with_suffix(".xml")

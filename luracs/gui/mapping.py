@@ -144,6 +144,8 @@ class Bridge(QObject):
         view.page().runJavaScript(js)
 
     def remove_current_location_point(self, view: QWebEngineView):
+        if self.web_engine_view is None:
+            return
         view.page().runJavaScript("remove_current_location_point();")
 
     def move_current_location_point(self, view: QWebEngineView, lat: float, lng: float,
@@ -443,8 +445,8 @@ class MapWidget(QWidget):
                     values.append(p.count_rate)
                 elif current_data_key == "dose_rate":
                     values.append(p.dose_rate)
-                elif p.other_data_point is not None and current_data_key in p.other_data_point:
-                    values.append(p.other_data_point.get(current_data_key))
+                elif p.other_data_points is not None and current_data_key in p.other_data_points:
+                    values.append(p.other_data_points.get(current_data_key))
                 else:
                     return
                     
@@ -852,7 +854,7 @@ class MapWidget(QWidget):
         vmin, vmax = self.view_slider.getLevels()
 
         # Normalize to [0, 1]
-        t = np.clip((value - vmin) / max((vmax - vmin), 1), 0.0, 1.0)
+        t = np.clip((value - vmin) / max((vmax - vmin), 0.001), 0.0, 1.0)
 
         # Get the ColorMap
         cmap = self.view_slider.gradient.colorMap()

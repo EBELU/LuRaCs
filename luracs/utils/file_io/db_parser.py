@@ -17,6 +17,7 @@ class dbHeader:
     concat: int
     save_interval: int
     calibration: list
+    meta: str
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -90,6 +91,7 @@ class db_parser:
             concat=concat,
             save_interval=save_interval,
             calibration=json.loads(calibration) if calibration else [],
+            meta=meta
         )
 
     def get_summary(self) -> dbSummary:
@@ -219,7 +221,8 @@ class db_parser:
                 temperature,
                 latitude,
                 longitude,
-                spectrum
+                spectrum,
+                meta
             FROM spectrogram
         """
 

@@ -127,7 +127,11 @@ def plot_spectrum(args):
                 (float(kwargs["-Emin"]) <= spectrum.x_axis)
                 & (spectrum.x_axis <= float(kwargs["-Emax"]))
             ]
-            plt.plot(spectrum.x_axis, fg, label=name)
+            x = spectrum.x_axis[
+                (float(kwargs["-Emin"]) <= spectrum.x_axis)
+                & (spectrum.x_axis <= float(kwargs["-Emax"]))
+            ]
+            plt.plot(x, fg, label=name)
 
     else:
         spectrum = SpectrumManager.get_spectrum(spectrum_name)

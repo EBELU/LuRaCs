@@ -252,7 +252,7 @@ class Spectrogram(QObject):
                 time.time(),
                 self.device_id,
                 self.spect_channels,
-                json.dumps(self.calibration_coeff),
+                json.dumps(list(self.calibration_coeff)),
                 self.concat_factor,
                 self.save_interval,
                 json.dumps(self.header_meta)
