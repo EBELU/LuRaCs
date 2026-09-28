@@ -456,10 +456,17 @@ class MapWidget(QWidget):
             _, _, gps, values = self.map_buffers[spectrogram_key].get_all_data(current_data_key)
             if gps is None:
                 return
-            lng = [p.longitude for p in gps]
-            lat = [p.latitude for p in gps]
             
-            return lng, lat, list(values)
+            longitude, latitude, filtered_values = [], [], []
+            for i, p in enumerate(gps):
+                if p is None:
+                    continue
+                else:
+                    longitude.append(p.longitude)
+                    latitude.append(p.latitude)
+                    filtered_values.append(values[i])
+            
+            return longitude, latitude, values
 
         else:
             Log.debug(f"No data found! \n sg_key={spectrogram_key}, data_key={current_data_key}\n map_buffer={self.map_buffers.keys()}, simple_buffers={self.simple_buffers.keys()}")
