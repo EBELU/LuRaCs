@@ -48,6 +48,7 @@ QTextEdit,
 QPlainTextEdit,
 QComboBox,
 QSpinBox,
+QDateTimeEdit,
 QDoubleSpinBox {
     background-color: #313244;
     color: #cdd6f4;
