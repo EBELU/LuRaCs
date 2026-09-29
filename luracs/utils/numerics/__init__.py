@@ -12,3 +12,4 @@ from .cython import (
 from .optimizer import curve_fit, r_squared
 from .peak_detection import find_peaks
 from .weights import huber_weights, poisson_weights
+from .gaussian_fitter import fit_gaussians

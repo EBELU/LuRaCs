@@ -475,25 +475,25 @@ class xml_parser(SpectrumParserBase):
                 sigma, sigma_err = _parse_pair(peak, ".//n42:StandardDeviation", ns)
                 amp, amp_err = _parse_pair(peak, ".//n42:Amplitude", ns)
 
-                counts_res = peak.xpath(".//n42:PeakCounts", namespaces=ns)
-                N = peak.xpath(".//n42:NetCounts", namespaces=ns)
-                B = peak.xpath(".//n42:BkgCounts", namespaces=ns)
-                G = peak.xpath(".//n42:GrossCounts", namespaces=ns)
-                counts = (
-                    float(counts_res[0].text)
-                    if counts_res and counts_res[0].text
-                    else 0.0
-                )
+                peak_area, peak_area_err = _parse_pair(peak, ".//n42:PeakArea", ns)
+                N, N_u = _parse_pair(peak, ".//n42:NetCounts", ns)
+                B, B_u = _parse_pair(peak, ".//n42:BkgCounts", ns)
+                G, G_u = _parse_pair(peak, ".//n42:GrossCounts", ns)
+                
                 peak_kwargs = {
                     "lower": e_low,
                     "upper": e_high,
                     "params": fit_params,
                     "param_errs": fit_params_err,
-                    "peak_counts": counts,
+                    "peak_area": peak_area,
+                    "peak_area_err": peak_area_err,
                     "bkg_params": bkg_params,
                     "N": N if N is not None else 0,
                     "B": B if B is not None else 0,
                     "G": G if G is not None else 0,
+                    "N_err": N_u,
+                    "B_err": B_u,
+                    "G_err": G_u
                 }
 
                 # The data of a roi, idk what to do with this
@@ -504,8 +504,9 @@ class xml_parser(SpectrumParserBase):
                     "sigma_err": sigma_err,
                     "amplitude": amp,
                     "amplitude_err": amp_err,
-                    "peak_counts": counts,
+                    "peak_area": peak_area,
                 }
+                print(misc_peak_kwargs)
             else:
                 # No peak
                 peak_kwargs = misc_peak_kwargs = None

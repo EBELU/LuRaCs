@@ -86,14 +86,14 @@ class xml_writer:
             self.root, n42("RadInstrumentDataCreatorName"), "LuRaCs"
         )
         
-        if spectrum.instrument_id is not None or spectrum.instrument_model is not None:
-            rad_instr_info = etree.SubElement(self.root, n42("RadInstrumentInformation"))
+    
+        rad_instr_info = etree.SubElement(self.root, n42("RadInstrumentInformation"))
             
-            if spectrum.instrument_id is not None:
-                write_text_to_SubElement(rad_instr_info, "RadInstrumentIdentifier", spectrum.instrument_id)
+        instr_id = spectrum.instrument_id if spectrum.instrument_id is not None else "Unknown"
+        write_text_to_SubElement(rad_instr_info, "RadInstrumentIdentifier", instr_id)
                 
-            if spectrum.instrument_model is not None:
-                write_text_to_SubElement(rad_instr_info, "RadInstrumentModelName", spectrum.instrument_model)
+        instr_model = spectrum.instrument_model if spectrum.instrument_model is not None else "Unknown"
+        write_text_to_SubElement(rad_instr_info, "RadInstrumentModelName", instr_model)
         
         # ------------------------------------------------------------------
         # Spectrum Data
@@ -277,17 +277,17 @@ def write_ROI_data(ROIs: dict[str, ROI], peaks_section):
             )
             write_text_to_SubElement(peak, "Amplitude", [roi.fit.A, roi.fit.A_err])
 
-            write_text_to_SubElement(peak, "PeakCounts", roi.fit.peak_counts)
+            write_text_to_SubElement(peak, "PeakArea", [roi.fit.peak_area, roi.fit.peak_area_err])
 
-            write_text_to_SubElement(peak, "NetCounts", roi.fit.N)
-            write_text_to_SubElement(peak, "BkgCounts", roi.fit.B)
-            write_text_to_SubElement(peak, "GrossCounts", roi.fit.G)
+            write_text_to_SubElement(peak, "NetCounts", [roi.fit.N, roi.fit.N_err])
+            write_text_to_SubElement(peak, "BkgCounts", [roi.fit.B, roi.fit.B_err])
+            write_text_to_SubElement(peak, "GrossCounts", [roi.fit.G, roi.fit.B_err])
 
         # ------------------------------------------------------------------
         # ROI nuclide and associated energy
         # ------------------------------------------------------------------
 
-        if roi.emission is not None:
+        if roi.emission is not None and str(roi.emission.parent_nuclide) != "None":
             nuclide_section = etree.SubElement(new_peak, "Nuclide")
             write_text_to_SubElement(
                 nuclide_section, "Name", roi.emission.parent_nuclide

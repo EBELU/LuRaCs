@@ -341,7 +341,7 @@ class EfficiencyWindow(QWidget):
             parent_text = "-"
 
             if roi.fit:
-                cps = roi.get_count_data("peak_counts", cps=True)
+                cps = roi.get_count_data("peak_area", cps=True)
                 cps_text = f"{cps:.3f} CPS"
 
                 if roi.emission:

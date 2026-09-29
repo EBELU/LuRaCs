@@ -176,7 +176,7 @@ def print_rois(by="roi", cps=False):
     if by == "roi":
         for roi_tag in SpectrumManager.ROIManager.roi_registry.keys():
             table = TableFormatter(
-                ["Spectrum", "Lower", "Upper", "Centroid", "FWHM", "Peak Counts"],
+                ["Spectrum", "Lower", "Upper", "Centroid", "FWHM", "Peak Area"],
                 title=SpectrumManager.ROIManager.roi_registry[roi_tag].alias,
             )
             for spectrum_name, roi in SpectrumManager.ROIManager.get_data_from_roi(
@@ -185,7 +185,7 @@ def print_rois(by="roi", cps=False):
                 if roi.fit:
                     centroid = round(roi.fit.mu, 3)
                     fwhm = round(roi.fit.fwhm, 3)
-                    peak_counts = round(roi.get_count_data("peak_counts", cps), 3)
+                    peak_counts = round(roi.get_count_data("peak_area", cps), 3)
                 else:
                     centroid = fwhm = peak_counts = None
 

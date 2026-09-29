@@ -118,7 +118,7 @@ class RoiInfoDialog(QDialog):
                         f"G = {fmt(f.G)}",
                         f"B = {fmt(f.B)}",
                         f"N = {fmt(f.N)}",
-                        f"Peak Counts = {fmt(f.peak_counts)}",
+                        f"Peak Counts = {fmt(f.peak_area)}",
                         "",
                     ]
                 )
@@ -245,8 +245,14 @@ class ROIInfoTab(QWidget):
         if cps:
             roi_counts = f"{round(roi.get_count_data('roi_counts', True), 4)} CPS"
             if roi.fit is not None:
-                N = f"{round(roi.get_count_data('N', True), 4)} CPS"
-                B = f"{round(roi.get_count_data('B', True), 4)} CPS"
+                N = f"{round(roi.get_count_data('N', True), 4)}"
+                B = f"{round(roi.get_count_data('B', True), 4)}"
+                N_u = f"{round(roi.get_count_data('N_err', True), 4):,} CPS".replace(
+                    ",", " "
+                )
+                B_u = f"{round(roi.get_count_data('B_err', True), 4):,} CPS".replace(
+                    ",", " "
+                )
         else:
             roi_counts = f"{int(roi.get_count_data('roi_counts', False)):,}".replace(
                 ",", " "
@@ -258,12 +264,23 @@ class ROIInfoTab(QWidget):
                 B = f"{int(roi.get_count_data('B', False)):,}".replace(
                     ",", " "
                 )
+                N_u = f"{int(roi.get_count_data('N_err', False)):,}".replace(
+                    ",", " "
+                )
+                B_u = f"{int(roi.get_count_data('B_err', False)):,}".replace(
+                    ",", " "
+                )
 
         if roi.fit is not None and none_fallback != "Spectrum Hidden":
-            peak_counts = (
-                f"{int(roi.get_count_data('peak_counts')):,}".replace(",", " ")
+            peak_area = (
+                f"{int(roi.get_count_data('peak_area')):,}".replace(",", " ")
                 if not cps
-                else f"{round(roi.get_count_data('peak_counts', True), 4)} CPS"
+                else f"{round(roi.get_count_data('peak_area', True), 4)}"
+            )
+            peak_area_u = (
+                f"{int(roi.get_count_data('peak_area_err')):,}".replace(",", " ")
+                if not cps
+                else f"{round(roi.get_count_data('peak_area_err', True), 4)} CPS"
             )
 
             row = [
@@ -271,12 +288,12 @@ class ROIInfoTab(QWidget):
                 spectrum_name,
                 f"{round(roi.fit.lower)} keV",
                 f"{round(roi.fit.upper)} keV",
-                f"{round(roi.fit.mu, 2)} keV",
-                f"{round(roi.fit.fwhm, 2)} keV",
-                peak_counts,
+                f"{round(roi.fit.mu, 2)} ± {round(roi.fit.mu_err, 2)} keV",
+                f"{round(roi.fit.fwhm, 2)} ± {round(roi.fit.fwhm_err, 2)} keV",
+                f"{peak_area} ± {peak_area_u}",
                 roi_counts,
-                N,
-                B,
+                f"{N} ± {N_u}",
+                f"{B} ± {B_u}",
                 roi.emission.parent_nuclide if roi.emission else "None",
                 f"{roi.emission.energy_keV} keV"
                 if roi.emission and roi.emission.energy_keV is not None

@@ -39,7 +39,11 @@ class Fit:
     G: float
     B: float
     N: float
-    peak_counts: float
+    peak_area: float
+    G_err: float
+    B_err: float
+    N_err: float
+    peak_area_err: float
 
     @property
     def A(self):
@@ -100,7 +104,7 @@ class ROI:
         if field == "roi_counts":
             return self.roi_counts / self.live_time if cps else self.roi_counts
 
-        elif field in ("A", "A_err", "G", "B", "N", "peak_counts"):
+        elif field in ("A", "A_err", "G", "G_err", "B", "B_err", "N", "N_err", "peak_area", "peak_area_err"):
             return (
                 getattr(self.fit, field) / self.live_time
                 if cps

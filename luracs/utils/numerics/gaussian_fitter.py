@@ -180,23 +180,13 @@ def fit_gaussians(
     else:
         param_cov = cov
 
-    print("Measurement errors:")
-    print(np.sqrt(np.diag(cov)))
-
-    print("Background errors:")
-    print(np.sqrt(np.diag(cov_background)))
-
-    print("Total errors:")
-    print(np.sqrt(np.diag(param_cov)))
-
-
     # Turn the vectorized array back to one list per peak
     fits = fits.reshape(-1, 3)
     errs = np.sqrt(np.diag(param_cov)).reshape(-1, 3)
 
     # --- Evaluation ---
     results = []
-    for b, fit, err in zip(bounds, fits, errs):
+    for i, (b, fit, err) in enumerate(zip(bounds, fits, errs)):
         lower, upper = np.min(b), np.max(b)
         
         i0 = np.searchsorted(x_axis, lower)
@@ -226,10 +216,13 @@ def fit_gaussians(
         ])
         
         peak_area = np.sum(g)
-        
+        peak_cov = param_cov[
+            3 * i : 3 * i + 3,
+            3 * i : 3 * i + 3,
+        ]
         peak_area_var = (
             grad_area
-            @ param_cov
+            @ peak_cov
             @ grad_area
         )
 
@@ -259,27 +252,32 @@ def fit_gaussians(
 
         N_uncert = np.sqrt(
             max(N_var_stat + B_var, 0.0)
+        )     
+
+        G_var = np.sum(
+            y_axis_uncert[i0:i1] ** 2
         )
 
-        print("peak area", peak_area, "+-", peak_area_std)
-        print("N", N, "+-", N_uncert)
-
-        
+        G_err = np.sqrt(max(G_var, 0.0))
 
         
         fit_data = Fit(
-            region_min,
-            region_max,
-            lower,
-            upper,
-            fit,
-            err,
-            bkg_fit,
-            bkg_est_channels,
-            G,
-            B,
-            N,
-            peak_area,
+            region_lower=region_min,
+            region_upper=region_max,
+            lower=lower,
+            upper=upper,
+            params=fit,
+            param_errs=err,
+            bkg_params=bkg_fit,
+            bkg_est_channels=bkg_est_channels,
+            G=G,
+            B=B,
+            N=N,
+            G_err=G_err,
+            B_err=np.sqrt(B_var),
+            N_err=N_uncert,
+            peak_area=peak_area,
+            peak_area_err=peak_area_std
         )
         results.append(fit_data)
 
