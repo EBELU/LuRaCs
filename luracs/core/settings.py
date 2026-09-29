@@ -86,7 +86,7 @@ class _State:
 
 @dataclass
 class _Advanced:
-    update_loop_delay: float = 0.5
+    update_loop_delay: float = 1
     spectrum_update_delay: float = 1
     ui_scan_length: int = 5
     headless_scan_length: int = 2

@@ -663,23 +663,6 @@ class xml_parser(SpectrumParserBase):
             ]
 
         # ------------------------------------------------------------------
-        # Response matrix
-        # ------------------------------------------------------------------
-
-        # rm = instrument.xpath("./n42:ResponseMatrix", namespaces=ns)
-        # if rm:
-        #     rm = rm[0]
-
-        #     shape = rm.get("matrix_shape")
-        #     kwargs["response_matrix_shape"] = (
-        #         tuple(map(int, shape.split())) if shape else None
-        #     )
-
-        #     if rm.text:
-        #         decoded = decode_base64(rm.text)
-        #         kwargs["response_matrix"] = decompress_spectrum(decoded)
-
-        # ------------------------------------------------------------------
         # Generic instrument
         # ------------------------------------------------------------------
 

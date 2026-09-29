@@ -85,7 +85,16 @@ class xml_writer:
         write_text_to_SubElement(
             self.root, n42("RadInstrumentDataCreatorName"), "LuRaCs"
         )
-
+        
+        if spectrum.instrument_id is not None or spectrum.instrument_model is not None:
+            rad_instr_info = etree.SubElement(self.root, n42("RadInstrumentInformation"))
+            
+            if spectrum.instrument_id is not None:
+                write_text_to_SubElement(rad_instr_info, "RadInstrumentIdentifier", spectrum.instrument_id)
+                
+            if spectrum.instrument_model is not None:
+                write_text_to_SubElement(rad_instr_info, "RadInstrumentModelName", spectrum.instrument_model)
+        
         # ------------------------------------------------------------------
         # Spectrum Data
         # ------------------------------------------------------------------
