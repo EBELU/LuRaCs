@@ -466,7 +466,7 @@ class MapWidget(QWidget):
                     latitude.append(p.latitude)
                     filtered_values.append(values[i])
             
-            return longitude, latitude, values
+            return longitude, latitude, filtered_values
 
         else:
             Log.debug(f"No data found! \n sg_key={spectrogram_key}, data_key={current_data_key}\n map_buffer={self.map_buffers.keys()}, simple_buffers={self.simple_buffers.keys()}")

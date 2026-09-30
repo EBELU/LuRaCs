@@ -1,17 +1,20 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from luracs.containers.spectrum_classes import Spectrum, SpectrumData
     from luracs.containers.roi_classes import ROI
+    from luracs.containers.spectrum_classes import Spectrum, SpectrumData
+
+from datetime import datetime, timezone
+from pathlib import Path
+from uuid import uuid4
+
+import numpy as np
+from lxml import etree
 
 from luracs.containers.instrument_classes import GenericInstrument, UniqueInstrument
-from lxml import etree
-from uuid import uuid4
-from datetime import datetime, timezone
 from luracs.utils.numerics.compression import compress_spectrum, encode_base64
-from pathlib import Path
-import numpy as np
 
 NS = "http://physics.nist.gov/N42/2011/N42"
 MY = "https://example.com/n42/extensions"
@@ -50,7 +53,7 @@ def write_coupled_points(
 
 
 def write_text_to_SubElement(
-    branch, sub_element: str, data: str | int | float | list, **kwargs
+    branch, sub_element: str, data: str | float | list, **kwargs
 ):
     if isinstance(data, (list, tuple, np.ndarray)):
         data = " ".join([str(i) for i in data])

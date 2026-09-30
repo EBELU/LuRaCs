@@ -737,6 +737,10 @@ class SpectrogramWidget(QWidget):
             return
         ymin, ymax = self.time_selector.getRegion()
         ymin, ymax = round(ymin), round(ymax)
+        
+        if not len(self.current_packet_buffer.spectrogram):
+            # Stop numpy from freaking out in vstack if the is empty
+            return
 
         self.bar.setOpts(
             height=np.sum(

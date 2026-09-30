@@ -10,7 +10,7 @@ from lxml import etree
 from luracs.containers.instrument_classes import GenericInstrument, UniqueInstrument
 from luracs.containers.nuclide_classes import Emission
 from luracs.containers.roi_classes import ROI, Fit
-from luracs.containers.spectrum_classes import SpectrumData, Spectrum
+from luracs.containers.spectrum_classes import Spectrum, SpectrumData
 from luracs.utils.file_io.parser_base import SpectrumParserBase
 
 
@@ -506,7 +506,7 @@ class xml_parser(SpectrumParserBase):
                     "amplitude_err": amp_err,
                     "peak_area": peak_area,
                 }
-                print(misc_peak_kwargs)
+
             else:
                 # No peak
                 peak_kwargs = misc_peak_kwargs = None

@@ -220,6 +220,12 @@ class MainWindow(QMainWindow):
         
         if self.map_widget is not None:
              self.spect_tab.addTab(self.map_widget, "Map")
+            
+        from luracs.gui.advanced_measure import GraphWindow
+        self.advanced_measure = GraphWindow()
+        self.spect_tab.addTab(self.advanced_measure, "Advanced Measure")
+          
+             
 
         central_splitter.addWidget(self.spect_tab)
 
