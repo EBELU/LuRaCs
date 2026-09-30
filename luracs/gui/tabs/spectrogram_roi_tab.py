@@ -12,6 +12,7 @@ from PySide6.QtGui import QFont, QPen
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QScrollArea,
+    QSizePolicy,
     QSplitter,
     QTextEdit,
     QVBoxLayout,
@@ -20,21 +21,21 @@ from PySide6.QtWidgets import (
 
 from luracs.core import RunManager, Settings, core_utils
 from luracs.utils.color_rotator import ColorRotator
+from luracs.gui.misc.calc_roi import CalcROI, _ScrollablePlotWidget
 
 
-class _ScrollablePlotWidget(pg.PlotWidget):
-    def wheelEvent(self, event):
-        event.ignore()
+
 
 class PlotContainer(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent=parent)
         
         self.main_layout = QVBoxLayout()
+        self.main_layout.setContentsMargins(0,1,0,0)
 
         self.scroll_content = QWidget()
         self.scroll_content.setLayout(self.main_layout)
-        self.scroll_content.setContentsMargins(0, 0, 0, 0)
+        self.scroll_content.setContentsMargins(0,1,0,0)
 
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
@@ -49,23 +50,32 @@ class PlotContainer(QWidget):
         self.color_rotator = ColorRotator(ColorRotator.ColorSchemes(Settings.Appearance.color_rotator_scheme))
         self.color_buffer: dict[str, QPen] = {}
         
+        self.calc_roi_registry: dict[str, CalcROI] = {}
+        self.calc_roi_counter = 0
+        
+
+        
     def add_plot(self, roi: str):
         new_plot = _ScrollablePlotWidget()
         new_plot.setContentsMargins(2, 13, 13, 2)
         self.plot_registry[roi] = new_plot
         self.main_layout.addWidget(new_plot)
         
-        new_plot.setLabel("bottom", "Time [s]")
-        new_plot.setLabel("left", "Count Rate [s⁻¹]")
+        new_plot.setLabel("bottom", "Time [s]", **{'font-size': f'{Settings.Appearance.font_size}pt'})
+        new_plot.setLabel("left", "CPS",  **{'font-size': f'{Settings.Appearance.font_size}pt'})
         new_plot.getViewBox().setMouseEnabled(x=False, y=False)
         new_plot.invertX(True)
         new_plot.setMinimumHeight(150)
         
-        
         plot_item = new_plot.getPlotItem()
-        plot_item.setTitle(RunManager.SpectrogramManager.roi_registry[roi].alias)
-        
-        legend = new_plot.addLegend()
+        right_axis = plot_item.getAxis("right")
+        right_axis.setStyle(
+            showValues=False,
+            tickLength=0
+        )
+        new_plot.setLabel("right", RunManager.SpectrogramManager.roi_registry[roi].alias, siPrefixEnableRanges=((0., 0.), (1e20, 1e20)),  **{'font-size': f'{Settings.Appearance.font_size}pt'})
+
+        legend = new_plot.addLegend(verSpacing=-10)
         legend.setOffset((2, 2))
         self.legend_registry[roi] = legend
         
@@ -76,6 +86,82 @@ class PlotContainer(QWidget):
         
         self.line_registry[roi] = {}
         
+    def add_calc_roi(self):
+        lab = f"CAL_{self.calc_roi_counter}"
+        new_calc_roi = CalcROI(label=lab)
+        self.calc_roi_counter += 1
+        self.main_layout.addWidget(new_calc_roi)
+        
+        self.calc_roi_registry[lab] = new_calc_roi
+        
+    def set_compact_view(self, state: bool):
+        for name, plot in self.plot_registry.items():
+            plot_item = plot.getPlotItem()
+            legend = self.legend_registry[name]
+
+            if state:
+                plot.setFixedHeight(50)
+                plot.setSizePolicy(
+                    QSizePolicy.Policy.Expanding,
+                    QSizePolicy.Policy.Fixed
+                )
+
+                plot_item.hideAxis("bottom")
+                plot_item.getAxis("left").setLabel("")
+                plot.setContentsMargins(2, 2, 2, 2)
+                legend.layout.setContentsMargins(0, 0, 0, 0)
+
+            else:
+                plot.setMinimumHeight(150)
+                plot.setMaximumHeight(16777215)
+                plot.setSizePolicy(
+                    QSizePolicy.Policy.Expanding,
+                    QSizePolicy.Policy.Expanding
+                )
+
+                plot_item.showAxis("bottom")
+                plot_item.getAxis("bottom").setLabel("Time [s]")
+                plot_item.getAxis("left").setLabel("CPS")
+                plot.setContentsMargins(2, 13, 13, 2)
+                legend.layout.setContentsMargins(2, 2, 2, 2)
+        
+        for calc_roi in self.calc_roi_registry.values():
+            plot = calc_roi.plot_widget
+            plot_item = plot.getPlotItem()
+            if state:
+                calc_roi.sg1_combo.hide()
+                calc_roi.sg1_roi_combo.hide()
+                calc_roi.operation_combo.hide()
+                calc_roi.sg2_combo.hide()
+                calc_roi.sg2_roi_combo.hide()
+                
+                plot.setFixedHeight(50)
+                plot.setSizePolicy(
+                    QSizePolicy.Policy.Expanding,
+                    QSizePolicy.Policy.Fixed
+                )
+
+                plot_item.hideAxis("bottom")
+                plot.setContentsMargins(2, 2, 2, 2)
+                
+                
+            else:
+                calc_roi.sg1_combo.show()
+                calc_roi.sg1_roi_combo.show()
+                calc_roi.operation_combo.show()
+                calc_roi.sg2_combo.show()
+                calc_roi.sg2_roi_combo.show()
+                
+                plot.setMinimumHeight(150)
+                plot.setMaximumHeight(16777215)
+                plot.setSizePolicy(
+                    QSizePolicy.Policy.Expanding,
+                    QSizePolicy.Policy.Expanding
+                )
+                plot_item.showAxis("bottom")
+                plot.setContentsMargins(2, 13, 13, 2)
+                
+
         
     def plot_line(self, db_name: str, roi_data: dict):
         time_interval = RunManager.SpectrogramManager.spectrogram_registry[db_name].save_interval        
@@ -99,14 +185,14 @@ class PlotContainer(QWidget):
         for roi_name, plot in self.plot_registry.items():
             plot.getPlotItem().removeItem(self.line_registry[roi_name][db_name])
             
-    def roi_removed(self, roi_name: str):
-        plot_widget = self.plot_registry.pop(roi_name)
+    def roi_removed(self, roi: SpectrogramROI):
+        plot_widget = self.plot_registry.pop(roi.tag)
         self.main_layout.removeWidget(plot_widget)
         plot_widget.deleteLater()
         self.main_layout.activate()
-        del self.line_registry[roi_name]
+        del self.line_registry[roi.tag]
         core_utils.ThemeManager.unregister_plot(plot_widget)
-        core_utils.ThemeManager.unregister_legend(self.legend_registry.pop(roi_name))
+        core_utils.ThemeManager.unregister_legend(self.legend_registry.pop(roi.tag))
     
 
     def resize_plot(self, roi_name: str, new_size: int):
@@ -208,7 +294,7 @@ class SpectrogramROITab(QWidget):
         
     def roi_removed(self, roi: SpectrogramROI):
         roi_name = roi.tag
-        self.plot_container.roi_removed(roi_name)
+        self.plot_container.roi_removed(roi)
         del self.stats_text_containers[roi_name]
         
         self.set_stats_text()

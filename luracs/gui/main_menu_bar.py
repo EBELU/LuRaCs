@@ -73,6 +73,10 @@ class MainMenuBar(QMenuBar):
         view_menu_realtime = view_menu.addMenu("&Real Time Data    ")
         self.view_menu_realtime_avg_line = QAction("Mark Average", self, checkable=True)
         view_menu_realtime.addAction(self.view_menu_realtime_avg_line)
+        
+        view_menu_sg_rois = view_menu.addMenu("&Spectrogram ROIs    ")
+        self.view_menu_sg_rois_compact_view = QAction("Compact View", self, checkable=True)
+        view_menu_sg_rois.addAction(self.view_menu_sg_rois_compact_view)
 
         # --- Spectrum View ---
         view_menu_spectrum = view_menu.addMenu("&Spectrum")

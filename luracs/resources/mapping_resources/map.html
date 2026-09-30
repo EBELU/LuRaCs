@@ -42,12 +42,7 @@
         };
 
         let data_points_source = null;
-
-        const data_popup = new maplibregl.Popup({
-            offset: 9
-        });
-
-
+        let active_popup = null;
 
         function add_data_point(id, lat, lon, colour, popup_text) {
             data_points.features.push({
@@ -128,12 +123,15 @@
 
         function remove_all_data_points() {
             data_points.features = [];
-            
+
             if (data_points_source) {
                 data_points_source.setData(data_points);
             }
 
-            data_popup.remove();
+            if (active_popup) {
+                active_popup.remove();
+                active_popup = null;
+            }
         }
 
         function createJsMap(style) {
@@ -185,11 +183,30 @@
 
                     const feature = e.features[0];
 
-                    data_popup
+                    if (active_popup) {
+                        active_popup.remove();
+                    }
+
+                    active_popup = new maplibregl.Popup({
+                        offset: 9
+                    })
                         .setLngLat(feature.geometry.coordinates)
                         .setText(feature.properties.popup_text)
                         .addTo(map);
                 });
+
+                map.on("click", (e) => {
+                    const features = map.queryRenderedFeatures(e.point, {
+                        layers: ["data_points"]
+                    });
+
+                    if (features.length === 0 && active_popup) {
+                        active_popup.remove();
+                        active_popup = null;
+                    }
+                });
+
+
 
                 map.on("mouseenter", "data_points", () => {
                     map.getCanvas().style.cursor = "pointer";

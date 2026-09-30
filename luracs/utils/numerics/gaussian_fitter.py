@@ -92,7 +92,7 @@ def fit_gaussians(
         y_points = np.concatenate((lower_bkg_points_y, upper_bkg_points_y))
         y_uncert_points = np.concatenate((lower_uncert_points, upper_uncert_points))
         
-        background_weights = 1.0 / y_uncert_points
+        background_weights = 1.0 / np.clip(y_uncert_points, 1, None)
 
         # Perform the polynomial fit with weights based on the poisson distribution of each channel
         # cov is not scaled with chi2 since the uncertainty is known is does not need to be estimated

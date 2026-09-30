@@ -263,7 +263,11 @@ class ScriptEngine(QObject):
             self.sigCancelCurrent.emit()
             self.cancel_current_command()
 
-        commands = shlex.split(cmd)
+        try:
+            commands = shlex.split(cmd)
+        except ValueError as e:
+            self.print_output(f"Error parsing command! ValueError('{e}')")
+            return
 
         if not commands:
             return

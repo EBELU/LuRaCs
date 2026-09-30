@@ -220,10 +220,7 @@ class MainWindow(QMainWindow):
         
         if self.map_widget is not None:
              self.spect_tab.addTab(self.map_widget, "Map")
-            
-        from luracs.gui.advanced_measure import GraphWindow
-        self.advanced_measure = GraphWindow()
-        self.spect_tab.addTab(self.advanced_measure, "Advanced Measure")
+
           
              
 
@@ -250,6 +247,7 @@ class MainWindow(QMainWindow):
         )
         
         self.spectrogram_roi_tab = SpectrogramROITab(self)
+        self.main_menu_bar.view_menu_sg_rois_compact_view.toggled.connect(self.spectrogram_roi_tab.plot_container.set_compact_view)
         self.bottom_tabs.addTab(self.spectrogram_roi_tab, "Spectrogram ROIs")
         self.bottom_tabs.setTabToolTip(
             2,
@@ -345,6 +343,7 @@ class MainWindow(QMainWindow):
             self.spectrum_plot_container.set_tabbed_mode()
         else:
             self.spectrum_plot_container.set_combined_mode()
+        
 
         print_progress("Main window loaded", 9)
 
@@ -455,6 +454,7 @@ def build_application() -> tuple[QApplication, MainWindow, ScriptEngine]:
     # --- Handle Command Line Arguments ---
     if len(sys.argv) > 1:
         QTimer.singleShot(100, lambda: parse_cli_args(win, script_engine))
+    win.spectrogram_roi_tab.plot_container.add_calc_roi()
     # QTimer.singleShot(0, lambda: RunManager.SpectrogramManager.add_roi(300, 400))
 
     return app, win, script_engine
