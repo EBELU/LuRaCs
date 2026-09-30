@@ -114,22 +114,16 @@ class Bridge(QObject):
     def mouse_move(self, point_json: str, lnglat_json: str):
         self.sigMouseMoved.emit(point_json, lnglat_json)
 
-    def add_data_point(
-        self,
-        view: QWebEngineView,
-        id_: int,
-        lat: float,
-        lng: float,
-        popup_text: str = "",
-        color: tuple = (0, 255, 0, 255),
-    ):
-        css_colour = rgba_to_css(color)
-        js = f"add_data_point({id_!r}, {lat}, {lng}, {css_colour!r}, {popup_text!r});"
+    def add_data_point(self, view: QWebEngineView, id_: int, lat: float, lng: float, popup_text: str = "", css_color: str = "",):
+        js = f"add_data_point({id_!r}, {lat}, {lng}, {css_color!r}, {popup_text!r});"
+        view.page().runJavaScript(js)
+        
+    def set_data_points(self, view, points):
+        js = f"set_data_points({json.dumps(points)});"
         view.page().runJavaScript(js)
 
-    def change_data_point_colour(self, view: QWebEngineView, id_: int, color: tuple):
-        css_color = rgba_to_css(color)
-        js = f"change_data_point_colour({id_!r}, {css_color!r});"
+    def set_data_point_colours(self, view: QWebEngineView, colours: list[str],):
+        js = f"set_data_point_colours({json.dumps(colours)});"
         view.page().runJavaScript(js)
 
     def remove_data_point(self, view: QWebEngineView, id_: int):
@@ -171,7 +165,6 @@ class Bridge(QObject):
 
 class MappingDataBuffer(QObject):
     sigNewPointsReceived = Signal(str, str, object, object, object)
-    sigCompleteData = Signal(str, str, object, object)
     def __init__(self, spectrogram_name: str):
         super().__init__(parent=None)
         self.spectrogram_name: str = spectrogram_name
@@ -179,6 +172,7 @@ class MappingDataBuffer(QObject):
         self.buffers: dict[np.ndarray] = {}
     
     def process_buffer(self, buffer: dict[np.ndarray]):
+        "Catches the output emitted from the SpectrogramManager with calculated ROI data. Emits a list containing only the new points."
         if buffer["gps"].shape[0] == self.current_length:
             return
         
@@ -192,11 +186,20 @@ class MappingDataBuffer(QObject):
         for key, value in self.buffers.items():
             if key == "gps" or key == "timestamp":
                 continue
-            lng = [p.longitude for p in self.buffers["gps"][-size_diff:]]
-            lat = [p.latitude for p in self.buffers["gps"][-size_diff:]]
-            self.sigNewPointsReceived.emit(self.spectrogram_name, key, lng, lat, value[-size_diff:])
             
-    def get_all_data(self, key: str):
+            lng = []
+            lat= []
+            filtered_values = []
+            for p, v in zip(self.buffers["gps"][-size_diff:], value[-size_diff:]):
+                if p is not None:
+                    lng.append(p.longitude)
+                    lat.append(p.latitude)
+                    filtered_values.append(v)
+            
+            self.sigNewPointsReceived.emit(self.spectrogram_name, key, lng, lat, filtered_values)
+            
+    def get_all_data(self, key: str) -> tuple[str, str, None, None] | tuple[str, str, list[GPSData], list[float]]:
+        "Get the full dataseries from a track"
         if not np.any(self.buffers["gps"]):
             return self.spectrogram_name, key, None, None
         return self.spectrogram_name, key, self.buffers["gps"], self.buffers[key]
@@ -418,6 +421,7 @@ class MapWidget(QWidget):
                 del buffer.buffers[roi.tag]
     
     def add_simple_data(self, data: SimpleMappingData):
+        "Load a simple track into buffer and update the combobox"
         self.simple_buffers[data.title] = data
         for i in range(self.combo_spectrogram.count()):
             if self.combo_spectrogram.itemText(i) == data.title:
@@ -427,13 +431,16 @@ class MapWidget(QWidget):
         self.combo_changed(0)
         
     def get_data(self)->tuple[list, list, list] | None:
-        "Returns [longitude, latitude, value]"
+        "Returns [longitude, latitude, value]. 'value' has been filtered so that points where 'longitude' or 'latitude' are None are removed."
         spectrogram_key = self.combo_spectrogram.currentText()
         current_data_key = self.combo_shown_data.currentData()
         
         if not spectrogram_key:
             return
         
+        # Check if the requested track is in the simple data buffer
+        # This is for data loaded from .geojson or .rctrk files
+        # and are not bound to a spectrogram
         if spectrogram_key in self.simple_buffers:
             values = []
             lng = []
@@ -451,7 +458,8 @@ class MapWidget(QWidget):
                     return
                     
             return lng, lat, values
-                
+        
+        # Load data belonging to a spectrogram
         elif spectrogram_key in self.map_buffers:
             _, _, gps, values = self.map_buffers[spectrogram_key].get_all_data(current_data_key)
             if gps is None:
@@ -473,6 +481,7 @@ class MapWidget(QWidget):
         
 
     def combo_changed(self, index: int):
+        "Update everything when a combobox changes. Clears the whole map and redraws."
         if self.bridge is None:
             return
         spectrogram_key = self.combo_spectrogram.currentText()
@@ -485,62 +494,117 @@ class MapWidget(QWidget):
             self.set_points(spectrogram_key, current_data_key, *data)
         
 
-    def set_points(self, spectrogram_name: str, data_type_key: str, longitude: list, latitude: list, values: list):
+    def set_points(self, spectrogram_name: str, data_type_key: str, longitude: list, latitude: list, values: list,):
+        "Set rendered points in bulk, used for when spectrogram or ROI is changed."
         if self.web_engine_view is None:
             return
+
+        # Generate all points that are to be rendered
+        points = []
+
         for i, (lng, lat, p) in enumerate(zip(longitude, latitude, values)):
             if p is None or np.isnan(p):
-                return
-            self.bridge.add_data_point(
-                self.web_engine_view,
-                i,
-                lat,
-                lng,
-                f"Value {round(p, 2)}",
-                self.value_to_color(p),
-            )
-            
-        self.current_datapoints = list(values)
-        image = np.asarray(values, dtype=np.float32)[None, :]  # (1, N)
+                continue
+
+            points.append({
+                "id": i,
+                "lat": float(lat),
+                "lon": float(lng),
+                "colour": rgba_to_css(self.value_to_color(p)),
+                "popup_text": f"Value {round(p, 2)}",
+            })
+
+        if not points:
+            return
+    
+        # Send over the bulk data and let JS run the update loop to save on bridge overhead
+        self.bridge.set_data_points(
+            self.web_engine_view,
+            points,
+        )
+
+        # Update tracked data points and the image
+        self.current_datapoints = [
+            p for p in values
+            if p is not None and not np.isnan(p)
+        ]
+
+        if not self.current_datapoints:
+            return
+
+        image = np.asarray(
+            self.current_datapoints,
+            dtype=np.float32,
+        )[None, :]
+
         self.dummy_image.setImage(image, autoLevels=False)
+
         low, high = np.percentile(image, [1, 99])
         self.view_slider.setLevels(low, high)
         self.view_slider.vb.setYRange(low, high)
-        
-    def add_points(self, spectrogram_name: str, data_type_key: str, longitude: list, latitude: list, values: list):
-        if spectrogram_name != self.combo_spectrogram.currentText() or data_type_key != self.combo_shown_data.currentData() or self.web_engine_view is None:
-            # print("returned", f"{spectrogram_name} = {self.combo_spectrogram.currentText()}, {data_type_key} = {self.combo_shown_data.currentData()}")
+
+    def add_points(self, spectrogram_name: str, data_type_key: str, longitude: list, latitude: list, values: list, ):
+        "Add a number of points to the existing rendered data set. Primarily used for adding single new points during live measurements."
+        # Do basic check, dont render points for things that should not be shown
+        if (
+            spectrogram_name != self.combo_spectrogram.currentText()
+            or data_type_key != self.combo_shown_data.currentData()
+            or self.web_engine_view is None
+        ):
             return
-        
+
+        # Determine the current number of points to track point id for the new points
         nr_current_points = len(self.current_datapoints)
+
         for i, (lng, lat, p) in enumerate(zip(longitude, latitude, values)):
+            if p is None or np.isnan(p):
+                continue
+            
+            # Make new points and add them one by one
+            # Inefficient for large data sets so dont use it for that
+            pt_data = {
+                "id_": i + nr_current_points,
+                "lat": float(lat),
+                "lng": float(lng),
+                "css_color": rgba_to_css(self.value_to_color(p)),
+                "popup_text": f"Value {round(p, 2)}",
+            }
+
             self.bridge.add_data_point(
                 self.web_engine_view,
-                i + nr_current_points,
-                lat,
-                lng,
-                f"Value {round(p, 2)}",
-                self.value_to_color(p),
+                **pt_data
             )
-            
-        self.current_datapoints.extend(values)
-        image = np.asarray(self.current_datapoints, dtype=np.float32)[None, :]  # (1, N)
+
+            self.current_datapoints.append(p)
+        
+        # Update the image so the LUT item can keep up
+        image = np.asarray(
+            self.current_datapoints,
+            dtype=np.float32,
+        )[None, :]
+
         self.dummy_image.setImage(image, autoLevels=False)
-        if i == len(self.current_datapoints) - 1:
-            low, high = np.percentile(image, [1, 99])
-            self.view_slider.setLevels(low, high)
-            self.view_slider.vb.setYRange(low, high)
-        
-        
-            
+
+        low, high = np.percentile(image, [1, 99])
+        self.view_slider.setLevels(low, high)
+        self.view_slider.vb.setYRange(low, high)
+
     def change_color(self):
-        if not len(self.current_datapoints):
+        "Change the color of data points in bulk."
+        if not self.current_datapoints or self.web_engine_view is None:
             return
-        
-        for i, p in enumerate(self.current_datapoints):
-            self.bridge.change_data_point_colour(
-                self.web_engine_view, i, self.value_to_color(p)
-            )
+
+        # Generate a list of new colors and send it over and let JS do the update loop
+        colours = [
+            rgba_to_css(self.value_to_color(p))
+            for p in self.current_datapoints
+        ]
+
+        self.bridge.set_data_point_colours(
+            self.web_engine_view,
+            colours,
+        )
+
     
     @Slot(bool)
     def catch_gps_connected(self, gps_state: bool):
@@ -868,6 +932,8 @@ class MapWidget(QWidget):
 
         # QColor
         qcolor = cmap.mapToQColor(t)
+        # Apply alpha channels
+        qcolor.setAlpha(Settings.Appearance.map_point_alpha_value)
 
         if alpha:
             return qcolor.red(), qcolor.green(), qcolor.blue(), qcolor.alpha()

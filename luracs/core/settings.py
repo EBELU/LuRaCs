@@ -40,6 +40,8 @@ class _Appearance:
     load_instrument_on_import: bool = True
     load_calibration_from_instrument: bool = True
     
+    map_point_alpha_value: int = 255
+    
     def __init__(self, **kwargs):
         valid_fields = {f.name for f in fields(self)}
 

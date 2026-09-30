@@ -36,53 +36,104 @@
     <div id="map"></div>
 
     <script>
-        const data_points = {};
+        const data_points = {
+            type: "FeatureCollection",
+            features: []
+        };
+
+        let data_points_source = null;
+
+        const data_popup = new maplibregl.Popup({
+            offset: 9
+        });
+
+
 
         function add_data_point(id, lat, lon, colour, popup_text) {
-            const el = document.createElement("div");
-            el.id = id;
-
-            el.style.width = "13px";
-            el.style.height = "13px";
-            el.style.borderRadius = "50%";
-            el.style.backgroundColor = colour;
-            el.style.border = "1px solid white";
-            el.style.boxSizing = "border-box";
-
-            const popup = new maplibregl.Popup({ offset: 9 }).setText(
-                popup_text
-            );
-
-            const marker = new maplibregl.Marker({ element: el })
-                .setLngLat([lon, lat])
-                .setPopup(popup)
-                .addTo(map);
-
-            data_points[id] = { marker, el };
+            data_points.features.push({
+                type: "Feature",
+                id: id,
+                geometry: {
+                    type: "Point",
+                    coordinates: [lon, lat]
+                },
+                properties: {
+                    id: id,
+                    colour: colour,
+                    popup_text: popup_text
+                }
+            });
+            
+            if (!data_points_source) {
+                return;
+            }
+            data_points_source.setData(data_points);
         }
 
-        function change_data_point_colour(id, colour) {
-            const obj = data_points[id];
-            if (!obj) return;
-            obj.el.style.backgroundColor = colour;
+
+        function set_data_points(points) {
+            /*
+            * points is an array like:
+            *
+            * [
+            *     {
+            *         id: 0,
+            *         lat: 55.1,
+            *         lon: 13.1,
+            *         colour: "rgba(...)",
+            *         popup_text: "Value 1.23"
+            *     },
+            *     ...
+            * ]
+            */
+
+            data_points.features = points.map(point => ({
+                type: "Feature",
+                id: point.id,
+                geometry: {
+                    type: "Point",
+                    coordinates: [point.lon, point.lat]
+                },
+                properties: {
+                    id: point.id,
+                    colour: point.colour,
+                    popup_text: point.popup_text
+                }
+            }));
+
+            if (!data_points_source) {
+                return;
+            }
+            data_points_source.setData(data_points);
         }
 
-        function remove_data_point(id) {
-            const obj = data_points[id];
-            if (!obj) return;
-            obj.marker.remove();
-            delete data_points[id];
+
+        function set_data_point_colours(colours) {
+            if (colours.length !== data_points.features.length) {
+                console.error(
+                    `Colour count (${colours.length}) does not match ` +
+                    `point count (${data_points.features.length})`
+                );
+                return;
+            }
+
+            for (let i = 0; i < data_points.features.length; i++) {
+                data_points.features[i].properties.colour = colours[i];
+            }
+            if (!data_points_source) {
+                return;
+            }
+            data_points_source.setData(data_points);
         }
 
         function remove_all_data_points() {
-            for (const id in data_points) {
-                data_points[id].marker.remove();
+            data_points.features = [];
+            
+            if (data_points_source) {
+                data_points_source.setData(data_points);
             }
 
-            // Clear the object
-            for (const id in data_points) {
-                delete data_points[id];
-            }
+            data_popup.remove();
         }
 
         function createJsMap(style) {
@@ -99,6 +150,54 @@
 
             map.on("load", () => {
                 console.log("Map loaded");
+
+                map.addSource("data_points", {
+                    type: "geojson",
+                    data: data_points
+                });
+
+                map.addLayer({
+                    id: "data_points",
+                    type: "circle",
+                    source: "data_points",
+                    paint: {
+                        "circle-radius": 6,
+                        "circle-color": ["get", "colour"],
+                        "circle-stroke-width": 0,
+                        "circle-stroke-color": "#ffffff"
+                    }
+                });
+                
+                data_points_source = map.getSource("data_points");
+
+                // Important: render anything that arrived before map load.
+                
+                if (data_points_source) {
+                    data_points_source.setData(data_points);
+                }
+
+                data_points_source = map.getSource("data_points");
+
+                map.on("click", "data_points", (e) => {
+                    if (!e.features || e.features.length === 0) {
+                        return;
+                    }
+
+                    const feature = e.features[0];
+
+                    data_popup
+                        .setLngLat(feature.geometry.coordinates)
+                        .setText(feature.properties.popup_text)
+                        .addTo(map);
+                });
+
+                map.on("mouseenter", "data_points", () => {
+                    map.getCanvas().style.cursor = "pointer";
+                });
+
+                map.on("mouseleave", "data_points", () => {
+                    map.getCanvas().style.cursor = "";
+                });
             });
 
             map.on("mousemove", (e) => {
@@ -109,17 +208,21 @@
                     );
                 }
             });
+
             map.addControl(
                 new maplibregl.ScaleControl({
                     maxWidth: 150,
-                    unit: 'metric'
+                    unit: "metric"
                 }),
-                'bottom-left'
+                "bottom-left"
             );
 
-
-            map.addControl(new maplibregl.NavigationControl(), 'top-right');
+            map.addControl(
+                new maplibregl.NavigationControl(),
+                "top-right"
+            );
         }
+
 
         let bridge = null;
         let bridgeReady = false;
