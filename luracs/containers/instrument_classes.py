@@ -28,6 +28,7 @@ class GenericInstrument:
     # --- Efficiency ---
     int_efficiency_fn: str = None
     int_efficiency_params: list = None
+    int_efficiency_params_uncert: list = None
     int_efficiency_E_points: list = None
     int_efficiency_eff_points: list = None
     int_efficiency_uncert_points: list = None

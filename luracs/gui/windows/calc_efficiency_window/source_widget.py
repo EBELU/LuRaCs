@@ -144,10 +144,10 @@ class SourceParametersWidget(QWidget):
         source_parameters_layout.addWidget(QLabel("Distance"), solid_angle_row, 0)
         source_parameters_layout.addWidget(self.distance_spin, solid_angle_row, 1)
         source_parameters_layout.addWidget(self.distance_uncert_spin, solid_angle_row, 2)
-        self.custom_solid_angle_check = QCheckBox("Custom Ω")
-        self.custom_solid_angle_check.toggled.connect(self.custom_solid_angle_changed)
-        self.custom_solid_angle_check.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
-        source_parameters_layout.addWidget(self.custom_solid_angle_check, solid_angle_row, 3)
+        self.manual_solid_angle_check = QCheckBox("Manual Ω")
+        self.manual_solid_angle_check.toggled.connect(self.custom_solid_angle_changed)
+        self.manual_solid_angle_check.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        source_parameters_layout.addWidget(self.manual_solid_angle_check, solid_angle_row, 3)
         source_parameters_layout.addWidget(self.solid_angle_spin, solid_angle_row, 4)
         source_parameters_layout.addWidget(self.solid_angle_uncert_spin, solid_angle_row, 5)
 
@@ -201,7 +201,7 @@ class SourceParametersWidget(QWidget):
             self.activity_at_end_line.setText(f"{round(formatted_A_start.n, 4)}±{round(formatted_A_start.s, 4)} {unit.name}")
 
     def distance_changed(self):
-        if self.parent_window.detector_area == 0 or self.distance_spin.value() == 0 or self.custom_solid_angle_check.isChecked():
+        if self.parent_window.detector_area == 0 or self.distance_spin.value() == 0 or self.manual_solid_angle_check.isChecked():
             return
         
         distance = ufloat(self.distance_spin.value(), self.distance_uncert_spin.value())
@@ -291,7 +291,7 @@ class SourceParametersWidget(QWidget):
             measurement_decay_compensate=self.correct_during_meas_check.isChecked(),
             distance_cm=self.distance_spin.value(),
             distance_uncert_cm=self.distance_uncert_spin.value(),
-            custom_sold_angle=self.custom_solid_angle_check.isChecked(),
+            manual_solid_angle=self.manual_solid_angle_check.isChecked(),
             spectrum=self.spectrum_combo.currentText()
         )
 
@@ -334,7 +334,7 @@ class SourceParametersWidget(QWidget):
         self.solid_angle_uncert_spin.setValue(source.solid_angle_uncert)
         self.distance_spin.setValue(source.distance_cm)
         self.distance_uncert_spin.setValue(source.distance_uncert_cm)
-        self.custom_solid_angle_check.setChecked(source.custom_sold_angle)
+        self.manual_solid_angle_check.setChecked(source.manual_solid_angle)
         self.spectrum_combo.setCurrentText(source.spectrum)
 
 

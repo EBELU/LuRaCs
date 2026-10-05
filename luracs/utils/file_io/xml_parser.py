@@ -648,6 +648,10 @@ class xml_parser(SpectrumParserBase):
             kwargs["int_efficiency_params"] = _parse_array(
                 eff.xpath("./n42:Parameters", namespaces=ns)[0].text
             )
+            
+            kwargs["int_efficiency_params_uncert"] = _parse_array(
+                eff.xpath("./n42:ParametersUncertainty", namespaces=ns)[0].text
+            )
 
             kwargs["int_efficiency_description"] = get_text("./n42:Description")
 

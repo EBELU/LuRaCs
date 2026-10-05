@@ -408,6 +408,10 @@ def write_instrument_data(instrument: GenericInstrument | UniqueInstrument, root
         write_text_to_SubElement(
             efficiency_section, "Parameters", instrument.int_efficiency_params
         )
+        
+        write_text_to_SubElement(
+            efficiency_section, "ParametersUncertainty", instrument.int_efficiency_params_uncert
+        )
 
         measured_efficiency_section = etree.SubElement(
             efficiency_section,

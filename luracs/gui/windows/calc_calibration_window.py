@@ -82,6 +82,7 @@ class CalibrationWindow(QWidget):
 
         for i, sb in enumerate(self.poly_spin_list):
             sb.setDecimals(6)
+            sb.setRange(-1e6, 1e6)
             parameter_layout.addRow(f"a{i} =", sb)
             if i > self.spin_poly_degree.value():
                 sb.setEnabled(False)
@@ -105,8 +106,7 @@ class CalibrationWindow(QWidget):
         self.calibration_plot.getPlotItem().setLabel("bottom", "Channels")
         self.calibration_plot.getPlotItem().setLabel("left", "Energy [keV]")
         self.calibration_plot.setLimits(
-            xMin=0,
-            yMin=0,
+            xMin=-128, xMax=2**15, yMin=-128, yMax=1e4
         )
 
         form.addRow("Plot", self.calibration_plot)
@@ -278,14 +278,13 @@ class CalibrationWindow(QWidget):
             ref_box = self.roi_table.cellWidget(i, 4)
 
             reference_energy = ref_box.value()
-            if reference_energy == 0:
-                continue
 
             centroids.append(centroid)
             reference_energies.append(reference_energy)
 
         if len(centroids) == 0:
             return
+        
         new_x_axis, new_coeff, ref_points = calibrate_x_axis(
             centroids,
             reference_energies,
@@ -329,22 +328,31 @@ class CalibrationWindow(QWidget):
             0,
             )
 
+    def get_points(self):
+        coeffs = []
+        for i in range(self.spin_poly_degree.value() + 1):
+            coeff = self.poly_spin_list[i].value()
+            coeffs.append(coeff)
+        return list(reversed(coeffs))
+    
     def assign_to_spectrum(self):
-        if self.current_new_coeff is None:
+        points = self.get_points()
+        if not any(points):
             QMessageBox.warning(
                 self, "Error", "No new calibration points calculated to assign"
             )
             return
 
         spectrum_name = self.combo_spectrum.currentText()
-        SpectrumManager.calibrate_spectrum(spectrum_name, self.current_new_coeff)
+        SpectrumManager.calibrate_spectrum(spectrum_name, points)
         
-        Log.info(f"Spectrum Calibrated: name={spectrum_name}, coeff={self.current_new_coeff}")
+        Log.info(f"Spectrum Calibrated: name={spectrum_name}, coeff={points}")
 
         self.set_table(spectrum_name)
 
     def assign_to_instrument(self):
-        if self.current_new_coeff is None:
+        points = self.get_points()
+        if not any(points):
             QMessageBox.warning(
                 self, "Error", "No new calibration points calculated to assign"
             )
@@ -361,14 +369,14 @@ class CalibrationWindow(QWidget):
         SpectrumManager.UniqueInstrumentLibrary.update_instrument_data(SpectrumManager.UniqueInstrumentLibrary.get_key_from_attr("name", instrument.name),
               {
                 "calibration_poly_order": 1,
-                "calibration_coefficients": list(self.current_new_coeff),
+                "calibration_coefficients": list(points),
                 "calibration_channel_points": list(self.current_ref_points[0]),
                 "calibration_energy_points": list(self.current_ref_points[1]),
                 "calibration_date": datetime.now()
               }
         )
         
-        Log.info(f"Instrument Calibration Assigned: name={instrument.name}, coeff={self.current_new_coeff}")
+        Log.info(f"Instrument Calibration Assigned: name={instrument.name}, coeff={points}")
         self.set_table(spectrum_name)
 
     def recalculate_difference(self, row_index: int):

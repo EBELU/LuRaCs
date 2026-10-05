@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
     QComboBox,
+    QFileDialog,
     QFormLayout,
     QHBoxLayout,
     QHeaderView,
@@ -23,10 +24,12 @@ from PySide6.QtWidgets import (
 )
 from uncertainties import Variable, ufloat
 
-from luracs.core import SpectrumManager
+from luracs.core import Log, Settings, SpectrumManager
 from luracs.gui.windows.calc_efficiency_window.helpers import (
     Source,
     calculate_efficiency,
+    source_list_from_json,
+    source_list_to_json,
     value_with_uncertainty,
 )
 from luracs.gui.windows.calc_efficiency_window.source_widget import (
@@ -42,6 +45,12 @@ class EfficiencyWindow(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        
+        self.energies: list[float] = []
+        self.efficiencies: list[Variable] = []
+        self.fit_params: list = []
+        self.cov: list = []
+        
         self.setWindowTitle("Efficiency Window")
         self.resize(1400, 700)
         
@@ -76,7 +85,9 @@ class EfficiencyWindow(QWidget):
         self.btn_remove_source = QPushButton("Remove Source")
         self.btn_remove_source.clicked.connect(self.remove_source)
         self.btn_from_json = QPushButton("From JSON")
+        self.btn_from_json.clicked.connect(self.sources_from_json)
         self.btn_to_json = QPushButton("To JSON")
+        self.btn_to_json.clicked.connect(self.sources_to_json)
         
         btn_layout = QHBoxLayout()
         btn_layout.addWidget(self.btn_add_source)
@@ -111,9 +122,17 @@ class EfficiencyWindow(QWidget):
         form.addRow("Detector area", widget)
 
         # --- Results ---
+        calc_layout = QHBoxLayout()
         self.calculate_btn = QPushButton("Calculate")
         self.calculate_btn.clicked.connect(self.calculate)
-        form.addRow("", self.calculate_btn)
+        calc_layout.addWidget(self.calculate_btn)
+        self.use_weighted_fit = QCheckBox("Weighted Fit")
+        self.use_weighted_fit.setChecked(True)
+        self.use_weighted_fit.setToolTip("Apply a 1/s² weight to each point where s is the \nstandard deviation during optimization")
+        calc_layout.addWidget(self.use_weighted_fit)
+        
+        
+        form.addRow("", calc_layout)
 
         self.demo_plot = pg.PlotWidget()
         self.demo_plot.setMaximumHeight(250)
@@ -406,16 +425,55 @@ class EfficiencyWindow(QWidget):
                         row_combo = self.data_table.cellWidget(ti, 1)
                         row_combo.setCurrentText(src)
 
-                
-
+    def sources_to_json(self):
+        "Export the sources to a JSON file for later use"
+        if self.source_list.count() == 0:
+            QMessageBox.warning(self, "Error", "No sources!")
+            return
+        
+        file, _ = QFileDialog.getSaveFileName(
+            self, 
+            "Export Sources",             
+            str(Settings.Paths.last_opened_dir),
+            "Sources (*.json)",
+            options=QFileDialog.Option.DontUseNativeDialog,)
+        
+        if not file:
+            return
+        self.list_item_selected(self.source_list.currentIndex().row())
+        sources = []
+        for i in range(self.source_list.count()):
+            sources.append(self.source_list.item(i).data(Qt.UserRole))
+        
+        source_list_to_json(file, sources)
+        
+    def sources_from_json(self):
+        "Load sources from a JSON file"
+        file, _ = QFileDialog.getOpenFileName(
+            self, 
+            "Load Sources",             
+            str(Settings.Paths.last_opened_dir),
+            "Sources (*.json)",
+            options=QFileDialog.Option.DontUseNativeDialog,)
+        
+        if not file:
+            return
+        
+        sources = source_list_from_json(file)
+        
+        for s in sources:
+            self.add_source(s)
+                    
     def calculate(self):
         self.energies: list[float] = []
         self.efficiencies: list[Variable] = []
+        self.fit_params: list = []
+        self.cov: list = []
         self.demo_plot.clear()
         
         self.list_item_selected(self.source_list.currentIndex().row())
 
-        # Gather the sources
+        # Gather the sources!
         sources = {self.source_list.item(i).text(): self.source_list.item(i).data(Qt.UserRole) for i in range(self.source_list.count())}
         
         for name, src in sources.items():
@@ -438,27 +496,56 @@ class EfficiencyWindow(QWidget):
             x = np.asarray(self.energies, dtype=float)
             y = np.asarray([e.n for e in self.efficiencies], dtype=float)
             yerr = np.asarray([e.s for e in self.efficiencies], dtype=float)
-
+            
+            assert y.shape[0] == yerr.shape[0]
+            assert np.all(yerr > 0)
+            
+            
             self.demo_plot.plotItem.plot(x, y, pen=None, symbol="o")
             err = pg.ErrorBarItem(x=x, y=y, height=yerr)
             self.demo_plot.plotItem.addItem(err)
+            
+            # Create the weighing function if the fit should be weighed by uncertainty
+            error_weight = None
+            if self.use_weighted_fit.isChecked():
+                def error_weight(r, yfit, p):
+                    return 1 / (yerr**2)
 
             # Suppress warnings during optimization
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                self.fit_params, _, _ = curve_fit(exp_polynomial, x, y, [1, -1, 0, 0])
-
+                self.fit_params, self.cov, _ = curve_fit(exp_polynomial, x, y, [1, -1, 0, 0], weight_fn=error_weight)
+            
             full_x = np.linspace(
                 25, max(self.energies) + 500, 1000
             )  # Very few detectors work bellow 25keV
             fitted_y = exp_polynomial(full_x, self.fit_params)
 
             self.demo_plot.plotItem.plot(full_x, fitted_y)
+            
+            if Settings.Appearance.verbose_calculation_logging:
+                data_points = [
+                    f"{energy:.3f} keV: {eff.n:.6g} ± {eff.s:.6g}"
+                    for energy, eff in zip(self.energies, self.efficiencies)
+                ]
+
+                Log.info(
+                    "\n\t".join([
+                        "\n\t--- Efficiency Calculation ---",
+                        f"Data Points: {len(self.efficiencies)}",
+                        f"Efficiency Data: {data_points}",
+                        f"Weighted Fit: {self.use_weighted_fit.isChecked()}",
+                        f"Fit Parameters: {self.fit_params}",
+                        f"Covariance: {self.cov}",
+                    ])
+                )
+
 
     def assign_to_instruments(self, include_all_of_model: bool = False):
         data_dict = {
             "int_efficiency_fn": "exp_polynomial",
             "int_efficiency_params": list(self.fit_params),
+            "int_efficiency_params_uncert": list(np.sqrt(np.diag(self.cov))),
             "int_efficiency_E_points": list(self.energies),
             "int_efficiency_eff_points": [v.n for v in self.efficiencies],
             "int_efficiency_uncert_points": [v.s for v in self.efficiencies],

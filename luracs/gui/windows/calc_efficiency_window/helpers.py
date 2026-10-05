@@ -4,10 +4,12 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from luracs.containers.roi_classes import ROI
+import json
 import math
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 
 from PySide6.QtCore import QDate, QDateTime, QTime
 from PySide6.QtWidgets import QComboBox, QDoubleSpinBox, QHBoxLayout, QWidget
@@ -52,7 +54,43 @@ class Source:
     solid_angle_uncert: float = 0
     
     measurement_decay_compensate: bool = True
-    custom_sold_angle: bool = False
+    manual_solid_angle: bool = False
+    
+def source_list_to_json(file_name: str, sources: list[Source]) -> None:
+    file_path = Path(file_name).with_suffix(".json")
+    data = []
+
+    for source in sources:
+        source_data = asdict(source)
+
+        for key, value in source_data.items():
+            if isinstance(value, datetime):
+                source_data[key] = value.isoformat()
+
+        data.append(source_data)
+
+    with file_path.open("w") as f:
+        json.dump(data, f, indent=4)
+
+
+def source_list_from_json(file_name: str) -> list[Source]:
+    with open(file_name, "r") as f:
+        data = json.load(f)
+
+    sources = []
+
+    for source_data in data:
+        for key in (
+            "calibration_time",
+            "measurement_start",
+            "measurement_end",
+        ):
+            if key in source_data:
+                source_data[key] = datetime.fromisoformat(source_data[key])
+
+        sources.append(Source(**source_data))
+
+    return sources
     
 def format_duration(seconds: float) -> tuple[float, TimeUnits]:
     if seconds == 0:
