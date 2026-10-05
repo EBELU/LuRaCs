@@ -7,31 +7,31 @@ pytestmark = pytest.mark.order(3)
 def test_spe_import(test_data, qtbot):
     file = test_data / "fontan.Spe"
     
-    IOManager.Importer.import_generic_paths(file, selected_filter=IOManager.Importer.import_filters["spectrum"])
+    IOManager.Importer.import_generic_paths(file, selected_filter=IOManager.Importer.ImportFilters.SPECTRUM.value)
     qtbot.wait(100)
 
 def test_tka_import(test_data, qtbot):
     file = test_data / "HPGeEU152.TKA"
     
-    IOManager.Importer.import_generic_paths(file, selected_filter=IOManager.Importer.import_filters["spectrum"])
+    IOManager.Importer.import_generic_paths(file, selected_filter=IOManager.Importer.ImportFilters.SPECTRUM.value)
     qtbot.wait(100)
 
 def test_radiacode_import(test_data, qtbot):
     file = test_data / "103-GRF-Eu152.xml"
     
-    IOManager.Importer.import_generic_paths(file, selected_filter=IOManager.Importer.import_filters["spectrum"])
+    IOManager.Importer.import_generic_paths(file, selected_filter=IOManager.Importer.ImportFilters.SPECTRUM.value)
     qtbot.wait(100)
 
 def test_raysid_import(test_data, qtbot):
     file = test_data / "Raysid-GRF-Eu152.xml"
     
-    IOManager.Importer.import_generic_paths(file, selected_filter=IOManager.Importer.import_filters["spectrum"])
+    IOManager.Importer.import_generic_paths(file, selected_filter=IOManager.Importer.ImportFilters.SPECTRUM.value)
     qtbot.wait(100)
     
 def test_background_import(test_data, qtbot):
     file = test_data / "Raysid-GRF-Eu152.xml"
     qtbot.wait(100)
-    IOManager.Importer.import_generic_paths(file, selected_filter=IOManager.Importer.import_filters["spectrum"])
+    IOManager.Importer.import_generic_paths(file, selected_filter=IOManager.Importer.ImportFilters.SPECTRUM.value)
     
     assert "Raysid-GRF-Eu152" in SpectrumManager.spectrum_registry
     

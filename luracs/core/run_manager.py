@@ -237,26 +237,6 @@ class _RunManager(QObject):
         
         wrapper_kwargs = {} if wrapper_kwargs is None else wrapper_kwargs
         
-        # Since windows cant handle usb serial number in a good way a fallback must use the port number
-        # Instead of implementing the usb finding in each wrapper it is centrally done here
-
-        if conn_type == ConnectionType.USB:
-            port = wrapper_kwargs.pop("port_number", None)
-            device_address = device_address.strip('\x00')
-            
-            if port is None:
-                wrapper_kwargs["usb_device"] = await self.find_usb_device(
-                    vendor_id=client_wrapper.usb_id_vendor, 
-                    product_id=client_wrapper.usb_id_product,
-                    serial_number=device_address
-                    )
-            else:
-                wrapper_kwargs["usb_device"] = await self.find_usb_device(
-                    vendor_id=client_wrapper.usb_id_vendor, 
-                    product_id=client_wrapper.usb_id_product,
-                    port_number=port
-                    )
-
 
         new_device: DeviceWrapper = client_wrapper(device_address, conn_type, **wrapper_kwargs)
         
@@ -461,7 +441,7 @@ class _RunManager(QObject):
         # Create and store the scan task
         self._scan_task = asyncio.create_task(self._scan_bluetooth(timeout))
 
-    def scan_all_usb(self) -> list[dict]:
+    def scan_all_usb(self) -> list[usb.Device]:
         "Scan connected usb devices and returns a dict containing device information"
         devices = usb.core.find(find_all=True)
         results = []
@@ -472,63 +452,20 @@ class _RunManager(QObject):
                     dev.set_configuration()
                 except (usb.core.USBError, NotImplementedError):
                     pass
-
+                
+                try:
+                    usb.util.get_string(dev, dev.iProduct)
+                except ValueError:
+                    continue
+                
                 results.append(
-                    {
-                        "vendor_id": hex(dev.idVendor),
-                        "product_id": hex(dev.idProduct),
-                        "serial_number": usb.util.get_string(dev, dev.iSerialNumber),
-                        "manufacturer": usb.util.get_string(dev, dev.iManufacturer),
-                        "product": usb.util.get_string(dev, dev.iProduct),
-                        "port_number": getattr(dev, "port_number", None),
-                        "bus": getattr(dev, "bus", None),
-                        "address": getattr(dev, "address", None),
-                    }
+                    dev
                 )
             except Exception:
                 # Skip devices we can't access
                 continue
 
-        return results
-    
-    async def find_usb_device(
-        self, 
-        vendor_id: str | None = None, 
-        product_id: str | None = None, 
-        serial_number: str | None = None, 
-        port_number: str | None = None
-        ) -> usb.Device | None:
-        
-        if serial_number is None and port_number is None:
-            raise ValueError("Both 'serial_number' and 'port_number' can not be None")
-        
-        # The easy linux method
-        if serial_number is not None:
-            return await asyncio.to_thread(
-                usb.core.find,  
-                idVendor = vendor_id, 
-                idProduct = product_id, 
-                serial_number=serial_number
-                )
-        
-        # The annoying windows method
-        devices = await asyncio.to_thread(
-                usb.core.find, 
-                find_all=True, 
-                idVendor = vendor_id, 
-                idProduct = product_id, 
-                )
-    
-        if devices is None:
-            gui_logger.error(f"USB not found: idVendor={vendor_id}, idProduct={product_id}, serial_number={serial_number}, port_number={port_number}")
-            return       
-        
-        for dev in devices:
-            if str(dev.port_number) == str(port_number):
-                return dev
-                
-        gui_logger.error(f"USB not found: idVendor={vendor_id}, idProduct={product_id}, serial_number={serial_number}, port_number={port_number}")
-        
+        return results     
         
     
     # ------------------------------------------------------------------

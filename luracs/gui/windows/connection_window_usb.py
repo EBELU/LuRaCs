@@ -6,14 +6,17 @@ from PySide6.QtWidgets import QListWidgetItem, QPushButton
 from luracs.clients import ConnectionType, DeviceWrapper
 from luracs.core import Log, RunManager
 
+import usb.util
+import usb.core
+
 from .ListPopupBase import ListPopupNonBlocking
 
 
-def _on_usb_device_selected(device: dict, selection_type: str):
+def _on_usb_device_selected(device: usb.Device, selection_type: str):
     Log.debug("Selected USB device:", device)
 
-    serial = device.get("serial_number")
-    product = (device.get("product") or "").lower()
+    serial = usb.util.get_string(device, device.iSerialNumber)
+    product = usb.util.get_string(device, device.iProduct)
 
     if not serial and platform.system() != "Windows":
         Log.error("Device has no serial number")
@@ -22,14 +25,12 @@ def _on_usb_device_selected(device: dict, selection_type: str):
     if selection_type == "auto":
         for name in DeviceWrapper.get_registry():
             if name.lower() in product.lower():
-                RunManager.add_device(serial, name, "USB")
+                RunManager.add_device(serial, name, "USB", {"usb_device": device})
                 break
                 
     else:
-        if platform.system() == "Windows":
-            RunManager.add_device(serial, selection_type, "USB", {"port_number": device.get("port_number")})
-        else:
-            RunManager.add_device(serial, selection_type, "USB")
+        RunManager.add_device(serial, selection_type, "USB", {"usb_device": device})
+
 
 
 class USBListPopup(ListPopupNonBlocking):
@@ -46,7 +47,7 @@ class USBListPopup(ListPopupNonBlocking):
 
         self.deviceSelected.connect(_on_usb_device_selected)
 
-        self._devices: list[dict] = []
+        self._devices: list[usb.Device] = []
         
         # Auto detection currently does not work on windows
         # Should make one based on vendor and product id
@@ -82,7 +83,7 @@ class USBListPopup(ListPopupNonBlocking):
             self.show()
         self._request_usb_scan()
 
-    def set_devices(self, devices: list):
+    def set_devices(self, devices: list[usb.Device]):
         self.list_widget.clear()
         self._devices = devices or []
 
@@ -92,13 +93,15 @@ class USBListPopup(ListPopupNonBlocking):
 
         for dev in self._devices:
             if platform.system() == "Windows":
-                product = dev.get("product") or "Unknown"
-                port = dev.get("port_number") or "None"
-                bus = dev.get("bus") or "None"
-                display_name = f"{product} (bus={bus}, port={port})"
+                serial = usb.util.get_string(dev, dev.iSerialNumber)
+                product = usb.util.get_string(dev, dev.iProduct)
+                port = getattr(dev, "port_number", "None"),
+                bus = getattr(dev, "bus", None)
+                display_name = f"{product} (serial={serial}, bus={bus}, port={port})"
+                
             else:
-                product = dev.get("product") or "Unknown"
-                serial = dev.get("serial_number") or "No SN"
+                product = usb.util.get_string(dev, dev.iProduct)
+                serial = usb.util.get_string(dev, dev.iSerialNumber)
 
                 display_name = f"{product} ({serial})"
 

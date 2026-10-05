@@ -184,25 +184,29 @@ class CalcROI(QWidget):
         
         if len(self.sg1_buffer) != len(self.sg2_buffer):
             cutoff = min(len(self.sg1_buffer), len(self.sg2_buffer))
-            sg1 = self.sg1_buffer[:cutoff][::-1]
-            sg2 = self.sg2_buffer[:cutoff][::-1]
+            sg1_data = self.sg1_buffer[:cutoff][::-1]
+            sg2_data = self.sg2_buffer[:cutoff][::-1]
         else:
-            sg1 = self.sg1_buffer[::-1]
-            sg2 = self.sg2_buffer[::-1]
-            
-        sg1_ti = RunManager.SpectrogramManager.spectrogram_registry[self.sg1_combo.currentText()].save_interval
-        sg2_ti = RunManager.SpectrogramManager.spectrogram_registry[self.sg2_combo.currentText()].save_interval
+            sg1_data = self.sg1_buffer[::-1]
+            sg2_data = self.sg2_buffer[::-1]
+        
+        
+        sg1 = RunManager.SpectrogramManager.spectrogram_registry.get(self.sg1_combo.currentText())
+        sg2 = RunManager.SpectrogramManager.spectrogram_registry.get(self.sg2_combo.currentText())
+        if sg1 is None or sg2 is None:
+            return     
+           
+        sg1_ti = sg1.save_interval
+        sg2_ti = sg2.save_interval
         
         longest_ti = max(sg1_ti, sg2_ti)
         
         if self.operation_combo.currentText() == "+":
-            result = sg1 + sg2
+            result = sg1_data + sg2_data
         elif self.operation_combo.currentText() == "-":
-            result = sg1 - sg2
+            result = sg1_data - sg2_data
         elif self.operation_combo.currentText() == "/":
-            result = sg1 / sg2
-            
-        print(result)
+            result = sg1_data / sg2_data
         
         x_axis = np.arange(len(result)) * longest_ti
         region = x_axis <= Settings.Advanced.spectrogram_roi_display_length_s

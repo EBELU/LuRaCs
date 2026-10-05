@@ -15,6 +15,8 @@ from glob import glob
 from pathlib import Path
 from textwrap import dedent
 
+import usb.core
+
 from luracs.clients import ConnectionType, WrappedRealTimePackage, WrappedStatusPackage
 from luracs.core import IOManager, RunManager, Settings, SpectrumManager
 from luracs.utils import ascii_art
@@ -568,12 +570,24 @@ class DeviceCommand(Command):
                 )
 
                 devices = RunManager.scan_all_usb()
+                
+                
 
 
                 for device in devices:
+                    try:
+                        serial = usb.util.get_string(device, device.iSerialNumber)
+                    except usb.core.USBError:
+                        serial = "Unknown"
+
+                    try:
+                        product = usb.util.get_string(device, device.iProduct)
+                    except usb.core.USBError:
+                        product = "Unknown"
+
                     table.add_row([
-                        str(device.get("serial_number")),
-                        str(device.get("product", "Unknown")),
+                        serial,
+                        product,
                     ])
 
                 return table.get_table()
@@ -641,7 +655,7 @@ class DeviceCommand(Command):
                 connections_found = []
 
                 for conn_device in connected_usb:
-                    product = conn_device.get("product")
+                    product = usb.util.get_string(conn_device, conn_device.iProduct)
 
                     if not product:
                         continue
@@ -650,9 +664,10 @@ class DeviceCommand(Command):
                         if target_device.lower() in product.lower():
 
                             RunManager.add_device(
-                                conn_device.get("serial_number"),
+                                usb.util.get_string(conn_device, conn_device.iSerialNumber),
                                 "radiacode",
                                 ConnectionType.USB,
+                                {"usb_device": conn_device}
                             )
 
                             connections_found.append(

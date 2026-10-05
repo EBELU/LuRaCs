@@ -588,7 +588,7 @@ class SpectrumEditDialog(QDialog):
 
     def import_background(self):
         path, _ = IOManager.Importer.import_file(
-            IOManager.Importer.import_filters["spectrum"]
+            IOManager.Importer.ImportFilters.SPECTRUM.value
         )
 
         if path is not None:

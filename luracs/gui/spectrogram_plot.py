@@ -881,7 +881,7 @@ class SpectrogramWidget(QWidget):
             self.sigRequestClearROIs.emit()
             
     def import_rois(self):
-        file, _ = IOManager.Importer.import_file(IOManager.Importer.import_filters["rois"])
+        file, _ = IOManager.Importer.import_file(IOManager.Importer.ImportFilters.ROIS.value)
         if file is None or not file:
             return
         
