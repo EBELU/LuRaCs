@@ -1,13 +1,12 @@
 import platform
 
+import usb.core
+import usb.util
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import QListWidgetItem, QPushButton
 
 from luracs.clients import ConnectionType, DeviceWrapper
 from luracs.core import Log, RunManager
-
-import usb.util
-import usb.core
 
 from .ListPopupBase import ListPopupNonBlocking
 

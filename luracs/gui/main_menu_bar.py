@@ -169,7 +169,10 @@ class MainMenuBar(QMenuBar):
             parent.calc_win_resolution.show
         )
 
-        # calculate_menu = self.addMenu("&MRI Tools")
+        
+        # ---------- Other Tools ----------
+        tools_menu = self.addMenu("&Tools")
+        self.tools_menu_add_calc_roi = tools_menu.addAction("Add Calc ROI")
 
         # ---------- Options Menu ----------
         options_menu = self.addMenu("&Options")

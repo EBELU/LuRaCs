@@ -10,11 +10,14 @@ from PySide6.QtCore import QTimer
 
 import numpy as np
 import pyqtgraph as pg
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QVBoxLayout,
     QWidget,
+    QPushButton,
+    QMessageBox
 )
 
 from luracs.core import RunManager, Settings, core_utils
@@ -25,13 +28,18 @@ class _ScrollablePlotWidget(pg.PlotWidget):
 
 
 class CalcROI(QWidget):
+    sigDeleteRequested = Signal(str)
     def __init__(self, parent=None, label=""):
         super().__init__(parent=parent)
         
+        self.label = label
         self.sg1_buffer = None
         self.sg2_buffer = None
         
         main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        self.delete_btn = QPushButton("Remove")
+        self.delete_btn.clicked.connect(self.remove_self)
         
         self.sg1_combo = QComboBox()
         self.sg1_combo.setMaximumWidth(200)
@@ -53,6 +61,7 @@ class CalcROI(QWidget):
         self.sg2_roi_combo.currentTextChanged.connect(self.roi_combo_changed)
         
         top_combo_layout = QHBoxLayout()
+        top_combo_layout.addWidget(self.delete_btn)
         top_combo_layout.addWidget(self.sg1_combo)
         top_combo_layout.addWidget(self.sg1_roi_combo)
         top_combo_layout.addWidget(self.operation_combo)
@@ -61,6 +70,8 @@ class CalcROI(QWidget):
         main_layout.addLayout(top_combo_layout)
         
         self.plot_widget = _ScrollablePlotWidget()
+        self.plot_widget.setContentsMargins(0, 0, 0, 0)
+        self.plot_widget.plotItem.setContentsMargins(0, 0, 0, 0)
         self.plot_widget.getViewBox().setMouseEnabled(x=False, y=False)
         self.plot_widget.invertX(True)
         self.plot_widget.setMinimumHeight(150)
@@ -94,6 +105,17 @@ class CalcROI(QWidget):
         self.calc_timer = QTimer()
         self.calc_timer.setSingleShot(True)
         self.calc_timer.setInterval(250)   
+        
+    def remove_self(self):
+        reply = QMessageBox.question(
+            self,
+            "Confirm",
+            f"Remove Calc ROI {self.label}",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,  # default button
+        )
+        if reply == QMessageBox.Yes:
+            self.sigDeleteRequested.emit(self.label)
         
         
     def catch_spectrogram_removed(self, sg_name: str):

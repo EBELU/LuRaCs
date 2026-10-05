@@ -257,6 +257,7 @@ class MainWindow(QMainWindow):
         
         self.spectrogram_roi_tab = SpectrogramROITab(self)
         self.main_menu_bar.view_menu_sg_rois_compact_view.toggled.connect(self.spectrogram_roi_tab.plot_container.set_compact_view)
+        self.main_menu_bar.tools_menu_add_calc_roi.triggered.connect(self.spectrogram_roi_tab.plot_container.add_calc_roi)
         self.bottom_tabs.addTab(self.spectrogram_roi_tab, "Spectrogram ROIs")
         self.bottom_tabs.setTabToolTip(
             2,

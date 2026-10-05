@@ -20,10 +20,8 @@ from PySide6.QtWidgets import (
 )
 
 from luracs.core import RunManager, Settings, core_utils
-from luracs.utils.color_rotator import ColorRotator
 from luracs.gui.misc.calc_roi import CalcROI, _ScrollablePlotWidget
-
-
+from luracs.utils.color_rotator import ColorRotator
 
 
 class PlotContainer(QWidget):
@@ -35,7 +33,7 @@ class PlotContainer(QWidget):
 
         self.scroll_content = QWidget()
         self.scroll_content.setLayout(self.main_layout)
-        self.scroll_content.setContentsMargins(0,1,0,0)
+        self.scroll_content.setContentsMargins(0,0,0,0)
 
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
@@ -43,6 +41,8 @@ class PlotContainer(QWidget):
 
         outer_layout = QVBoxLayout(self)
         outer_layout.addWidget(self.scroll_area)
+        
+        self.is_compact_view: bool = False
         
         self.plot_registry: dict[str, pg.PlotWidget] = {}
         self.line_registry: dict[str, dict[str, pg.PlotDataItem]] = {}
@@ -84,6 +84,19 @@ class PlotContainer(QWidget):
         core_utils.ThemeManager.apply_to_plot(new_plot)
         core_utils.ThemeManager.apply_to_legend(legend)
         
+        if self.is_compact_view:
+            new_plot.setFixedHeight(50)
+            new_plot.setSizePolicy(
+                QSizePolicy.Policy.Expanding,
+                QSizePolicy.Policy.Fixed
+            )
+
+            plot_item.hideAxis("bottom")
+            plot_item.getAxis("left").setLabel("")
+            new_plot.setContentsMargins(2, 2, 2, 2)
+            legend.layout.setContentsMargins(0, 0, 0, 0)
+            
+        
         self.line_registry[roi] = {}
         
     def add_calc_roi(self):
@@ -92,9 +105,39 @@ class PlotContainer(QWidget):
         self.calc_roi_counter += 1
         self.main_layout.addWidget(new_calc_roi)
         
+        new_calc_roi.sigDeleteRequested.connect(self.remove_calc_roi)
         self.calc_roi_registry[lab] = new_calc_roi
         
+        if self.is_compact_view:
+            plot = new_calc_roi.plot_widget
+            plot_item = plot.getPlotItem()
+            
+            new_calc_roi.sg1_combo.hide()
+            new_calc_roi.sg1_roi_combo.hide()
+            new_calc_roi.operation_combo.hide()
+            new_calc_roi.sg2_combo.hide()
+            new_calc_roi.sg2_roi_combo.hide()
+            new_calc_roi.delete_btn.hide()
+            new_calc_roi.plot_widget.setFixedHeight(50)
+            new_calc_roi.plot_widget.setSizePolicy(
+                QSizePolicy.Policy.Expanding,
+                QSizePolicy.Policy.Fixed
+            )
+            
+            plot_item.hideAxis("bottom")
+            plot.setContentsMargins(2, 2, 2, 2)
+            new_calc_roi.setContentsMargins(0, 0, 0, 0)
+
+        
+    def remove_calc_roi(self, calc_roi_label: str):
+        calc_roi = self.calc_roi_registry.pop(calc_roi_label)
+        if calc_roi is not None:
+            calc_roi.sigDeleteRequested.disconnect(self.remove_calc_roi)
+            self.main_layout.removeWidget(calc_roi)
+            calc_roi.deleteLater()
+        
     def set_compact_view(self, state: bool):
+        self.is_compact_view = state
         for name, plot in self.plot_registry.items():
             plot_item = plot.getPlotItem()
             legend = self.legend_registry[name]
@@ -134,7 +177,7 @@ class PlotContainer(QWidget):
                 calc_roi.operation_combo.hide()
                 calc_roi.sg2_combo.hide()
                 calc_roi.sg2_roi_combo.hide()
-                
+                calc_roi.delete_btn.hide()
                 plot.setFixedHeight(50)
                 plot.setSizePolicy(
                     QSizePolicy.Policy.Expanding,
