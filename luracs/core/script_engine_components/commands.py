@@ -294,6 +294,7 @@ class IndexCommand(Command):
                         header.device_id,
                     ]
                 )
+                parser.close()
 
             return table.get_table()
 

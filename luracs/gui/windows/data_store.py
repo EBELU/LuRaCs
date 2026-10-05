@@ -505,6 +505,7 @@ class SpectrogramTab(LibraryTab):
                 file_io.db_writer.export_full_xlsx(
                     parser, (folder / Path(file).stem).with_suffix(".xlsx")
                 )
+                parser.close()
 
         else:
             default_name = (Path.home() / selection[0]).with_suffix(".xlsx")
@@ -525,6 +526,7 @@ class SpectrogramTab(LibraryTab):
                 Path(new_path).with_suffix(".xlsx"),
                 include_spectrogram_data=self.include_roi_check.isChecked(),
             )
+            parser.close()
 
     def edit(self):
         selection = self._get_selection()

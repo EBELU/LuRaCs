@@ -54,6 +54,11 @@ class db_parser:
 
         self._channels = None
         self.get_header()
+    
+    def close(self):
+        if self.connection is not None:
+            self.connection.close()
+            self.connection = None
 
     def get_header(self) -> dbHeader:
         cursor = self.connection.cursor()

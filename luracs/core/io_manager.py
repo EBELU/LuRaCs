@@ -226,7 +226,10 @@ class Indexer(QObject):
         return new_file
 
     def delete_file(self, key: str):
-        del self.index_registry[key]
+        parser = self.index_registry.pop(key)
+        if isinstance(parser, db_parser):
+            parser.close()
+        assert key not in self.index_registry
         os.remove(key)
         self.sigIndexUpdated.emit()
         gui_logger.debug(f"{self.__class__} File {key} deleted")
@@ -521,7 +524,6 @@ class _Exporter(QObject):
 
         new_name = Settings.Paths.spectrum_library / spectrum_name
 
-        print(start_time, stop_time)
         new_spectrum = file_io.db_writer.build_spectrum_from_db(parser, new_name, start_time, stop_time)
 
         new_spectrum.remark = spectrum_remark
@@ -533,6 +535,7 @@ class _Exporter(QObject):
             f"spectrogram={current_spectrogram.db_name}, "
             f"spectrum={new_spectrum.name}"
         )
+        parser.close()
 
     # --- ROIs ---
     def export_roi_dialog(self):

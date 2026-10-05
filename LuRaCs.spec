@@ -11,7 +11,7 @@ is_linux = sys.platform.startswith("linux")
 exe_name = "Win" if is_windows else "Linux"
 
 ROOT = Path(os.getcwd()).resolve()
-__version__ = "0.4.1"
+__version__ = "0.5.0"
 
 # Cross-platform path
 main_script = os.path.join('luracs', 'main.py')
@@ -29,7 +29,7 @@ exe_name = system_platform + exe_name
 bins = []
 if is_windows:
     plotext_dll = ROOT / "venv" / "Lib" / "site-packages" / "plotext" / "_kernel" / "cpp" / "kernel.dll"
-    bins.append(plotext_dll)
+    bins.append((str(plotext_dll), 'plotext/_kernel/cpp'))
 
 
 a = Analysis(
