@@ -791,36 +791,24 @@ class SpectrogramWidget(QWidget):
             current_spectrogram_name
         )
 
-        if current_spectrogram is not None:
-            parser = file_io.db_parser(connection=current_spectrogram.connection)
-            dialog = SaveNamingDialog(name=current_spectrogram.db_name)
-
-            res = dialog.exec()
-            if res != SaveNamingDialog.Accepted:
-                return
-
-            if not dialog.get_name:
-                QMessageBox.warning(self, "Error", "Invalid name")
-                return
-
-            new_name = Settings.Paths.spectrum_library / dialog.get_name()
-
-            new_spectrum = file_io.db_writer.build_spectrum_from_db(parser, new_name)
-
-            new_spectrum.remark = dialog.get_remark()
-            new_name = Settings.Paths.spectrum_library / current_spectrogram.db_name
-
-            new_spectrum = file_io.db_writer.build_spectrum_from_db(parser, new_name)
-            new_spectrum.remark = dialog.get_remark()
-            new_spectrum.name = dialog.get_name()
-
-            IOManager.FileIndex.spectrum_index.save_file(new_spectrum)
-            Log.info(
-                f"Spectrum Exported from spectrogram: spectrogram={current_spectrogram.db_name}, spectrum={new_spectrum.name}"
-            )
-
-        else:
+        if current_spectrogram is None:
             QMessageBox.warning(self, "Error", "No spectrogram to export")
+            return
+            
+        dialog = SaveNamingDialog(name=current_spectrogram.db_name)
+
+        res = dialog.exec()
+        if res != SaveNamingDialog.Accepted:
+            return
+        
+        name = dialog.get_name()
+        remark = dialog.get_remark()
+
+        if not name:
+            QMessageBox.warning(self, "Error", "Invalid name")
+            return
+
+        IOManager.Exporter.export_spectrogram_to_spectrum(True, current_spectrogram_name, name, remark)
 
     def export_time_selection_to_spectrum(self):
         """Export the spectrum corresponding to the selected time range."""
@@ -849,8 +837,6 @@ class SpectrogramWidget(QWidget):
         start_time = datetime.fromtimestamp(timestamps[start_index])
         stop_time = datetime.fromtimestamp(timestamps[stop_index])
 
-        parser = file_io.db_parser(connection=current_spectrogram.connection)
-
         dialog = SaveNamingDialog(name=current_spectrogram.db_name)
         res = dialog.exec()
 
@@ -858,29 +844,12 @@ class SpectrogramWidget(QWidget):
             return
 
         name = dialog.get_name()
+        remark = dialog.get_remark()
         if not name:
             QMessageBox.warning(self, "Error", "Invalid name")
             return
-
-        new_name = Settings.Paths.spectrum_library / name
-
-        new_spectrum = file_io.db_writer.build_spectrum_from_db(
-            parser,
-            new_name,
-            start_time,
-            stop_time,
-        )
-
-        new_spectrum.remark = dialog.get_remark()
-        new_spectrum.name = dialog.get_name()
-
-        IOManager.FileIndex.spectrum_index.save_file(new_spectrum)
-
-        Log.info(
-            f"Spectrum Exported from spectrogram: "
-            f"spectrogram={current_spectrogram.db_name}, "
-            f"spectrum={new_spectrum.name}"
-        )
+        
+        IOManager.Exporter.export_spectrogram_to_spectrum(True, current_spectrogram_name, name, remark, start_time, stop_time)
 
     # ------------------------------------------------------------------
     # ROIs

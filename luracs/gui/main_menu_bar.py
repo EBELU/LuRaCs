@@ -106,7 +106,7 @@ class MainMenuBar(QMenuBar):
         view_menu_spectrum.addAction(view_menu_spectrum_show_roi_labels)
 
         # ---------- Device Menu ----------
-        device_menu = self.addMenu("&Device")
+        device_menu = self.addMenu("&Detector")
         # --- Connections ---
         # BLE
         device_menu_connectBT = device_menu.addAction("Connect Bluetooth")

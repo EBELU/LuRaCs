@@ -57,8 +57,6 @@ class EmittedSignals(QObject):
     createDeviceSpectrum = Signal(str, int, str)
     removeDeviceSpectrum = Signal(str)
     
-    closeSpectrogram = Signal(str)
-    
     GPSConnection = Signal(bool)
     GPSUpdated = Signal(object)
 
@@ -116,7 +114,6 @@ class _RunManager(QObject):
         # Store the connection in settings for quick connection
         self.Signals.deviceConnecting.connect(Settings.add_new_connection)
         self.Signals.currentUpdated.connect(self.receive_realtime_package)
-        self.Signals.closeSpectrogram.connect(self.close_spectrogram)
         
         self.Signals.newDeviceWrapped.connect(Settings.add_new_connection)
         
@@ -291,7 +288,7 @@ class _RunManager(QObject):
             return
 
         except Exception as e:
-            gui_logger.error(f"Device start threw exception {e}. Start failed!")
+            gui_logger.error(f"Detector start threw exception {e}. Start failed!")
             new_device.set_state(DeviceWrapper.DeviceState.CONNECTION_FAILED)
             self.Signals.deviceStateUpdated.emit(new_device.name, new_device.state)
             return
@@ -306,9 +303,9 @@ class _RunManager(QObject):
         self.Signals.deviceStateUpdated.emit(new_device.name, new_device.state)
 
         gui_logger.info(
-            f"Device connected: "
+            f"Detector connected: "
             f"name={new_device.name}, "
-            f"device_type={device_type}, "
+            f"detector_type={device_type}, "
             f"connection_type={new_device.connection.value}"
         )
         
@@ -374,16 +371,7 @@ class _RunManager(QObject):
 
     async def shutdown(self):
         self.Signals.shutdownStarted.emit()
-
         # Close spectrograms
-        for name in list(self.SpectrogramManager.spectrogram_registry):
-            try:
-                # Since spectrograms live in GUI thread but this runs in the RunManager thread signal the closure
-                self.Signals.closeSpectrogram.emit(name)
-            except Exception as e:
-                gui_logger.warning(
-                    f"Closing spectrogram {name} raised: {e}"
-                )
 
         device_names = list(self.device_registry)
 
@@ -429,7 +417,7 @@ class _RunManager(QObject):
         for device in devices:
             if device.name and any(n in device.name for n in names):
                 gui_logger.debug(f"Accepted {device.name}")
-                for device_type in DeviceWrapper.get_registry().keys():
+                for device_type in DeviceWrapper.get_registry():
                     if device_type in device.name.lower():
                         gui_logger.info(
                             f"Connecting BLE device: name={device.name}, type={device_type}"
@@ -571,15 +559,17 @@ class _RunManager(QObject):
             
         self.Signals.spectrogramStarted.emit(name)
         gui_logger.info(
-            f"Spectrogram Opened: db_name={new_log.db_name}, device={new_log.device_id}"
+            f"Spectrogram Opened: db_name={new_log.db_name}, detector={new_log.device_id}"
         )
 
     def close_spectrogram(self, name: str):
         spectrogram = self.SpectrogramManager.spectrogram_registry.pop(name, None)
-        if spectrogram:
+        if spectrogram is not None:
             spectrogram.close()
             self.Signals.spectrogramClosed.emit(name)
             gui_logger.info(f"Spectrogram Closed: name={name}")
+        else:
+            gui_logger.warning(f"Spectrogram {name} not found in registry to be closed")
         if name in self.SpectrogramManager.energy_axes_buffer:
             del self.SpectrogramManager.energy_axes_buffer[name]
 

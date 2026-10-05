@@ -129,6 +129,15 @@ def close():
     try:
         Settings.save_settings()
         
+        # Clost spectrograms before shutting down the RunManager thread, since they live in the GUI thread
+        for name in list(RunManager.SpectrogramManager.spectrogram_registry):
+            try:
+                RunManager.close_spectrogram(name)
+            except Exception as e:
+                Log.warning(
+                    f"Closing spectrogram {name} raised: {e}"
+                )
+        
         # Shutdown script engine
         if script_engine is not None:
             script_engine._loop.stop()
@@ -266,7 +275,7 @@ class MainWindow(QMainWindow):
 
         # Devices
         self.devices_tab = DevicesInfoTab()
-        self.bottom_tabs.addTab(self.devices_tab, "Devices")
+        self.bottom_tabs.addTab(self.devices_tab, "Detectors")
         self.bottom_tabs.setTabToolTip(4, "View connected devices and their status")
 
         # Isotopics
@@ -455,6 +464,7 @@ def build_application() -> tuple[QApplication, MainWindow, ScriptEngine]:
     if len(sys.argv) > 1:
         QTimer.singleShot(100, lambda: parse_cli_args(win, script_engine))
     win.spectrogram_roi_tab.plot_container.add_calc_roi()
+    #win.spect_tab.tabBar().hide()
     # QTimer.singleShot(0, lambda: RunManager.SpectrogramManager.add_roi(300, 400))
 
     return app, win, script_engine

@@ -19,7 +19,7 @@ class DevicesInfoTab(QWidget):
         super().__init__(parent)
 
         titles = [
-            "Device",
+            "Detector",
             "Temperature",
             "Battery",
             "Charging",

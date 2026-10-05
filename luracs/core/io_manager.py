@@ -5,6 +5,7 @@ import shutil
 from collections.abc import Callable
 from glob import glob
 from pathlib import Path
+from datetime import datetime
 
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import QFileDialog, QMessageBox
@@ -27,7 +28,7 @@ from luracs.utils.save_to_internal import (
 from .gui_logger import gui_logger
 from .settings import Settings
 from .spectrum_manager import SpectrumManager
-
+from .run_manager import RunManager
 
 class _IOManager(QObject):
     """
@@ -493,6 +494,45 @@ class _Exporter(QObject):
             file_io.csv_writer.export_spectrum(spectrum, str(file_path))
         elif "xlsx" in filter.lower():
             file_io.xlsx_writer.export_spectrum(spectrum, str(file_path))
+            
+            
+    # --- Spectrogram ---
+    def export_spectrogram_to_spectrum(
+        self, 
+        spectrogram_is_loaded: bool, 
+        spectrogram_name: str, 
+        spectrum_name: str,
+        spectrum_remark: str,
+        start_time: datetime | None = None,
+        stop_time: datetime | None = None
+        ):
+        """
+        Create a spectrum from a spectrogram and add it to the Data Store.
+        """
+        
+        assert isinstance(spectrogram_name, str)
+        if spectrogram_is_loaded:
+            current_spectrogram = RunManager.SpectrogramManager.spectrogram_registry.get(
+                    spectrogram_name
+            )
+            parser = file_io.db_parser(connection=current_spectrogram.connection)
+        else:
+            parser = file_io.db_parser(file_name=spectrogram_name)
+
+        new_name = Settings.Paths.spectrum_library / spectrum_name
+
+        print(start_time, stop_time)
+        new_spectrum = file_io.db_writer.build_spectrum_from_db(parser, new_name, start_time, stop_time)
+
+        new_spectrum.remark = spectrum_remark
+        new_spectrum.name = spectrum_name
+
+        IOManager.FileIndex.spectrum_index.save_file(new_spectrum)
+        gui_logger.info(
+            f"Spectrum Exported from spectrogram: "
+            f"spectrogram={current_spectrogram.db_name}, "
+            f"spectrum={new_spectrum.name}"
+        )
 
     # --- ROIs ---
     def export_roi_dialog(self):

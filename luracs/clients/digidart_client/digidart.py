@@ -152,9 +152,9 @@ class digiDart:
         Short replies are padded with zeros so downstream parsing never
         overruns. Raises IOError on USB-level failure.
         """
-        self.dev.write(EP_OUT, cmd, timeout=1000)
+        self.dev.write(EP_OUT, cmd, timeout=2000)
         try:
-            reply = self.dev.read(EP_IN, reply_len, timeout=1000)
+            reply = self.dev.read(EP_IN, reply_len, timeout=2000)
         except usb.core.USBError as e:
             raise OSError(f"USB read failed: {e}") from e
         r = bytes(reply)
@@ -416,7 +416,7 @@ class digiDart:
 
             for i in range(n):
                 off = 4 + i * 4
-                out.append(struct.unpack(">I", r[off : off + 4])[0])
+                out.append(struct.unpack("<I", r[off : off + 4])[0])
 
             chan += n
             remaining -= n
@@ -443,21 +443,22 @@ if __name__ == "__main__":
         print("CLEAR_DATA            ->", d.clear_data())
         print("CLEAR_COUNTER         ->", d.clear_counters())
         print("ENABLE_HV             ->", d.enable_hv())
-        print("DISABLE_HV            ->", d.disable_hv())
+        # print("DISABLE_HV            ->", d.disable_hv())
 
-        print("SET_GAIN_COARSE 4     ->", d.set_gain_coarse(4))
+        # print("SET_GAIN_COARSE 4     ->", d.set_gain_coarse(4))
         print("SHOW_GAIN_COARSE      ->", d.show_gain_coarse())
-        print("SET_CONVERSION_GAIN   ->", d.set_conversion_gain(8192))
+        # print("SET_CONVERSION_GAIN   ->", d.set_conversion_gain(8192))
         print("SHOW_CONVERSION_GAIN  ->", d.show_conversion_gain())
 
-        print("SET_HV 0.0            ->", d.set_hv(0.0))
+        # print("SET_HV 0.0            ->", d.set_hv(0.0))
         print("SHOW_HV_TARGET        ->", d.show_hv_target())
         print("SHOW_HV_ACTUAL        ->", d.show_hv_actual())
 
-        print("SET_LLD 1             ->", d.set_lld(1))
+        # print("SET_LLD 1             ->", d.set_lld(1))
         print("SHOW_LLD              ->", d.show_lld())
-        print("SET_ULD 8000          ->", d.set_uld(8000))
-
+        
+        # print("SET_ULD 8000          ->", d.set_uld(8000))
+        print("START                 ->", d.start())
         print("SHOW_ACTIVE           ->", d.show_active())
         print("SHOW_LIVE             ->", d.show_live())
         print("SHOW_TRUE             ->", d.show_true())
@@ -468,17 +469,17 @@ if __name__ == "__main__":
             print("SHOW_SPECTRUM_ID 1    ->", e)
         print("SHOW_SPECTRUM_COUNT   ->", d.show_spectrum_count())
 
-        print("START                 ->", d.start())
+
         print("STOP                  ->", d.stop())
 
         # Full-spectrum read is a separate opcode, not a NIM command.
-        channels = d.spectrum(0, 8192)
+        channels = d.spectrum(0, 512)
         print("spectrum              -> total counts =", sum(channels))
         
         time.sleep(1)
-        channels = d.spectrum(0, 8192)
+        channels = d.spectrum(0, 512)
         print("spectrum              -> total counts =", sum(channels))
 
         time.sleep(1)
-        channels = d.spectrum(0, 8192)
+        channels = d.spectrum(0, 512)
         print("spectrum              -> total counts =", sum(channels))

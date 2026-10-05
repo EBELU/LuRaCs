@@ -42,7 +42,7 @@ class dbDataColumns:
 
 
 class db_parser:
-    def __init__(self, file_name=None, connection: sql.Connection = None):
+    def __init__(self, file_name: str | None = None, connection: sql.Connection | None  = None):
         if file_name is None and connection is None:
             raise ValueError("A file name or a db connection must be given")
 
@@ -152,9 +152,9 @@ class db_parser:
         ) in rows:
             timestamps.append(ts)
             timestamps_datetime.append(datetime.fromtimestamp(ts))
-            temperatures.append(temp / 1000.)
+            temperatures.append(temp / 1000. if temp else np.nan)
             avg_cps.append(cps / 1000.)
-            avg_dr.append(dr / 1000.)
+            avg_dr.append(dr / 1000. if dr else np.nan)
             latitudes.append(lat)
             longitudes.append(lon)
 
@@ -168,11 +168,11 @@ class db_parser:
             meta.append(
                 json.loads(
                     zlib.decompress(meta_blob).decode("utf-8")
-                )
+                ) if meta_blob else {}
             )
 
         return dbDataColumns(
-            timestamps=np.asarray(timestamps, dtype=np.int64),
+            timestamps=np.asarray(timestamps, dtype=np.float64),
             timestamps_datetime=np.asarray(
                 timestamps_datetime,
                 dtype=object,
