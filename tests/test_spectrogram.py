@@ -27,4 +27,6 @@ def test_spectrogram_time_selector(main_window: MainWindow, qtbot: qtbot_t):
     qtbot.wait(500)
     main_window.spectrogram.action_time_selector.trigger()
     
+def test_export_spectrogram_to_spectrum(main_window: MainWindow, qtbot: qtbot_t):
+    pass
     
