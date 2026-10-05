@@ -11,7 +11,7 @@ is_linux = sys.platform.startswith("linux")
 exe_name = "Win" if is_windows else "Linux"
 
 ROOT = Path(os.getcwd()).resolve()
-__version__ = "0.5.0"
+__version__ = "0.5.1"
 
 # Cross-platform path
 main_script = os.path.join('luracs', 'main.py')
