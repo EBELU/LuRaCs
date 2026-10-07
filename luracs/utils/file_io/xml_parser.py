@@ -174,12 +174,8 @@ class xml_parser(SpectrumParserBase):
                 Parsed background spectrum object containing spectral counts,
                 timing information, calibration references, and metadata.
                 Returns ``None`` if no background spectrum is available.
-
-        Note:
-            The current implementation returns the ``foreground`` entry
-            instead of ``background``. This may be unintended behavior.
         """
-        return self.data.get("foreground")
+        return self.data.get("background")
 
     def get_rois(self) -> list[ROI]:
         """

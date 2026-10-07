@@ -398,6 +398,7 @@ def build_application() -> tuple[QApplication, MainWindow, ScriptEngine]:
     # Check if headless
     if "--headless" in sys.argv:
         Settings.headless = True
+        Log.propagate = False
         win = None
     else:
         # If not headless, show the GUI
@@ -464,7 +465,7 @@ def build_application() -> tuple[QApplication, MainWindow, ScriptEngine]:
     # --- Handle Command Line Arguments ---
     if len(sys.argv) > 1:
         QTimer.singleShot(100, lambda: parse_cli_args(win, script_engine))
-    win.spectrogram_roi_tab.plot_container.add_calc_roi()
+    # win.spectrogram_roi_tab.plot_container.add_calc_roi()
     #win.spect_tab.tabBar().hide()
     # QTimer.singleShot(0, lambda: RunManager.SpectrogramManager.add_roi(300, 400))
 

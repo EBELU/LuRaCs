@@ -17,7 +17,7 @@ from textwrap import dedent
 
 import usb.core
 
-from luracs.clients import ConnectionType, WrappedRealTimePackage, WrappedStatusPackage
+from luracs.clients import WrappedRealTimePackage, WrappedStatusPackage, DeviceWrapper
 from luracs.core import IOManager, RunManager, Settings, SpectrumManager
 from luracs.utils import ascii_art
 from luracs.utils.file_io import db_parser, xml_parser
@@ -83,19 +83,22 @@ exit | quit | shutdown
 Device Management
 -----------------
 device scan usb
-    Scan for USB devices
+    Scan for connected USB devices
 
 device scan ble
-    Scan for Bluetooth LE devices
+    Scan for nearby Bluetooth LE devices
 
-device connect <device1> [device2 ...]
-    Connect to one or more BLE devices
+device connect usb <device1> [device2 ...]
+    Connect to matching USB devices
+
+device connect ble <device1> [device2 ...]
+    Connect to one or more Bluetooth LE devices
 
 device disconnect <device>
-    Disconnect a device
+    Disconnect a connected device
 
 device disconnect all
-    Disconnect all devices
+    Disconnect all connected devices
 
 
 Listing Resources
@@ -110,7 +113,7 @@ list spectrogram
     Show loaded spectrograms
 
 list rois
-    Show active ROIs
+    Show loaded ROIs
 
 
 Indexes
@@ -134,13 +137,13 @@ view rois
     Display loaded ROIs
 
 view log
-    Display recent log entries
+    Display recent application log entries
 
 
 ROI Management
 --------------
 roi <lower> <upper>
-    Add an ROI
+    Add a region of interest between the specified bounds
 
 roi -c
     Clear all ROIs
@@ -149,34 +152,63 @@ roi -c
 Spectrograms
 ------------
 spectrogram start <device>
-    Start a spectrogram
+    Start a spectrogram for a connected device
 
 spectrogram start all
-    Start spectrograms on all connected devices
+    Start spectrograms for all connected devices
 
 Options:
-    -n <name>     Custom name
-    -i <seconds>  Save interval
-    -c <count>    Concatenation factor
+    -n <name>       Custom spectrogram name
+    -i <seconds>    Save interval in seconds (default: 1)
+    -c <count>      Number of spectra to concatenate (default: 1)
 
 spectrogram pause <name>
+    Pause a running spectrogram
+
+spectrogram pause all
+    Pause all running spectrograms
+
 spectrogram unpause <name>
-spectrogram load <name>
+    Resume a paused spectrogram
+
+spectrogram unpause all
+    Resume all paused spectrograms
+
+spectrogram load <path>
+    Load a spectrogram from a saved data file
+
 spectrogram unload <name>
+    Unload a loaded spectrogram
+
+spectrogram unload all
+    Unload all loaded spectrograms
+
+
+Maps
+----
+map url <https-URL>
+    Load an online map from an HTTPS URL
+
+map file <path>
+    Load a local offline map from a .pmtiles file
 
 
 Monitoring
 ----------
 watch
     Continuously display live device information
+
     Press Ctrl+C to stop
 
 
 Automation
 ----------
 exec <script_file>
-    Execute a command script
+    Execute commands from a script file
+
+    Lines beginning with '#' and empty lines are ignored.
 """
+
 
 
 class ListCommand(Command):
@@ -447,6 +479,12 @@ class SpectrogramCommand(Command):
 
         # --- Pause a spectrogram ---
         elif args[0] == "pause":
+            if args[-1] == "all":
+                for sg in RunManager.SpectrogramManager.spectrogram_registry.values():
+                    if not sg.paused:
+                        sg.pause_unpause()
+                return "All spectrograms paused"
+            
             if args[1] not in RunManager.SpectrogramManager.spectrogram_registry:
                 raise ArgumentError(f"'{args[1]}' does not match a loaded spectrogram")
 
@@ -459,6 +497,11 @@ class SpectrogramCommand(Command):
 
         # --- Unpause a spectrum ---
         elif args[0] == "unpause":
+            if args[-1] == "all":
+                for sg in RunManager.SpectrogramManager.spectrogram_registry.values():
+                    if sg.paused:
+                        sg.pause_unpause()
+                return "All spectrograms unpaused"
             if args[1] not in RunManager.SpectrogramManager.spectrogram_registry:
                 raise ArgumentError(f"'{args[1]}' does not match a loaded spectrogram")
 
@@ -482,6 +525,11 @@ class SpectrogramCommand(Command):
 
         # --- Unload a spectrogram from active ---
         elif args[0] == "unload":
+            if args[-1] == "all":
+                for sg in RunManager.SpectrogramManager.spectrogram_registry.values():
+                    engine.thread_bridge.close_spectrogram(sg.name)
+                return "All spectrograms closed"
+            
             if args[1] not in RunManager.SpectrogramManager.spectrogram_registry:
                 raise ArgumentError(f"'{args[1]}' does not match a loaded spectrogram")
 
@@ -655,26 +703,21 @@ class DeviceCommand(Command):
                 connections_found = []
 
                 for conn_device in connected_usb:
+                    serial = usb.util.get_string(conn_device, conn_device.iSerialNumber)
                     product = usb.util.get_string(conn_device, conn_device.iProduct)
 
-                    if not product:
-                        continue
-
                     for target_device in args[2:]:
-                        if target_device.lower() in product.lower():
+                        if not target_device.lower() in product.lower():
+                            continue
+                        
+                        for name in DeviceWrapper.get_registry():
+                            if name.lower() in product.lower():
+                                RunManager.add_device(serial, name, "USB", {"usb_device": conn_device})
 
-                            RunManager.add_device(
-                                usb.util.get_string(conn_device, conn_device.iSerialNumber),
-                                "radiacode",
-                                ConnectionType.USB,
-                                {"usb_device": conn_device}
-                            )
-
-                            connections_found.append(
-                                product
-                            )
-
-                            break
+                                connections_found.append(
+                                    f"{serial} ({product})"
+                                )
+                                break
 
                 if connections_found:
                     return (
@@ -800,6 +843,9 @@ class ExecCommand(Command):
         with open(str(pth)) as f:
             for line in f:
                 table.add_row([line])
+                # Script files can contain comments beginning with '#' and empty lines, which should be ignored
+                if line.startswith("#") or not line.strip():
+                    continue
                 await engine.queue.put(line)
 
         return table.get_table()

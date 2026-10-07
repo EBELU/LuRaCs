@@ -343,7 +343,7 @@ def peak_discriminator(
             rejected_bad_fit += 1
             continue
 
-        if np.any(np.isclose(mus, mu, atol=1)):
+        if np.any(np.isclose(mus, mu, atol=5)):
             rejected_duplicate += 1
             continue
         
