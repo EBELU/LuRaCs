@@ -38,6 +38,11 @@ class ColorRotator:
         LO = "lo"
 
     def __init__(self, colors: ColorSchemes = None, width=2):
+        if isinstance(colors, str):
+            try:
+                colors = self.ColorSchemes(colors)
+            except ValueError:
+                raise ValueError(f"Invalid color scheme: {colors}")
         if colors is None:
             colors = ColorRotator.ColorSchemes.MPL
         if colors == self.ColorSchemes.MPL:  # Matplotlib
@@ -82,8 +87,8 @@ class ColorRotator:
         self._i += 1
         return QColor(color)  # return a copy (safe to modify)
 
-    def next_pen(self) -> QPen:
-        return pg.mkPen(self.next_color(), width=self.width)
+    def next_pen(self, width = None) -> QPen:
+        return pg.mkPen(color=self.next_color(), width=self.width if width is None else width)
 
     def get_color_pair(self, hue_shift_degrees: int = 15) -> tuple[QColor, QColor]:
         "Get the next color in the rotation and a second color based on the first with shifted hue"

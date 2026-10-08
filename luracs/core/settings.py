@@ -56,6 +56,7 @@ class _Temp:
     spectrum_view_cursor: bool = False
     spectrum_view_emission_lines_to_cursor: bool = False
     spectrum_view_show_roi_labels: bool = True
+    is_Si: bool = False
 
 
 @dataclass

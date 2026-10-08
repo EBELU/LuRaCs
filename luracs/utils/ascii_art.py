@@ -56,6 +56,8 @@ def logo(version: str, color: bool = False, is_h3: bool = False, use_type = "non
 
     return "\n".join(base_message)
 
+def Si_info_message():
+    return """You are running the Si version of LuRaCs. This is simplified interface for performing measurements and sharing the results.\n\nThis mode can be turned off under Options -> Advanced Settings -> Si"""
 
 if __name__ == "__main__":
     print(logo("2.2", True, True))

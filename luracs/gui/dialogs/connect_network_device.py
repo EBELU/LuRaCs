@@ -35,6 +35,7 @@ class ConnectNetworkDeviceDialog(QDialog):
         form.addRow("Device Type", self.device_combo)
         
         self.device_combo.addItem("Detective X", userData="detective_x")
+        self.device_combo.addItem("Identifinder 400", userData="identifinder_400")
 
         self.capture_gps_check = QCheckBox(text="Use for GPS")
         form.addRow("", self.capture_gps_check)

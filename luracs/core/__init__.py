@@ -32,7 +32,12 @@ class log_utils:
     log_buffer = _log_buffer
 
 
+
+
 class core_utils:
+    class build_config:
+        IS_H3 = False
+        IS_Si = False
     ThemeManager = _theme_manager
 
 

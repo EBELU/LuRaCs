@@ -220,45 +220,59 @@ def calculate_efficiency(source: Source, roi: ROI) -> tuple[float, float] | None
             Activity, Duration, Solid Angle, Half Life and Emission Yield.
     """
 
+    # Calculate the activity at the start of the measurement
     t_calib_to_start_s = (source.measurement_start - source.calibration_time).total_seconds()
+    
+    # Make ufloat for activity, considering uncertainty if provided
     A_calib = source.ref_activity_Bq if source.ref_activity_uncert_Bq == 0 else ufloat(source.ref_activity_Bq, source.ref_activity_uncert_Bq)
     
-    if A_calib <= 0:
+    # Check for valid values and raise ValueError if any required variable is not set
+    if source.ref_activity_Bq <= 0:
         raise ValueError(f"Calculation failed. Invalid value for Activity! value={A_calib}, source={source.name}, roi={roi.alias}")
 
+    # Check for valid half-life and raise ValueError if not set
     hl = source.half_life_s
     
     if hl == 0:
         raise ValueError(f"Calculation failed. Invalid value for Half Life! value={hl}, source={source.name}, roi={roi.alias}")
     
+    # Calculate the decayed activity at the start of the measurement
     A_start = decayed_activity(A_calib, hl, t_calib_to_start_s)
     
+    # Check for valid measurement duration and raise ValueError if not set
     measurement_duration_s = (source.measurement_end - source.measurement_start).total_seconds()
     if measurement_duration_s == 0:
         raise ValueError(f"Calculation failed. Invalid value for Measurement Duration! value={measurement_duration_s}, source={source.name}, roi={roi.alias}")
 
+    # Calculate the number of decays during the measurement, considering decay compensation if enabled
     if source.measurement_decay_compensate:
         decays_during_measurement = number_of_decays(A_start, hl, measurement_duration_s)
     else:
         decays_during_measurement = A_start * measurement_duration_s
         
+    # Check for valid solid angle and raise ValueError if not set
     solid_angle = source.solid_angle if source.solid_angle_uncert == 0 else ufloat(source.solid_angle, source.solid_angle_uncert)
     
-    if solid_angle <= 0:
+    if source.solid_angle <= 0:
         raise ValueError(f"Calculation failed. Invalid value for Solid Angle! value={solid_angle}, source={source.name}, roi={roi.alias}")
     
+    # Check for valid emission yield and raise return if not set
     cps = roi.get_count_data("N", True)
     
     if cps is None:
         return
     
+    # Check for valid emission yield and raise ValueError if not set
     em = roi.emission
     I = em.intensity_percent / 100 if em.intensity_error_percent == 0 else ufloat(em.intensity_percent, em.intensity_error_percent) / 100
     
     if em.intensity_percent <= 0:
         raise ValueError(f"Calculation failed. Invalid value for Emission Yield! value={I}, source={source.name}, roi={roi.alias}")
 
+    # Calculate the intrinsic efficiency -------------------------
     int_eff = cps / (solid_angle * I * decays_during_measurement)
+    # ------------------------------------------------------------
+    
     
     return int_eff.n, int_eff.s
 

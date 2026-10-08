@@ -28,7 +28,7 @@ build_config_path = ROOT / "luracs" / "build_config.py"
 
 build_config = f"""
 IS_H3=True
-SIMPLE=False
+IS_Si=True
 """
 
 build_config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -119,7 +119,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='LuRaCs-H3'+ exe_suffix,
+    name='LuRaCs-Si'+ exe_suffix,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,   # strip only on Linux (safe)

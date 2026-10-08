@@ -1,5 +1,5 @@
-import sys
 import logging
+import sys
 
 __version__ = "0.5.1"
 
@@ -16,81 +16,86 @@ def print_progress(text, progress):
 logging.basicConfig(level=logging.INFO)
 
 # --- Vital imports for core application to function ---
-from PySide6.QtWidgets import QApplication, QSplitter
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication, QMessageBox, QSplitter
+
 from luracs.core import (
-    RunManager,
     Log,
+    RunManager,
     Settings,
     SpectrumManager,
-    log_utils,
     core_utils,
+    log_utils,
 )
+
+try:
+    from luracs import build_config
+    core_utils.build_config = build_config
+except ImportError:
+    class build_config:
+        IS_H3 = False
+        IS_Si = False
+    core_utils.build_config = build_config
+
 from luracs.core.script_engine import ScriptEngine  # Not normally exposed in the api
+
 script_engine: ScriptEngine | None = None
 
-from luracs.utils.arg_parser import parse_cli_args
-from luracs.utils.startup import startup_script
-from luracs.utils import ascii_art
-
+from PySide6.QtCore import QTimer
 
 # --- PySide6 Imports for main window ---
 from PySide6.QtGui import QCloseEvent, QIcon
 from PySide6.QtWidgets import (
     QMainWindow,
-    QWidget,
-    QVBoxLayout,
     QTabWidget,
+    QVBoxLayout,
+    QWidget,
 )
 
-from PySide6.QtCore import QTimer
+from luracs.utils import ascii_art
+from luracs.utils.arg_parser import parse_cli_args
+from luracs.utils.startup import startup_script
 
 print_progress("Loading GUI", 0)
 
 # --- Perform standard internal imports ---
-from luracs.gui import MainMenuBar, SpectrumPlotContainer, SpectrogramWidget
-
+from luracs.gui import (
+    MainMenuBar,
+    MeasurePlot,
+    SpectrogramWidget,
+    SpectrumPlotContainer,
+)
+from luracs.gui.dialogs.calc_peak_features import PeakFeaturesDialog
+from luracs.gui.dialogs.connect_network_device import ConnectNetworkDeviceDialog
+from luracs.gui.dialogs.connect_serial_gps import ConnectSerialGPSDialog
+from luracs.gui.dialogs.driver_library_dialog import DriverLibraryDialog
+from luracs.gui.dialogs.settings_dialog import SettingsDialog
 from luracs.gui.tabs import (
+    ConsoleTab,
+    DevicesInfoTab,
+    IsotopicsTab,
+    LogWidget,
+    RealTimeValuesPlot,
     ROIInfoTab,
     SpectrogramROITab,
     SpectrumInfoTab,
-    LogWidget,
-    DevicesInfoTab,
-    RealTimeValuesPlot,
-    IsotopicsTab,
-    ConsoleTab,
 )
-
 from luracs.gui.windows import (
     BluetoothListPopup,
-    USBListPopup,
-    DataLibrary,
-    SmallDocumentationDialog,
-    DocumentationDialog,
     CalibrationWindow,
+    DataLibrary,
+    DeconvolutionWindow,
+    DocumentationDialog,
     EfficiencyWindow,
     ResolutionWindow,
-    DeconvolutionWindow,
+    SmallDocumentationDialog,
+    USBListPopup,
 )
-
-from luracs.gui.dialogs.driver_library_dialog import DriverLibraryDialog
-from luracs.gui.dialogs.connect_network_device import ConnectNetworkDeviceDialog
-from luracs.gui.dialogs.connect_serial_gps import ConnectSerialGPSDialog
-from luracs.gui.dialogs.calc_peak_features import PeakFeaturesDialog
-
-from luracs.gui.dialogs.settings_dialog import SettingsDialog
 from luracs.theme_manager import ThemeManager
 
 # --- Import heavy features excluded in the lightweight version ---
-try:
-    import PySide6.QtWebEngineCore
 
-    IS_H3 = False
-except ModuleNotFoundError:
-    IS_H3 = True
-
-
-if not IS_H3:
+if not core_utils.build_config.IS_H3:
     from luracs.gui.mapping import MapWidget
 
 print_progress("Loading luracs.utils.", 5)
@@ -99,8 +104,8 @@ print_progress("Loading luracs.utils.", 5)
 
 # Connect the edit dialog from the GUI to the core ROI object
 # If its not done like this we have circular import hell!
-from luracs.gui.dialogs.roi_editor import ROIEditor
 from luracs.containers.roi_classes import CoreSpectrumROI
+from luracs.gui.dialogs.roi_editor import ROIEditor
 
 CoreSpectrumROI.roi_editor_dialog = ROIEditor
 
@@ -176,7 +181,12 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         print_progress("Initializing main window", 7)
-        self.setWindowTitle("LuRaCs" if not IS_H3 else "LuRaCs-H3")
+        suffix = ""
+        if core_utils.build_config.IS_Si:
+            suffix = "-Si"
+        elif core_utils.build_config.IS_H3:
+            suffix = "-H3"
+        self.setWindowTitle("LuRaCs" + suffix)
 
         self.data_store = DataLibrary("Data Store", None)
 
@@ -207,7 +217,7 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(central)
         central_splitter = QSplitter(Qt.Vertical)
         
-        if not IS_H3:
+        if not core_utils.build_config.IS_H3:
             self.map_widget = MapWidget()
         else:
             self.map_widget = None
@@ -230,7 +240,8 @@ class MainWindow(QMainWindow):
         if self.map_widget is not None:
              self.spect_tab.addTab(self.map_widget, "Map")
 
-          
+        self.measure = MeasurePlot(self)
+        self.spect_tab.addTab(self.measure, "Measure")
              
 
         central_splitter.addWidget(self.spect_tab)
@@ -353,6 +364,8 @@ class MainWindow(QMainWindow):
             self.spectrum_plot_container.set_tabbed_mode()
         else:
             self.spectrum_plot_container.set_combined_mode()
+            
+        self.main_menu_bar.sigToggleSiMode.connect(self.set_Si_interface)
         
 
         print_progress("Main window loaded", 9)
@@ -374,6 +387,26 @@ class MainWindow(QMainWindow):
         if self.map_widget is not None:
             self.map_widget.stop()
         close()
+        
+    def set_compact(self, compact: bool):
+        pass
+    
+    def set_Si_interface(self, Si: bool):
+        if Si:
+            self.bottom_tabs.hide()
+            self.spect_tab.setCurrentIndex(3)
+            self.spect_tab.tabBar().hide()
+            self.main_menu_bar.view_menu.menuAction().setVisible(False)
+            self.main_menu_bar.calculate_menu.menuAction().setVisible(False)
+            self.main_menu_bar.tools_menu.menuAction().setVisible(False)
+        
+        else:
+            self.bottom_tabs.show()
+            self.spect_tab.setCurrentIndex(3)
+            self.spect_tab.tabBar().show()
+            self.main_menu_bar.view_menu.menuAction().setVisible(True)
+            self.main_menu_bar.calculate_menu.menuAction().setVisible(True)
+            self.main_menu_bar.tools_menu.menuAction().setVisible(True)
 
 
 # ===================== ENTRY =====================
@@ -403,7 +436,14 @@ def build_application() -> tuple[QApplication, MainWindow, ScriptEngine]:
     else:
         # If not headless, show the GUI
         win = MainWindow()
+        if core_utils.build_config.IS_Si:
+            win.set_Si_interface(core_utils.build_config.IS_Si)
+            win.main_menu_bar.toggle_Si_mode_action.setChecked(True)
+        
         win.show()
+        if core_utils.build_config.IS_Si:
+            QTimer.singleShot(500, lambda: QMessageBox.information(win, "LuRaCs-Si", ascii_art.Si_info_message()))
+        
     Log.setLevel(level=logging.DEBUG if "--debug" in sys.argv else logging.INFO)
     Log.debug(f"headless: {Settings.headless}")
 
@@ -419,9 +459,9 @@ def build_application() -> tuple[QApplication, MainWindow, ScriptEngine]:
 
     # --- Script engine ---
     script_engine = ScriptEngine(
-        program_version=__version__ + "--Tritium" if IS_H3 else __version__,
+        program_version=__version__ + "--Tritium" if core_utils.build_config.IS_H3 else __version__,
         headless=Settings.headless,
-        IS_H3=IS_H3,
+        IS_H3=core_utils.build_config.IS_H3,
     )
 
     # Shutdown
@@ -439,7 +479,7 @@ def build_application() -> tuple[QApplication, MainWindow, ScriptEngine]:
         script_engine.sigCommandOutput.connect(win.console_tab.append_output)
         script_engine.sigClearConsole.connect(win.console_tab.set_output)
 
-        if not IS_H3:
+        if not core_utils.build_config.IS_H3:
             script_engine.sigMapURL.connect(win.map_widget.load_map_from_url)
             script_engine.sigMapFile.connect(win.map_widget.load_offline_map)
         
@@ -455,8 +495,8 @@ def build_application() -> tuple[QApplication, MainWindow, ScriptEngine]:
     Log.info(
         "\n\n"
         + ascii_art.logo(
-            __version__ + "--Tritium" if IS_H3 else __version__,
-            is_h3=IS_H3,
+            __version__ + "--Tritium" if core_utils.build_config.IS_H3 else __version__,
+            is_h3=core_utils.build_config.IS_H3,
             use_type="log",
         )
     )
@@ -467,7 +507,7 @@ def build_application() -> tuple[QApplication, MainWindow, ScriptEngine]:
         QTimer.singleShot(100, lambda: parse_cli_args(win, script_engine))
     # win.spectrogram_roi_tab.plot_container.add_calc_roi()
     #win.spect_tab.tabBar().hide()
-    # QTimer.singleShot(0, lambda: RunManager.SpectrogramManager.add_roi(300, 400))
+    # 
 
     return app, win, script_engine
 

@@ -20,6 +20,7 @@ from .misc import ConfirmCallback
 class MainMenuBar(QMenuBar):
     sigSetSpectrumViewToTabs = Signal()
     sigSetSpectrumViewToCombined = Signal()
+    sigToggleSiMode = Signal(bool)
     sigUpdateSetting = Signal(str, str, object)
 
     def __init__(self, parent: MainWindow = None):
@@ -51,11 +52,11 @@ class MainMenuBar(QMenuBar):
         exit_action.triggered.connect(self.on_exit)
 
         # ---------- View Menu ----------
-        view_menu = self.addMenu("View")
+        self.view_menu = self.addMenu("View")
         
         # --- Map ---
         if parent.map_widget is not None:
-            view_menu_map = view_menu.addMenu("&Map")
+            view_menu_map = self.view_menu.addMenu("&Map")
             view_menu_map_track_current_location = QAction("Track Current Location", self, checkable=True)
             view_menu_map_track_current_location.toggled.connect(
                 parent.map_widget.track_current_location
@@ -70,16 +71,16 @@ class MainMenuBar(QMenuBar):
         
 
         # --- Real Time Data View ---
-        view_menu_realtime = view_menu.addMenu("&Real Time Data    ")
+        view_menu_realtime = self.view_menu.addMenu("&Real Time Data    ")
         self.view_menu_realtime_avg_line = QAction("Mark Average", self, checkable=True)
         view_menu_realtime.addAction(self.view_menu_realtime_avg_line)
         
-        view_menu_sg_rois = view_menu.addMenu("&Spectrogram ROIs    ")
+        view_menu_sg_rois = self.view_menu.addMenu("&Spectrogram ROIs    ")
         self.view_menu_sg_rois_compact_view = QAction("Compact View", self, checkable=True)
         view_menu_sg_rois.addAction(self.view_menu_sg_rois_compact_view)
 
         # --- Spectrum View ---
-        view_menu_spectrum = view_menu.addMenu("&Spectrum")
+        view_menu_spectrum = self.view_menu.addMenu("&Spectrum")
 
         # Cursor emissions
         view_menu_spectrum_show_cursor_emissions = QAction(
@@ -146,33 +147,33 @@ class MainMenuBar(QMenuBar):
         
 
         # ---------- Gamma Tools ----------
-        calculate_menu = self.addMenu("&Gamma Tools")
-        calculate_menu_photoCalibration = calculate_menu.addAction("Calibration")
+        self.calculate_menu = self.addMenu("&Gamma Tools")
+        calculate_menu_photoCalibration = self.calculate_menu.addAction("Calibration")
         calculate_menu_photoCalibration.triggered.connect(
             parent.calc_win_calibration.show
         )
-        calculate_menu_photoDeconvolution = calculate_menu.addAction("Deconvolution")
+        calculate_menu_photoDeconvolution = self.calculate_menu.addAction("Deconvolution")
         calculate_menu_photoDeconvolution.triggered.connect(
             parent.calc_win_deconvolution.show
         )
-        calculate_menu_photoEff = calculate_menu.addAction("Efficiency")
+        calculate_menu_photoEff = self.calculate_menu.addAction("Efficiency")
         calculate_menu_photoEff.triggered.connect(
             parent.calc_win_efficiency.show
             )
-        calculate_menu_photoResolution = calculate_menu.addAction("Peak Features")
+        calculate_menu_photoResolution = self.calculate_menu.addAction("Peak Features")
         calculate_menu_photoResolution.triggered.connect(
             parent.calc_win_peak_features.show
         )
         
-        calculate_menu_photoResolution = calculate_menu.addAction("Resolution")
+        calculate_menu_photoResolution = self.calculate_menu.addAction("Resolution")
         calculate_menu_photoResolution.triggered.connect(
             parent.calc_win_resolution.show
         )
 
         
         # ---------- Other Tools ----------
-        tools_menu = self.addMenu("&Tools")
-        self.tools_menu_add_calc_roi = tools_menu.addAction("Add Calc ROI")
+        self.tools_menu = self.addMenu("&Tools")
+        self.tools_menu_add_calc_roi = self.tools_menu.addAction("Add Calc ROI")
 
         # ---------- Options Menu ----------
         options_menu = self.addMenu("&Options")
@@ -182,6 +183,13 @@ class MainMenuBar(QMenuBar):
         advanced_settings_action.triggered.connect(
             lambda: edit_advanced_settings(parent)
         )
+        
+        options_menu.addSeparator()
+        self.toggle_Si_mode_action = QAction(
+            "Toggle Si-Mode", self, checkable=True
+        )
+        self.toggle_Si_mode_action.triggered.connect(self.toggle_Si_mode)
+        options_menu.addAction(self.toggle_Si_mode_action)
 
         spectrum_tabbed_group = QActionGroup(self)
         spectrum_tabbed_group.setExclusive(True)
@@ -225,6 +233,34 @@ class MainMenuBar(QMenuBar):
         self.update_last_connections(list(Settings.State.last_connections))
 
     # ---------- Action Handlers ----------
+    def toggle_Si_mode(self):
+        if not self.toggle_Si_mode_action.isChecked():
+            result = QMessageBox.question(
+                self.parent,
+                "Confirm",
+                "Are you sure you want to exit Si-mode?",
+                QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
+            )
+            if result == QMessageBox.StandardButton.Cancel:
+                return
+            
+            self.toggle_Si_mode_action.setChecked(False)
+            self.sigToggleSiMode.emit(False)
+        else:
+            result = QMessageBox.question(
+                self.parent,
+                "Confirm",
+                "Are you sure you want to enter Si-mode?",
+                QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
+            )
+            if result == QMessageBox.StandardButton.Cancel:
+                return
+            
+            self.toggle_Si_mode_action.setChecked(True)
+            self.sigToggleSiMode.emit(True)
+            
+            
+    
     def update_last_connections(self, names: list):
         self.device_menu_retryLast.clear()
 
