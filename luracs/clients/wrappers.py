@@ -19,6 +19,7 @@ from luracs.clients.gps import GPSData
 from luracs.clients.RadiacodeClient.src import RadiacodeClientAsync
 from luracs.clients.RaysidClient.RaysidClient import RaysidClientAsync
 from luracs.core.settings import Settings
+from luracs.clients.identifinder_client import Identifinder400
 
 # ==========================================
 # Radiacode
@@ -74,6 +75,8 @@ class RadiacodeWrapper(DeviceWrapper):
             charging=latest_status.charging,
             total_dose=latest_status.acc_dose,
             total_uptime=latest_status.dose_acc_time,
+            device_state=self.state,
+            connection_type=self.connection,
             timestamp=getattr(
                 latest_status,
                 "timestamp",
@@ -109,7 +112,6 @@ class RadiacodeWrapper(DeviceWrapper):
         return getattr(self.client, "_stopped", True)
 
     def set_calibration(self, coeff: list):
-        print("Set calibration", coeff)
         self.run_manager.submit_to_thread(
         self.client.client.set_energy_calib(reversed(coeff))
         )
@@ -169,6 +171,8 @@ class RaysidWrapper(DeviceWrapper):
             battery=latest_status.battery,
             temperature=latest_status.temperature,
             charging=latest_status.charging,
+            device_state=self.state,
+            connection_type=self.connection,
             timestamp=getattr(
                 latest_status,
                 "timestamp",
@@ -293,6 +297,8 @@ class DigiBaseWrapper(DeviceWrapper):
             lower_level_discriminator=self.base.lld,
             upper_level_discriminator=self.base.uld,
             fine_gain=self.base.fine_gain,
+            device_state=self.state,
+            connection_type=self.connection,
             timestamp=time.time()
             )
     
@@ -461,6 +467,8 @@ class DigiDartWrapper(DeviceWrapper):
             lower_level_discriminator=float(self.dart.show_lld()),
             upper_level_discriminator=np.nan,
             fine_gain=np.nan,
+            device_state=self.state,
+            connection_type=self.connection,
             timestamp=time.time(),
         )
 
@@ -769,7 +777,11 @@ class DetectiveXClient(DeviceWrapper):
                 self.run_manager.Signals.GPSUpdated.emit(GPSData(source = "DetectiveX", latitude=coordinates[0], longitude=coordinates[1], valid=True))
             else:
                 self.run_manager.Signals.GPSUpdated.emit(GPSData(source = "DetectiveX", latitude=0, longitude=0, valid=False))
-        return WrappedStatusPackage(**status_dict, timestamp=time.time())
+        return WrappedStatusPackage(
+            **status_dict, 
+            device_state=self.state,
+            connection_type=self.connection,
+            timestamp=time.time())
     
     def start_acquisition(self):
         self.run_manager.submit_to_thread(self._start_acquisition)
@@ -788,4 +800,169 @@ class DetectiveXClient(DeviceWrapper):
         
     async def _reset_spectrum(self):
         await asyncio.to_thread(self.client.clear_spectrum)
+
+
+
         
+# ==========================================
+# identiFINDER R400
+# ==========================================
+
+class Identifinder400Wrapper(DeviceWrapper):
+    type = "identifinder_400"
+
+    @classmethod
+    def get_connection_types(cls):
+        return {ConnectionType.NETWORK}
+
+    def __init__(
+        self,
+        address,
+        connection: ConnectionType,
+        use_gps: bool = False,
+    ):
+        super().__init__(address, ConnectionType.NETWORK)
+
+        self.name = f"R400_{address}"
+
+        self.address = address
+        self.use_gps = use_gps
+
+        self.channels = 1024
+
+        self.stopped = False
+        self.started = False
+
+        self.client = None
+
+
+    # --------------------------------------------------
+    # Lifecycle
+    # --------------------------------------------------
+
+    async def start(self):
+
+        if not self.address.startswith(
+            ("http://", "https://")
+        ):
+            http_address = f"http://{self.address}"
+        else:
+            http_address = self.address
+
+        self.client = Identifinder400(http_address)
+
+        self.client.log.info(
+            "Identifinder400Wrapper started for "
+            "http address: %s",
+            http_address,
+        )
+        
+        # --------------------------------------------------
+        # Start live stream
+        # --------------------------------------------------
+
+        self.client.start_stream()
+
+        # --------------------------------------------------
+        # Start acquisition
+        # --------------------------------------------------
+
+        self.client.start_acquisition()
+
+        self.started = True
+        self.stopped = False
+
+        if self.use_gps:
+            self.run_manager.Signals.GPSConnection.emit(
+                True
+            )
+
+        await self.start_polling()
+
+    def is_running(self) -> bool:
+        return self.started and not self.stopped
+
+    def is_stopped(self) -> bool:
+        return self.stopped
+
+    async def stop(self):
+
+        try:
+            await self.stop_polling()
+
+            if self.client is not None:
+                self.client.stop_acquisition()
+
+        finally:
+
+            if self.client is not None:
+                self.client.stop_stream()
+                self.client.session.close()
+
+            self.stopped = True
+            self.started = False
+
+    # --------------------------------------------------
+    # Data access
+    # --------------------------------------------------
+
+    async def get_Spectrum(self):
+        data = self.client.spectrum_data
+        if data is None:
+            return None
+
+        return WrappedSpectrumPackage(
+            y_axis=data.y_axis,
+            live_time=data.live_time,
+            real_time=data.real_time,
+            calib_coeff=None,
+            timestamp=data.timestamp,
+        )
+
+    async def get_RealTimeData(self):
+
+        data = self.client.spectrum_data
+        if data is None:
+            return None
+
+
+        return WrappedRealTimePackage(
+            CPS=data.count_rate,
+            DR=data.dose_rate,
+            timestamp=data.timestamp,
+        )
+
+    async def get_Status(self):
+        data = self.client.status_data
+        if data is None:
+            return None
+
+        return WrappedStatusPackage(
+            device_state=self.state,
+            connection_type=self.connection,
+            timestamp=time.time(),
+        )
+
+    # --------------------------------------------------
+    # Acquisition controls
+    # --------------------------------------------------
+
+    def start_acquisition(self):
+        if self.client is not None:
+            self.client.start_acquisition()
+
+    def stop_acquisition(self):
+        if self.client is not None:
+            self.client.stop_acquisition()
+
+    def reset_spectrum(self):
+        if self.client is not None:
+            self.client.clear_spectrum()
+
+    def identify_spectrum(self):
+        if self.client is not None:
+            return self.client.identify_spectrum()
+
+    def save_spectrum(self):
+        if self.client is not None:
+            return self.client.save_spectrum()

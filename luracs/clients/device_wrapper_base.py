@@ -43,6 +43,8 @@ class WrappedStatusPackage:
     lower_level_discriminator: float = np.nan
     upper_level_discriminator: float = np.nan
     fine_gain: float = np.nan
+    device_state: None | DeviceState = None
+    connection_type: None | ConnectionType = None
     timestamp: float
 
 
@@ -59,6 +61,16 @@ class ConnectionType(Enum):
     BLE = "BLE"
     NETWORK = "NETWORK"
     
+class DeviceState(Enum):
+    UNINITIALIZED = auto()
+    CONNECTING = auto()
+    CONNECTED = auto()
+    CONNECTION_FAILED = auto()
+    CONNECTION_LOST = auto()
+    STOPPING = auto()
+    STOPPED = auto()
+    ERROR = auto()
+    
 class SupportedSettings(Enum):
     CALIBRATION = auto()
     HV_AND_AMP = auto()
@@ -72,16 +84,8 @@ class DeviceWrapper(ABC):
     
     usb_id_vendor: int | None = None
     usb_id_product: int | None = None
-
-    class DeviceState(Enum):
-        UNINITIALIZED = auto()
-        CONNECTING = auto()
-        CONNECTED = auto()
-        CONNECTION_FAILED = auto()
-        CONNECTION_LOST = auto()
-        STOPPING = auto()
-        STOPPED = auto()
-        ERROR = auto()
+    
+    DeviceState = DeviceState
         
     @classmethod
     @abstractmethod
@@ -106,7 +110,7 @@ class DeviceWrapper(ABC):
         self.connection = connection
         assert isinstance(self.connection, ConnectionType), f"Error connection is of type {type(self.connection)}"
         self.connected_timestamp = time.time()
-        self.state = self.DeviceState.UNINITIALIZED
+        self.state = DeviceState.UNINITIALIZED
         
         self.poll_task: asyncio.Task | None = None
 
@@ -131,7 +135,7 @@ class DeviceWrapper(ABC):
                 return obj
 
     def set_state(self, state):
-        assert isinstance(state, self.DeviceState)
+        assert isinstance(state, DeviceState)
         self.state = state
         
     async def _poll_loop(self):            
@@ -144,7 +148,6 @@ class DeviceWrapper(ABC):
                 1,
                 math.ceil(spectrum_delay / update_delay),
             )
-            
             try:
                 while self.is_running():
                     try:
@@ -197,7 +200,7 @@ class DeviceWrapper(ABC):
                     
                     except usb.core.USBError:
                         gui_logger.exception(f"USB error for {self.name}, likely disconnect")
-                        self.set_state(self.DeviceState.ERROR)
+                        self.set_state(DeviceState.ERROR)
                         self.run_manager.Signals.deviceStateUpdated.emit(self.name, self.state)
                         break
                     
@@ -206,7 +209,7 @@ class DeviceWrapper(ABC):
                     
             except Exception:
                 gui_logger.exception(f"Polling crashed for {self.name}")
-                self.set_state(self.DeviceState.ERROR)
+                self.set_state(DeviceState.ERROR)
                 self.run_manager.Signals.deviceStateUpdated.emit(self.name, self.state)
                 
     async def start_polling(self):
