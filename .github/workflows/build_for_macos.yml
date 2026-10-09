@@ -1,0 +1,59 @@
+name: Build LuRaCs for macOS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Verify compiler toolchain
+        run: |
+          clang --version
+          xcode-select -p
+
+      - name: Install project and dependencies
+        env:
+          CC: clang
+          CXX: clang++
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install .[dev]
+
+      - name: Install 7-Zip
+        run: brew install sevenzip
+
+      - name: Build with PyInstaller spec
+        env:
+          CC: clang
+          CXX: clang++
+        run: |
+          python -m PyInstaller \
+            --noconfirm \
+            --clean \
+            LuRaCs.spec
+
+      - name: Package application
+        run: |
+          test -d "dist/LuRaCs.app"
+          7zz a -t7z -mx=9 LuRaCs-macOS.7z dist/LuRaCs.app
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LuRaCs-macOS
+          path: LuRaCs-macOS.7z
+          if-no-files-found: error
+          retention-days: 1
