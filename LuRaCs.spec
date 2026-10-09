@@ -122,7 +122,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=is_linux,   # strip only on Linux (safe)
     upx=is_windows,   # UPX works better on Windows
-    console=not is_windows,  # GUI app on Windows, console on Linux
+    console=not is_windows and not is_macos,  # GUI app on Windows, console on Linux
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
@@ -131,12 +131,31 @@ exe = EXE(
     icon=str(ROOT / "dev/main_icon_green.ico"),
 )
 
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.datas,
-    strip=False,
-    upx=is_windows,
-    upx_exclude=[],
-    name=f'LuRaCs_{__version__}_{exe_name}',
-)
+if is_macos:
+    coll = COLLECT(
+        exe,
+        a.binaries,
+        a.datas,
+        strip=False,
+        upx=False,
+        upx_exclude=[],
+        name=f'LuRaCs_{__version__}_{exe_name}',
+    )
+
+    app = BUNDLE(
+        coll,
+        name="LuRaCs.app",
+        bundle_identifier="com.luracs.app",
+        icon=str(ROOT / "dev/main_icon_green.icns"),
+    )
+
+else:
+    coll = COLLECT(
+        exe,
+        a.binaries,
+        a.datas,
+        strip=False,
+        upx=is_windows,
+        upx_exclude=[],
+        name=f'LuRaCs_{__version__}_{exe_name}',
+    )

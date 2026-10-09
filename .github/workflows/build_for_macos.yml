@@ -44,6 +44,11 @@ jobs:
             --noconfirm \
             --clean \
             LuRaCs.spec
+            
+      - name: Inspect macOS build
+        run: |
+            find dist -maxdepth 3 -name "*.app" -print
+            ls -la dist/
 
       - name: Package application
         run: |

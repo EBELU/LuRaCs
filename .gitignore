@@ -1,5 +1,6 @@
 *__pycache__*
-.*
+.appdata*
+.vscode*
 build/
 dist/
 *egg*
@@ -17,3 +18,5 @@ main.*
 dev/*
 luracs/utils/numerics/cython/*.so
 luracs/utils/numerics/cython/*.c
+
+luracs/clients/RadiacodeClient/.*
