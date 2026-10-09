@@ -146,7 +146,7 @@ if is_macos:
         coll,
         name="LuRaCs.app",
         bundle_identifier="com.luracs.app",
-        icon=str(ROOT / "dev/main_icon_green.icns"),
+        icon=str(ROOT / "dev/main_icon_green.icns),
     )
 
 else:
