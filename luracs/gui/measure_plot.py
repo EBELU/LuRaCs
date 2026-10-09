@@ -129,8 +129,10 @@ class MeasurePlot(QWidget):
         main_layout.addLayout(status_layout)
         
         # --- Control Layout for measurement controls ---
-        main_layout.addWidget(QLabel("Measurement Controls"))
+        label = QLabel(" Timer ")
+        label.setStyleSheet("font-weight: bold;")
         control_layout = QHBoxLayout()
+        control_layout.addWidget(label)
         self.hours_spin = QSpinBox()
         self.hours_spin.setRange(0, 100)
         self.hours_spin.valueChanged.connect(lambda : self.confirm_time_button.setChecked(True))
@@ -156,8 +158,12 @@ class MeasurePlot(QWidget):
         control_layout.addWidget(self.progress_bar)
         main_layout.addLayout(control_layout)
         
+        label = QLabel(" Controls ")
+        label.setMaximumWidth(100)
+        label.setStyleSheet("font-weight: bold;")
         start_stop_layout = QHBoxLayout()
-        self.start_button = QPushButton("Start Measurement")
+        start_stop_layout.addWidget(label)
+        self.start_button = QPushButton("Start Measurement", checkable=True)
         self.start_button.clicked.connect(self.start_measurement)
         start_stop_layout.addWidget(self.start_button)
         self.stop_button = QPushButton("Stop Measurement")
@@ -198,6 +204,8 @@ class MeasurePlot(QWidget):
             pen=pg.mkPen(spect_color, width = 1),
             brush=pg.mkBrush(brush_color),
             fillLevel=0,
+            stepMode="center",
+            antialias=False,
         )
         
         
@@ -244,6 +252,7 @@ class MeasurePlot(QWidget):
         self.update_text()
         
     def start_measurement(self):
+        self.start_button.setChecked(False)
         if not self.detector_combo.currentText():
             QMessageBox.warning(self, "No Detector", "The measurement could not be started because no detector is connected.")
         
@@ -300,6 +309,8 @@ class MeasurePlot(QWidget):
         self.progress_bar.setRange(0, total_seconds)
         self.progress_bar.setValue(0)
         self.progress_bar.setFormat(f"Remaining: {hours:02d}:{minutes:02d}:{seconds:02d}")
+        
+        self.start_button.setChecked(True)
         
     def catch_detector_added(self, detector_name: str):
         self.detector_combo.addItem(detector_name)
@@ -418,7 +429,7 @@ class MeasurePlot(QWidget):
         self.count_rate_line.setData(np.asarray(self.current_measurement.rate_axis) + Settings.Advanced.spectrum_update_delay, self.current_measurement.count_rate_data)
         self.dose_rate_line.setData(np.asarray(self.current_measurement.rate_axis) + Settings.Advanced.spectrum_update_delay, self.current_measurement.dose_rate_data)
         
-        self.spectrum_detector_line.setData(self.current_measurement.x_axis, self.current_measurement.spectrum)
+        self.spectrum_detector_line.setData(self.current_measurement.x_axis, self.current_measurement.spectrum[:-1])
 
 if __name__ == "__main__":
     import sys

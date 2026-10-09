@@ -8,7 +8,15 @@ from pathlib import Path
 # Platform detection
 is_windows = sys.platform.startswith("win")
 is_linux = sys.platform.startswith("linux")
-exe_name = "Win" if is_windows else "Linux"
+is_macos = sys.platform == "darwin"
+
+if is_windows:
+    exe_name = "Win"  
+elif is_macos:
+    exe_name = "MacOS" 
+else:
+    exe_name = "Linux"
+
 
 ROOT = Path(os.getcwd()).resolve()
 __version__ = "0.5.1"
@@ -112,7 +120,12 @@ a.datas = [
 
 
 pyz = PYZ(a.pure)
-exe_suffix = ".exe" if is_windows else ""
+if is_windows:
+    exe_suffix = ".exe"  
+elif is_macos:
+    exe_suffix = ".app"
+else:
+    exe_suffix = ""
 
 exe = EXE(
     pyz,

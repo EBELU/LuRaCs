@@ -394,7 +394,10 @@ class MainWindow(QMainWindow):
     def set_Si_interface(self, Si: bool):
         if Si:
             self.bottom_tabs.hide()
-            self.spect_tab.setCurrentIndex(3)
+            if core_utils.build_config.IS_Si:
+                self.spect_tab.setCurrentIndex(2)
+            else:
+                self.spect_tab.setCurrentIndex(3)
             self.spect_tab.tabBar().hide()
             self.main_menu_bar.view_menu.menuAction().setVisible(False)
             self.main_menu_bar.calculate_menu.menuAction().setVisible(False)
@@ -402,7 +405,6 @@ class MainWindow(QMainWindow):
         
         else:
             self.bottom_tabs.show()
-            self.spect_tab.setCurrentIndex(3)
             self.spect_tab.tabBar().show()
             self.main_menu_bar.view_menu.menuAction().setVisible(True)
             self.main_menu_bar.calculate_menu.menuAction().setVisible(True)
