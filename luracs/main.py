@@ -1,7 +1,7 @@
 import logging
 import sys
 
-__version__ = "0.5.1"
+__version__ = "0.6.0"
 
 
 def print_progress(text, progress):
