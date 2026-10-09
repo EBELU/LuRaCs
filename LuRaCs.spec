@@ -108,7 +108,7 @@ pyz = PYZ(a.pure)
 if is_windows:
     exe_suffix = ".exe"  
 elif is_macos:
-    exe_suffix = ".app"
+    exe_suffix = ""
 else:
     exe_suffix = ""
 
@@ -125,7 +125,7 @@ exe = EXE(
     console=not is_windows and not is_macos,  # GUI app on Windows, console on Linux
     disable_windowed_traceback=False,
     argv_emulation=False,
-    target_arch=None,
+    target_arch="arm64" if is_macos else None,
     codesign_identity=None,
     entitlements_file=None,
     icon=str(ROOT / "dev/main_icon_green.ico"),

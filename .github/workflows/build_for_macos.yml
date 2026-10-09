@@ -53,7 +53,7 @@ jobs:
       - name: Package application
         run: |
           test -d "dist/LuRaCs.app"
-          7zz a -t7z -mx=9 LuRaCs-macOS.7z dist/LuRaCs.app
+          7zz a -t7z -mx=9 -bb1 -bsp1 LuRaCs-macOS.7z dist/LuRaCs.app
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
