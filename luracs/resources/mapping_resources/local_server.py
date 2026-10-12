@@ -22,8 +22,7 @@ class PMTilesServer:
 
         self.lock = threading.Lock()
 
-        f = open(pmtiles_path, "rb")
-        self.reader = Reader(MmapSource(f))
+        self.reader = Reader(MmapSource(self.file))
 
         self.app.add_middleware(
             CORSMiddleware,
@@ -43,7 +42,7 @@ class PMTilesServer:
             name="sprites"
         )
 
-        @lru_cache(maxsize=20000)
+        @lru_cache(maxsize=512)
         def get_tile(z, x, y):
             result = reader.get(z, x, y)
             return result

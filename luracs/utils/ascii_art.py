@@ -29,7 +29,13 @@ def logo(version: str, color: bool = False, is_h3: bool = False, use_type = "non
     ]
 
     if use_type == "none":
-        end_message = []
+        end_message = [
+            "",
+            "",
+            "",
+            "",
+            ""
+        ]
     elif use_type == "console":
         end_message = [
             "",
@@ -49,6 +55,8 @@ def logo(version: str, color: bool = False, is_h3: bool = False, use_type = "non
     else:
         raise ValueError(f"{use_type} is not a valid use type")
 
+
+
     for i in range(len(base_message)):
         if is_h3:
             base_message[i] += h3_message[i]
@@ -57,7 +65,7 @@ def logo(version: str, color: bool = False, is_h3: bool = False, use_type = "non
     return "\n".join(base_message)
 
 def Si_info_message():
-    return """You are running the Si version of LuRaCs. This is simplified interface for performing measurements and sharing the results.\n\nThis mode can be turned off under Options -> Advanced Settings -> Si"""
+    return """You are running the *Si* version of *LuRaCs*. This is simplified interface for performing measurements and creating reports from the results.\n\nThis mode can be turned off under Options -> Toggle Si-mode"""
 
 if __name__ == "__main__":
     print(logo("2.2", True, True))

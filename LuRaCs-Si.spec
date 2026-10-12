@@ -34,7 +34,7 @@ elif arch in ("aarch64", "arm64", "armv7l", "armv6l"):
 
 build_config_path = ROOT / "luracs" / "build_config.py"
 
-build_config = f"""
+build_config = """
 IS_H3=True
 IS_Si=True
 """

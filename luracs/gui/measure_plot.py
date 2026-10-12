@@ -191,7 +191,7 @@ class MeasurePlot(QWidget):
         self.spectrum_plot.setLabel("left", "Counts per Channel")
         self.spectrum_plot.getViewBox().setMouseEnabled(x=True, y=False)
         self.spectrum_plot.getPlotItem().layout.setContentsMargins(2, 13, 13, 5)
-        self.spectrum_plot.setLimits(xMin=-25, xMax=3000)
+        self.spectrum_plot.setLimits(xMin=-25, xMax=3000, minXRange=5,)
         
         # Make data line
         spect_color = color_rotator.next_color()

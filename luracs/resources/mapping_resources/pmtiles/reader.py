@@ -36,7 +36,7 @@ class Reader:
     def header(self):
         return deserialize_header(self.get_bytes(0, 127))
 
-    @lru_cache(maxsize=1024)
+    @lru_cache(maxsize=512)
     def directory(self, offset, length):
         return deserialize_directory(self.get_bytes(offset, length))
 

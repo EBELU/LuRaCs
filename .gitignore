@@ -15,7 +15,9 @@ dev/debug/*.c
 *.log
 *.lock
 main.*
-dev/*
+dev/misc/*
+dev/poster_spectra/*
+dev/raw_nuclide_data/*
 luracs/utils/numerics/cython/*.so
 luracs/utils/numerics/cython/*.c
 

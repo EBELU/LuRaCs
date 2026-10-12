@@ -11,7 +11,7 @@ def print_progress(text, progress):
         end="",
         flush=True,
     )
-
+print_progress("Loading GUI", 0)
 
 logging.basicConfig(level=logging.INFO)
 
@@ -52,12 +52,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from luracs.utils import ascii_art
-from luracs.utils.arg_parser import parse_cli_args
-from luracs.utils.startup import startup_script
-
-print_progress("Loading GUI", 0)
-
 # --- Perform standard internal imports ---
 from luracs.gui import (
     MainMenuBar,
@@ -92,6 +86,9 @@ from luracs.gui.windows import (
     USBListPopup,
 )
 from luracs.theme_manager import ThemeManager
+from luracs.utils import ascii_art
+from luracs.utils.arg_parser import parse_cli_args
+from luracs.utils.startup import startup_script
 
 # --- Import heavy features excluded in the lightweight version ---
 
