@@ -1,6 +1,8 @@
+![Banner](luracs/resources/themes/icons/splash_base.png)
 # LuRaCs - *Lund Radiation analysis Computer software*
-
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg) [![Docs: CC BY-SA 4.0](https://img.shields.io/badge/docs-CC_BY_SA_4.0-lightgrey.svg)](https://creativecommons.org/licenses/by-sa/4.0/) ![Python](https://img.shields.io/badge/python-3.10+-blue.svg) ![Qt](https://img.shields.io/badge/PySide6-Qt6-green.svg) ![MapLibre](https://img.shields.io/badge/MapLibre-GL_JS-blue.svg)
+
+Copyright (C) 2026 Erik Ewald
 
 LuRaCs is a free, open-source application designed for the measurement and analysis of nuclear radiation. While its functionality ranges from basic to advanced radiation analysis, with primary focus is on gamma spectrometry. Built with Qt and primarily written in Python, the software is designed with extensibility in mind, enabling support for a variety of detector systems.
 
@@ -11,7 +13,7 @@ LuRaCs is a free, open-source application designed for the measurement and analy
     - [Time Series Measurements](#time-series-measurements)
     - [Area Mapping](#area-mapping)
     - [CLI](#cli)
-    - [Implemented Instruments](#implemented-instruments)
+    - [Implemented Detectors](#implemented-detectors)
   - [Installation](#installation)
   - [Documentation](#documentation)
   - [Licence](#licence)
@@ -22,6 +24,7 @@ LuRaCs is a free, open-source application designed for the measurement and analy
 - Data export to common formats (.n42, .csv, .xlsx)
 - ROI selection with peak fitting and automatic updates during measurement
 - Calibration and determination of detector characteristics
+- Spectrum deconvolution using ML-EM
 - Nuclide data with reference emission lines
 - Command line interface for remote control and automation
 - Time-series and spectrogram-based measurements
@@ -50,35 +53,41 @@ The CLI is started by running with the `--headless` flag.
 ![cli_img](luracs/resources/docs/imgs/cli.webp) ![cli_spect](luracs/resources/docs/imgs/cli_spect.webp)
 
 
-### Implemented Instruments
-Currently, drivers for the following instruments are included by default
-- [RadiaCode-1xx series](https://www.radiacode.com/100-series) (USB, BLE)
+### Implemented Detectors
+Currently, drivers for the following detectors are included by default
+- [RadiaCode-1xx series & Zero](https://www.radiacode.com/100-series) (USB, BLE)
 - [Raysid](https://raysid.com/) (BLE)
+- Oretc digiBase (USB)
+- Ortec digiDart (USB)
+- Ortec Detecive X (NETWORK)
+- Flir Identifinder R400 (NETWORK)
 
 ## Installation
-Requires Python 3.10, 3.11, 3.12 or 3.13.
-Clone the repository and install using pip:
+```shell
+pip install luracs
+```
+Requires Python 3.10, 3.11, 3.12 or 3.13 and a C/C++-compiler.
+When installing from source, clone the repository and install using pip:
 
 ```shell
 git clone --recursive https://github.com/EBELU/LuRaCs.git
 cd LuRaCs/
 
-pip install .
+pip install .[dev]
 ```
 ## Documentation
 LuRaCs documentation can be found [here](luracs/resources/docs/documentation/Welcome.md) or under the *Help*-tab in the open program. 
+
+The full reference manual can be found [here](https://github.com/EBELU/LuRaCs-UserManual)
 
 ## Licence
 The LuRaCs source code is licensed under the GPL-3.0 license.
 
 The LuRaCs documentation and images are licensed under the CC BY-SA 4.0 license.
 
-
 ## Third-party assets
+Copies of third partly licences and notices are packaged in `/licenes`.
 
-This application uses Material Design Icons  
-https://pictogrammers.com/library/mdi/  
 
-Material Design Icons are licensed under the Apache License 2.0.
 
-A copy of the Apache 2.0 license is included in the `/licenses` directory.
+
