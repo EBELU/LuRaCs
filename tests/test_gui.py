@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pytestqt import qtbot
 
-    from luracs.main import MainWindow
+    from luracs.application import MainWindow
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QDialogButtonBox

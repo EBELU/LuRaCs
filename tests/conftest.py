@@ -5,7 +5,7 @@ import time
 from PySide6.QtWidgets import QApplication
 from pytestqt.qtbot import QtBot
 
-from luracs.main import build_application, MainWindow
+from luracs.application import build_application, MainWindow
 from luracs.core.script_engine import ScriptEngine
 from luracs.core import Settings
 
@@ -39,6 +39,7 @@ def app_context(
 def main_window(
     app_context,
 ) -> MainWindow:
+    app_context[1].show()
     return app_context[1]
 
 

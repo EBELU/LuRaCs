@@ -34,7 +34,7 @@ def write_coupled_points(
     point_name: str,
     point_names: list[str],
     *point_data,
-    point_kwargs: dict = None,
+    point_kwargs: dict | None = None,
 ):
     assert len(point_names) == len(point_data), (
         f"Point Names: {len(point_names)}, Point Data: {len(point_data)}"
@@ -69,9 +69,11 @@ class xml_writer:
         self,
         spectrum: Spectrum,
         file_name: str | Path,
-        export_spectrum=True,
-        export_rois=True,
-        export_instrument=True,
+        export_spectrum: bool = True,
+        export_rois: bool = True,
+        export_instrument: bool = True,
+        comment: str | None = None,
+        write_in_constructor: bool = True
     ):
         self.spectrum = spectrum
         self.file_name = Path(file_name)
@@ -85,61 +87,18 @@ class xml_writer:
             .isoformat()
             .replace("+00:00", "Z"),
         )
-        write_text_to_SubElement(
-            self.root, n42("RadInstrumentDataCreatorName"), "LuRaCs"
-        )
+        self.tree = etree.ElementTree(self.root)
         
-    
-        rad_instr_info = etree.SubElement(self.root, n42("RadInstrumentInformation"))
-            
-        instr_id = spectrum.instrument_id if spectrum.instrument_id is not None else "Unknown"
-        write_text_to_SubElement(rad_instr_info, "RadInstrumentIdentifier", instr_id)
-                
-        instr_model = spectrum.instrument_model if spectrum.instrument_model is not None else "Unknown"
-        write_text_to_SubElement(rad_instr_info, "RadInstrumentModelName", instr_model)
+        self.write_spectrum_preamble(spectrum)
         
-        # ------------------------------------------------------------------
-        # Spectrum Data
-        # ------------------------------------------------------------------
         if export_spectrum:
-            foreground_id = (
-                spectrum.foreground.spectrum_name
-                if spectrum.foreground.spectrum_name
-                else spectrum.name
-            )
-
-            background_id = (
-                spectrum.background.spectrum_name
-                if spectrum.background and spectrum.background.spectrum_name
-                else "BkgSample0"
-            )
-
-            if spectrum.calibrated:
-                energy_cal = etree.SubElement(
-                    self.root, "EnergyCalibration", id="EnergyCal0"
-                )
-                write_text_to_SubElement(
-                    energy_cal,
-                    "CoefficientValues",
-                    list(spectrum.calibration_coefficients[::-1]),
-                )
-
-            if spectrum.remark:
-                write_text_to_SubElement(self.root, "Remark", spectrum.remark)
-
-            write_SpectrumData(
-                spectrum.foreground, self.root, "foreground", foreground_id
-            )
-
-            if spectrum.background is not None:
-                write_SpectrumData(
-                    spectrum.background, self.root, "background", background_id
-                )
+            self.write_spectrum(spectrum)
 
         # ------------------------------------------------------------------
         # Luracs extensions
         # ------------------------------------------------------------------
         # Enough data is included in the extension the import everything to another app instance
+        # Not compatible with other software
 
         # --- ROIs ---
         if export_rois and len(spectrum.ROIs) > 0:
@@ -159,19 +118,85 @@ class xml_writer:
                 else self.extension_section
             )
             write_instrument_data(spectrum.instrument, self.extension_section)
+            
+        if comment is not None:
+            self.write_comment(comment)
+        
+        if write_in_constructor:
+            self.write_out()
 
-        # ------------------------------------------------------------------
-        # Write out
-        # ------------------------------------------------------------------
-        tree = etree.ElementTree(self.root)
-
-        tree.write(
+    # ------------------------------------------------------------------
+    # Write out
+    # ------------------------------------------------------------------
+    
+    def write_out(self):
+        self.tree.write(
             str(self.file_name.with_suffix(".xml")),
             pretty_print=True,
             xml_declaration=True,
             encoding="utf-8",
         )
+        
+    # ------------------------------------------------------------------
+    # Spectrum Data
+    # ------------------------------------------------------------------
+    
+    def write_spectrum_preamble(self, spectrum: Spectrum):
+        write_text_to_SubElement(
+            self.root, n42("RadInstrumentDataCreatorName"), "LuRaCs"
+        )
+        
+        rad_instr_info = etree.SubElement(self.root, n42("RadInstrumentInformation"))
+            
+        instr_id = spectrum.instrument_id if spectrum.instrument_id is not None else "Unknown"
+        write_text_to_SubElement(rad_instr_info, "RadInstrumentIdentifier", instr_id)
+                
+        instr_model = spectrum.instrument_model if spectrum.instrument_model is not None else "Unknown"
+        write_text_to_SubElement(rad_instr_info, "RadInstrumentModelName", instr_model)
 
+    def write_spectrum(self, spectrum: Spectrum):
+        foreground_id = (
+            spectrum.foreground.spectrum_name
+            if spectrum.foreground.spectrum_name
+            else spectrum.name
+        )
+
+        background_id = (
+            spectrum.background.spectrum_name
+            if spectrum.background and spectrum.background.spectrum_name
+            else "BkgSample0"
+        )
+
+        if spectrum.calibrated:
+            energy_cal = etree.SubElement(
+                self.root, "EnergyCalibration", id="EnergyCal0"
+            )
+            write_text_to_SubElement(
+                energy_cal,
+                "CoefficientValues",
+                list(spectrum.calibration_coefficients[::-1]),
+            )
+
+        if spectrum.remark:
+            write_text_to_SubElement(self.root, "Remark", spectrum.remark)
+
+        write_SpectrumData(
+            spectrum.foreground, self.root, "foreground", foreground_id
+        )
+
+        if spectrum.background is not None:
+            write_SpectrumData(
+                spectrum.background, self.root, "background", background_id
+            )
+            
+    def write_comment(self, comment: str):
+        assert isinstance(comment, str)
+        comm = etree.Comment(comment)
+        self.tree.getroot().addprevious(comm)
+            
+# ------------------------------------------------------------------
+# Writer functions
+# ------------------------------------------------------------------
 
 def write_SpectrumData(data: SpectrumData, root, kind: str, spectrum_id: str):
     assert kind in ("foreground", "background")

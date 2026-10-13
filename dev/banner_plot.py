@@ -40,7 +40,7 @@ labels = ["Lu-177", "Cs-137", "Ra-226"]
 
 cutoff = 650
 
-fig, ax = plt.subplots(figsize=(9, 5.2), facecolor=bg)
+fig, ax = plt.subplots(figsize=(9, 4), facecolor=bg)
 ax.set_facecolor(bg)
 
 # Frame

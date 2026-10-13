@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pytestqt import qtbot as qtbot_t
 
-    from luracs.main import MainWindow
+    from luracs.application import MainWindow
     
 from datetime import datetime
 
