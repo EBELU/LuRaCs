@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from main import MainWindow
+    from luracs.application import MainWindow
 
 import shutil
 
@@ -42,6 +42,13 @@ class MainMenuBar(QMenuBar):
         file_menu_export_library.triggered.connect(IOManager.Exporter.export_library)
         file_menu_import_library = file_menu.addAction("Import Data Store")
         file_menu_import_library.triggered.connect(IOManager.Importer.import_library)
+        file_menu_data_store_location = file_menu.addAction("File Location")
+        file_menu_data_store_location.triggered.connect(
+            lambda : QMessageBox.information(
+                self, 
+                "File Locations", 
+                f"Local files are stored at: \n{Settings.Paths.appdata}")
+            )
         file_menu.addSeparator()
         file_menu_import_third_party_driver = file_menu.addAction("Import Drivers")
         file_menu_import_third_party_driver.triggered.connect(self.import_thrid_party_driver)

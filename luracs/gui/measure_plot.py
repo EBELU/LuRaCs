@@ -18,6 +18,7 @@ from PySide6.QtCore import QObject
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QComboBox,
+    QDialog,
     QFileDialog,
     QHBoxLayout,
     QLabel,
@@ -29,17 +30,94 @@ from PySide6.QtWidgets import (
     QTextEdit,
     QVBoxLayout,
     QWidget,
+    QFormLayout,
+    QDialogButtonBox,
+    QDoubleSpinBox
 )
 
-from luracs.containers.spectrum_classes import SpectrumData
+from textwrap import dedent
+
+from luracs.containers.spectrum_classes import Spectrum, SpectrumData
 from luracs.core import RunManager, Settings, core_utils
 from luracs.utils.color_rotator import ColorRotator
+from luracs.containers.report_template import MeasurementReport
+from luracs.utils.file_io import xml_report_writer
 
+class ReportFormDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        
+        main_layout = QVBoxLayout(self)
+        
+        form = QFormLayout()
+        label = QLabel(" Enter additional report information ")
+        label.setStyleSheet("font-weight: bold;")
+        form.addRow(label)
+        self.name = QLineEdit()
+        form.addRow("Name", self.name)
+        self.location = QLineEdit()
+        form.addRow("Location", self.location)
+        
+        self.longitude = QDoubleSpinBox()
+        self.longitude.setRange(-180.0, 180.0)
+        self.longitude.setDecimals(6)
+        self.longitude.setSingleStep(0.0001)
+        self.longitude.setSuffix("°")
+        self.longitude.setKeyboardTracking(False)
+
+        form.addRow("Longitude", self.longitude)
+
+        self.latitude = QDoubleSpinBox()
+        self.latitude.setRange(-90.0, 90.0)
+        self.latitude.setDecimals(6)
+        self.latitude.setSingleStep(0.0001)
+        self.latitude.setSuffix("°")
+        self.latitude.setKeyboardTracking(False)
+
+        form.addRow("Latitude", self.latitude)
+        
+        self.weather = QLineEdit()
+        form.addRow("Weather", self.weather)
+        
+        self.remark = QTextEdit()
+        form.addRow("Comments", self.remark)
+        
+        main_layout.addLayout(form)
+        
+        button_box = QDialogButtonBox(self)
+
+        self.cancel_button = button_box.addButton(
+            QDialogButtonBox.StandardButton.Cancel
+        )
+        self.next_button = button_box.addButton(
+            "Next →",
+            QDialogButtonBox.ButtonRole.AcceptRole
+        )
+        
+        self.cancel_button.clicked.connect(self.reject)
+        self.next_button.clicked.connect(self.accept)
+
+        main_layout.addWidget(button_box)
+        
+        
+        
+    def get_results(self) -> dict:
+        return {
+            "author_name": self.name.text(),
+            "location": self.location.text(),
+            "weather": self.weather.text(),
+            "remark": self.remark.toPlainText().strip(),
+            "longitude": self.longitude.value(),
+            "latitude": self.latitude.value(),
+        }
+        
+        
 
 class Measurement(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.detector_name = ""
+        self.start_time: datetime | None = None
         self.remaining_time = 0  # in seconds
         self.duration_limit = 0  # in seconds
         self.measurement_time = 0  # in seconds
@@ -156,6 +234,7 @@ class MeasurePlot(QWidget):
         self.progress_bar.setValue(0)
         self.progress_bar.setFormat("Remaining: 00:00:00")
         control_layout.addWidget(self.progress_bar)
+        
         main_layout.addLayout(control_layout)
         
         label = QLabel(" Controls ")
@@ -182,7 +261,6 @@ class MeasurePlot(QWidget):
         self.info_text = QTextEdit()
         self.info_text.setReadOnly(True)
         spectrum_layout.addWidget(self.info_text)
-        spectrum_layout.addLayout(spectrum_layout, 1)
         
         # --- Spectrum Plot ---
         self.spectrum_plot = pg.PlotWidget()
@@ -335,6 +413,7 @@ class MeasurePlot(QWidget):
             return
         
         if self.current_measurement.x_axis is None and spectrum.calib_coeff is not None:
+            self.current_measurement.start_time = datetime.now()
             self.current_measurement.set_calibration(spectrum.calib_coeff, len(spectrum.y_axis))
         
         self.current_measurement.update_real_time(self.buffer_real_time)
@@ -395,12 +474,17 @@ class MeasurePlot(QWidget):
             QMessageBox.information(self, "No Measurement", "No measurement to report on.")
             return
         
+        report_form = ReportFormDialog()
+        res = report_form.exec()
+        if res != QDialog.DialogCode.Accepted:
+            return
+        
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         file, used_filter = QFileDialog.getSaveFileName(
             self,
             "Export File",
             str(Settings.Paths.last_opened_dir / f"MeasurementReport_{timestamp}"),
-            "Text Report (.txt);; JSON Report (.json)",
+            "Report (.xml)",
             options=QFileDialog.Option.DontUseNativeDialog,
         )
         if not file:
@@ -418,10 +502,33 @@ class MeasurePlot(QWidget):
             if result == QMessageBox.StandardButton.Cancel:
                 return
             
-        if ".txt" in used_filter:
-            print("txt")
-        elif ".json" in used_filter:
-            print(".json")
+        form_data = report_form.get_results()
+            
+
+        new_spectrum = Spectrum(
+            len(self.current_measurement.spectrum), 
+            file.stem, 
+            instrument_id = self.current_measurement.detector_name
+            )
+        
+        fg = SpectrumData(
+            y_axis=self.current_measurement.spectrum,
+            channels=len(self.current_measurement.spectrum),
+            total_counts=self.current_measurement.accumulated_counts,
+            live_time=self.current_measurement.measurement_time,
+            start_date=self.current_measurement.start_time,
+            spectrum_name=file.stem
+        )
+        new_spectrum.set_foreground(fg)
+        
+        report = MeasurementReport(
+            date=datetime.now(),
+            **form_data,
+            fg_measurement=self.current_measurement,
+            bg_measurement=None
+        )
+        
+        xml_report_writer(new_spectrum, file, report)
 
             
     

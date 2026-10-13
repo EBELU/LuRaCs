@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from luracs.core.script_engine import ScriptEngine
-    from luracs.main import MainWindow
+    from luracs.application import MainWindow
 
 import argparse
 from pathlib import Path

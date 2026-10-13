@@ -1,0 +1,512 @@
+import logging
+import sys
+
+__version__ = "0.6.0"
+
+
+def print_progress(text, progress):
+    print(
+        "\r[" + "=" * progress + " " * (10 - progress) + "]",
+        f"-- {text} {' ' * 15}",
+        end="",
+        flush=True,
+    )
+print_progress("Loading GUI", 0)
+
+logging.basicConfig(level=logging.INFO)
+
+# --- Vital imports for core application to function ---
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication, QMessageBox, QSplitter
+
+from luracs.core import (
+    Log,
+    RunManager,
+    Settings,
+    SpectrumManager,
+    core_utils,
+    log_utils,
+)
+
+try:
+    from luracs import build_config
+    core_utils.build_config = build_config
+except ImportError:
+    class build_config:
+        IS_H3 = False
+        IS_Si = False
+    core_utils.build_config = build_config
+
+from luracs.core.script_engine import ScriptEngine  # Not normally exposed in the api
+
+script_engine: ScriptEngine | None = None
+
+from PySide6.QtCore import QTimer
+
+# --- PySide6 Imports for main window ---
+from PySide6.QtGui import QCloseEvent, QIcon
+from PySide6.QtWidgets import (
+    QMainWindow,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
+
+# --- Perform standard internal imports ---
+from luracs.gui import (
+    MainMenuBar,
+    MeasurePlot,
+    SpectrogramWidget,
+    SpectrumPlotContainer,
+)
+from luracs.gui.dialogs.calc_peak_features import PeakFeaturesDialog
+from luracs.gui.dialogs.connect_network_device import ConnectNetworkDeviceDialog
+from luracs.gui.dialogs.connect_serial_gps import ConnectSerialGPSDialog
+from luracs.gui.dialogs.driver_library_dialog import DriverLibraryDialog
+from luracs.gui.dialogs.settings_dialog import SettingsDialog
+from luracs.gui.tabs import (
+    ConsoleTab,
+    DevicesInfoTab,
+    IsotopicsTab,
+    LogWidget,
+    RealTimeValuesPlot,
+    ROIInfoTab,
+    SpectrogramROITab,
+    SpectrumInfoTab,
+)
+from luracs.gui.windows import (
+    BluetoothListPopup,
+    CalibrationWindow,
+    DataLibrary,
+    DeconvolutionWindow,
+    DocumentationDialog,
+    EfficiencyWindow,
+    ResolutionWindow,
+    SmallDocumentationDialog,
+    USBListPopup,
+)
+from luracs.theme_manager import ThemeManager
+from luracs.utils import ascii_art
+from luracs.utils.arg_parser import parse_cli_args
+from luracs.utils.startup import startup_script
+
+# --- Import heavy features excluded in the lightweight version ---
+
+if not core_utils.build_config.IS_H3:
+    from luracs.gui.mapping import MapWidget
+
+print_progress("Loading luracs.utils.", 5)
+
+# ===================== IMPORTANT GUI CONNECTIONS =====================
+
+# Connect the edit dialog from the GUI to the core ROI object
+# If its not done like this we have circular import hell!
+from luracs.containers.roi_classes import CoreSpectrumROI
+from luracs.gui.dialogs.roi_editor import ROIEditor
+
+CoreSpectrumROI.roi_editor_dialog = ROIEditor
+
+
+# ===================== IMPORTANT SIGNALS =====================
+
+RunManager.Signals.createDeviceSpectrum.connect(SpectrumManager.create_spectrum)
+RunManager.Signals.removeDeviceSpectrum.connect(SpectrumManager.remove_spectrum)
+RunManager.Signals.spectrumUpdated.connect(SpectrumManager.set_foreground_spectrum)
+Settings.sigSettingChanged.connect(
+    lambda group, variable, new_value: Log.debug(
+        f"{Settings.__class__}: Setting updated: {group}.{variable} = {new_value}"
+    )
+)
+
+
+_closing = False       
+
+
+def close():
+    global script_engine, _closing
+    if _closing:
+        return
+    _closing = True
+    
+    try:
+        Settings.save_settings()
+        
+        # Clost spectrograms before shutting down the RunManager thread, since they live in the GUI thread
+        for name in list(RunManager.SpectrogramManager.spectrogram_registry):
+            try:
+                RunManager.close_spectrogram(name)
+            except Exception as e:
+                Log.warning(
+                    f"Closing spectrogram {name} raised: {e}"
+                )
+        
+        # Shutdown script engine
+        if script_engine is not None:
+            script_engine._loop.stop()
+            Log.debug("ScriptEngine stopped")
+        else:
+            Log.error("ScriptEngine was None at shutdown")
+
+        # Start shutdown
+        future = RunManager.submit_to_thread(
+            RunManager.shutdown()
+        )
+
+        # Wait for the shutdown coroutine itself
+        future.result(timeout=10)
+
+        # Wait for the actual RunManager thread to exit
+        if not RunManager._thread_stopped.wait(timeout=10):
+            raise RuntimeError(
+                "RunManager thread did not stop"
+            )
+
+        Log.debug("RunManager stopped")
+        Log.info("Module shutdown complete, closing Qt...")
+        # Now, and only now, shut down Qt
+        QApplication.quit()
+
+    except Exception as e:
+        print("Error during application shutdown", str(e))
+        QApplication.quit()
+
+
+
+
+# ===================== MAIN WINDOW =====================
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        print_progress("Initializing main window", 7)
+        suffix = ""
+        if core_utils.build_config.IS_Si:
+            suffix = "-Si"
+        elif core_utils.build_config.IS_H3:
+            suffix = "-H3"
+        self.setWindowTitle("LuRaCs" + suffix)
+
+        self.data_store = DataLibrary("Data Store", None)
+
+        # Shown from main menu bar
+        self.bt_window = BluetoothListPopup()
+        self.usb_window = USBListPopup()
+        self.network_connect_window = ConnectNetworkDeviceDialog()
+        self.serial_gps_window = ConnectSerialGPSDialog()
+
+        print_progress("Building GUI", 8)
+
+        self.bibliography_dialog = SmallDocumentationDialog(Settings.Paths.bibliography)
+        self.documentation_dialog = DocumentationDialog(
+            Settings.Paths.documentation_dir, parent=None
+        )
+
+        self.settings_dialog = SettingsDialog()
+        self.driver_dialog = DriverLibraryDialog()
+
+        self.calc_win_efficiency = EfficiencyWindow()
+        self.calc_win_calibration = CalibrationWindow()
+        self.calc_win_resolution = ResolutionWindow()
+        self.calc_win_deconvolution = DeconvolutionWindow()
+        self.calc_win_peak_features = PeakFeaturesDialog()
+
+        central = QWidget()
+        self.setCentralWidget(central)
+        layout = QVBoxLayout(central)
+        central_splitter = QSplitter(Qt.Vertical)
+        
+        if not core_utils.build_config.IS_H3:
+            self.map_widget = MapWidget()
+        else:
+            self.map_widget = None
+
+        self.main_menu_bar = MainMenuBar(self)
+        self.setMenuBar(self.main_menu_bar)
+
+        # ---------- SPECTRUM PLOT ----------
+        self.spect_tab = QTabWidget()
+        self.spect_tab.setTabPosition(QTabWidget.South)
+        self.spect_tab.setObjectName("southTabs")
+
+        self.spectrum_plot_container = SpectrumPlotContainer(self)
+        self.spect_tab.addTab(self.spectrum_plot_container, "Spectrum")
+
+        self.spectrogram = SpectrogramWidget(self)
+        self.spectrogram.sigShowDataStore.connect(self.show_data_store)
+        self.spect_tab.addTab(self.spectrogram, "Spectrogram")
+        
+        if self.map_widget is not None:
+             self.spect_tab.addTab(self.map_widget, "Map")
+
+        self.measure = MeasurePlot(self)
+        self.spect_tab.addTab(self.measure, "Measure")
+             
+
+        central_splitter.addWidget(self.spect_tab)
+
+        # ---------- Bottom Tabs ----------
+
+        self.bottom_tabs = QTabWidget(self)
+
+        # Spectrum Infp
+        self.spectrum_info_tab = SpectrumInfoTab(self, parent=self)
+        self.bottom_tabs.addTab(self.spectrum_info_tab, "Spectrum Info")
+        self.bottom_tabs.setTabToolTip(
+            0, "View detailed information about the spectra currently loaded"
+        )
+
+        # ROI info
+        self.roi_info_tab = ROIInfoTab(parent=self)
+        self.roi_info_tab.clearROIs.connect(SpectrumManager.ROIManager.clear_all)
+        self.bottom_tabs.addTab(self.roi_info_tab, "Spectrum ROIs")
+        self.bottom_tabs.setTabToolTip(
+            1,
+            "View detailed information about regions of interest (ROI) set in the spectra",
+        )
+        
+        self.spectrogram_roi_tab = SpectrogramROITab(self)
+        self.main_menu_bar.view_menu_sg_rois_compact_view.toggled.connect(self.spectrogram_roi_tab.plot_container.set_compact_view)
+        self.main_menu_bar.tools_menu_add_calc_roi.triggered.connect(self.spectrogram_roi_tab.plot_container.add_calc_roi)
+        self.bottom_tabs.addTab(self.spectrogram_roi_tab, "Spectrogram ROIs")
+        self.bottom_tabs.setTabToolTip(
+            2,
+            "View detailed information about regions of interest (ROI) set in the spectrogram",
+        )
+
+        # Current values
+        self.current_value_tab = RealTimeValuesPlot()
+        self.bottom_tabs.addTab(self.current_value_tab, "Real Time Values")
+        self.bottom_tabs.setTabToolTip(
+            3, "View the current values measured by a connected device"
+        )
+        self.main_menu_bar.view_menu_realtime_avg_line.triggered.connect(
+            self.current_value_tab.toggle_mean_lines
+        )
+
+        # Devices
+        self.devices_tab = DevicesInfoTab()
+        self.bottom_tabs.addTab(self.devices_tab, "Detectors")
+        self.bottom_tabs.setTabToolTip(4, "View connected devices and their status")
+
+        # Isotopics
+        self.isotopics_tab = IsotopicsTab(
+            list(SpectrumManager.NuclideLibrary.get_sorted_nuclide_names())
+        )
+        self.bottom_tabs.addTab(self.isotopics_tab, "Isotopics")
+        self.bottom_tabs.setTabToolTip(
+            5,
+            "View radionuclide information, set help lines in the spectrum, search peaks and auto assign peaks",
+        )
+        # Isotopics connections
+        self.spectrum_plot_container.sigRedrawRequested.connect(
+            self.isotopics_tab.request_line_data
+        )  # If spectrum plot redraws, get nuclide lines
+        self.spectrum_plot_container.sigTabChanged.connect(
+            self.isotopics_tab.search_spect_combo.setCurrentText
+        )  # In tabbed mode change what spectrum is searched by selected tab
+
+        self.isotopics_tab.sigColorChanged.connect(
+            lambda: self.spectrum_plot_container.request_redraw()
+        )  # Redraw on color change
+        self.isotopics_tab.btn_assign_emissions.clicked.connect(
+            self.spectrum_plot_container.match_nuclide_to_rois
+        )
+
+        self.main_menu_bar.tabbed_action.triggered.connect(
+            self.isotopics_tab.set_search_combo
+        )  # Disable combo
+        self.main_menu_bar.combined_action.triggered.connect(
+            self.isotopics_tab.set_search_combo
+        )  # Enable combo
+
+        # Console
+        self.console_tab = ConsoleTab()
+        self.bottom_tabs.addTab(self.console_tab, "Console")
+        self.bottom_tabs.setTabToolTip(
+            6, "Enter text commands and run scripts in the console"
+        )
+
+        # System log
+        self.log_tab = LogWidget()
+        self.bottom_tabs.addTab(self.log_tab, "System Log")
+        self.bottom_tabs.setTabToolTip(7, "View messages logged by the system")
+
+        central_splitter.addWidget(self.bottom_tabs)
+        central_splitter.setStretchFactor(0, 6)
+        central_splitter.setStretchFactor(1, 5)
+        
+        layout.addWidget(central_splitter)
+
+        # Theming
+        core_utils.ThemeManager.register_plot(
+            self.current_value_tab.cps_plot_widget,
+            self.current_value_tab.dose_plot_widget,
+            self.spectrogram.plot,
+            self.spectrogram.top_spectrum_plot,
+            self.calc_win_efficiency.demo_plot,
+            self.calc_win_calibration.calibration_plot,
+            self.calc_win_resolution.res_plot,
+        )
+        core_utils.ThemeManager.register_legend(
+            *self.current_value_tab.legends
+            )
+        core_utils.ThemeManager.register_legend(
+            self.spectrum_plot_container.single_plot.legend
+        )
+        core_utils.ThemeManager.apply(ThemeManager.themes(Settings.Appearance.theme))
+        Log.debug(f"{self.__class__}: Theme loaded '{Settings.Appearance.theme}'")
+
+        # Run things that need the event loop active
+
+        if Settings.Appearance.tabbed_spectrum_view:
+            self.spectrum_plot_container.set_tabbed_mode()
+        else:
+            self.spectrum_plot_container.set_combined_mode()
+            
+        self.main_menu_bar.sigToggleSiMode.connect(self.set_Si_interface)
+        
+
+        print_progress("Main window loaded", 9)
+
+    def show_data_store(self, tab_idx=None):
+        if tab_idx is not None:
+            self.data_store.tabs.setCurrentIndex(tab_idx)
+
+        self.data_store.show()
+
+    def closeEvent(self, event: QCloseEvent = None):
+        global _closing
+        if _closing:
+            event.accept()
+            return
+        Log.info("Disconnecting devices and shutting down application...")
+        event.ignore()
+        self.hide()
+        if self.map_widget is not None:
+            self.map_widget.stop()
+        close()
+        
+    def set_compact(self, compact: bool):
+        pass
+    
+    def set_Si_interface(self, Si: bool):
+        if Si:
+            self.bottom_tabs.hide()
+            if core_utils.build_config.IS_Si:
+                self.spect_tab.setCurrentIndex(2)
+            else:
+                self.spect_tab.setCurrentIndex(3)
+            self.spect_tab.tabBar().hide()
+            self.main_menu_bar.view_menu.menuAction().setVisible(False)
+            self.main_menu_bar.calculate_menu.menuAction().setVisible(False)
+            self.main_menu_bar.tools_menu.menuAction().setVisible(False)
+        
+        else:
+            self.bottom_tabs.show()
+            self.spect_tab.tabBar().show()
+            self.main_menu_bar.view_menu.menuAction().setVisible(True)
+            self.main_menu_bar.calculate_menu.menuAction().setVisible(True)
+            self.main_menu_bar.tools_menu.menuAction().setVisible(True)
+
+
+# ===================== ENTRY =====================
+def build_application() -> tuple[QApplication, MainWindow, ScriptEngine]:
+    "Builds the application, creating the main window, applying settings and connecting signals"
+    
+    global script_engine # Global instance
+    startup_script()
+    app = QApplication.instance()
+
+    if app is None:
+        app = QApplication(sys.argv)
+        
+    app.aboutToQuit.connect(close)
+    app.setApplicationName("LuRaCs")
+    app.setStyle("Fusion")
+    font = app.font()
+    font.setPointSize(Settings.Appearance.font_size)  # Change the font size
+    app.setFont(font)
+    app.setWindowIcon(
+        QIcon(str(Settings.Paths.themes / "icons" / "main_icon_green.png"))
+    )
+
+    # Check if headless
+    if "--headless" in sys.argv:
+        Settings.headless = True
+        Log.propagate = False
+        win = None
+    else:
+        # If not headless, show the GUI
+        win = MainWindow()
+        if core_utils.build_config.IS_Si:
+            win.set_Si_interface(core_utils.build_config.IS_Si)
+            win.main_menu_bar.toggle_Si_mode_action.setChecked(True)
+        
+
+        if core_utils.build_config.IS_Si:
+            QTimer.singleShot(500, lambda: QMessageBox.information(win, "LuRaCs-Si", ascii_art.Si_info_message()))
+        
+    Log.setLevel(level=logging.DEBUG if "--debug" in sys.argv else logging.INFO)
+    Log.debug(f"headless: {Settings.headless}")
+
+    # --- Set Handlers for the logger ---
+    if Settings.Advanced.log_write_to_file:
+        log_utils.attach_file_handler()
+
+    if Settings.Advanced.log_catch_exceptions:
+        log_utils.attach_exception_handler()
+
+    if Settings.Advanced.log_write_to_console and not Settings.headless:
+        log_utils.attach_console_handler()
+
+    # --- Script engine ---
+    script_engine = ScriptEngine(
+        program_version=__version__ + "--Tritium" if core_utils.build_config.IS_H3 else __version__,
+        headless=Settings.headless,
+        IS_H3=core_utils.build_config.IS_H3,
+    )
+
+    # Shutdown
+    def on_quit():
+        script_engine.submit_from_sync("__exit__")
+
+    app.aboutToQuit.connect(on_quit)
+
+    # Connect ScriptEngine Signals
+    script_engine.sigShutdown.connect(close)
+    script_engine.connect_log_buffer(log_utils.log_buffer.get_messages)
+    if win is not None:  # Does the main window exist?
+        win.console_tab.sigCommandEntered.connect(script_engine.submit_from_sync)
+        script_engine.sigCommandAppendOutput.connect(win.console_tab.append_output)
+        script_engine.sigCommandOutput.connect(win.console_tab.append_output)
+        script_engine.sigClearConsole.connect(win.console_tab.set_output)
+
+        if not core_utils.build_config.IS_H3:
+            script_engine.sigMapURL.connect(win.map_widget.load_map_from_url)
+            script_engine.sigMapFile.connect(win.map_widget.load_offline_map)
+        
+    script_engine.start()
+    
+    # font = app.font()
+    # for widget in app.allWidgets():
+    #     widget.setFont(font)
+
+    print_progress("Done!", 10)
+    print()
+    # --- Log welcome ---
+    Log.info(
+        "\n\n"
+        + ascii_art.logo(
+            __version__ + "--Tritium" if core_utils.build_config.IS_H3 else __version__,
+            is_h3=core_utils.build_config.IS_H3,
+            use_type="log",
+        )
+    )
+    
+
+    # --- Handle Command Line Arguments ---
+    if len(sys.argv) > 1:
+        QTimer.singleShot(100, lambda: parse_cli_args(win, script_engine))
+
+    return app, win, script_engine
+
+

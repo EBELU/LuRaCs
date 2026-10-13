@@ -19,7 +19,9 @@ def get_app_data_dir() -> Path:
     path = QStandardPaths.writableLocation(
         QStandardPaths.StandardLocation.AppLocalDataLocation
     )
-    app_data = Path(path) / "LuRaCs"
+    app_data = Path(path)
+    if app_data.stem != "LuRaCs":
+        app_data /= "LuRaCs"
     app_data.mkdir(parents=True, exist_ok=True)
 
     return app_data
