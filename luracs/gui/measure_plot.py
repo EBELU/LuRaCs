@@ -39,7 +39,7 @@ from PySide6.QtWidgets import (
 
 from luracs.containers.report_template import MeasurementReport
 from luracs.containers.spectrum_classes import Spectrum, SpectrumData
-from luracs.core import RunManager, Settings, core_utils
+from luracs.core import RunManager, Settings, core_utils, SpectrumManager
 from luracs.utils.color_rotator import ColorRotator
 from luracs.utils.file_io import xml_report_writer
 
@@ -302,7 +302,7 @@ class MeasurePlot(QWidget):
         self.spectrum_plot = pg.PlotWidget()
         self.spectrum_plot.setTitle("Measured Spectrum")
         self.spectrum_plot.setLabel("bottom", "Energy [keV]")
-        self.spectrum_plot.setLabel("left", "Counts per Channel")
+        self.spectrum_plot.setLabel("left", "Counts per Channel per Second")
         self.spectrum_plot.getViewBox().setMouseEnabled(x=True, y=False)
         self.spectrum_plot.getPlotItem().layout.setContentsMargins(2, 13, 13, 5)
         self.spectrum_plot.setLimits(xMin=-25, xMax=3000, minXRange=5)
@@ -562,9 +562,15 @@ class MeasurePlot(QWidget):
             QMessageBox.information(self, "Info", "Measurement time reached. Increase the measurement duration to continue.")
             return       
         
-        if self.current_measurement.x_axis is None and spectrum.calib_coeff is not None:
+        if self.current_measurement.x_axis is None:
             self.current_measurement.start_time = datetime.now()
-            self.current_measurement.set_calibration(spectrum.calib_coeff, len(spectrum.y_axis))
+            if spectrum.calib_coeff is None and SpectrumManager.get_spectrum(detector_name):
+                spect = SpectrumManager.get_spectrum(detector_name)
+                if spect.calibrated:
+                    self.current_measurement.set_calibration(spect.calibration_coefficients, spect.channels)
+                
+            else:
+                self.current_measurement.set_calibration(spectrum.calib_coeff, len(spectrum.y_axis))
         
         self.current_measurement.update_real_time(self.buffer_real_time)
         self.current_measurement.set_spectrum(spectrum)
@@ -711,14 +717,13 @@ class MeasurePlot(QWidget):
         if self.measure_fg.isChecked():
             self.count_rate_lines["fg"].setData(np.asarray(self.current_measurement.rate_axis) + Settings.Advanced.spectrum_update_delay, self.current_measurement.count_rate_data)
             self.dose_rate_lines["fg"].setData(np.asarray(self.current_measurement.rate_axis) + Settings.Advanced.spectrum_update_delay, self.current_measurement.dose_rate_data)
-            
             if self.current_measurement.x_axis is not None and self.current_measurement.spectrum is not None:
-                self.spectrum_lines["fg"].setData(self.current_measurement.x_axis, self.current_measurement.spectrum[:-1])
+                self.spectrum_lines["fg"].setData(self.current_measurement.x_axis, self.current_measurement.spectrum[:-1]  / max(self.current_measurement.measurement_time, 1))
         else:
             self.count_rate_lines["bg"].setData(np.asarray(self.current_measurement.rate_axis) + Settings.Advanced.spectrum_update_delay, self.current_measurement.count_rate_data)
             self.dose_rate_lines["bg"].setData(np.asarray(self.current_measurement.rate_axis) + Settings.Advanced.spectrum_update_delay, self.current_measurement.dose_rate_data)
             if self.current_measurement.x_axis is not None and self.current_measurement.spectrum is not None:
-                self.spectrum_lines["bg"].setData(self.current_measurement.x_axis, self.current_measurement.spectrum[:-1])
+                self.spectrum_lines["bg"].setData(self.current_measurement.x_axis, self.current_measurement.spectrum[:-1] / max(self.current_measurement.measurement_time, 1))
 
 if __name__ == "__main__":
     import sys

@@ -12,7 +12,7 @@ from .ListPopupBase import ListPopupNonBlocking
 
 
 def _on_usb_device_selected(device: usb.Device, selection_type: str):
-    Log.debug("Selected USB device:", device)
+    Log.debug(f"Selected USB device: {device}")
 
     serial = usb.util.get_string(device, device.iSerialNumber)
     product = usb.util.get_string(device, device.iProduct)
