@@ -14,35 +14,35 @@ from pathlib import Path
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import QObject
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
+    QButtonGroup,
     QComboBox,
     QDialog,
+    QDialogButtonBox,
+    QDoubleSpinBox,
     QFileDialog,
+    QFormLayout,
     QHBoxLayout,
     QLabel,
+    QLayout,
     QLineEdit,
     QMessageBox,
     QProgressBar,
     QPushButton,
+    QRadioButton,
     QSpinBox,
     QTextEdit,
     QVBoxLayout,
     QWidget,
-    QFormLayout,
-    QDialogButtonBox,
-    QDoubleSpinBox,
-    QButtonGroup, QRadioButton, QLayout
-    )
+)
 
-from textwrap import dedent
-
+from luracs.containers.report_template import MeasurementReport
 from luracs.containers.spectrum_classes import Spectrum, SpectrumData
 from luracs.core import RunManager, Settings, core_utils
 from luracs.utils.color_rotator import ColorRotator
-from luracs.containers.report_template import MeasurementReport
 from luracs.utils.file_io import xml_report_writer
+
 
 class ReportFormDialog(QDialog):
     def __init__(self, parent=None):
@@ -132,6 +132,7 @@ class Measurement:
         self.dose_rate_data: list = []
         self.rate_axis: list = []
         self.x_axis: np.ndarray | None = None
+        self.calibration_coefficients: list | None = None
         self.stop_timestamps: list[datetime] = []
         
         
@@ -155,8 +156,10 @@ class Measurement:
     def set_calibration(self, coeffs: list, channels: int):
         if coeffs is not None:
             self.x_axis = np.polyval(coeffs, np.arange(channels))
+            self.calibration_coefficients = coeffs  
         else:
-            self.x_axis = np.arange(channels)    
+            self.x_axis = np.arange(channels)  
+
         
     def set_spectrum(self, spectrum: SpectrumData):
         if self.previous_spectrum is None:
@@ -662,20 +665,37 @@ class MeasurePlot(QWidget):
             
 
         new_spectrum = Spectrum(
-            len(self.current_measurement.spectrum), 
+            len(self.fg.spectrum), 
             file.stem, 
-            instrument_id = self.current_measurement.detector_name
+            instrument_id = self.fg.detector_name
             )
         
         fg = SpectrumData(
-            y_axis=self.current_measurement.spectrum,
-            channels=len(self.current_measurement.spectrum),
-            total_counts=self.current_measurement.accumulated_counts,
-            live_time=self.current_measurement.measurement_time,
-            start_date=self.current_measurement.start_time,
+            y_axis=self.fg.spectrum,
+            channels=len(self.fg.spectrum),
+            total_counts=self.fg.accumulated_counts,
+            live_time=self.fg.measurement_time,
+            start_date=self.fg.start_time,
             spectrum_name=file.stem
         )
         new_spectrum.set_foreground(fg)
+        
+        if self.bg.measurement_time > 0:
+            bg = SpectrumData(
+                y_axis=self.bg.spectrum,
+                channels=len(self.bg.spectrum),
+                total_counts=self.bg.accumulated_counts,
+                live_time=self.bg.measurement_time,
+                start_date=self.bg.start_time,
+                spectrum_name=file.stem
+            )
+            new_spectrum.set_background(bg)
+        
+        if self.fg.calibration_coefficients is not None:
+            new_spectrum.apply_calibration(self.fg.calibration_coefficients)
+        elif self.bg.calibration_coefficients is not None:
+            new_spectrum.apply_calibration(self.bg.calibration_coefficients)
+
         
         report = MeasurementReport(
             date=datetime.now(),
@@ -686,7 +706,6 @@ class MeasurePlot(QWidget):
         
         xml_report_writer(new_spectrum, file, report)
 
-            
     
     def update_plots(self):
         if self.measure_fg.isChecked():
