@@ -32,8 +32,9 @@ from PySide6.QtWidgets import (
     QWidget,
     QFormLayout,
     QDialogButtonBox,
-    QDoubleSpinBox
-)
+    QDoubleSpinBox,
+    QButtonGroup, QRadioButton, QLayout
+    )
 
 from textwrap import dedent
 
@@ -106,16 +107,15 @@ class ReportFormDialog(QDialog):
             "author_name": self.name.text(),
             "location": self.location.text(),
             "weather": self.weather.text(),
-            "remark": self.remark.toPlainText().strip(),
+            "remark": self.remark.toPlainText().replace("\n", "; ").strip(),
             "longitude": self.longitude.value(),
             "latitude": self.latitude.value(),
         }
         
         
 
-class Measurement(QObject):
-    def __init__(self, parent=None):
-        super().__init__(parent)
+class Measurement:
+    def __init__(self):
         self.detector_name = ""
         self.start_time: datetime | None = None
         self.remaining_time = 0  # in seconds
@@ -132,6 +132,7 @@ class Measurement(QObject):
         self.dose_rate_data: list = []
         self.rate_axis: list = []
         self.x_axis: np.ndarray | None = None
+        self.stop_timestamps: list[datetime] = []
         
         
     def set_detector_name(self, name: str):
@@ -184,6 +185,9 @@ class MeasurePlot(QWidget):
         status_layout.addWidget(QLabel("Detector"))
         self.detector_combo = QComboBox()
         self.detector_combo.setFixedWidth(200)
+        self.detector_combo.currentTextChanged.connect(
+            self.on_detector_change
+        )
         status_layout.addWidget(self.detector_combo)
         
         status_layout.addWidget(QLabel("Battery"))
@@ -216,19 +220,23 @@ class MeasurePlot(QWidget):
         self.hours_spin.valueChanged.connect(lambda : self.confirm_time_button.setChecked(True))
         control_layout.addWidget(QLabel("Hours"))
         control_layout.addWidget(self.hours_spin)
+        
         self.minutes_spin = QSpinBox()
         self.minutes_spin.valueChanged.connect(lambda : self.confirm_time_button.setChecked(True))
         self.minutes_spin.setRange(0, 59)
         control_layout.addWidget(QLabel("Minutes"))
         control_layout.addWidget(self.minutes_spin)
+        
         self.seconds_spin = QSpinBox()
         self.seconds_spin.valueChanged.connect(lambda : self.confirm_time_button.setChecked(True))
         self.seconds_spin.setRange(0, 59)
         control_layout.addWidget(QLabel("Seconds"))
         control_layout.addWidget(self.seconds_spin)
+        
         self.confirm_time_button = QPushButton("Confirm Time", checkable=True)
         self.confirm_time_button.clicked.connect(self.set_time)
         control_layout.addWidget(self.confirm_time_button)
+        
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
@@ -237,23 +245,48 @@ class MeasurePlot(QWidget):
         
         main_layout.addLayout(control_layout)
         
+        
         label = QLabel(" Controls ")
         label.setMaximumWidth(100)
         label.setStyleSheet("font-weight: bold;")
         start_stop_layout = QHBoxLayout()
         start_stop_layout.addWidget(label)
+
+        fg_bg_button_layout = QHBoxLayout()
+        self.measurement_type = QButtonGroup(self)
+        self.measurement_type.buttonToggled.connect(
+            self.on_measurement_type_changed
+        )
+        
+        self.measure_fg = QRadioButton("Foreground")
+        self.measure_fg.setChecked(True)
+        self.measure_bg = QRadioButton("Background")
+
+        self.measurement_type.addButton(self.measure_fg)
+        self.measurement_type.addButton(self.measure_bg)
+
+
+        fg_bg_button_layout.addWidget(self.measure_fg)
+        fg_bg_button_layout.addWidget(self.measure_bg)
+        fg_bg_button_layout.setSizeConstraint(QLayout.SizeConstraint.SetFixedSize)
+        start_stop_layout.addLayout(fg_bg_button_layout)
+        
         self.start_button = QPushButton("Start Measurement", checkable=True)
         self.start_button.clicked.connect(self.start_measurement)
         start_stop_layout.addWidget(self.start_button)
+        
         self.stop_button = QPushButton("Stop Measurement")
         self.stop_button.clicked.connect(self.stop_measurement)
         start_stop_layout.addWidget(self.stop_button)
+        
         self.clear_measurement_button = QPushButton("Clear Measurement")
         self.clear_measurement_button.clicked.connect(self.clear_measurement)
         start_stop_layout.addWidget(self.clear_measurement_button)
+        
         self.make_report_button = QPushButton("Make Report", checkable=True)
         self.make_report_button.clicked.connect(self.make_report)
         start_stop_layout.addWidget(self.make_report_button)
+        
         main_layout.addLayout(start_stop_layout, 7)
 
         
@@ -269,28 +302,41 @@ class MeasurePlot(QWidget):
         self.spectrum_plot.setLabel("left", "Counts per Channel")
         self.spectrum_plot.getViewBox().setMouseEnabled(x=True, y=False)
         self.spectrum_plot.getPlotItem().layout.setContentsMargins(2, 13, 13, 5)
-        self.spectrum_plot.setLimits(xMin=-25, xMax=3000, minXRange=5,)
-        
-        # Make data line
-        spect_color = color_rotator.next_color()
-        brush_color = QColor(spect_color)
-        brush_color.setAlpha(80)
+        self.spectrum_plot.setLimits(xMin=-25, xMax=3000, minXRange=5)
+    
+        legend = self.spectrum_plot.addLegend()
+        legend.setOffset((-1, 1))
+        legend.setLabelTextSize(f"{Settings.Appearance.font_size}pt")
 
-        self.spectrum_detector_line = self.spectrum_plot.plot(
-            [],
-            [],
-            pen=pg.mkPen(spect_color, width = 1),
-            brush=pg.mkBrush(brush_color),
-            fillLevel=0,
-            stepMode="center",
-            antialias=False,
-        )
+        self.spectrum_lines: dict[str, pg.PlotDataItem] = {}
+        fg_color = color_rotator.next_color()
+        color_rotator.next_color() # I like the green more than orange :)
+        bg_color = color_rotator.next_color()
         
+        for key in ("fg", "bg"):
+            spect_color = fg_color if key == "fg" else bg_color
+            brush_color = QColor(spect_color)
+            brush_color.setAlpha(80)
+
+            self.spectrum_lines[key] = self.spectrum_plot.plot(
+                [],
+                [],
+                name = "Foreground" if key == "fg" else "Background",
+                pen=pg.mkPen(spect_color, width=1),
+                brush=pg.mkBrush(brush_color),
+                fillLevel=0,
+                stepMode="center",
+                antialias=False,
+            )
+            
+
         
         spectrum_layout.addWidget(self.spectrum_plot)
         main_layout.addLayout(spectrum_layout, 2)
         
         # --- Layout for rate plots bellow the spectrum ---
+        fg_pen = pg.mkPen(fg_color)
+        bg_pen = pg.mkPen(bg_color)
         rate_layout = QHBoxLayout()
         
         self.count_rate_plot = pg.PlotWidget()
@@ -300,22 +346,59 @@ class MeasurePlot(QWidget):
         self.count_rate_plot.getViewBox().setMouseEnabled(x=True, y=False)
         
         self.count_rate_plot.getPlotItem().layout.setContentsMargins(2, 13, 13, 5)
-        self.count_rate_line = self.count_rate_plot.plot([], [], pen=color_rotator.next_pen())
+        self.count_rate_lines: dict[str, pg.PlotDataItem] = {
+            "fg": self.count_rate_plot.plot([], [], pen=fg_pen),
+            "bg": self.count_rate_plot.plot([], [], pen=bg_pen)
+        }
         rate_layout.addWidget(self.count_rate_plot)
         
-        
+        # --- Count Rate and Dose Rate Plots ---
+        rate_layout = QHBoxLayout()
+
+        # Count Rate Plot
+        self.count_rate_plot = pg.PlotWidget()
+        self.count_rate_plot.setTitle("Count Rate")
+        self.count_rate_plot.setLabel("bottom", "Measurement Time [s]")
+        self.count_rate_plot.setLabel("left", "Count Rate [/s]")
+        self.count_rate_plot.getViewBox().setMouseEnabled(x=True, y=False)
+        self.count_rate_plot.getPlotItem().layout.setContentsMargins(2, 13, 13, 5)
+
+        self.count_rate_lines: dict[str, pg.PlotDataItem] = {
+            "fg": self.count_rate_plot.plot(
+                [], [], pen=fg_pen
+            ),
+            "bg": self.count_rate_plot.plot(
+                [], [], pen=bg_pen
+            ),
+        }
+
+        rate_layout.addWidget(self.count_rate_plot)
+
+
+        # Dose Rate Plot
         self.dose_rate_plot = pg.PlotWidget()
         self.dose_rate_plot.setTitle("Dose Rate")
         self.dose_rate_plot.setLabel("bottom", "Measurement Time [s]")
         self.dose_rate_plot.setLabel("left", "Dose Rate [uSv/s]")
         self.dose_rate_plot.getPlotItem().layout.setContentsMargins(2, 13, 13, 5)
         self.dose_rate_plot.getViewBox().setMouseEnabled(x=True, y=False)
-        self.dose_rate_line = self.dose_rate_plot.plot([], [], pen=color_rotator.next_pen())
+
+        self.dose_rate_lines: dict[str, pg.PlotDataItem] = {
+            "fg": self.dose_rate_plot.plot(
+                [], [], pen=fg_pen
+            ),
+            "bg": self.dose_rate_plot.plot(
+                [], [], pen=bg_pen
+            ),
+        }
+
         rate_layout.addWidget(self.dose_rate_plot)
+
         main_layout.addLayout(rate_layout, 1)
         
         core_utils.ThemeManager.register_plot(self.spectrum_plot, self.count_rate_plot, self.dose_rate_plot)
-        
+        core_utils.ThemeManager.register_legend(legend)
+                
         self.connected: bool = False
         RunManager.Signals.deviceConnected.connect(self.catch_detector_added)
         RunManager.Signals.deviceRemoved.connect(self.catch_detector_removed)
@@ -323,9 +406,12 @@ class MeasurePlot(QWidget):
 
 
         self.buffer_real_time = None
-        self.current_measurement = Measurement()
+        self.fg = Measurement()
+        self.bg = Measurement()
+        self.current_measurement = self.fg
         self.time_limit_seconds = 0
         self.plot_nr = 0
+        self._measurement_signals_connected = False
         
         self.update_text()
         
@@ -344,15 +430,36 @@ class MeasurePlot(QWidget):
             if result == QMessageBox.StandardButton.Cancel:
                 return
         
-        RunManager.Signals.spectrumUpdated.connect(self.catch_spectrum_update)
-        RunManager.Signals.currentUpdated.connect(self.catch_real_time_update)
+        self.connect_measurement_signals()
         
     def stop_measurement(self):
-        RunManager.Signals.spectrumUpdated.disconnect(self.catch_spectrum_update)
-        RunManager.Signals.currentUpdated.disconnect(self.catch_real_time_update)
+        self.disconnect_measurement_signals()
+        if self.current_measurement.previous_spectrum is not None:
+            self.current_measurement.stop_timestamps.append(datetime.now())
         self.current_measurement.detector_name = self.detector_combo.currentText()
         self.current_measurement.previous_spectrum = None
-        
+
+    def connect_measurement_signals(self):
+        if not self._measurement_signals_connected:
+            RunManager.Signals.spectrumUpdated.connect(
+                self.catch_spectrum_update
+            )
+            RunManager.Signals.currentUpdated.connect(
+                self.catch_real_time_update
+            )
+            self._measurement_signals_connected = True
+
+
+    def disconnect_measurement_signals(self):
+        if self._measurement_signals_connected:
+            RunManager.Signals.spectrumUpdated.disconnect(
+                self.catch_spectrum_update
+            )
+            RunManager.Signals.currentUpdated.disconnect(
+                self.catch_real_time_update
+            )
+            self._measurement_signals_connected = False
+            
     def clear_measurement(self):
         result = QMessageBox.question(
             self,
@@ -363,13 +470,53 @@ class MeasurePlot(QWidget):
         if result == QMessageBox.StandardButton.Cancel:
             return
         
+        if self.measure_fg.isChecked():
+            key = "fg"
+            self.fg = Measurement()
+            self.current_measurement = self.fg
+        else:
+            key = "bg"
+            self.bg = Measurement()
+            self.current_measurement = self.bg
+        
         self.make_report_button.setChecked(False)
-        self.current_measurement.deleteLater()
-        self.current_measurement = Measurement()
-        self.spectrum_detector_line.setData([], [])
-        self.count_rate_line.setData([], [])    
-        self.dose_rate_line.setData([], [])    
+        self.spectrum_lines[key].setData([], [])
+        self.count_rate_lines[key].setData([], [])    
+        self.dose_rate_lines[key].setData([], [])    
         self.update_text()
+        
+    def on_measurement_type_changed(self, button, checked):
+        self.stop_button.click()
+        if checked:
+            if button == self.measure_fg:
+                self.current_measurement = self.fg
+            elif button == self.measure_bg:
+                self.current_measurement = self.bg
+        
+        self.set_time()
+        
+    def on_detector_change(self):
+        if self.fg.measurement_time != 0 or self.bg.measurement_time != 0:
+            res = QMessageBox.question(self, "Change Detector", "Changing detector will reset all previous measurements and all unsaved data will be lost!", QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,)
+            if res == QMessageBox.StandardButton.Cancel:
+                self.detector_combo.blockSignals(True)
+                detector_name = self.fg.detector_name if self.fg.detector_name else self.bg.detector_name
+                self.detector_combo.setCurrentText(detector_name)
+                self.detector_combo.blockSignals(False)
+                return
+
+        self.fg = Measurement()
+        self.current_measurement = self.fg
+
+        self.bg = Measurement()
+
+        self.make_report_button.setChecked(False)
+        for key in ["fg", "bg"]:
+            self.spectrum_lines[key].setData([], [])
+            self.count_rate_lines[key].setData([], [])    
+            self.dose_rate_lines[key].setData([], [])    
+        self.update_text()
+            
     
     def set_time(self):
         self.confirm_time_button.setChecked(False)
@@ -410,7 +557,7 @@ class MeasurePlot(QWidget):
         if 0.05 > (self.time_limit_seconds - self.current_measurement.measurement_time) and self.time_limit_seconds > 0:
             self.stop_button.click()
             QMessageBox.information(self, "Info", "Measurement time reached. Increase the measurement duration to continue.")
-            return
+            return       
         
         if self.current_measurement.x_axis is None and spectrum.calib_coeff is not None:
             self.current_measurement.start_time = datetime.now()
@@ -455,15 +602,24 @@ class MeasurePlot(QWidget):
         
     def update_text(self):
         text = (
-            " --- Measurement Summary --- \n\n"
-            f"Detector: {self.current_measurement.detector_name}\n"
+            f"Detector: {self.fg.detector_name}\n"
+            " --- Foreground Summary --- \n"
             f"Measurement Rate: {1 / Settings.Advanced.spectrum_update_delay}/s \n"
-            f"Measurement Time: {timedelta(seconds=round(self.current_measurement.measurement_time))}\n"
+            f"Measurement Time: {timedelta(seconds=round(self.fg.measurement_time))}\n"
             "\n"
-            f"Total Counts: {round(self.current_measurement.accumulated_counts)}\n"
-            f"Mean Count Rate: {round(self.current_measurement.mean_count_rate,2)} /s \n"
-            f"Total Dose: {round(self.current_measurement.accumulated_dose, 4)} uSv\n"
-            f"Mean Dose Rate: {round(self.current_measurement.mean_dose_rate, 3)} uSv/h\n"
+            f"Total Counts: {round(self.fg.accumulated_counts)}\n"
+            f"Mean Count Rate: {round(self.fg.mean_count_rate,2)} /s \n"
+            f"Total Dose: {round(self.fg.accumulated_dose, 4)} uSv\n"
+            f"Mean Dose Rate: {round(self.fg.mean_dose_rate, 3)} uSv/h\n"
+            "\n"
+            " --- Background Summary --- \n"
+            f"Measurement Rate: {1 / Settings.Advanced.spectrum_update_delay}/s \n"
+            f"Measurement Time: {timedelta(seconds=round(self.bg.measurement_time))}\n"
+            "\n"
+            f"Total Counts: {round(self.bg.accumulated_counts)}\n"
+            f"Mean Count Rate: {round(self.bg.mean_count_rate,2)} /s \n"
+            f"Total Dose: {round(self.bg.accumulated_dose, 4)} uSv\n"
+            f"Mean Dose Rate: {round(self.bg.mean_dose_rate, 3)} uSv/h\n"
         )
         
         self.info_text.setText(text)
@@ -524,19 +680,26 @@ class MeasurePlot(QWidget):
         report = MeasurementReport(
             date=datetime.now(),
             **form_data,
-            fg_measurement=self.current_measurement,
-            bg_measurement=None
+            fg_measurement=self.fg,
+            bg_measurement=self.bg
         )
         
         xml_report_writer(new_spectrum, file, report)
 
             
     
-    def update_plots(self):       
-        self.count_rate_line.setData(np.asarray(self.current_measurement.rate_axis) + Settings.Advanced.spectrum_update_delay, self.current_measurement.count_rate_data)
-        self.dose_rate_line.setData(np.asarray(self.current_measurement.rate_axis) + Settings.Advanced.spectrum_update_delay, self.current_measurement.dose_rate_data)
-        
-        self.spectrum_detector_line.setData(self.current_measurement.x_axis, self.current_measurement.spectrum[:-1])
+    def update_plots(self):
+        if self.measure_fg.isChecked():
+            self.count_rate_lines["fg"].setData(np.asarray(self.current_measurement.rate_axis) + Settings.Advanced.spectrum_update_delay, self.current_measurement.count_rate_data)
+            self.dose_rate_lines["fg"].setData(np.asarray(self.current_measurement.rate_axis) + Settings.Advanced.spectrum_update_delay, self.current_measurement.dose_rate_data)
+            
+            if self.current_measurement.x_axis is not None and self.current_measurement.spectrum is not None:
+                self.spectrum_lines["fg"].setData(self.current_measurement.x_axis, self.current_measurement.spectrum[:-1])
+        else:
+            self.count_rate_lines["bg"].setData(np.asarray(self.current_measurement.rate_axis) + Settings.Advanced.spectrum_update_delay, self.current_measurement.count_rate_data)
+            self.dose_rate_lines["bg"].setData(np.asarray(self.current_measurement.rate_axis) + Settings.Advanced.spectrum_update_delay, self.current_measurement.dose_rate_data)
+            if self.current_measurement.x_axis is not None and self.current_measurement.spectrum is not None:
+                self.spectrum_lines["bg"].setData(self.current_measurement.x_axis, self.current_measurement.spectrum[:-1])
 
 if __name__ == "__main__":
     import sys
