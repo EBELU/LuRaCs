@@ -16,7 +16,7 @@ from luracs.clients.device_wrapper_base import (
 from luracs.clients.digibase_client import digiBase
 from luracs.clients.digidart_client import digiDart
 from luracs.clients.gps import GPSData
-from luracs.clients.RadiacodeClient.src import RadiacodeClientAsync
+from luracs.clients.RadiacodeClient.src import RadiacodeClientAsync, RCZeroSpectrumRequestError
 from luracs.clients.RaysidClient.RaysidClient import RaysidClientAsync
 from luracs.core.settings import Settings
 from luracs.clients.identifinder_client import Identifinder400
@@ -41,8 +41,9 @@ class RadiacodeWrapper(DeviceWrapper):
         
     def __init__(self, address, connection: ConnectionType, usb_device: usb.core.Device = None):
         super().__init__(address, connection)
+        is_zero = "zero" in self.name.lower()
         self.name = self.name.split("#")[-1]
-        self.client = RadiacodeClientAsync(address, connection == ConnectionType.USB, usb_device=usb_device)
+        self.client = RadiacodeClientAsync(address, connection == ConnectionType.USB, usb_device=usb_device, is_zero=is_zero)
         self.channels = 1024
         self.calibration_coefficients = []
 

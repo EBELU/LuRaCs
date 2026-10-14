@@ -7,6 +7,7 @@ from bleak.exc import BleakError
 
 from .logger import logger
 from .radiacode import RadiaCode
+from .bytes_buffer import RCZeroSpectrumRequestError
 from .types import RareData, RealTimeData
 
 from usb.core import Device
@@ -39,7 +40,7 @@ class SpectrumResult:
 
 
 class RadiacodeAsync:
-    def __init__(self, address, usb=False, usb_device: Device | None = None):
+    def __init__(self, address, usb=False, usb_device: Device | None = None, is_zero: bool = False):
         self.address = address
         self._usb = usb
 
@@ -48,6 +49,8 @@ class RadiacodeAsync:
         self.usb_device = usb_device
 
         self.client: RadiaCode | None = None
+        self.is_zero = is_zero
+        self.zero_start_time = time.time()
 
         self._latest_cps = None
         self._latest_spectrum = None
@@ -87,7 +90,18 @@ class RadiacodeAsync:
         return self._latest_status
 
     async def get_spectrum(self):
-        spectrum = await self.client.spectrum()
+        try:
+            spectrum = await self.client.spectrum()
+        except RCZeroSpectrumRequestError:
+            self.is_zero = True
+            return SpectrumResult(
+                spectrum=np.zeros(1024),
+                counts=0,
+                uptime=time.time() - self.zero_start_time,
+                calib_coeff=None,
+                timestamp=time.time()
+            )
+        
         return SpectrumResult(
             spectrum=np.array(spectrum.counts),
             counts=sum(spectrum.counts),

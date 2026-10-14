@@ -1,5 +1,7 @@
 import struct
 
+class RCZeroSpectrumRequestError(Exception):
+    pass
 
 class BytesBuffer:
     """A buffer for reading binary data with position tracking.
@@ -56,7 +58,10 @@ class BytesBuffer:
         """
         sz = struct.calcsize(fmt)
         if self._pos + sz > len(self._data):
-            raise ValueError(f'BytesBuffer: {sz} bytes required for {fmt}, but have only {len(self._data) - self._pos}')
+            if sz == 8 and len(self._data) - self._pos == 4:
+                raise RCZeroSpectrumRequestError()
+            else:
+                raise ValueError(f'BytesBuffer: {sz} bytes required for {fmt}, but have only {len(self._data) - self._pos}')
         self._pos += sz
         return struct.unpack_from(fmt, self._data, self._pos - sz)
 
