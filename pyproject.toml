@@ -88,7 +88,7 @@ push = false
     'version = "{version}"',
 ]
 
-"luracs/main.py" = [
+"luracs/application.py" = [
     '__version__ = "{version}"',
 ]
 
