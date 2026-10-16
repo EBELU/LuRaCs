@@ -77,9 +77,23 @@ class ReportFormDialog(QDialog):
 
         form.addRow("Latitude", self.latitude)
         
+        form.addRow(QLabel(" "))
         self.weather = QLineEdit()
         form.addRow("Weather", self.weather)
         
+        self.wind_direction = QComboBox()
+        self.wind_direction.addItems(
+            ["-", "N", "NW", "W", "SW", "S", "SE", "E", "NE"]
+        )
+        form.addRow("Wind Direction", self.wind_direction)
+        
+        self.wind_speed = QDoubleSpinBox(decimals=1, maximum=100, minimum=0, suffix=" m/s", value=0, singleStep=0.1)
+        form.addRow("Wind Speed", self.wind_speed)
+        
+        self.air_temperature = QDoubleSpinBox(decimals=1, maximum=100, minimum=-100, suffix=" °C", value=0, singleStep=0.1)
+        form.addRow("Air Temperature", self.air_temperature)
+        
+        form.addRow(QLabel(" "))
         self.remark = QTextEdit()
         form.addRow("Comments", self.remark)
         
@@ -110,6 +124,9 @@ class ReportFormDialog(QDialog):
             "remark": self.remark.toPlainText().replace("\n", "; ").strip(),
             "longitude": self.longitude.value(),
             "latitude": self.latitude.value(),
+            "wind_direction": self.wind_direction.currentText(),
+            "wind_speed": self.wind_speed.value(),
+            "air_temperature": self.air_temperature.value(),
         }
         
         

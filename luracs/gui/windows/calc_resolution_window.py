@@ -122,13 +122,28 @@ class ResolutionWindow(QWidget):
 
         # --- Bottom Buttons ---
         bottom_buttons = QHBoxLayout()
-        assign_to_instrument_btn = QPushButton("Assign to instrument")
-        assign_to_instrument_btn.clicked.connect(self.assign_to_instruments)
+        self.assign_to_instrument_btn = QPushButton("Assign to Selected Instrument")
+        self.assign_to_instrument_btn.setToolTip(
+            "Assign the calculation to only the selected Generic Instrument"
+        )
+        self.assign_to_instrument_btn.clicked.connect(
+            lambda: self.assign_to_instruments(False)
+        )
+        self.assign_to_instruments_of_same_model_btn = QPushButton(
+            "Assign to Instrument Model"
+        )
+        self.assign_to_instruments_of_same_model_btn.setToolTip(
+            "Assign the calculation to all Unique Instruments of the same model as the selected Generic Instrument"
+        )
+        self.assign_to_instruments_of_same_model_btn.clicked.connect(
+            lambda: self.assign_to_instruments(True)
+        )
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(self.close)
 
         bottom_buttons.addStretch()
-        bottom_buttons.addWidget(assign_to_instrument_btn)
+        bottom_buttons.addWidget(self.assign_to_instruments_of_same_model_btn)
+        bottom_buttons.addWidget(self.assign_to_instrument_btn)
         bottom_buttons.addWidget(close_btn)
 
         main_layout.addLayout(bottom_buttons)

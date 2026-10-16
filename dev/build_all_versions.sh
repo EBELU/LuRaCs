@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# pytest && python -m build && python -m twine check dist/*
+pytest && python -m build && python -m twine check dist/*
 
 for spec in *.spec; do
     pyinstaller -y "$spec"

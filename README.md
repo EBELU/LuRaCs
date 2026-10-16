@@ -13,6 +13,7 @@ LuRaCs is a free, open-source application designed for the measurement and analy
     - [Analysis Tools](#analysis-tools)
     - [Time Series Measurements](#time-series-measurements)
     - [Area Mapping](#area-mapping)
+    - [Timed Measurements](#timed-measurements)
     - [CLI](#cli)
     - [Implemented Detectors](#implemented-detectors)
   - [Installation](#installation)
@@ -32,20 +33,24 @@ LuRaCs is a free, open-source application designed for the measurement and analy
 - Area mapping using a generic USB-connected GPS device
 ### Spectrum View
 The spectrum view shows a count histogram retrieved from an instrument or loaded from a file. *Regions Of Interest* (ROI) can be defined in which a Gaussian peak can be fitted and the result from the fit used in analysis tools.
-![spect_view](luracs/resources/docs/imgs/spect_view.webp)
-
-
+![spect_view](dev/GitHub_spectrum.png)
 ### Analysis Tools
 LuRaCs provides a comprehensive set of tools for analysing measured spectra. Spectra can be calibrated using known emission lines, and key instrument characteristics such as energy resolution and intrinsic efficiency can be determined, visualized, and stored for future use.
 
 If your primary goal is the analysis of previously acquired spectra, we recommend using [InterSpec](https://sandialabs.github.io/InterSpec/), which offers broader compatibility with a wide range of spectrum file formats and analysis workflows.
 ![analysis_view](luracs/resources/docs/imgs/analysis.webp)
+
+LuRaCs also implements a deconvolution tool that can enhance a spectrum using a detector dependent response matrix.       
+![deconv_view](dev/GitHub_deconv.png)
 ### Time Series Measurements
 When an instrument is connected, measurements can be recorded as a time series in the form of a *spectrogram*. A spectrogram stores the average count rate and dose rate for each acquisition interval, together with the corresponding accumulated spectrum. This enables both temporal trend analysis and detailed examination of the spectral data collected throughout the measurement period.
 ![timeseries_view](luracs/resources/docs/imgs/timeseries_view.webp)
 ### Area Mapping
 By connecting an external GPS device via USB, area mapping can be performed by extending standard spectrogram measurements with positional data. Maps can be retrieved from an online source via URL or loaded from a locally stored file for offline use. Supports export of mapped data to GeoJSON for use in common GIS applications like QGis.
-![map_img](luracs/resources/docs/imgs/map_with_points.webp)
+![map_img](dev/GitHub_map.png)
+### Timed Measurements
+Spectra and rates can be measured with a timer for standardized protocols with a simple and intuitive  interface. The measurements can the be exported as reports containing both human readable text and computer readable data for importing the report to other spectrum analysis tools.
+![measure_img](dev/GitHub_measure.png)
 ### CLI
 While the graphical user interface provides the primary means of interaction, LuRaCs also supports control via a Command Line Interface. This enables efficient remote operation, for example over an SSH connection to remotely deployed instruments such as a *Raspberry Pi*.
 
@@ -64,6 +69,7 @@ Currently, drivers for the following detectors are included by default
 - Flir Identifinder R400 (NETWORK)
 
 ## Installation
+LuRaCs can be installed from PyPi using the following command.
 ```shell
 pip install luracs
 ```

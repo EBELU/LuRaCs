@@ -90,9 +90,16 @@ class CalibrationWindow(QWidget):
         form.addRow("", parameter_layout)
         
         # --- Instrument attached to spectrum ---
+        instrument_layout = QHBoxLayout()
         self.line_detected_instrument = QLineEdit()
         self.line_detected_instrument.setReadOnly(True)
-        form.addRow("Instrument", self.line_detected_instrument)
+        
+        self.get_calibration_btn = QPushButton("Get calibration from instrument")
+        self.get_calibration_btn.clicked.connect(self.get_calibration_from_instrument)
+        instrument_layout.addWidget(self.line_detected_instrument)
+        instrument_layout.addWidget(self.get_calibration_btn)
+        
+        form.addRow("Instrument", instrument_layout)
 
         # --- Calculations ---
         btn_calculate = QPushButton("Calculate")
@@ -378,6 +385,20 @@ class CalibrationWindow(QWidget):
         
         Log.info(f"Instrument Calibration Assigned: name={instrument.name}, coeff={points}")
         self.set_table(spectrum_name)
+        
+    def get_calibration_from_instrument(self):
+        spectrum_name = self.combo_spectrum.currentText()
+        instrument = SpectrumManager.get_spectrum(spectrum_name).instrument
+        if instrument is None or instrument.calibration_coefficients is None:
+            QMessageBox.warning(self, "Error", "No instrument calibration found")
+            return
+        
+        
+        coeffs = instrument.calibration_coefficients
+        self.spin_poly_degree.setValue(len(coeffs) - 1)
+        
+        for i, c in enumerate(reversed(coeffs)):
+            self.poly_spin_list[i].setValue(c)
 
     def recalculate_difference(self, row_index: int):
         centre_value = float(self.roi_table.cellWidget(row_index, 3).value())

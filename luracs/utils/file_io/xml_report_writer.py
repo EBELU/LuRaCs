@@ -27,6 +27,11 @@ class xml_report_writer(xml_writer):
         Location: {report.location} (Long: {report.longitude}, Lat: {report.latitude})
         Detector: {report.fg_measurement.detector_name}
         
+        Weather: {report.weather}
+        Wind Direction: {report.wind_direction}
+        Wind Speed: {report.wind_speed} m/s
+        Air Temperature: {report.air_temperature} C
+        
         Remarks: {report.remark}
         
         == Foreground Summary ==
@@ -75,6 +80,9 @@ class xml_report_writer(xml_writer):
         write_text_to_SubElement(meta_data_section, "Location", report.location, 
                                  longitude=str(report.longitude), latitude=str(report.latitude))
         write_text_to_SubElement(meta_data_section, "Weather", report.weather)
+        write_text_to_SubElement(meta_data_section, "WindDirection", report.wind_direction)
+        write_text_to_SubElement(meta_data_section, "WindSpeed", report.wind_speed, unit="m/s")
+        write_text_to_SubElement(meta_data_section, "AirTemperature", report.air_temperature, unit="C")
         write_text_to_SubElement(meta_data_section, "Remarks", report.remark)
         
         for name, data in zip(["Foreground", "Background"], [report.fg_measurement, report.fg_measurement]):
