@@ -5,9 +5,10 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from luracs.containers.spectrum_classes import Spectrum
 
-from datetime import timedelta
 import math
+from datetime import timedelta
 
+import pyqtgraph as pg
 from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QPainter
 from PySide6.QtWidgets import (
@@ -25,8 +26,6 @@ from luracs.gui.misc.idx_table import StrIdxTable
 from luracs.gui.misc.table_menu_button import MenuButton
 from luracs.gui.save_to_internal_dialogs import save_spectrum_to_library_dialog
 from luracs.utils.file_io import io_dispatcher
-
-import pyqtgraph as pg
 
 
 class ColorCellWidget(QWidget):
@@ -193,7 +192,7 @@ class SpectrumInfoTab(QWidget):
 
             self.hide_show_btn[spectrum.name] = menu_button.add_action("Hide")
             self.hide_show_btn[spectrum.name].triggered.connect(
-                lambda: self._show_hide_action(spectrum.name)
+                lambda _, n=spectrum.name: self._show_hide_action(n)
             )
 
             edit_action = menu_button.add_action("Edit")
@@ -214,7 +213,7 @@ class SpectrumInfoTab(QWidget):
 
             self.hide_show_btn[spectrum.name] = menu_button.add_action("Hide")
             self.hide_show_btn[spectrum.name].triggered.connect(
-                lambda: self._show_hide_action(spectrum.name)
+                lambda _, n=spectrum.name: self._show_hide_action(n)
             )
 
             edit_action = menu_button.add_action("Edit")
@@ -250,11 +249,9 @@ class SpectrumInfoTab(QWidget):
     def _show_hide_action(self, name):
         spect = SpectrumManager.get_spectrum(name)
         if spect.show_in_plot:
-            spect.show_in_plot = False
             self.hide_show_btn[name].setText("Show")
             self.sigToggleVisibility.emit(name, False)
         else:
-            spect.show_in_plot = True
             self.hide_show_btn[name].setText("Hide")
             self.sigToggleVisibility.emit(name, True)
 

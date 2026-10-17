@@ -218,6 +218,7 @@ class _SpectrumManager(QObject):
     def update_visibility(self, name: str, state: bool):
         if name not in self.spectrum_registry:
             raise ValueError(f"Spectrum {name} does not exist")
+        self.spectrum_registry[name].show_in_plot = state
         self.Signals.visibilityChanged.emit(name, state)
         self.ROIManager.update_roi(spectrum_name=name)
 

@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 
 from luracs.core import Calculator, Log, Settings, SpectrumManager
 from luracs.utils.numerics import ml_em, process_response, richardson_lucy
+from luracs.containers.spectrum_classes import Spectrum, SpectrumData
 
 
 class DeconvolutionWindow(QWidget):
@@ -272,7 +273,7 @@ class DeconvolutionWindow(QWidget):
         # Flatten the overflow channel to avoid issues with the deconvolution algorithm
         y_axis = spectrum.get_foreground().copy()
         y_axis[-1] = y_axis[-2]
-
+        
         # Everything above this point happens on the GUI thread.
         Calculator.run(
             self._calculate_mlem_worker,
@@ -328,25 +329,42 @@ class DeconvolutionWindow(QWidget):
             SpectrumManager.spectrum_registry.get(
                 self.combo_spectra.currentData()
             )
-        )
+        )       
 
         if spectrum_copy is None:
             QMessageBox.warning(None, "Error", "No spectrum loaded")
             return
-
+        
         new_name = spectrum_copy.name + "_deconvolved"
+        new_spectrum = Spectrum(
+            spectrum_copy.channels, 
+            new_name, 
+            instrument_id = spectrum_copy.instrument_id,
+            instrument_model = spectrum_copy.instrument_model,
+            instrument = None
+            )
 
-        spectrum_copy.foreground.y_axis = deconv_y
-        spectrum_copy.name = new_name
-        spectrum_copy.foreground.total_counts = np.sum(deconv_y)
+        fg = SpectrumData(
+            deconv_y,
+            new_spectrum.channels,
+            np.sum(deconv_y),
+            spectrum_copy.foreground.live_time,
+            spectrum_copy.foreground.real_time,
+            start_date=spectrum_copy.foreground.start_date,
+            spectrum_name=new_name
+        )
+        
+        new_spectrum.set_foreground(fg)
+        new_spectrum.apply_calibration(spectrum_copy.calibration_coefficients)
 
         SpectrumManager.create_spectrum(
             new_name,
             spectrum_copy.channels,
         )
+        
         SpectrumManager.set_spectrum(
             new_name,
-            spectrum_copy,
+            new_spectrum,
         )
         
     def update_progress(self, progress: int, message: str):
