@@ -21,9 +21,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from luracs.containers.spectrum_classes import Spectrum, SpectrumData
 from luracs.core import Calculator, Log, Settings, SpectrumManager
 from luracs.utils.numerics import ml_em, process_response, richardson_lucy
-from luracs.containers.spectrum_classes import Spectrum, SpectrumData
 
 
 class DeconvolutionWindow(QWidget):

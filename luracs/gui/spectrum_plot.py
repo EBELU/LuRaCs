@@ -620,7 +620,7 @@ class SpectrumPlot(QWidget):
         # --- Gaussian line ---
         if spectrum_name not in self.ROI_lines_gaussian[roi_tag]:
             pen = pg.mkPen(
-                color=QColor(core_utils.ThemeManager.colors["text"]), width=1.3
+                color=QColor(core_utils.ThemeManager.colors["text"]), width=2
             )
             line = self.plot_widget.plot([], [], pen=pen)
             self.ROI_lines_gaussian[roi_tag][spectrum_name] = line

@@ -37,7 +37,7 @@ def main():
             splash.finish(win)
 
     # Wait for the qt event loop to start
-    QTimer.singleShot(15, initialize)
+    QTimer.singleShot(100, initialize)
 
     return app.exec()
 

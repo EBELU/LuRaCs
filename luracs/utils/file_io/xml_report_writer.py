@@ -85,7 +85,7 @@ class xml_report_writer(xml_writer):
         write_text_to_SubElement(meta_data_section, "AirTemperature", report.air_temperature, unit="C")
         write_text_to_SubElement(meta_data_section, "Remarks", report.remark)
         
-        for name, data in zip(["Foreground", "Background"], [report.fg_measurement, report.fg_measurement]):
+        for name, data in zip(["Foreground", "Background"], [report.fg_measurement, report.bg_measurement]):
             fg_section = etree.SubElement(branch, name)
             
             write_text_to_SubElement(
