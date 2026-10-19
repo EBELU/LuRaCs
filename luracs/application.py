@@ -185,7 +185,7 @@ class MainWindow(QMainWindow):
             suffix = "-H3"
         self.setWindowTitle("LuRaCs" + suffix)
 
-        self.data_store = DataLibrary("Data Store", None)
+        self.data_library = DataLibrary("Data Library", None)
 
         # Shown from main menu bar
         self.bt_window = BluetoothListPopup()
@@ -231,7 +231,7 @@ class MainWindow(QMainWindow):
         self.spect_tab.addTab(self.spectrum_plot_container, "Spectrum")
 
         self.spectrogram = SpectrogramWidget(self)
-        self.spectrogram.sigShowDataStore.connect(self.show_data_store)
+        self.spectrogram.sigShowDataStore.connect(self.show_data_library)
         self.spect_tab.addTab(self.spectrogram, "Spectrogram")
         
         if self.map_widget is not None:
@@ -367,11 +367,11 @@ class MainWindow(QMainWindow):
 
         print_progress("Main window loaded", 9)
 
-    def show_data_store(self, tab_idx=None):
+    def show_data_library(self, tab_idx=None):
         if tab_idx is not None:
-            self.data_store.tabs.setCurrentIndex(tab_idx)
+            self.data_library.tabs.setCurrentIndex(tab_idx)
 
-        self.data_store.show()
+        self.data_library.show()
 
     def closeEvent(self, event: QCloseEvent = None):
         global _closing

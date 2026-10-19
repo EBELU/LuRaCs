@@ -176,7 +176,7 @@ class SpectrogramWidget(QWidget):
         btn_unload_log = QPushButton("Unload")
         btn_unload_log.clicked.connect(self.unload_logger)
         btn_load_log = QPushButton("Load")
-        btn_load_log.clicked.connect(self.show_data_store)
+        btn_load_log.clicked.connect(self.show_data_library)
 
         self.options_bar.addWidget(btn_start_log)
         self.options_bar.addWidget(btn_unload_log)
@@ -465,7 +465,7 @@ class SpectrogramWidget(QWidget):
     # Helpers
     # ------------------------------------------------------------------
 
-    def show_data_store(self):
+    def show_data_library(self):
         self.sigShowDataStore.emit(1)
 
     def connect_logger(self):

@@ -429,7 +429,7 @@ class SpectrogramCommand(Command):
             start           Start a new spectrogram for a device or for all devices
             pause           Pause a running spectrogram
             unpause         Resume a paused spectrogram
-            load            Load a spectrogram from data store
+            load            Load a spectrogram from data library
             unload          Close a loaded spectrogram
 
         Options:

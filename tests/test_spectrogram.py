@@ -57,6 +57,8 @@ def test_spectrogram_to_spectrum(main_window: MainWindow, qtbot: qtbot_t, tmp_pa
     
     IOManager.Exporter.export_spectrogram_to_spectrum(True, current_spectrogram_name, str(tmp_path / "TimeSelectedSpectrum"), "Remark", start_time, stop_time)
     
+    
+    
     assert (tmp_path / "TimeSelectedSpectrum").with_suffix(".xml").is_file()
     
     IOManager.Exporter.export_spectrogram_to_spectrum(True, current_spectrogram_name, str(tmp_path / "FullSpectrum"), "Remark")
@@ -71,7 +73,4 @@ def test_export_spectrogram_to_xlsx(main_window: MainWindow, qtbot: qtbot_t, tmp
     assert (tmp_path / "SgExport").with_suffix(".xlsx").is_file()
     parser.close()
     
-    
-def test_export_spectrogram_to_spectrum(main_window: MainWindow, qtbot: qtbot_t):
-    pass
     

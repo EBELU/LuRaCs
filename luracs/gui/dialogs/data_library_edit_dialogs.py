@@ -1,38 +1,39 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from luracs.containers.spectrum_classes import Spectrum
 
 
-from PySide6.QtWidgets import QApplication, QWidget
+import numpy as np
+import pyqtgraph as pg
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QVBoxLayout,
-    QHBoxLayout,
-    QDialog,
-    QFormLayout,
-    QTextEdit,
+    QApplication,
     QComboBox,
-    QLineEdit,
+    QDialog,
     QDialogButtonBox,
-    QPushButton,
-    QLabel,
     QDoubleSpinBox,
-    QSpinBox,
+    QFormLayout,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QPushButton,
+    QSpinBox,
     QTableWidget,
     QTableWidgetItem,
-    QHeaderView,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
 )
 
-from PySide6.QtCore import Qt
-import pyqtgraph as pg
-import numpy as np
-
-from luracs.core import SpectrumManager, IOManager
-from luracs.utils.numerics import ResolutionFn, EfficiencyFn
-from luracs.containers.roi_classes import ROI, Fit
+from luracs.containers.roi_classes import ROI
+from luracs.core import IOManager, SpectrumManager
+from luracs.utils.numerics import EfficiencyFn, ResolutionFn
 
 
 class InstrumentDialog(QDialog):

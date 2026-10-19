@@ -7,12 +7,12 @@ if TYPE_CHECKING:
 
     from luracs.application import MainWindow
 
+import pytest
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QDialogButtonBox
 
 from luracs.core import RunManager, SpectrumManager
 from luracs.gui.dialogs.roi_editor import ROIEditor
-import pytest
 
 pytestmark = pytest.mark.order(1)
 

@@ -25,7 +25,7 @@ from ..misc.idx_table import StrIdxTable
 from luracs.utils.file_io import io_dispatcher
 from luracs.core import SpectrumManager, IOManager, RunManager
 from luracs.spectrogram import restart_spectrogram
-from ..dialogs.data_store_edit_dialogs import InstrumentDialog, ROIDialog
+from ..dialogs.data_library_edit_dialogs import InstrumentDialog, ROIDialog
 from luracs.containers.instrument_classes import UniqueInstrument, GenericInstrument
 from luracs.containers.spectrum_classes import Spectrum
 from luracs.gui.dialogs.save_dialog import SaveNamingDialog

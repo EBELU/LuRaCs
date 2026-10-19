@@ -36,14 +36,14 @@ class MainMenuBar(QMenuBar):
         file_menu_import = file_menu.addAction("Import")
         file_menu_import.triggered.connect(lambda: IOManager.Importer.import_generic())
         file_menu.addSeparator()
-        file_load = file_menu.addAction("Data Store")
-        file_load.triggered.connect(parent.data_store.show)
-        file_menu_export_library = file_menu.addAction("Export Data Store")
+        file_load = file_menu.addAction("Data Library")
+        file_load.triggered.connect(parent.data_library.show)
+        file_menu_export_library = file_menu.addAction("Export Data Library")
         file_menu_export_library.triggered.connect(IOManager.Exporter.export_library)
-        file_menu_import_library = file_menu.addAction("Import Data Store")
+        file_menu_import_library = file_menu.addAction("Import Data Library")
         file_menu_import_library.triggered.connect(IOManager.Importer.import_library)
-        file_menu_data_store_location = file_menu.addAction("File Location")
-        file_menu_data_store_location.triggered.connect(
+        file_menu_data_library_location = file_menu.addAction("File Location")
+        file_menu_data_library_location.triggered.connect(
             lambda : QMessageBox.information(
                 self, 
                 "File Locations", 

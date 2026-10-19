@@ -150,7 +150,7 @@ class _FileIndex(QObject):
 
 class Indexer(QObject):
     """
-    Tracks the storage, updates and indexing of internally stored .xml-files for access through the data store. Requires a special connection with the instrument library since they are always loaded and mutable.
+    Tracks the storage, updates and indexing of internally stored .xml-files for access through the data library. Requires a special connection with the instrument library since they are always loaded and mutable.
     """
 
     sigIndexUpdated = Signal()
@@ -354,7 +354,7 @@ class _Importer(QObject):
                     )  # Bool is to signal external import
 
             # --- Spectrogram Import ---
-            # An imported spectrogram is copied to the data store and then loaded for use
+            # An imported spectrogram is copied to the data library and then loaded for use
             elif selected_filter ==  self.ImportFilters.SPECTROGRAM.value:
                 new_name = (
                     Settings.Paths.spectrogram_library / file_path.name
@@ -386,7 +386,7 @@ class _Importer(QObject):
                         )
 
             # --- Instrument Import ---
-            # Importing an instrument only copies it to the data store for later use
+            # Importing an instrument only copies it to the data library for later use
             elif selected_filter ==  self.ImportFilters.INSTRUMENT.value:
                 parser = io_dispatcher(file_path)
                 if isinstance(parser, xml_parser):
@@ -444,7 +444,7 @@ class _Importer(QObject):
     def import_library(self):
         zip_file_path, _ = QFileDialog.getSaveFileName(
             None,
-            "Import zipped data store",
+            "Import zipped data library",
             str(Path.home()),
             "Zip-File (*.zip)",
             options=QFileDialog.Option.DontUseNativeDialog,
@@ -472,7 +472,7 @@ class _Exporter(QObject):
 
     # --- Spectrum ---
     def export_spectrum_dialog(self, spectrum_name: str):
-        "Export a single spectrum from outside the data store"
+        "Export a single spectrum from outside the data library"
         file_path, selected_filter = QFileDialog.getSaveFileName(
             None,
             "Export File",
@@ -512,7 +512,7 @@ class _Exporter(QObject):
         stop_time: datetime | None = None
         ):
         """
-        Create a spectrum from a spectrogram and add it to the Data Store.
+        Create a spectrum from a spectrogram and add it to the Data Library.
         """
         
         assert isinstance(spectrogram_name, str)
@@ -581,7 +581,7 @@ class _Exporter(QObject):
     def export_library(self):
         zip_file_path, _ = QFileDialog.getSaveFileName(
             None,
-            "Import zipped data store",
+            "Import zipped data library",
             str(Path.home()),
             "Zip-File (*.zip)",
             options=QFileDialog.Option.DontUseNativeDialog,
