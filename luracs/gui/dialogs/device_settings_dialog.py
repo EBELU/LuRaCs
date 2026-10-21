@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from luracs.clients import SupportedSettings
-from luracs.core import SpectrumManager, RunManager
+from luracs.core import RunManager, SpectrumManager
 
 
 class DeviceSettingsDialog(QDialog):

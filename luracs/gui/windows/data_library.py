@@ -1,39 +1,35 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    pass
-
-from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QTabWidget,
-    QSizePolicy,
-    QGroupBox,
-    QPushButton,
-    QCheckBox,
-    QMessageBox,
-    QFileDialog,
-    QAbstractItemView,
-    QMenu,
-)
-
-from PySide6.QtCore import Qt, Signal
-
-from ..misc.idx_table import StrIdxTable
-from luracs.utils.file_io import io_dispatcher
-from luracs.core import SpectrumManager, IOManager, RunManager
-from luracs.spectrogram import restart_spectrogram
-from ..dialogs.data_library_edit_dialogs import InstrumentDialog, ROIDialog
-from luracs.containers.instrument_classes import UniqueInstrument, GenericInstrument
-from luracs.containers.spectrum_classes import Spectrum
-from luracs.gui.dialogs.save_dialog import SaveNamingDialog
 
 import shutil
-from pathlib import Path
 from datetime import timedelta
-import luracs.utils.file_io as file_io
+from pathlib import Path
+
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QCheckBox,
+    QFileDialog,
+    QGroupBox,
+    QHBoxLayout,
+    QMenu,
+    QMessageBox,
+    QPushButton,
+    QSizePolicy,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
+
+from luracs.containers.instrument_classes import GenericInstrument, UniqueInstrument
+from luracs.containers.spectrum_classes import Spectrum
+from luracs.core import IOManager, RunManager, SpectrumManager
+from luracs.gui.dialogs.data_library_edit_dialogs import InstrumentDialog, ROIDialog
+from luracs.gui.dialogs.save_dialog import SaveNamingDialog
+from luracs.spectrogram import restart_spectrogram
+from luracs.utils import file_io
+from luracs.utils.file_io import io_dispatcher
+
+from ..misc.idx_table import StrIdxTable
 
 
 class DataLibrary(QWidget):

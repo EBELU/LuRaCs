@@ -110,7 +110,7 @@ class DocumentationDialog(QWidget):
         self.model = MarkdownFileSystemModel()
         self.model.setRootPath(str(doc_dir))
 
-        self.model.setNameFilters(["*.md"])
+        self.model.setNameFilters(["*.md", "*.html"])
         self.model.setNameFilterDisables(False)
 
         self.doc_tree = QTreeView()
@@ -149,11 +149,15 @@ class DocumentationDialog(QWidget):
     def load_markdown(self, path: str | Path):
         path = Path(path)
 
-        md_text = path.read_text(encoding="utf-8")
+        if path.suffix == ".md":
+            md_text = path.read_text(encoding="utf-8")
 
-        html = markdown.markdown(
-            md_text, extensions=["fenced_code", "tables", "sane_lists"]
-        )
+            html = markdown.markdown(
+                md_text, extensions=["fenced_code", "tables", "sane_lists"]
+            )
+        elif path.suffix == ".html":
+            html = path.read_text()
+        
 
         styled_html = f"""
         <html>

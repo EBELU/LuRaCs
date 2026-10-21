@@ -36,20 +36,20 @@ class xml_report_writer(xml_writer):
         
         == Foreground Summary ==
         Start: {report.fg_measurement.start_time}
-        Measurement Time: {report.fg_measurement.measurement_time} s
-        Accumulated Counts: {report.fg_measurement.accumulated_counts}
-        Accumulated Dose: {report.fg_measurement.accumulated_dose} uSv
-        Mean Count Rate: {report.fg_measurement.mean_count_rate} /s
-        Mean Dose Rate: {report.fg_measurement.mean_dose_rate} uSv/h
+        Measurement Time: {report.fg_measurement.measurement_time:.2f} s
+        Accumulated Counts: {round(report.fg_measurement.accumulated_counts)}
+        Accumulated Dose: {report.fg_measurement.accumulated_dose:.4f} uSv
+        Mean Count Rate: {report.fg_measurement.mean_count_rate:.2f} /s
+        Mean Dose Rate: {report.fg_measurement.mean_dose_rate:.3f} uSv/h
         Stops: {[str(v) for v  in report.fg_measurement.stop_timestamps]}
         
         == Background Summary ==
         Start: {report.bg_measurement.start_time}
-        Measurement Time: {report.bg_measurement.measurement_time} s
-        Accumulated Counts: {report.bg_measurement.accumulated_counts}
-        Accumulated Dose: {report.bg_measurement.accumulated_dose} uSv
-        Mean Count Rate: {report.bg_measurement.mean_count_rate} /s
-        Mean Dose Rate: {report.bg_measurement.mean_dose_rate} uSv/h
+        Measurement Time: {report.bg_measurement.measurement_time:.2f} s
+        Accumulated Counts: {round(report.bg_measurement.accumulated_counts)}
+        Accumulated Dose: {report.bg_measurement.accumulated_dose:.4f} uSv
+        Mean Count Rate: {report.bg_measurement.mean_count_rate:.2f} /s
+        Mean Dose Rate: {report.bg_measurement.mean_dose_rate:.3f} uSv/h
         Stops: {[str(v) for v  in report.bg_measurement.stop_timestamps]}
 
         ========================
@@ -114,7 +114,7 @@ class xml_report_writer(xml_writer):
 
             write_text_to_SubElement(
                 fg_section, "CountRatePoints",
-                [round(v, 4) for v in data.count_rate_data],
+                [round(v, 2) for v in data.count_rate_data],
                 unit="/s"
             )
 
@@ -126,7 +126,7 @@ class xml_report_writer(xml_writer):
 
             write_text_to_SubElement(
                 fg_section, "TimePoints",
-                [round(v, 4) for v in data.rate_axis]
+                [round(v, 2) for v in data.rate_axis]
             )
             
         

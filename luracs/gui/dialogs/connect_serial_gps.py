@@ -1,6 +1,7 @@
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtSerialPort import QSerialPortInfo, QSerialPort
+from PySide6.QtSerialPort import QSerialPort, QSerialPortInfo
 from PySide6.QtWidgets import (
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
@@ -8,7 +9,6 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QVBoxLayout,
-    QComboBox
 )
 
 from luracs.core import RunManager

@@ -8,9 +8,9 @@ if TYPE_CHECKING:
 
 import asyncio
 import sys
+import threading
 import time
 from collections import deque
-import threading
 from concurrent.futures import Future
 
 import numpy as np
@@ -24,7 +24,7 @@ from .settings import Settings
 # Deal with windows usb BS!!! >:(
 # -----------------------------
 if sys.platform.startswith("win"):
-    import libusb_package  # <- thank you!
+    import libusb_package
     import usb.backend.libusb1
     import usb.core
     import usb.util
@@ -40,7 +40,12 @@ else:
     import usb.util
 
 
-from luracs.clients import ConnectionType, CriticalNotImplementedError, DeviceWrapper, GPS
+from luracs.clients import (
+    GPS,
+    ConnectionType,
+    CriticalNotImplementedError,
+    DeviceWrapper,
+)
 
 from .gui_logger import gui_logger
 from .spectrogram_manager import SpectrogramManager
@@ -81,7 +86,7 @@ class EmittedSignals(QObject):
     bluetoothFound = Signal(list)
     bluetoothError = Signal(str)
     
-    toDeivceResetSpectrum = Signal()
+    toDeviceResetSpectrum = Signal()
     toDeviceStartAcquisition = Signal()
     toDeviceStopAcquisition = Signal()
     
@@ -290,7 +295,7 @@ class _RunManager(QObject):
         )
         
         # Connect signals that apply to all devices
-        self.Signals.toDeivceResetSpectrum.connect(new_device.reset_spectrum)
+        self.Signals.toDeviceResetSpectrum.connect(new_device.reset_spectrum)
         self.Signals.toDeviceStartAcquisition.connect(new_device.start_acquisition)
         self.Signals.toDeviceStopAcquisition.connect(new_device.stop_acquisition)
 
@@ -329,7 +334,7 @@ class _RunManager(QObject):
             gui_logger.info(f"Stopping device {device_name}")
             
             # Disconnect signals
-            self.Signals.toDeivceResetSpectrum.disconnect(client.reset_spectrum)
+            self.Signals.toDeviceResetSpectrum.disconnect(client.reset_spectrum)
             self.Signals.toDeviceStartAcquisition.disconnect(client.start_acquisition)
             self.Signals.toDeviceStopAcquisition.disconnect(client.stop_acquisition)
             
@@ -521,16 +526,33 @@ class _RunManager(QObject):
     # ------------------------------------------------------------------
 
     def reset_all_spectra(self):
-        self.Signals.toDeivceResetSpectrum.emit()
+        self.Signals.toDeviceResetSpectrum.emit()        
         
     # ------------------------------------------------------------------
     # GPS
     # ------------------------------------------------------------------
 
     def set_gps(self, state: bool):
+        # Slot for instruments to change the state
+        if self.has_gps and self.gps is not None:
+                self.gps.close()
+                self.gps = None
+        
         self.has_gps = state
         
     def connect_serial_gps(self, port: str, baud_rate: QSerialPort = QSerialPort.BaudRate.Baud4800):
+        # If GPS is already collected from a detector, stop it
+        if self.has_gps:
+            for det in self.device_registry.values():
+                if hasattr(det, "use_gps"):
+                    det.use_gps = False
+        
+        # If another serial connection is already active, close it
+        # Most common is likely to be if the usb disconnected
+        if self.gps is not None:
+            self.gps.close()
+            self.gps = None
+
         self.gps = GPS(port, baud_rate)
         if not self.gps.open():
             self.gps.log.error(f"Failed to open: {self.gps.port.errorString()}")

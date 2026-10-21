@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from luracs.core import IOManager, RunManager, SpectrumManager
+from luracs.core import IOManager, RunManager, SpectrumManager, Log
 from luracs.gui.dialogs.data_library_edit_dialogs import SpectrumEditDialog
 from luracs.gui.misc.idx_table import StrIdxTable
 from luracs.gui.misc.table_menu_button import MenuButton
@@ -157,6 +157,8 @@ class SpectrumInfoTab(QWidget):
                 SpectrumManager.import_spectrum_as_background(
                     data["name"], io_dispatcher(data["background_pth"]).data
                 )
+            except FileNotFoundError:
+                Log.error(f"Spectrum Edit: Background file {data['background_pth']} not found!")
             except IndexError as e:
                 QMessageBox.warning(self, "Error", str(e))
 
