@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 from PySide6.QtWidgets import QMessageBox
 
 from luracs.containers.roi_classes import ROI
@@ -15,9 +17,14 @@ def save_spectrum_to_library_dialog(spectrum: Spectrum):
     spectrum.remark = save_diag.get_remark()
 
     if res == SaveNamingDialog.Accepted:
+        # Create the file path the will also be the indexer key
         new_file = (Settings.Paths.spectrum_library / save_diag.get_name()).with_suffix(
             ".xml"
         )
+        # Create a full copy of the spectrum then change its name
+        # Otherwise it can break the connection with the connected detector
+        spect_copy = deepcopy(spectrum)
+        spect_copy.name = save_diag.get_name()
 
         # Check if the file already exists
         if new_file.exists():
@@ -32,20 +39,21 @@ def save_spectrum_to_library_dialog(spectrum: Spectrum):
             if reply == QMessageBox.No:
                 return
 
+            # Fetch the existing file key based on the spectrum name and update the file
             IOManager.FileIndex.spectrum_index.update_file(
                 IOManager.FileIndex.spectrum_index.get_key_from_attr(
-                    "name", spectrum.name
+                    "name", save_diag.get_name()
                 ),
-                spectrum,
+                spect_copy,
             )
 
-        else:
+            # Update the name of the loaded spectrum in the application
             if spectrum.connection is None and spectrum.name != save_diag.get_name():
                 SpectrumManager.rename_spectrum(spectrum.name, save_diag.get_name())
+                
+        else:
 
-            IOManager.FileIndex.spectrum_index.save_file(spectrum)
-
-    # Dont rename, it breaks data signalling from device
+            IOManager.FileIndex.spectrum_index.save_file(spect_copy)
 
 
 def save_roi_references():

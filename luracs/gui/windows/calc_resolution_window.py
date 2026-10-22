@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from luracs.core import SpectrumManager
-from luracs.utils.numerics import curve_fit, r_squared, ResolutionFn
+from luracs.utils.numerics import ResolutionFn, curve_fit, r_squared
 
 
 class ResolutionWindow(QWidget):

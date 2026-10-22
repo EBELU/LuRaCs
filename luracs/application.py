@@ -75,6 +75,7 @@ from luracs.gui.tabs import (
     SpectrumInfoTab,
 )
 from luracs.gui.windows import (
+    ActivityWindow,
     BluetoothListPopup,
     CalibrationWindow,
     DataLibrary,
@@ -203,6 +204,7 @@ class MainWindow(QMainWindow):
         self.settings_dialog = SettingsDialog()
         self.driver_dialog = DriverLibraryDialog()
 
+        self.calc_win_activity = ActivityWindow()
         self.calc_win_efficiency = EfficiencyWindow()
         self.calc_win_calibration = CalibrationWindow()
         self.calc_win_resolution = ResolutionWindow()

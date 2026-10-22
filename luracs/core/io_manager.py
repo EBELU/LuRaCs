@@ -197,13 +197,14 @@ class Indexer(QObject):
 
     def update_file(self, key: str, new_item):
         # Not needed?
-        assert isinstance(key, str)
+        assert isinstance(key, str), f"Key must be a string! Given object was {type(key)}"
         # self.blockSignals(True)
         # self.delete_file(key)
         # self.blockSignals(False)
         gui_logger.debug(f"In Update {key}")
         gui_logger.debug(f"Current Registry {self.index_registry.keys()}")
         if key in self.index_registry:
+            gui_logger.debug(f"Removed index key {key}")
             del self.index_registry[key]
         # Save the updated file
         self.save_file(new_item)

@@ -155,6 +155,10 @@ class MainMenuBar(QMenuBar):
 
         # ---------- Gamma Tools ----------
         self.calculate_menu = self.addMenu("&Gamma Tools")
+        # calculate_menu_photoActivity = self.calculate_menu.addAction("Activity")
+        # calculate_menu_photoActivity.triggered.connect(
+        #     parent.calc_win_activity.show
+        # )
         calculate_menu_photoCalibration = self.calculate_menu.addAction("Calibration")
         calculate_menu_photoCalibration.triggered.connect(
             parent.calc_win_calibration.show

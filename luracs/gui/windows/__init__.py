@@ -1,3 +1,4 @@
+from .calc_activity import ActivityWindow
 from .calc_calibration_window import CalibrationWindow
 from .calc_deconvolution import DeconvolutionWindow
 from .calc_efficiency_window import EfficiencyWindow
@@ -11,6 +12,7 @@ from .documentation_windows import (
 )
 
 __all__ = [
+    "ActivityWindow",
     "BluetoothListPopup",
     "CalibrationWindow",
     "DataLibrary",

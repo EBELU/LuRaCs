@@ -1,4 +1,5 @@
 import datetime
+from ..logger import logger
 
 from ..bytes_buffer import BytesBuffer
 from ..types import DoseRateDB, Event, EventId, RareData, RawData, RealTimeData
@@ -14,7 +15,7 @@ def decode_VS_DATA_BUF(
         dt = base_time + datetime.timedelta(milliseconds=ts_offset * 10)
         if next_seq is not None and next_seq != seq:
             if not ignore_errors:
-                print(f'seq jump while processing {eid=} {gid=}, expect:{next_seq}, got:{seq} {br.size()=}')
+                logger.debug(f'seq jump while processing {eid=} {gid=}, expect:{next_seq}, got:{seq} {br.size()=}')
             break
 
         next_seq = (seq + 1) % 256
@@ -69,7 +70,7 @@ def decode_VS_DATA_BUF(
                 count, count_rate, dose_rate, dose_rate_err, flags = br.unpack('<IffHH')
             except ValueError as e:
                 if ignore_errors:
-                    print(f'BytesBuffer error while decoding {eid=}/{gid=} [{br.data().hex(" ")}]')
+                    logger.debug(f'BytesBuffer error while decoding {eid=}/{gid=} [{br.data().hex(" ")}]')
                 else:
                     raise e
             # TODO
@@ -104,7 +105,7 @@ def decode_VS_DATA_BUF(
             br.unpack(f'<{14 * samples_num}x')  # skip
         else:
             if not ignore_errors:
-                print(f'Unknown eid:{eid} gid:{gid}')
+                logger.debug(f'Unknown eid:{eid} gid:{gid}')
             break
 
     return ret
