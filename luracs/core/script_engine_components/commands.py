@@ -16,8 +16,9 @@ from pathlib import Path
 from textwrap import dedent
 
 import usb.core
+from PySide6.QtSerialPort import QSerialPortInfo
 
-from luracs.clients import WrappedRealTimePackage, WrappedStatusPackage, DeviceWrapper
+from luracs.clients import DeviceWrapper, WrappedRealTimePackage, WrappedStatusPackage
 from luracs.core import IOManager, RunManager, Settings, SpectrumManager
 from luracs.utils import ascii_art
 from luracs.utils.file_io import db_parser, xml_parser
@@ -80,31 +81,31 @@ exit | quit | shutdown
     Exit the application
 
 
-Device Management
+Detector Management
 -----------------
-device scan usb
-    Scan for connected USB devices
+detector scan usb
+    Scan for connected USB detectors
 
-device scan ble
-    Scan for nearby Bluetooth LE devices
+detector scan ble
+    Scan for nearby Bluetooth LE detectors
 
-device connect usb <device1> [device2 ...]
-    Connect to matching USB devices
+detector connect usb <detector1> [detector2 ...]
+    Connect to matching USB detectors
 
-device connect ble <device1> [device2 ...]
-    Connect to one or more Bluetooth LE devices
+detector connect ble <detector1> [detector2 ...]
+    Connect to one or more Bluetooth LE detectors
 
-device disconnect <device>
-    Disconnect a connected device
+detector disconnect <detector>
+    Disconnect a connected detector
 
-device disconnect all
-    Disconnect all connected devices
+detector disconnect all
+    Disconnect all connected detectors
 
 
 Listing Resources
 -----------------
-list devices
-    Show connected devices
+list detectors
+    Show connected detectors
 
 list spectra
     Show loaded spectra
@@ -126,6 +127,14 @@ index spectrogram
 
 index roi
     Show indexed ROI files
+
+GPS Management
+--------------
+gps connect
+    Connects to the first serial port in use
+    
+gps connect <port name>
+    Connects a GPS at the given serial port name
 
 
 Viewing Data
@@ -151,11 +160,11 @@ roi -c
 
 Spectrograms
 ------------
-spectrogram start <device>
-    Start a spectrogram for a connected device
+spectrogram start <detector>
+    Start a spectrogram for a connected detector
 
 spectrogram start all
-    Start spectrograms for all connected devices
+    Start spectrograms for all connected detectors
 
 Options:
     -n <name>       Custom spectrogram name
@@ -196,7 +205,7 @@ map file <path>
 Monitoring
 ----------
 watch
-    Continuously display live device information
+    Continuously display live detector information
 
     Press Ctrl+C to stop
 
@@ -219,13 +228,13 @@ class ListCommand(Command):
         List available resources.
 
         Usage:
-            list devices
+            list detectors
             list rois
             list spectra
             list spectrogram
 
         Arguments:
-            devices         Show connected devices
+            detectors         Show connected detectors
             rois            Show defined ROIs
             spectra         Show loaded spectra
             spectrogram     Show loaded spectrogram
@@ -233,9 +242,9 @@ class ListCommand(Command):
         if not args:
             return self.help
 
-        if args[0] == "devices":
+        if args[0] == "detectors":
             spectrum_table = TableFormatter(
-                ["Index", "Name"], title="Connected Devices"
+                ["Index", "Name"], title="Connected Detectors"
             )
             for i, key in enumerate(RunManager.device_registry.keys()):
                 spectrum_table.add_row([i, key])
@@ -265,7 +274,7 @@ class ListCommand(Command):
             raise ArgumentError(f"{args[0]} is not a valid argument!")
 
     def get_auto_complete(self):
-        return {"devices": None, "rois": None, "spectra": None, "spectrogram": None}
+        return {"detectors": None, "rois": None, "spectra": None, "spectrogram": None}
 
 
 class IndexCommand(Command):
@@ -359,7 +368,7 @@ class ViewCommand(Command):
             raise ActiveGUIError("view")
         if len(args) == 0:
             raise ArgumentError(
-                "View must be followed by 'spectrum', 'device' or 'log'"
+                "View must be followed by 'spectrum', 'rois' or 'log'"
             )
 
         if args[0] == "spectrum":
@@ -419,14 +428,14 @@ class SpectrogramCommand(Command):
         Manage spectrogram acquisition and loaded spectrograms.
 
         Usage:
-            spectrogram start [-n <name>] [-i <save_interval>] [-c <concat>] <device|all>
+            spectrogram start [-n <name>] [-i <save_interval>] [-c <concat>] <detector|all>
             spectrogram pause <name>
             spectrogram unpause <name>
             spectrogram load <path>
             spectrogram unload <name>
 
         Arguments:
-            start           Start a new spectrogram for a device or for all devices
+            start           Start a new spectrogram for a detector or for all detectors
             pause           Pause a running spectrogram
             unpause         Resume a paused spectrogram
             load            Load a spectrogram from data library
@@ -438,8 +447,8 @@ class SpectrogramCommand(Command):
             -c <count>      Number of spectra to concatenate before saving (default: 1)
 
         Operands:
-            <device>        Name of the device to acquire from
-            all             Start a spectrogram for all connected devices
+            <detector>        Name of the detector to acquire from
+            all             Start a spectrogram for all connected detectors
             <name>          Name of a loaded spectrogram
             <path>          Path to a saved spectrogram
         """
@@ -458,16 +467,16 @@ class SpectrogramCommand(Command):
                 if parsed_args["-n"] is not None:
                     raise ArgumentError("Name can not be specified when mass starting")
 
-                for device in RunManager.device_registry:
+                for detector in RunManager.device_registry:
                     engine.thread_bridge.start_spectrogram(
-                        f"Spectrogram_{device}_{datetime.now().replace(microsecond=0).isoformat()}",
-                        device,
+                        f"Spectrogram_{detector}_{datetime.now().replace(microsecond=0).isoformat().replace(':', '-')}",
+                        detector,
                         int(parsed_args["-i"]),
                         int(parsed_args["-c"]),
                     )
             else:
                 engine.thread_bridge.start_spectrogram(
-                    f"Spectrogram_{pos_args[0]}_{datetime.now().replace(microsecond=0).isoformat()}"
+                    f"Spectrogram_{pos_args[0]}_{datetime.now().replace(microsecond=0).isoformat().replace(':', '-')}"
                     if parsed_args["-n"] is None
                     else parsed_args["-n"],
                     pos_args[0],
@@ -595,13 +604,13 @@ class MapCommand(Command):
     def get_auto_complete(self):
         return {"url": None, "file": None}
 
-class DeviceCommand(Command):
-    name = "device"
+class DetectorCommand(Command):
+    name = "detector"
 
     async def run(self, engine, *args):
         if not args:
             raise InvalidCommandError(
-                "Missing device command"
+                "Missing detector command"
             )
 
         if args[0] == "scan":
@@ -614,22 +623,22 @@ class DeviceCommand(Command):
             if args[1] == "usb":
                 table = TableFormatter(
                     ["Serial", "Type"],
-                    title="Detected USB Devices",
+                    title="Detected USB Detectors",
                 )
 
-                devices = RunManager.scan_all_usb()
+                detectors = RunManager.scan_all_usb()
                 
                 
 
 
-                for device in devices:
+                for detector in detectors:
                     try:
-                        serial = usb.util.get_string(device, device.iSerialNumber)
+                        serial = usb.util.get_string(detector, detector.iSerialNumber)
                     except usb.core.USBError:
                         serial = "Unknown"
 
                     try:
-                        product = usb.util.get_string(device, device.iProduct)
+                        product = usb.util.get_string(detector, detector.iProduct)
                     except usb.core.USBError:
                         product = "Unknown"
 
@@ -642,8 +651,8 @@ class DeviceCommand(Command):
 
             elif args[1] == "ble":
                 table = TableFormatter(
-                    ["Device"],
-                    title="Detected BLE Devices",
+                    ["Detector"],
+                    title="Detected BLE Detectors",
                 )
 
                 engine.print_output(
@@ -653,22 +662,22 @@ class DeviceCommand(Command):
                     "Please stand by for results."
                 )
 
-                devices = await RunManager.call(
+                detectors = await RunManager.call(
                     RunManager._scan_bluetooth(
                         Settings.Advanced.headless_scan_length
                     )
                 )
 
-                if devices is None:
+                if detectors is None:
                     return (
                         "BLE scan failed, see log "
                         "(Check if bluetooth is on)"
                     )
 
-                for device in devices:
-                    table.add_row([str(device)])
+                for detector in detectors:
+                    table.add_row([str(detector)])
 
-                if devices:
+                if detectors:
                     engine.print_output("\n\n")
                     engine.print_output(
                         table.get_table()
@@ -702,17 +711,17 @@ class DeviceCommand(Command):
 
                 connections_found = []
 
-                for conn_device in connected_usb:
-                    serial = usb.util.get_string(conn_device, conn_device.iSerialNumber)
-                    product = usb.util.get_string(conn_device, conn_device.iProduct)
+                for conn_detector in connected_usb:
+                    serial = usb.util.get_string(conn_detector, conn_detector.iSerialNumber)
+                    product = usb.util.get_string(conn_detector, conn_detector.iProduct)
 
-                    for target_device in args[2:]:
-                        if not target_device.lower() in product.lower():
+                    for target_detector in args[2:]:
+                        if not target_detector.lower() in product.lower():
                             continue
                         
                         for name in DeviceWrapper.get_registry():
                             if name.lower() in product.lower():
-                                RunManager.add_device(serial, name, "USB", {"usb_device": conn_device})
+                                RunManager.add_device(serial, name, "USB", {"usb_detector": conn_detector})
 
                                 connections_found.append(
                                     f"{serial} ({product})"
@@ -721,19 +730,19 @@ class DeviceCommand(Command):
 
                 if connections_found:
                     return (
-                        "USB devices connected:\n"
+                        "USB detectors connected:\n"
                         + "\n".join(connections_found)
                     )
 
                 return (
-                    f"No USB devices matching {args[2:]}"
+                    f"No USB detectors matching {args[2:]}"
                 )
 
             elif args[1] == "ble":
 
                 engine.print_output(
                     f"Attempting connection to "
-                    f"{len(args[2:])} devices..."
+                    f"{len(args[2:])} detectors..."
                 )
 
                 await RunManager.call(
@@ -757,17 +766,38 @@ class DeviceCommand(Command):
             | {key: None for key in RunManager.device_registry.keys()},
             "scan": {"usb": None, "ble": None},
         }
+        
+class GPSCommand(Command):
+    name = "gps"
+    
+    async def run(self, engine, *args):
+        if not args:
+            raise InvalidCommandError(
+                "Missing command. Available are 'connect'"
+            )
+            
+        if args[0] == "connect":
+            if len(args) == 2:
+                RunManager.connect_serial_gps(args[0])
+                f"Connected GPS on port {args[0]}"
+                
+            else:
+                for p in QSerialPortInfo.availablePorts():
+                    if p.hasVendorIdentifier() and p.hasProductIdentifier():
+                        RunManager.connect_serial_gps(p.portName())
+                        return f"Connected GPS {p.description()} on port {p.portName()} at {p.systemLocation()}"
+                
 
 
 class WatchCommand(Command):
     name = "watch"
     is_watching = False
     realtime_values_buffer: dict[str, WrappedRealTimePackage] = {}
-    device_states_buffer: dict[str, WrappedStatusPackage] = {}
+    detector_states_buffer: dict[str, WrappedStatusPackage] = {}
 
     def __init__(self):
         RunManager.Signals.currentUpdated.connect(self.update_realtime_values_buffer)
-        RunManager.Signals.statusUpdated.connect(self.update_device_state_buffer)
+        RunManager.Signals.statusUpdated.connect(self.update_detector_state_buffer)
 
     async def run(self, engine: ScriptEngine, *args):
         if not engine.headless:
@@ -781,7 +811,7 @@ class WatchCommand(Command):
             while self.is_watching:
                 table = TableFormatter(
                     [
-                        "Device",
+                        "Detector",
                         "Count Rate [/s]",
                         "Dose Rate [uSv/s]",
                         "Battery [%]",
@@ -789,18 +819,18 @@ class WatchCommand(Command):
                     ]
                 )
 
-                for device, realtime_values in self.realtime_values_buffer.items():
-                    device_state = self.device_states_buffer.get(device)
-                    if not device_state:
+                for detector, realtime_values in self.realtime_values_buffer.items():
+                    detector_state = self.detector_states_buffer.get(detector)
+                    if not detector_state:
                         continue
 
                     table.add_row(
                         [
-                            device,
+                            detector,
                             round(realtime_values.CPS, 2),
                             round(realtime_values.DR, 3),
-                            device_state.battery,
-                            device_state.temperature,
+                            detector_state.battery,
+                            detector_state.temperature,
                         ]
                     )
 
@@ -812,12 +842,12 @@ class WatchCommand(Command):
             raise
 
     def update_realtime_values_buffer(
-        self, device_name: str, data: WrappedRealTimePackage
+        self, detector_name: str, data: WrappedRealTimePackage
     ):
-        self.realtime_values_buffer[device_name] = data
+        self.realtime_values_buffer[detector_name] = data
 
-    def update_device_state_buffer(self, device_name: str, data: WrappedStatusPackage):
-        self.device_states_buffer[device_name] = data
+    def update_detector_state_buffer(self, detector_name: str, data: WrappedStatusPackage):
+        self.detector_states_buffer[detector_name] = data
 
     def stop_watching(self):
         self.is_watching = False
@@ -854,8 +884,9 @@ class ExecCommand(Command):
 # ===== Register commands ======
 def register_commands(registry: CommandRegistry):
     registry.register(ClearCommand())
-    registry.register(DeviceCommand())
+    registry.register(DetectorCommand())
     registry.register(ExecCommand())
+    registry.register(GPSCommand())
     registry.register(HelpCommand())
     registry.register(IndexCommand())
     registry.register(ListCommand())
