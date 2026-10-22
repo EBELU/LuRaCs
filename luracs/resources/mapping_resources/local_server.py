@@ -75,6 +75,7 @@ class TileServer:
             host=self.host,
             port=self.port,
             log_level="warning",
+            log_config=None
         )
 
         self.server = uvicorn.Server(self.config)
