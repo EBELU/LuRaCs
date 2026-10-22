@@ -1,9 +1,9 @@
+![Banner](dev/banner.png)
 # LuRaCs - *Lund Radiation analysis Computer software*
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg) [![Docs: CC BY-SA 4.0](https://img.shields.io/badge/docs-CC_BY_SA_4.0-lightgrey.svg)](https://creativecommons.org/licenses/by-sa/4.0/) ![Python](https://img.shields.io/badge/python-3.10+-blue.svg) ![Qt](https://img.shields.io/badge/PySide6-Qt6-green.svg) ![MapLibre](https://img.shields.io/badge/MapLibre-GL_JS-blue.svg)
 
-![Banner](dev/banner.png)
 
-Copyright (C) 2026 Erik Ewald
+Copyright (c) 2026 Erik Ewald
 
 LuRaCs is a free, open-source application designed for the measurement and analysis of nuclear radiation. While its functionality ranges from basic to advanced radiation analysis, with primary focus is on gamma spectrometry. Built with Qt and primarily written in Python, the software is designed with extensibility in mind, enabling support for a variety of detector systems.
 
@@ -20,6 +20,7 @@ LuRaCs is a free, open-source application designed for the measurement and analy
   - [Documentation](#documentation)
   - [Licence](#licence)
   - [Third-party assets](#third-party-assets)
+  - [Acknowledgements \& Affiliation](#acknowledgements--affiliation)
 
 ## Features
 - Simultaneous measurements with multiple instruments
@@ -93,8 +94,16 @@ The LuRaCs source code is licensed under the GPL-3.0 license.
 The LuRaCs documentation and images are licensed under the CC BY-SA 4.0 license.
 
 ## Third-party assets
-Copies of third partly licences and notices are packaged in `/licenes`.
+Copies of third partly licences and notices are packaged in `/licenses`.
 
+## Acknowledgements & Affiliation
+![LU](dev/Lu_logo.png)
+LuRaCs is developed and maintained by the Department of Medical Radiation Physics at Lund University, Sweden.
 
+We thank the people who have worked on and contributed to this project.
+  - Erik Ewald, M.Sc. - Software Lead 
+  - Christian Bernhardsson, Ph.D. - Project Supervisor
+  - Malte Axner - Contributor
+  - Sigurður Emil Pálsson, Ph.D. - Software Tester
 
 

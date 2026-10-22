@@ -345,7 +345,7 @@ class MeasurePlot(QWidget):
                 pen=pg.mkPen(spect_color, width=1),
                 brush=pg.mkBrush(brush_color),
                 fillLevel=0,
-                stepMode="center",
+                stepMode="right",
                 antialias=False,
             )
             
@@ -735,12 +735,12 @@ class MeasurePlot(QWidget):
             self.count_rate_lines["fg"].setData(np.asarray(self.current_measurement.rate_axis) + Settings.Advanced.spectrum_update_delay, self.current_measurement.count_rate_data)
             self.dose_rate_lines["fg"].setData(np.asarray(self.current_measurement.rate_axis) + Settings.Advanced.spectrum_update_delay, self.current_measurement.dose_rate_data)
             if self.current_measurement.x_axis is not None and self.current_measurement.spectrum is not None:
-                self.spectrum_lines["fg"].setData(self.current_measurement.x_axis, self.current_measurement.spectrum[:-1]  / max(self.current_measurement.measurement_time, 1))
+                self.spectrum_lines["fg"].setData(self.current_measurement.x_axis, self.current_measurement.spectrum  / max(self.current_measurement.measurement_time, 1))
         else:
             self.count_rate_lines["bg"].setData(np.asarray(self.current_measurement.rate_axis) + Settings.Advanced.spectrum_update_delay, self.current_measurement.count_rate_data)
             self.dose_rate_lines["bg"].setData(np.asarray(self.current_measurement.rate_axis) + Settings.Advanced.spectrum_update_delay, self.current_measurement.dose_rate_data)
             if self.current_measurement.x_axis is not None and self.current_measurement.spectrum is not None:
-                self.spectrum_lines["bg"].setData(self.current_measurement.x_axis, self.current_measurement.spectrum[:-1] / max(self.current_measurement.measurement_time, 1))
+                self.spectrum_lines["bg"].setData(self.current_measurement.x_axis, self.current_measurement.spectrum / max(self.current_measurement.measurement_time, 1))
 
 if __name__ == "__main__":
     import sys

@@ -139,12 +139,20 @@ class xml_parser(SpectrumParserBase):
 
     def get_spectrum(self) -> Spectrum:
         foreground = self.get_foreground_spectrum()
+        assert foreground is not None, f"Foreground of spectrum {self.file_name} is None!"
+        
         xml_header = self.get_header()
         new_spectrum = Spectrum(channels=foreground.channels, **xml_header.__dict__)
         
-        new_spectrum.set_foreground(self.get_background_spectrum)
-        new_spectrum.set_background(self.get_background_spectrum)
-        new_spectrum.set_instrument(self.get_background_spectrum)
+        new_spectrum.set_foreground(self.get_foreground_spectrum())
+        
+        bg = self.get_background_spectrum()
+        if bg is not None:
+            new_spectrum.set_background(bg)
+            
+        instrument = self.get_instrument()
+        if instrument is not None:  
+            new_spectrum.set_instrument(instrument)
         
         new_spectrum.apply_calibration(xml_header.calibration)
         
@@ -307,8 +315,10 @@ class xml_parser(SpectrumParserBase):
 
     def _parse_radiacode(self):
         data = {"name": self.file_name}
-        coeffs = self.root.findall(".//EnergyCalibration/Coefficients/Coefficient")
-
+        
+        data["instrument_model"] = self.root.findtext(".//ResultDataList/ResultData/DeviceConfigReference/Name", "Unknown")
+        coeffs = self.root.findall(".//EnergyCalibration/Coefficients/Coefficient")       
+        
         if coeffs is not None:
             data["calibration"] = [float(c.text) for c in coeffs][::-1][
                 :3
@@ -317,6 +327,7 @@ class xml_parser(SpectrumParserBase):
         for result in self.root.findall(".//ResultData"):
             fg = result.find(".//EnergySpectrum/Spectrum")
             if fg is not None:
+                data["instrument_id"] = result.findtext(".//EnergySpectrum/SerialNumber", "Unknown")
                 y = np.array([float(x.text) for x in fg.findall("DataPoint")])
                 data["foreground"] = _build_spectrum(
                     y,

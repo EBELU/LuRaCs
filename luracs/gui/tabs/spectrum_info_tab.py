@@ -20,8 +20,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from luracs.core import IOManager, RunManager, SpectrumManager, Log
-from luracs.gui.dialogs.data_library_edit_dialogs import SpectrumEditDialog
+from luracs.core import IOManager, Log, RunManager, SpectrumManager
+from luracs.gui.dialogs.spectrum_edit_dialog import SpectrumEditDialog
 from luracs.gui.misc.idx_table import StrIdxTable
 from luracs.gui.misc.table_menu_button import MenuButton
 from luracs.gui.save_to_internal_dialogs import save_spectrum_to_library_dialog

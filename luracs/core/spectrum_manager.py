@@ -299,6 +299,12 @@ class _SpectrumManager(QObject):
 
         if "remark" in data_dict:
             self.spectrum_registry[data_dict["name"]].remark = data_dict["remark"]
+            
+        if "instrument_model" in data_dict:
+            self.spectrum_registry[data_dict["name"]].instrument_model = data_dict["instrument_model"]
+            
+        if "instrument_id" in data_dict:
+            self.spectrum_registry[data_dict["name"]].instrument_id = data_dict["instrument_id"]
 
         self.Signals.spectrumUpdated.emit(data_dict["name"])
 

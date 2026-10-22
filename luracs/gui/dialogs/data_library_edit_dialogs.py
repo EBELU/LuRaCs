@@ -1,11 +1,5 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from luracs.containers.spectrum_classes import Spectrum
-
-
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import Qt
@@ -20,8 +14,6 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
-    QListWidget,
-    QListWidgetItem,
     QPushButton,
     QSpinBox,
     QTableWidget,
@@ -32,7 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from luracs.containers.roi_classes import ROI
-from luracs.core import IOManager, SpectrumManager
+from luracs.core import SpectrumManager
 from luracs.utils.numerics import EfficiencyFn, ResolutionFn
 
 
@@ -411,217 +403,6 @@ class InstrumentDialog(QDialog):
         return data, self.generic_list.currentData()
 
 
-class SpectrumEditDialog(QDialog):
-    def __init__(
-        self,
-        parent=None,
-        spectrum: Spectrum = None,
-        spectrum_is_connected: bool = False,
-    ):
-        super().__init__(parent)
-        self.setWindowTitle("Spectrum Edit Dialog")
-        self.resize(400, 300)
-
-        main_layout = QVBoxLayout(self)
-
-        # Form layout
-        form_layout = QFormLayout()
-        main_layout.addLayout(form_layout)
-
-        # Name
-        self.name_input = QLineEdit()
-        self.name_input.setEnabled(not spectrum_is_connected)
-        self.name_input.setText(spectrum.name if spectrum else "")
-        form_layout.addRow("Spectrum Name:", self.name_input)
-
-        # Remark
-        self.remark_input = QTextEdit()
-        self.remark_input.setPlainText(spectrum.remark if spectrum else "")
-        form_layout.addRow("Remark:", self.remark_input)
-
-        self.calibration_text = QTextEdit()
-        self.calibration_text.setReadOnly(True)
-        if spectrum is not None and spectrum.calibration_coefficients is not None:
-            calib_str = "\n".join(
-                [
-                    f"a{i} = {a}"
-                    for i, a in enumerate(reversed(spectrum.calibration_coefficients))
-                ]
-            )
-        else:
-            calib_str = ""
-        self.calibration_text.setText(calib_str)
-        form_layout.addRow("Calibration", self.calibration_text)
-
-        # self.calibration_plot = pg.PlotWidget()
-        # self.calibration_plot.setMouseEnabled(x=False, y=False)
-        # self.calibration_plot.getPlotItem().setLabel(
-        #     axis="left",
-        #     text="Energy [keV]"
-        # )
-
-        # self.calibration_plot.getPlotItem().setLabel(
-        #     axis="bottom",
-        #     text="Channel"
-        # )
-
-        # self.calibration_plot.getPlotItem().plot(np.arange(len(spectrum.x_axis)), spectrum.x_axis)
-
-        # self.calibration_plot.getPlotItem().layout.setContentsMargins(2, 13, 13, 2)
-
-        # form_layout.addRow("", self.calibration_plot)
-
-        # --- Background ---
-        # Background name
-        self.background_line = QLineEdit()
-        self.background_line.setText(
-            spectrum.background.spectrum_name
-            if spectrum and spectrum.background is not None
-            else ""
-        )
-        self.background_line.setReadOnly(True)
-        form_layout.addRow("Background", self.background_line)
-
-        # Buttons
-        bkg_btns = QHBoxLayout()
-
-        bkg_btn_select = QPushButton("Select")
-        bkg_btn_select.clicked.connect(self.select_background)
-        bkg_btn_import = QPushButton("Import")
-        bkg_btn_import.clicked.connect(self.import_background)
-        bkg_btn_clear = QPushButton("Clear Bkg")
-        bkg_btn_clear.clicked.connect(self.clear_bkg)
-
-        bkg_btns.addWidget(bkg_btn_select)
-        bkg_btns.addWidget(bkg_btn_import)
-        bkg_btns.addWidget(bkg_btn_clear)
-
-        form_layout.addRow("", bkg_btns)
-
-        # Internal spectra list
-        self.spectrum_list = QListWidget()
-        form_layout.addRow("", self.spectrum_list)
-
-        for path, parser in sorted(
-            IOManager.FileIndex.spectrum_index.get_index().items(),
-            key=lambda item: item[0],
-        ):
-            item = QListWidgetItem(str(parser.data["name"]))
-            item.setData(Qt.ItemDataRole.UserRole, path)
-            self.spectrum_list.addItem(item)
-
-        # --- Instrument ---
-        # Name
-        self.instrument_line = QLineEdit()
-        self.instrument_line.setReadOnly(True)
-        form_layout.addRow("Instrument", self.instrument_line)
-
-        # Buttons
-        instrument_btns = QHBoxLayout()
-        instrument_btn_select = QPushButton("Select")
-        instrument_btn_select.clicked.connect(self.select_instrument)
-        instrument_btn_clear = QPushButton("Clear Instrument")
-        instrument_btn_clear.clicked.connect(self.clear_instrument)
-        instrument_btns.addWidget(instrument_btn_select)
-        instrument_btns.addWidget(instrument_btn_clear)
-        form_layout.addRow("", instrument_btns)
-
-        # Instrument list from instrument libraries
-        self.instrument_list = QListWidget()
-        self.instrument_line.setText(
-            spectrum.instrument.name if spectrum.instrument is not None else ""
-        )
-        form_layout.addRow("", self.instrument_list)
-
-        for path, instr in sorted(
-            SpectrumManager.UniqueInstrumentLibrary.instrument_registry.items(),
-            key=lambda item: item[0],
-        ):
-            item = QListWidgetItem(instr.name)
-            item.setData(Qt.ItemDataRole.UserRole, instr)
-            self.instrument_list.addItem(item)
-
-        # --- Bottom buttons ---
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        main_layout.addWidget(buttons)
-
-        # --- Flags ---
-        # These set the response of things handled outside of this dialog
-        self.flag_clear_bkg = False
-        self.flag_clear_instrument = False
-        self.flag_change_bkg = False
-        self.flag_change_instrument = False
-        self.flag_can_change_name = not spectrum_is_connected  # A spectrum with a connection is not allowed to change its name, it would mess with receiving now data from the the connected device
-
-        self.selected_background = None
-        self.selected_instrument = None
-
-    def get_data(self):
-        """Collect data from the dialog and return as a dictionary."""
-        data = {
-            "name": self.name_input.text(),
-            "remark": self.remark_input.toPlainText(),
-            "background_pth": self.selected_background,
-            "instrument": self.selected_instrument,
-            "flag_clear_bkg": self.flag_clear_bkg,
-            "flag_clear_instrument": self.flag_clear_instrument,
-            "flag_can_change_name": self.flag_can_change_name,
-            "flag_change_bkg": self.flag_change_bkg,
-            "flag_change_instrument": self.flag_change_instrument,
-        }
-        return data
-
-    def select_background(self):
-        item = self.spectrum_list.selectedItems()
-        if len(item) > 0:
-            item = item[0]
-        else:
-            return
-        name = item.text()
-        path = item.data(Qt.ItemDataRole.UserRole)
-
-        self.background_line.setText(name)
-        self.selected_background = path
-        self.flag_clear_bkg = False
-        self.flag_change_bkg = True
-
-    def import_background(self):
-        path, _ = IOManager.Importer.import_file(
-            IOManager.Importer.ImportFilters.SPECTRUM.value
-        )
-
-        if path is not None:
-            self.background_line.setText(path.name)
-            self.selected_background = path
-            self.flag_clear_bkg = False
-            self.flag_change_bkg = True
-
-    def clear_bkg(self):
-        self.flag_clear_bkg = True
-        self.background_line.setText("")
-
-    def select_instrument(self):
-        item = self.instrument_list.selectedItems()
-        if len(item) > 0:
-            item = item[0]
-        else:
-            # If none is selected sod off
-            return
-        name = item.text()
-        instr = item.data(Qt.ItemDataRole.UserRole)
-
-        self.instrument_line.setText(name)
-        self.selected_instrument = instr
-        self.flag_clear_instrument = False
-        self.flag_change_instrument = True
-
-    def clear_instrument(self):
-        self.flag_clear_instrument = True
-        self.instrument_line.setText("")
-
-
 class ROIDialog(QDialog):
     def __init__(self, rois: list[ROI] = [], name: str = "", parent=None, **kwargs):
         super().__init__(parent)
@@ -773,6 +554,4 @@ if __name__ == "__main__":
     import sys
 
     app = QApplication(sys.argv)
-    dialog = SpectrumEditDialog()
-    dialog.show()
     sys.exit(app.exec())

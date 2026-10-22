@@ -382,7 +382,7 @@ class SpectrumPlot(QWidget):
                 pen=pen,
                 brush=brush,
                 fillLevel=fill_level,
-                stepMode="center",
+                stepMode="right",
                 antialias=False,
             )
 
@@ -404,7 +404,7 @@ class SpectrumPlot(QWidget):
 
         self.primary_lines[spectrum.name].setData(
             spectrum.x_axis,
-            foreground[:-1],
+            foreground,
         )
 
     def plot_bkg(self, spectrum: Spectrum):
@@ -437,7 +437,7 @@ class SpectrumPlot(QWidget):
                 pen=pen,
                 brush=brush,
                 fillLevel=fill_level,
-                stepMode="center",
+                stepMode="right",
                 antialias=False,
             )
 
@@ -460,7 +460,7 @@ class SpectrumPlot(QWidget):
             
         self.bkg_lines[spectrum.name].setData(
             spectrum.x_axis,
-            background[:-1],
+            background,
         )
 
     def plot_bkg_subtract(self, spectrum: Spectrum):
@@ -498,7 +498,7 @@ class SpectrumPlot(QWidget):
                 pen=pen,
                 brush=brush,
                 fillLevel=fill_level,
-                stepMode="center",
+                stepMode="right",
                 antialias=False,
             )
 
@@ -511,7 +511,7 @@ class SpectrumPlot(QWidget):
 
         self.primary_lines[spectrum.name].setData(
             spectrum.x_axis,
-            bkg_sub_spect[:-1],
+            bkg_sub_spect,
         )
 
     def remove_plot(self, name: str):
