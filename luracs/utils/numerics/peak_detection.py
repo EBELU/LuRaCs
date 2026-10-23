@@ -347,6 +347,11 @@ def peak_discriminator(
             rejected_duplicate += 1
             continue
         
+
+        if (right - left) / spectrum_x.shape[0] > 0.2:
+            rejected_bad_fit += 1
+            continue
+
         mus[i] = mu
         
         if converged:

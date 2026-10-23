@@ -991,6 +991,6 @@ class SpectrumPlot(QWidget):
                 self.feature_lines[name].setPos(value)
                 
         else:
-            line = self.feature_lines.pop(name)
+            line = self.feature_lines.pop(name, None)
             if line is not None:
                 self.plot_widget.getPlotItem().removeItem(line)
