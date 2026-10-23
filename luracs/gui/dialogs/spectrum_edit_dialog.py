@@ -375,6 +375,7 @@ class SpectrumEditDialog(QDialog):
     def clear_bkg(self):
         self.flag_clear_bkg = True
         self.background_line.setText("")
+        self.bg_lines.setData([], [])
 
     def select_instrument(self):
         item = self.instrument_list.selectedItems()

@@ -689,9 +689,12 @@ class xml_parser(SpectrumParserBase):
         if cal:
             cal = cal[0]
 
-            kwargs["calibration_poly_order"] = int(
-                cal.xpath("./n42:PolynomialOrder", namespaces=ns)[0].text
-            )
+            try:
+                kwargs["calibration_poly_order"] = int(
+                    cal.xpath("./n42:PolynomialOrder", namespaces=ns)[0].text
+                )
+            except ValueError:
+                 kwargs["calibration_poly_order"] = 1
 
             kwargs["calibration_coefficients"] = _parse_array(
                 cal.xpath("./n42:Coefficients", namespaces=ns)[0].text

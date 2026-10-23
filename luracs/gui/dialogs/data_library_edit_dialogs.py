@@ -315,57 +315,62 @@ class InstrumentDialog(QDialog):
             res_created = res_created.strftime("%Y-%m-%d %H:%M")
         
         res_fn, res_param = kwargs.get('resolution_fn', ''), kwargs.get('resolution_params', '')
-        self.resolution.setText(
-            f"[{res_created}] fn = {ResolutionFn.Signatures.K_OVER_SQRT_E.value.format(*np.round(res_param, 3))}"
-        )
-
-        # Resolution plot
-        self.res_plot_widget.getPlotItem().clear()
-        if (
-            kwargs.get("resolution_E_points") is not None
-            and kwargs.get("resolution_FWHM_points") is not None
-        ):
-            self.res_plot_widget.plot(
-                kwargs.get("resolution_E_points"),
-                np.array(kwargs.get("resolution_FWHM_points"))
-                * 100
-                / np.array(kwargs.get("resolution_E_points")),
-                pen=None,
-                symbol="o",
+        if res_fn and res_param:
+            self.resolution.setText(
+                f"[{res_created}] fn = {ResolutionFn.Signatures.K_OVER_SQRT_E.value.format(*np.round(res_param, 3))}"
             )
-            res_x = np.linspace(25, max(kwargs.get("resolution_E_points")) + 500, 1000)
-            res_y = ResolutionFn.lookup(ResolutionFn.Signatures.K_OVER_SQRT_E)(res_x, np.array(kwargs.get("resolution_params"))) * 100
-            self.res_plot_widget.plot(res_x, res_y)
+
+            # Resolution plot
+            self.res_plot_widget.getPlotItem().clear()
+            if (
+                kwargs.get("resolution_E_points") is not None
+                and kwargs.get("resolution_FWHM_points") is not None
+            ):
+                self.res_plot_widget.plot(
+                    kwargs.get("resolution_E_points"),
+                    np.array(kwargs.get("resolution_FWHM_points"))
+                    * 100
+                    / np.array(kwargs.get("resolution_E_points")),
+                    pen=None,
+                    symbol="o",
+                )
+                res_x = np.linspace(25, max(kwargs.get("resolution_E_points")) + 500, 1000)
+                res_y = ResolutionFn.lookup(ResolutionFn.Signatures.K_OVER_SQRT_E)(res_x, np.array(kwargs.get("resolution_params"))) * 100
+                self.res_plot_widget.plot(res_x, res_y)
 
         # --- Intrinsic efficiency ---
         # Line
         eff_created = kwargs.get("int_efficiency_created")
+
         if eff_created is not None:
             eff_created = eff_created.strftime("%Y-%m-%d %H:%M")
-        self.efficiency.setText(
-            f"[{eff_created}] fn = {kwargs.get('int_efficiency_fn', '')}, params = {kwargs.get('int_efficiency_params', '')}"
-        )
+        
+        eff_fn, res_param = kwargs.get('int_efficiency_fn', ''), kwargs.get('int_efficiency_params', '')
+        if eff_fn and res_param is not None:
+            self.efficiency.setText(
+                f"[{eff_created}] fn = {eff_fn.format(*np.round(res_param, 3))}"
+            )
 
-        # Efficiency plot
-        self.eff_plot_widget.getPlotItem().clear()
-        if (
-            kwargs.get("int_efficiency_E_points") is not None
-            and kwargs.get("int_efficiency_eff_points") is not None
-        ):
-            self.eff_plot_widget.plot(
-                kwargs.get("int_efficiency_E_points"),
-                np.array(kwargs.get("int_efficiency_eff_points")) * 100,
-                pen=None,
-                symbol="o",
-            )
-            res_x = np.linspace(
-                25, max(kwargs.get("int_efficiency_E_points")) + 500, 1000
-            )
-            res_y = (
-                EfficiencyFn.lookup(EfficiencyFn.Signatures.EXP_POLY)(res_x, np.array(kwargs.get("int_efficiency_params")))
-                * 100
-            )
-            self.eff_plot_widget.plot(res_x, res_y)
+            # Efficiency plot
+            self.eff_plot_widget.getPlotItem().clear()
+            if (
+                kwargs.get("int_efficiency_E_points") is not None
+                and kwargs.get("int_efficiency_eff_points") is not None
+            ):
+                self.eff_plot_widget.plot(
+                    kwargs.get("int_efficiency_E_points"),
+                    np.array(kwargs.get("int_efficiency_eff_points")) * 100,
+                    pen=None,
+                    symbol="o",
+                )
+                res_x = np.linspace(
+                    25, max(kwargs.get("int_efficiency_E_points")) + 500, 1000
+                )
+                res_y = (
+                    EfficiencyFn.lookup(EfficiencyFn.Signatures.EXP_POLY)(res_x, np.array(kwargs.get("int_efficiency_params")))
+                    * 100
+                )
+                self.eff_plot_widget.plot(res_x, res_y)
 
     def generic_instrument_selected(self, index: int):
         instrument_key = self.generic_list.itemData(index)

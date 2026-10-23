@@ -74,7 +74,7 @@ class xml_report_writer(xml_writer):
         
         write_text_to_SubElement(branch, n42("Date"), str(report.date.isoformat()))
         
-        meta_data_section = etree.SubElement(extension_section, "MetaData")
+        meta_data_section = etree.SubElement(branch, "MetaData")
         
         write_text_to_SubElement(meta_data_section, "Creator", report.author_name)
         write_text_to_SubElement(meta_data_section, "Location", report.location, 
