@@ -225,6 +225,7 @@ class DocumentationDialog(QWidget):
         self.text_browser.setHtml(
             styled_html,
         )
+        #self.text_browser.setSearchPaths()
         self.text_browser.document().setBaseUrl(
             QUrl.fromLocalFile(str(path.parent) + "/")
         )

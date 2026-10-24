@@ -1,3 +1,3 @@
 # Spectrum View
 
-![spectrum](../../imgs/image copy 2.png)
+![spectrum](../../../../../dev/misc/spectrum_view.webp)

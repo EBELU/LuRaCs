@@ -1,5 +1,5 @@
 ![Banner](dev/banner.png)
-# LuRaCs - *Lund Radiation analysis Computer software*
+# LuRaCs - *Lund University radiation computing suite*
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg) [![Docs: CC BY-SA 4.0](https://img.shields.io/badge/docs-CC_BY_SA_4.0-lightgrey.svg)](https://creativecommons.org/licenses/by-sa/4.0/) ![Python](https://img.shields.io/badge/python-3.10+-blue.svg) ![Qt](https://img.shields.io/badge/PySide6-Qt6-green.svg) ![MapLibre](https://img.shields.io/badge/MapLibre-GL_JS-blue.svg)
 
 
@@ -7,7 +7,7 @@ Copyright (c) 2026 Erik Ewald
 
 LuRaCs is a free, open-source application designed for the measurement and analysis of nuclear radiation. While its functionality ranges from basic to advanced radiation analysis, with primary focus is on gamma spectrometry. Built with Qt and primarily written in Python, the software is designed with extensibility in mind, enabling support for a variety of detector systems.
 
-- [LuRaCs - *Lund Radiation analysis Computer software*](#luracs---lund-radiation-analysis-computer-software)
+- [LuRaCs - *Lund University radiation computing suite*](#luracs---lund-university-radiation-computing-suite)
   - [Features](#features)
     - [Spectrum View](#spectrum-view)
     - [Analysis Tools](#analysis-tools)
@@ -45,10 +45,10 @@ LuRaCs also implements a deconvolution tool that can enhance a spectrum using a 
 ![deconv_view](dev/GitHub_deconv.png)
 ### Time Series Measurements
 When an instrument is connected, measurements can be recorded as a time series in the form of a *spectrogram*. A spectrogram stores the average count rate and dose rate for each acquisition interval, together with the corresponding accumulated spectrum. This enables both temporal trend analysis and detailed examination of the spectral data collected throughout the measurement period.
-![timeseries_view](luracs/resources/docs/imgs/timeseries_view.webp)
+![timeseries_view](dev/GitHub_spectrogram.png)
 ### Area Mapping
 By connecting an external GPS device via USB, area mapping can be performed by extending standard spectrogram measurements with positional data. Maps can be retrieved from an online source via URL or loaded from a locally stored file for offline use. Supports export of mapped data to GeoJSON for use in common GIS applications like QGis.
-![map_img](dev/GitHub_map.png)
+![map_img](dev/GitHub_map.webp)
 ### Timed Measurements
 Spectra and rates can be measured with a timer for standardized protocols with a simple and intuitive  interface. The measurements can the be exported as reports containing both human readable text and computer readable data for importing the report to other spectrum analysis tools.
 ![measure_img](dev/GitHub_measure.png)
@@ -57,7 +57,7 @@ While the graphical user interface provides the primary means of interaction, Lu
 
 The CLI is started by running with the `--headless` flag.
 
-![cli_img](luracs/resources/docs/imgs/cli.webp) ![cli_spect](luracs/resources/docs/imgs/cli_spect.webp)
+![cli_img](dev/cli.png) ![cli_spect](dev/cli_spectrum.png)
 
 
 ### Implemented Detectors

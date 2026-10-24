@@ -287,7 +287,7 @@ class MainMenuBar(QMenuBar):
         QMessageBox.information(
             self.parent,
             "About",
-            "LuRaCs - Lund Radiation analysis Computer software\n\n A free and open source tool for measuring and analysing radiation spectra.\n\nCreated by Erik Ewald & Malte Axner \n\nSource code licenced under GPL-3.0\nDocumentation & Images licenced under CC BY-SA 4.0",
+            "LuRaCs - Lund University radiation computing suite\n\n A free and open source tool for measuring and analysing radiation spectra.\n\nCreated by Erik Ewald & Malte Axner \n\nSource code licenced under GPL-3.0\nDocumentation & Images licenced under CC BY-SA 4.0",
         )
         
     def import_thrid_party_driver(self):

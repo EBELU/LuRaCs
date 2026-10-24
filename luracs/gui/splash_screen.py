@@ -6,10 +6,10 @@ from luracs.core.settings import Settings
 
 def create_splash_pixmap():
     """Create a splash screen image."""   
-    image_pth = Settings.Paths.themes / "icons/splash_base.png"
+    image_pth = Settings.Paths.themes / "icons/splash_base.webp"
     
     pixmap = QPixmap(image_pth).scaled(
-    800, 350,
+    800, 400,
     Qt.AspectRatioMode.KeepAspectRatio,
     Qt.TransformationMode.SmoothTransformation,
     )
