@@ -19,7 +19,7 @@ else:
 
 
 ROOT = Path(os.getcwd()).resolve()
-__version__ = "0.6.1"
+__version__ = "0.6.2"
 
 # Cross-platform path
 main_script = os.path.join('luracs', 'main.py')
