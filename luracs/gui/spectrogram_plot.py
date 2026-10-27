@@ -431,7 +431,7 @@ class SpectrogramWidget(QWidget):
             return
 
         if current_spectrogram is not None:
-            current_spectrogram.pause_unpause()
+            current_spectrogram.set_paused(False)
             self.btn_resume.setEnabled(False)
             self.btn_stop.setEnabled(True)
             current_spectrogram.request_data()
@@ -444,7 +444,7 @@ class SpectrogramWidget(QWidget):
         )
 
         if current_spectrogram is not None:
-            current_spectrogram.pause_unpause()
+            current_spectrogram.set_paused(True)
             self.btn_resume.setEnabled(True)
             self.btn_stop.setEnabled(False)
             current_spectrogram.request_data()

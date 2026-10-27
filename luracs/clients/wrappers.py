@@ -421,6 +421,7 @@ class DigiDartWrapper(DeviceWrapper):
         self.dart = digiDart(dev=usb_device)
 
         # digiDART conversion gain determines the number of channels.
+        # Can not be set from LuRaCs
         self.channels = self.dart.show_conversion_gain()
 
         self.live_time_buffer = None
@@ -467,7 +468,7 @@ class DigiDartWrapper(DeviceWrapper):
             desired_voltage=float(hv_target),
             lower_level_discriminator=float(self.dart.show_lld()),
             upper_level_discriminator=np.nan,
-            fine_gain=np.nan,
+            fine_gain=self.dart.show_fine_gain(),
             device_state=self.state,
             connection_type=self.connection,
             timestamp=time.time(),
@@ -606,7 +607,7 @@ class DigiDartWrapper(DeviceWrapper):
 
             await asyncio.sleep(0.25)
 
-
+    # --- Setters ---
     # High voltage
     async def set_hv_enabled(self, state: bool):
         try:
@@ -672,9 +673,8 @@ class DigiDartWrapper(DeviceWrapper):
 
     # Gain
     async def set_fine_gain(self, fine_gain: float):
-        raise NotImplementedError(
-            "digiDART does not currently expose fine gain"
-        )
+        self.dart.set_fine_gain(fine_gain)
+        await self._update_status(4)
 
     # Cleanup
     def close(self):

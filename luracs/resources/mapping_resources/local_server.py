@@ -1,5 +1,4 @@
 import threading
-from functools import lru_cache
 from pathlib import Path
 from threading import Thread
 
@@ -42,7 +41,6 @@ class PMTilesServer:
             name="sprites"
         )
 
-        @lru_cache(maxsize=512)
         def get_tile(z, x, y):
             result = reader.get(z, x, y)
             return result
@@ -61,7 +59,6 @@ class PMTilesServer:
                     "Cache-Control": "public, max-age=86400, immutable",
                 },
             )
-
 
 class TileServer:
     def __init__(self, pmtiles_path: Path, host="127.0.0.1", port=8080):

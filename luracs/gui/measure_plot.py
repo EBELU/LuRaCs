@@ -14,6 +14,7 @@ from pathlib import Path
 
 import numpy as np
 import pyqtgraph as pg
+from PySide6.QtCore import Slot
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -39,7 +40,7 @@ from PySide6.QtWidgets import (
 
 from luracs.containers.report_template import MeasurementReport
 from luracs.containers.spectrum_classes import Spectrum, SpectrumData
-from luracs.core import RunManager, Settings, core_utils, SpectrumManager
+from luracs.core import RunManager, Settings, SpectrumManager, core_utils
 from luracs.utils.color_rotator import ColorRotator
 from luracs.utils.file_io import xml_report_writer
 
@@ -152,23 +153,13 @@ class Measurement:
         self.calibration_coefficients: list | None = None
         self.stop_timestamps: list[datetime] = []
         
-        
+    
+    # Setters, unnecessary?
     def set_detector_name(self, name: str):
         self.detector_name = name
     
     def set_duration_limit(self, duration: int):
         self.duration_limit = duration
-        
-    def update_real_time(self, real_time_data: WrappedRealTimePackage):
-        if self.previous_spectrum is None:
-            return
-        
-        self.count_rate_data.append(real_time_data.CPS)
-        self.dose_rate_data.append(real_time_data.DR)
-        self.rate_axis.append(self.measurement_time)
-        self.mean_count_rate = np.mean(self.count_rate_data) if self.count_rate_data else real_time_data.CPS
-        self.mean_dose_rate = np.mean(self.dose_rate_data) if self.dose_rate_data else real_time_data.DR
-        self.accumulated_dose += real_time_data.DR * Settings.Advanced.spectrum_update_delay / 3600
         
     def set_calibration(self, coeffs: list, channels: int):
         if coeffs is not None:
@@ -176,14 +167,33 @@ class Measurement:
             self.calibration_coefficients = coeffs  
         else:
             self.x_axis = np.arange(channels)  
+    
+    def update_real_time(self, real_time_data: WrappedRealTimePackage):
+        if self.previous_spectrum is None:
+            # Dont save realtime data while the spectrum is buffering
+            # Otherwise the plots will look skewed
+            return
+        
+        # Store data
+        self.count_rate_data.append(real_time_data.CPS)
+        self.dose_rate_data.append(real_time_data.DR)
+        self.rate_axis.append(self.measurement_time)
+        self.mean_count_rate = np.mean(self.count_rate_data) if self.count_rate_data else real_time_data.CPS
+        self.mean_dose_rate = np.mean(self.dose_rate_data) if self.dose_rate_data else real_time_data.DR
+        self.accumulated_dose += real_time_data.DR * Settings.Advanced.spectrum_update_delay / 3600
 
         
     def set_spectrum(self, spectrum: SpectrumData):
         if self.previous_spectrum is None:
+            # If no previous spectrum has been set the buffer must be filled
+            # Must be done on a fresh start or a restart since this is reset by stopping
             self.previous_spectrum = spectrum
+            
             if self.spectrum is None:
+                # During a fresh start no previous spectrum exists
+                # Make one
                 self.spectrum = np.zeros_like(spectrum.y_axis)
-            return
+            return # Then return and wait for the next
 
         self.spectrum += spectrum.y_axis - self.previous_spectrum.y_axis
         self.accumulated_counts = np.sum(self.spectrum)
@@ -424,7 +434,7 @@ class MeasurePlot(QWidget):
         RunManager.Signals.deviceRemoved.connect(self.catch_detector_removed)
         RunManager.Signals.statusUpdated.connect(self.catch_status_update)
 
-
+        # Instantiate buffers used for storing the measurements
         self.buffer_real_time = None
         self.fg = Measurement()
         self.bg = Measurement()
@@ -441,6 +451,8 @@ class MeasurePlot(QWidget):
             QMessageBox.warning(self, "No Detector", "The measurement could not be started because no detector is connected.")
         
         if self.time_limit_seconds == 0:
+            # This mode encourages the use of the time
+            # So pester to user to remember that
             result = QMessageBox.question(
                 self,
                 "Confirm",
@@ -455,11 +467,17 @@ class MeasurePlot(QWidget):
     def stop_measurement(self):
         self.disconnect_measurement_signals()
         if self.current_measurement.previous_spectrum is not None:
+            # Store the timestamp for the stop for later tracking
+            # This adds a little assurance in the report that the measurement was at least taken uninterrupted
             self.current_measurement.stop_timestamps.append(datetime.now())
         self.current_measurement.detector_name = self.detector_combo.currentText()
+        
+        # Clear the buffered spectrum from the current measurement
+        # A new will be set upon restarting acquisition as the model assumes each measurement interval is uninterrupted
         self.current_measurement.previous_spectrum = None
 
     def connect_measurement_signals(self):
+        # The measurement is started by connecting the signal from RunManager
         if not self._measurement_signals_connected:
             RunManager.Signals.spectrumUpdated.connect(
                 self.catch_spectrum_update
@@ -471,6 +489,7 @@ class MeasurePlot(QWidget):
 
 
     def disconnect_measurement_signals(self):
+        # Similar to the start, the measurement is stopped by connecting the signal from RunManager
         if self._measurement_signals_connected:
             RunManager.Signals.spectrumUpdated.disconnect(
                 self.catch_spectrum_update
@@ -490,6 +509,7 @@ class MeasurePlot(QWidget):
         if result == QMessageBox.StandardButton.Cancel:
             return
         
+        # Clear only the selected measurement
         if self.measure_fg.isChecked():
             key = "fg"
             self.fg = Measurement()
@@ -499,38 +519,54 @@ class MeasurePlot(QWidget):
             self.bg = Measurement()
             self.current_measurement = self.bg
         
+        # Dont prompt the user to export a report immediately after clearing
         self.make_report_button.setChecked(False)
+        
+        # Reset all graphs
         self.spectrum_lines[key].setData([], [])
         self.count_rate_lines[key].setData([], [])    
         self.dose_rate_lines[key].setData([], [])    
         self.update_text()
         
     def on_measurement_type_changed(self, button, checked):
+        # Click the stop button if the user is too lazy to do it themselves
         self.stop_button.click()
+        
         if checked:
             if button == self.measure_fg:
                 self.current_measurement = self.fg
             elif button == self.measure_bg:
                 self.current_measurement = self.bg
         
+        # Update the time in the progress bar
         self.set_time()
         
     def on_detector_change(self):
+        # Changing detector must be handled with care as switching during a measurement or using different detectors
+        # for fore- and background will result in garbage data
+        
+        # Check if anything has been measured.
         if self.fg.measurement_time != 0 or self.bg.measurement_time != 0:
             res = QMessageBox.question(self, "Change Detector", "Changing detector will reset all previous measurements and all unsaved data will be lost!", QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,)
             if res == QMessageBox.StandardButton.Cancel:
+                # Upon canceled the old detector needs to be reinstated
+                # To avoid an infinite loop since this function is triggered by a change on the combo box,
+                # block signals for the combo box
                 self.detector_combo.blockSignals(True)
                 detector_name = self.fg.detector_name if self.fg.detector_name else self.bg.detector_name
                 self.detector_combo.setCurrentText(detector_name)
-                self.detector_combo.blockSignals(False)
+                self.detector_combo.blockSignals(False) # Everything went fine and signals are now allowed again
                 return
 
+        # --- The detector is changed! ---
+        # Instantiate as assign new measurement 
         self.fg = Measurement()
         self.current_measurement = self.fg
 
         self.bg = Measurement()
 
-        self.make_report_button.setChecked(False)
+        self.make_report_button.setChecked(False) # Dont prompt the user to export nothing 
+        # Reset the rest
         for key in ["fg", "bg"]:
             self.spectrum_lines[key].setData([], [])
             self.count_rate_lines[key].setData([], [])    
@@ -539,7 +575,9 @@ class MeasurePlot(QWidget):
             
     
     def set_time(self):
-        self.confirm_time_button.setChecked(False)
+        "Sets the time in the measurement progress bar"
+        self.confirm_time_button.setChecked(False) # The user has done as prompted, deselect
+        # Extract time values
         hours = self.hours_spin.value()
         minutes = self.minutes_spin.value()
         seconds = self.seconds_spin.value()
@@ -549,38 +587,52 @@ class MeasurePlot(QWidget):
             self.progress_bar.setFormat("Remaining: 00:00:00")
             return
         
+        # Convert to seconds and display
         total_seconds = hours * 3600 + minutes * 60 + seconds
         self.time_limit_seconds = total_seconds
         self.progress_bar.setRange(0, total_seconds)
         self.progress_bar.setValue(0)
         self.progress_bar.setFormat(f"Remaining: {hours:02d}:{minutes:02d}:{seconds:02d}")
         
-        self.start_button.setChecked(True)
+        self.start_button.setChecked(True) # Prompt the user to start
         
+    @Slot(str)
     def catch_detector_added(self, detector_name: str):
+        "Slot for the RunManager signal emitted when a new detector is added"
         self.detector_combo.addItem(detector_name)
-        
+    
+    @Slot(str)
     def catch_detector_removed(self, detector_name: str):
+        "Slot for the RunManager signal emitted when a detector is removed"
         idx = self.detector_combo.findText(detector_name)
         self.detector_combo.removeItem(idx)
-        
+    
+    @Slot(str, WrappedRealTimePackage)
     def catch_real_time_update(self, detector_name: str, real_time_data: WrappedRealTimePackage):
-        if detector_name != self.detector_combo.currentText():
+        "Catch the realtime values emitted from RunManager"
+        
+        if detector_name != self.detector_combo.currentText(): # Check if coming from the correct detector
             return
         
         self.buffer_real_time = real_time_data
     
+    @Slot(str, WrappedSpectrumPackage)
     def catch_spectrum_update(self, detector_name: str, spectrum: WrappedSpectrumPackage):
-        if detector_name != self.detector_combo.currentText():
+        if detector_name != self.detector_combo.currentText(): # Check if coming from the correct detector
             return
-                
+        
+        # Sampling interval is not perfect so some margin must be accounted for
         if 0.05 > (self.time_limit_seconds - self.current_measurement.measurement_time) and self.time_limit_seconds > 0:
-            self.stop_button.click()
+            self.stop_button.click() # Stop the measurement
             QMessageBox.information(self, "Info", "Measurement time reached. Increase the measurement duration to continue.")
             return       
         
-        if self.current_measurement.x_axis is None:
+        # If the measurement time is 0 then the spectrum must be said to start now
+        if self.current_measurement.measurement_time == 0:
             self.current_measurement.start_time = datetime.now()
+        
+        # Try and find a calibration
+        if self.current_measurement.x_axis is None:
             if spectrum.calib_coeff is None and SpectrumManager.get_spectrum(detector_name):
                 spect = SpectrumManager.get_spectrum(detector_name)
                 if spect.calibrated:
@@ -589,8 +641,11 @@ class MeasurePlot(QWidget):
             else:
                 self.current_measurement.set_calibration(spectrum.calib_coeff, len(spectrum.y_axis))
         
+        # Call the slots in the Measurement class
         self.current_measurement.update_real_time(self.buffer_real_time)
         self.current_measurement.set_spectrum(spectrum)
+        
+        # Dont bother updating if no time has been set
         if self.time_limit_seconds > 0:
             self.update_progress()
 
@@ -598,7 +653,7 @@ class MeasurePlot(QWidget):
         self.update_plots()
         self.update_text()
 
-        
+        # Same margin as above
         if 0.05 > (self.time_limit_seconds - self.current_measurement.measurement_time) and self.time_limit_seconds > 0:
             self.update_progress()
             self.stop_button.click()
@@ -611,22 +666,25 @@ class MeasurePlot(QWidget):
             self.make_report_button.setChecked(True)
             
             
-        
     def catch_status_update(self, detector_name: str, status: WrappedStatusPackage):
-        if detector_name != self.detector_combo.currentText():
+        "Catch status update from RunManager. Currently only used for cosmetic display and not stored as part of the measurement"
+        if detector_name != self.detector_combo.currentText(): # Check if coming from the correct detector
             return
         
+        # Update views
         self.battery_edit.setText(f"{status.battery:.1f}%")
         self.status_edit.setText(str(status.device_state))
         self.connection_type_edit.setText(str(status.connection_type))
         
     def update_progress(self):
+        "Updates the progress bar"
         diff = self.time_limit_seconds - self.current_measurement.measurement_time
-        td = timedelta(seconds=max(round(diff), 0))
+        td = timedelta(seconds=max(round(diff), 0)) # Drop the ms
         self.progress_bar.setValue(round(self.current_measurement.measurement_time))
         self.progress_bar.setFormat(f"Remaining: {td}")
         
     def update_text(self):
+        "Updates the displayed info text based in current measurement values"
         text = (
             f"Detector: {self.fg.detector_name}\n"
             " --- Foreground Summary --- \n"
@@ -650,17 +708,36 @@ class MeasurePlot(QWidget):
         
         self.info_text.setText(text)
         
+    def update_plots(self):
+        if self.measure_fg.isChecked():
+            # Foreground
+            self.count_rate_lines["fg"].setData(np.asarray(self.current_measurement.rate_axis) + Settings.Advanced.spectrum_update_delay, self.current_measurement.count_rate_data)
+            self.dose_rate_lines["fg"].setData(np.asarray(self.current_measurement.rate_axis) + Settings.Advanced.spectrum_update_delay, self.current_measurement.dose_rate_data)
+            if self.current_measurement.x_axis is not None and self.current_measurement.spectrum is not None:
+                self.spectrum_lines["fg"].setData(self.current_measurement.x_axis, self.current_measurement.spectrum  / max(self.current_measurement.measurement_time, 1))
+        else:
+            # Background
+            self.count_rate_lines["bg"].setData(np.asarray(self.current_measurement.rate_axis) + Settings.Advanced.spectrum_update_delay, self.current_measurement.count_rate_data)
+            self.dose_rate_lines["bg"].setData(np.asarray(self.current_measurement.rate_axis) + Settings.Advanced.spectrum_update_delay, self.current_measurement.dose_rate_data)
+            if self.current_measurement.x_axis is not None and self.current_measurement.spectrum is not None:
+                self.spectrum_lines["bg"].setData(self.current_measurement.x_axis, self.current_measurement.spectrum / max(self.current_measurement.measurement_time, 1))
+        
     def make_report(self):
-        self.make_report_button.setChecked(False)
+        "Export the measurement as a nice report"
+        self.make_report_button.setChecked(False) # The user has done as prompted
+        
+        # Dont bother exporting nothing
         if self.current_measurement.measurement_time == 0:
             QMessageBox.information(self, "No Measurement", "No measurement to report on.")
             return
         
+        # Get additional info
         report_form = ReportFormDialog()
         res = report_form.exec()
         if res != QDialog.DialogCode.Accepted:
             return
         
+        # Make a readable timestamp without microseconds for the file
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         file, used_filter = QFileDialog.getSaveFileName(
             self,
@@ -669,12 +746,15 @@ class MeasurePlot(QWidget):
             "Report (.xml)",
             options=QFileDialog.Option.DontUseNativeDialog,
         )
-        if not file:
+        
+        if not file: # The file selection is cancelled
             return
+        
+        # Update last opened dir in settings
         file = Path(file)
         Settings.Paths.last_opened_dir = file.parent
         
-        if file.exists():
+        if file.exists(): # Handle existing file
             result = QMessageBox.question(
                 self,
                 "File Exists",
@@ -685,8 +765,8 @@ class MeasurePlot(QWidget):
                 return
             
         form_data = report_form.get_results()
-            
-
+        
+        # Build a spectrum from the measurement data
         new_spectrum = Spectrum(
             len(self.fg.spectrum), 
             file.stem, 
@@ -714,12 +794,13 @@ class MeasurePlot(QWidget):
             )
             new_spectrum.set_background(bg)
         
+        # Try and fetch a calibration
         if self.fg.calibration_coefficients is not None:
             new_spectrum.apply_calibration(self.fg.calibration_coefficients)
         elif self.bg.calibration_coefficients is not None:
             new_spectrum.apply_calibration(self.bg.calibration_coefficients)
 
-        
+        # Make a report
         report = MeasurementReport(
             date=datetime.now(),
             **form_data,
@@ -727,20 +808,9 @@ class MeasurePlot(QWidget):
             bg_measurement=self.bg
         )
         
+        # Write out the report
         xml_report_writer(new_spectrum, file, report)
 
-    
-    def update_plots(self):
-        if self.measure_fg.isChecked():
-            self.count_rate_lines["fg"].setData(np.asarray(self.current_measurement.rate_axis) + Settings.Advanced.spectrum_update_delay, self.current_measurement.count_rate_data)
-            self.dose_rate_lines["fg"].setData(np.asarray(self.current_measurement.rate_axis) + Settings.Advanced.spectrum_update_delay, self.current_measurement.dose_rate_data)
-            if self.current_measurement.x_axis is not None and self.current_measurement.spectrum is not None:
-                self.spectrum_lines["fg"].setData(self.current_measurement.x_axis, self.current_measurement.spectrum  / max(self.current_measurement.measurement_time, 1))
-        else:
-            self.count_rate_lines["bg"].setData(np.asarray(self.current_measurement.rate_axis) + Settings.Advanced.spectrum_update_delay, self.current_measurement.count_rate_data)
-            self.dose_rate_lines["bg"].setData(np.asarray(self.current_measurement.rate_axis) + Settings.Advanced.spectrum_update_delay, self.current_measurement.dose_rate_data)
-            if self.current_measurement.x_axis is not None and self.current_measurement.spectrum is not None:
-                self.spectrum_lines["bg"].setData(self.current_measurement.x_axis, self.current_measurement.spectrum / max(self.current_measurement.measurement_time, 1))
 
 if __name__ == "__main__":
     import sys

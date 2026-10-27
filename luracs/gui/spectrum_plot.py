@@ -466,9 +466,13 @@ class SpectrumPlot(QWidget):
     def plot_bkg_subtract(self, spectrum: Spectrum):
         # Skip if background or live times invalid
         if (
-            spectrum.get_background() is None  # No bkg
+            spectrum.foreground is None
             or spectrum.foreground.live_time == 0  # No fg live time
-            or spectrum.background.live_time == 0  # No bkg live time
+        ):
+            return
+        
+        if (
+            spectrum.background is not None and spectrum.background.live_time == 0
         ):
             return
 

@@ -32,6 +32,11 @@ PID = 0x0005
 EP_OUT = 0x02
 EP_IN = 0x82
 
+_FINE_GAIN_STEP    = 1.0 / 196608       # ≈ 5.086263020833333e-06
+_FINE_GAIN_MIN     = 0.45
+_FINE_GAIN_RAW_MIN = 88474
+_FINE_GAIN_RAW_MAX = 196607
+
 
 def csum(body: str) -> int:
     """Sum of ASCII bytes mod 256"""
@@ -64,6 +69,7 @@ def fmt_ascii(s: str) -> str:
 def fmt_bool(v: int) -> str:
     """FormatBool - $IT or $IF."""
     return "$IT\r" if v else "$IF\r"
+
 
 
 # ============================================================
@@ -298,7 +304,35 @@ class digiDart:
         self._check("SHOW_HV_ACTUAL", e3, e4)
         return a, b
 
-    # ---- gain ------------------------------------------------------------
+    # ---- gain ------------------------------------------------------------    
+    def set_fine_gain(self, value: float) -> tuple[int, int]:
+        """SET_GAIN_FINE <value> — digiDART fine gain, 0.45 .. 1.00.
+
+        The value is snapped to the nearest 1/196608 step before being
+        sent as a raw u32. Values outside the documented digiDART range
+        are rejected client-side; the device would silently clamp them.
+
+        Wire:  36 00 | 02 00 | <raw BE32>
+        Reply: 00 00
+        """
+        if not (_FINE_GAIN_MIN <= value <= 1.0):
+            raise ValueError(
+                f"fine gain {value} out of digiDART range "
+                f"[{_FINE_GAIN_MIN}, 1.0]"
+            )
+        raw = int(value / _FINE_GAIN_STEP + 0.5)
+        raw = max(_FINE_GAIN_RAW_MIN, min(_FINE_GAIN_RAW_MAX, raw))
+        return self._cmd1(0x36, raw)
+
+    def show_fine_gain(self) -> float:
+        """SHOW_GAIN_FINE — current fine gain as a float.
+
+        Wire:  71 00 | 06 00
+        Reply: 00 00 | <raw BE32>
+        """
+        e3, e4, v = self._query_u32_1(0x71)
+        self._check("SHOW_GAIN_FINE", e3, e4)
+        return v * _FINE_GAIN_STEP
 
     def set_gain_coarse(self, gain: int) -> tuple[int, int]:
         """SET_GAIN_COARSE <gain> - 1, 2, 4, 8, 16, or 32.

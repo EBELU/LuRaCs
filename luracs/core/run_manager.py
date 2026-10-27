@@ -109,6 +109,7 @@ class _RunManager(QObject):
 
         
         self.has_gps: bool = False
+        self.gps: GPS | None = None
 
         self._loop: asyncio.AbstractEventLoop | None = None
         self._loop_ready = threading.Event()    
@@ -121,8 +122,6 @@ class _RunManager(QObject):
         self.Signals.currentUpdated.connect(self.receive_realtime_package)
         
         self.Signals.newDeviceWrapped.connect(Settings.add_new_connection)
-        
-        self.Signals.GPSConnection.connect(self.set_gps)
 
         # Connected devices
         self.device_registry: dict[str, DeviceWrapper] = {}

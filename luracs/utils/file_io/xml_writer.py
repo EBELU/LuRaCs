@@ -95,10 +95,11 @@ class xml_writer:
             self.write_spectrum(spectrum)
 
         # ------------------------------------------------------------------
-        # Luracs extensions
+        # LuRaCs extensions
         # ------------------------------------------------------------------
         # Enough data is included in the extension the import everything to another app instance
         # Not compatible with other software
+        # The report extension is not included here, it instead uses xml_report_writer.py
 
         # --- ROIs ---
         if export_rois and len(spectrum.ROIs) > 0:
@@ -125,10 +126,8 @@ class xml_writer:
         if write_in_constructor:
             self.write_out()
 
-    # ------------------------------------------------------------------
-    # Write out
-    # ------------------------------------------------------------------
-    
+
+    # --- Write out ---   
     def write_out(self):
         self.tree.write(
             str(self.file_name.with_suffix(".xml")),
@@ -137,10 +136,7 @@ class xml_writer:
             encoding="utf-8",
         )
         
-    # ------------------------------------------------------------------
-    # Spectrum Data
-    # ------------------------------------------------------------------
-    
+    # --- Spectrum Data ---
     def write_spectrum_preamble(self, spectrum: Spectrum):
         write_text_to_SubElement(
             self.root, n42("RadInstrumentDataCreatorName"), "LuRaCs"

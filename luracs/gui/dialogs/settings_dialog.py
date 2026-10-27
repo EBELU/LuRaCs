@@ -316,9 +316,14 @@ class AdvancedSettingsDialog(QDialog):
         )
         form.addRow("Spectrogram View Buffer:", self.spectrogram_deque_length)
         
+        extra_row = QHBoxLayout()
         self.map_save_extra_gps_data = QCheckBox("Save extra GPS data")
         self.map_save_extra_gps_data.setChecked(Settings.Advanced.map_save_extra_gps_data)
-        form.addRow("", self.map_save_extra_gps_data)
+        extra_row.addWidget(self.map_save_extra_gps_data)
+        self.map_save_extra_measurement_time_data = QCheckBox("Save measurement time")
+        self.map_save_extra_measurement_time_data.setChecked(Settings.Advanced.map_save_extra_measurement_time_data)
+        extra_row.addWidget(self.map_save_extra_measurement_time_data)
+        form.addRow("", extra_row)
 
         main_layout.addLayout(form)
 
@@ -342,7 +347,8 @@ class AdvancedSettingsDialog(QDialog):
             "log_write_to_file": self.log_write_to_file.isChecked(),
             "log_write_to_console": self.log_write_to_console.isChecked(),
             "spectrogram_deque_length": self.spectrogram_deque_length.value(),
-            "map_save_extra_gps_data": self.map_save_extra_gps_data.isChecked()
+            "map_save_extra_gps_data": self.map_save_extra_gps_data.isChecked(),
+            "map_save_extra_measurement_time_data": self.map_save_extra_measurement_time_data.isChecked(),
         }
 
 

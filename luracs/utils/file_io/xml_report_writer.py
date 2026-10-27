@@ -16,7 +16,8 @@ from .xml_writer import LRC, n42, write_text_to_SubElement, xml_writer
 class xml_report_writer(xml_writer):
     def __init__(self, spectrum: Spectrum, file_name, report: MeasurementReport):
         
-        
+        # Create the human readable report
+        # This will be stored as an xml comment at the top of the file
         txt_report = f"""
         ======================
         | Measurement Report |
@@ -54,7 +55,8 @@ class xml_report_writer(xml_writer):
 
         ========================
         """
-        
+        # Create a writer but dont write out in the constructor
+        # More data can now be added
         writer = xml_writer(
             spectrum=spectrum,
             file_name=file_name,
@@ -65,7 +67,7 @@ class xml_report_writer(xml_writer):
             write_in_constructor=False
         )
         
-        
+        # Use the standard extension section
         extension_section = (
             etree.SubElement(writer.root, LRC("LuRaCs"), version="1")
         )
@@ -86,6 +88,10 @@ class xml_report_writer(xml_writer):
         write_text_to_SubElement(meta_data_section, "Remarks", report.remark)
         
         for name, data in zip(["Foreground", "Background"], [report.fg_measurement, report.bg_measurement]):
+            if data.start_time is None:
+                # If the fore- or background have not been measured this is None
+                # That 'ground' is skipped here, the txt report handles it fine
+                continue
             fg_section = etree.SubElement(branch, name)
             
             write_text_to_SubElement(
@@ -130,4 +136,5 @@ class xml_report_writer(xml_writer):
             )
             
         
+        # Now let the writer write
         writer.write_out()

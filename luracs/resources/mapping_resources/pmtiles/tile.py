@@ -4,20 +4,21 @@ import gzip
 import io
 from enum import Enum
 from typing import TYPE_CHECKING, TypedDict
-
+import sys
 if TYPE_CHECKING:
     import sys
-
-    from typing import Sequence, IO
+    from collections.abc import Sequence
+    from typing import IO
 
     if sys.version_info >= (3, 12):
         from collections.abc import Buffer
     else:
         from typing_extensions import Buffer
+from functools import lru_cache
 
 
 class Entry:
-    __slots__ = ("tile_id", "offset", "length", "run_length")
+    __slots__ = ("length", "offset", "run_length", "tile_id")
 
     tile_id: int
     offset: int
@@ -147,7 +148,7 @@ class TileType(Enum):
     AVIF = 5
     MLT = 6
 
-
+@lru_cache(maxsize=16)
 def deserialize_directory(buf: Buffer) -> list[Entry]:
     b_io = io.BytesIO(gzip.decompress(buf))
     entries: list[Entry] = []
@@ -171,7 +172,6 @@ def deserialize_directory(buf: Buffer) -> list[Entry]:
             entries[i].offset = entries[i - 1].offset + entries[i - 1].length
         else:
             entries[i].offset = tmp - 1
-
     return entries
 
 
@@ -290,7 +290,7 @@ def serialize_header(h: HeaderDict):
     def write_uint8(i):
         b_io.write(i.to_bytes(1, byteorder="little"))
 
-    b_io.write("PMTiles".encode())
+    b_io.write(b"PMTiles")
     b_io.write(b"\x03")
     write_uint64(h["root_offset"])
     write_uint64(h["root_length"])
@@ -309,13 +309,13 @@ def serialize_header(h: HeaderDict):
     write_uint8(h["tile_type"].value)
     write_uint8(h["min_zoom"])
     write_uint8(h["max_zoom"])
-    min_lon_e7 = h.get("min_lon_e7", int(-180 * 10000000))
+    min_lon_e7 = h.get("min_lon_e7", -180 * 10000000)
     write_int32(min_lon_e7)
-    min_lat_e7 = h.get("min_lat_e7", int(-90 * 10000000))
+    min_lat_e7 = h.get("min_lat_e7", -90 * 10000000)
     write_int32(min_lat_e7)
-    max_lon_e7 = h.get("max_lon_e7", int(180 * 10000000))
+    max_lon_e7 = h.get("max_lon_e7", 180 * 10000000)
     write_int32(max_lon_e7)
-    max_lat_e7 = h.get("max_lat_e7", int(90 * 10000000))
+    max_lat_e7 = h.get("max_lat_e7", 90 * 10000000)
     write_int32(max_lat_e7)
     write_uint8(h.get("center_zoom", h["min_zoom"]))
     write_int32(h.get("center_lon_e7", round((min_lon_e7 + max_lon_e7) / 2)))

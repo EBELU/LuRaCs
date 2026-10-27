@@ -24,46 +24,8 @@ from luracs.core import IOManager, Log, RunManager, SpectrumManager
 from luracs.gui.dialogs.spectrum_edit_dialog import SpectrumEditDialog
 from luracs.gui.misc.idx_table import StrIdxTable
 from luracs.gui.misc.table_menu_button import MenuButton
-from luracs.gui.save_to_internal_dialogs import save_spectrum_to_library_dialog
+from luracs.gui.save_to_internal_dialogs import save_spectrum_to_library_dialog, save_background_as_spectrum
 from luracs.utils.file_io import io_dispatcher
-
-
-class ColorCellWidget(QWidget):
-    """Clean color swatch for QTableWidget cells."""
-
-    clicked = Signal()
-
-    def __init__(self, color: QColor, parent=None):
-        super().__init__(parent)
-        self.color = color
-        self.setFixedWidth(30)
-        self.setFixedHeight(20)
-        self.setToolTip("Click to change color")
-
-    def set_color(self, color: QColor):
-        self.color = color
-        self.update()  # repaint
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self.clicked.emit()
-        super().mousePressEvent(event)
-
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-        rect = self.rect().adjusted(1, 1, -1, -1)
-
-        # Fill with color
-        painter.setBrush(QBrush(self.color))
-        painter.setPen(Qt.NoPen)  # no border
-        painter.drawRoundedRect(rect, 3, 3)
-
-    def get_color(self):
-        color = QColorDialog.getColor(self.color, self, "Select color")
-        if color.isValid():
-            self.set_color(color)
-            return color
 
 
 class SpectrumInfoTab(QWidget):
@@ -211,7 +173,7 @@ class SpectrumInfoTab(QWidget):
             save.triggered.connect(lambda: save_spectrum_to_library_dialog(spectrum))
             
             export_btn = menu_button.add_action("Export")
-            export_btn.triggered.connect(lambda _: IOManager.Exporter.export_spectrum_dialog(spectrum.name))
+            export_btn.triggered.connect(lambda : IOManager.Exporter.export_spectrum_dialog(spectrum.name))
 
             self.hide_show_btn[spectrum.name] = menu_button.add_action("Hide")
             self.hide_show_btn[spectrum.name].triggered.connect(
@@ -229,6 +191,11 @@ class SpectrumInfoTab(QWidget):
             )
 
         else:  # Background
+            save_bkg_as_spectrum = menu_button.add_action("Save")
+            save_bkg_as_spectrum.triggered.connect(
+                lambda: save_background_as_spectrum(spectrum)
+            )
+            menu_button.add_separator()
             rm_bkg = menu_button.add_action("Remove Background")
             rm_bkg.triggered.connect(
                 lambda: SpectrumManager.clear_background(spectrum.name)

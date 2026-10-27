@@ -1,16 +1,17 @@
+import gzip
 import json
 import mmap
-from .tile import (
-    deserialize_header,
-    deserialize_directory,
-    zxy_to_tileid,
-    tileid_to_zxy,
-    find_tile,
-    Compression,
-)
-import gzip
-from functools import lru_cache
 
+from .tile import (
+    Compression,
+    deserialize_directory,
+    deserialize_header,
+    find_tile,
+    tileid_to_zxy,
+    zxy_to_tileid,
+)
+
+import time
 
 def MmapSource(f):
     mapping = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
@@ -32,11 +33,9 @@ class Reader:
     def __init__(self, get_bytes):
         self.get_bytes = get_bytes
 
-    @lru_cache(maxsize=1)
     def header(self):
         return deserialize_header(self.get_bytes(0, 127))
 
-    @lru_cache(maxsize=512)
     def directory(self, offset, length):
         return deserialize_directory(self.get_bytes(offset, length))
 

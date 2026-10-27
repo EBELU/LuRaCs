@@ -299,7 +299,6 @@ class SpectrumTab(LibraryTab):
         selection = self._get_selection()
         if not selection:
             return
-
         if len(selection) > 1:
             QMessageBox.warning(
                 self, "Selection error", "Only one item may be edited simultaneously"
@@ -325,7 +324,9 @@ class SpectrumTab(LibraryTab):
             **header_dict,
         )
         dummy_spectrum.set_foreground(parser.get_foreground_spectrum())
-        dummy_spectrum.set_background(parser.get_background_spectrum())
+        
+        if parser.get_background_spectrum() is not None:
+            dummy_spectrum.set_background(parser.get_background_spectrum())
 
         for roi in parser.get_rois():
             dummy_spectrum.set_roi(roi)

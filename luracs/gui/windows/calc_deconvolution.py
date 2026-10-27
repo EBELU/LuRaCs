@@ -54,20 +54,17 @@ class DeconvolutionWindow(QWidget):
         self.combo_spectra = QComboBox()
         form.addRow("Spectrum", self.combo_spectra)
         
+        self.subtract_background = QCheckBox("Subtract Background")
+        form.addRow("", self.subtract_background)
+        
         self.internal_progress = QProgressBar()
         self.internal_progress.setRange(0, 100)
         form.addRow("Progress", self.internal_progress)
-        
         
         btn_calculate = QPushButton("Calculate")
         btn_calculate.clicked.connect(self.calculate)
         
         form.addRow("", btn_calculate)
-        
-        # self.calculation_progress = QProgressBar()
-        # self.calculation_progress.setRange(0, 100)
-        # self.calculation_progress.setValue(30)
-        # form.addRow("Progress", self.calculation_progress)
         
         main_layout.addLayout(form)
         
@@ -186,7 +183,23 @@ class DeconvolutionWindow(QWidget):
         if file_path:
             self.mlem_line_loaded_file.setText(file_path)
             
-    def calculate(self):           
+    def calculate(self):     
+        spectrum = SpectrumManager.spectrum_registry.get(
+            self.combo_spectra.currentData()
+        )
+        if self.subtract_background.isChecked() and spectrum.background is None:
+            QMessageBox.warning(self, "Error", "Selected spectrum has no background to subtract. Aborting.")
+            return
+        
+        if spectrum.channels > 5000:
+            res = QMessageBox.question(self, 
+            "Proceed?", 
+            f"The chosen spectrum has a large number of channels ({spectrum.channels}), this operation can therefore use a lot of memory. Do you want to proceed?",         
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,)
+            if res != QMessageBox.Yes:
+                return
+              
         algorithm_idx = self.combo_algorithm.currentIndex()
         if algorithm_idx == 0:
             self.calculate_rl()
@@ -217,7 +230,13 @@ class DeconvolutionWindow(QWidget):
         if spectrum is None:
             return
         
-        y_axis = spectrum.get_foreground().copy()
+        if self.subtract_background.isChecked():
+            y_axis = spectrum.get_bkg_sub().copy()
+            y_axis *= spectrum.foreground.live_time
+        else:
+            y_axis = spectrum.get_foreground().copy()
+            
+        # Flatten the overflow channel to avoid confusing the deconvolution algorithm
         y_axis[-1] = y_axis[-2]
         
         result = richardson_lucy(
@@ -270,8 +289,14 @@ class DeconvolutionWindow(QWidget):
         
         Settings.State.deconv_last_response_file = self.mlem_line_loaded_file.text()
         
-        # Flatten the overflow channel to avoid issues with the deconvolution algorithm
-        y_axis = spectrum.get_foreground().copy()
+
+        if self.subtract_background.isChecked():
+            y_axis = spectrum.get_bkg_sub().copy()
+            y_axis *= spectrum.foreground.live_time
+        else:
+            y_axis = spectrum.get_foreground().copy()
+            
+        # Flatten the overflow channel to avoid confusing the deconvolution algorithm
         y_axis[-1] = y_axis[-2]
         
         # Everything above this point happens on the GUI thread.

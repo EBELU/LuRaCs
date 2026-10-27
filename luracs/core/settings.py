@@ -113,6 +113,8 @@ class _Advanced:
     
     map_move_to_current_max_rate_s: float = 1
     map_save_extra_gps_data: bool = False
+    map_save_extra_measurement_time_data: bool = False
+    
     
     def __init__(self, **kwargs):
         valid_fields = {f.name for f in fields(self)}

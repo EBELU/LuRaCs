@@ -270,7 +270,7 @@ def calculate_efficiency(source: Source, roi: ROI) -> tuple[float, float] | None
         raise ValueError(f"Calculation failed. Invalid value for Emission Yield! value={I}, source={source.name}, roi={roi.alias}")
 
     # Calculate the intrinsic efficiency -------------------------
-    int_eff = cps / (solid_angle * I * decays_during_measurement)
+    int_eff = cps * measurement_duration_s / (solid_angle * I * decays_during_measurement)
     # ------------------------------------------------------------
     
     

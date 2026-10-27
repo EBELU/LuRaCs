@@ -490,8 +490,7 @@ class SpectrogramCommand(Command):
         elif args[0] == "pause":
             if args[-1] == "all":
                 for sg in RunManager.SpectrogramManager.spectrogram_registry.values():
-                    if not sg.paused:
-                        sg.pause_unpause()
+                    sg.set_paused(True)
                 return "All spectrograms paused"
             
             if args[1] not in RunManager.SpectrogramManager.spectrogram_registry:
@@ -501,15 +500,14 @@ class SpectrogramCommand(Command):
             if sg.paused:
                 return f"'{args[1]}' is already paused"
             else:
-                sg.pause_unpause()
+                sg.set_paused(True)
                 return f"'{args[1]}' paused"
 
         # --- Unpause a spectrum ---
         elif args[0] == "unpause":
             if args[-1] == "all":
                 for sg in RunManager.SpectrogramManager.spectrogram_registry.values():
-                    if sg.paused:
-                        sg.pause_unpause()
+                    sg.set_paused(False)
                 return "All spectrograms unpaused"
             if args[1] not in RunManager.SpectrogramManager.spectrogram_registry:
                 raise ArgumentError(f"'{args[1]}' does not match a loaded spectrogram")
@@ -518,7 +516,7 @@ class SpectrogramCommand(Command):
             if not sg.paused:
                 return f"'{args[1]}' is already running"
             else:
-                sg.pause_unpause()
+                sg.set_paused(False)
                 return f"'{args[1]}' unpaused"
 
         # --- Load a spectrogram form index ---

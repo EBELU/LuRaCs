@@ -264,16 +264,16 @@ class Spectrogram(QObject):
     def close(self):
         self.connection.close()
 
-    def pause_unpause(self):
-        if self.paused:
-            self.paused = False
+    def set_paused(self, state: bool):
+        self.paused = state
+        if state:
+            self.state = self.State.PAUSED
+            self.data_wrapper.status = self.state
+        else:
             self.state = self.State.ACTIVE
             self.data_wrapper.status = self.state
             self.buffers.latest_spectrum = None
-        else:
-            self.paused = True
-            self.state = self.State.PAUSED
-            self.data_wrapper.status = self.state
+
 
     def request_data(self):
         self.sigDataUpdated.emit(self.db_name, self.data_wrapper)
@@ -456,6 +456,12 @@ class Spectrogram(QObject):
                 "hdop": self.buffers.latest_gps.hdop,
                 "vdop": self.buffers.latest_gps.vdop,
                 "ts": self.buffers.latest_gps.timestamp
+            }
+            
+        if Settings.Advanced.map_save_extra_measurement_time_data:
+            meta_data["extra_measurement_time"] = {
+                "live_time": spectrum_package.live_time,
+                "real_time": spectrum_package.real_time
             }
             
         spectrum_bytes = compress_spectrum(processed_spectrum)
