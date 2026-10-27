@@ -607,7 +607,7 @@ class MeasurePlot(QWidget):
         idx = self.detector_combo.findText(detector_name)
         self.detector_combo.removeItem(idx)
     
-    @Slot(str, WrappedRealTimePackage)
+    @Slot()
     def catch_real_time_update(self, detector_name: str, real_time_data: WrappedRealTimePackage):
         "Catch the realtime values emitted from RunManager"
         
@@ -616,7 +616,7 @@ class MeasurePlot(QWidget):
         
         self.buffer_real_time = real_time_data
     
-    @Slot(str, WrappedSpectrumPackage)
+    @Slot()
     def catch_spectrum_update(self, detector_name: str, spectrum: WrappedSpectrumPackage):
         if detector_name != self.detector_combo.currentText(): # Check if coming from the correct detector
             return
