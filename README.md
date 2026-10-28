@@ -39,7 +39,7 @@ The spectrum view shows a count histogram retrieved from an instrument or loaded
 LuRaCs provides a comprehensive set of tools for analysing measured spectra. Spectra can be calibrated using known emission lines, and key instrument characteristics such as energy resolution and intrinsic efficiency can be determined, visualized, and stored for future use.
 
 If your primary goal is the analysis of previously acquired spectra, we recommend using [InterSpec](https://sandialabs.github.io/InterSpec/), which offers broader compatibility with a wide range of spectrum file formats and analysis workflows.
-![analysis_view](luracs/resources/docs/imgs/analysis.webp)
+![analysis_view](dev/GitHub_calc.png)
 
 LuRaCs also implements a deconvolution tool that can enhance a spectrum using a detector dependent response matrix.       
 ![deconv_view](dev/GitHub_deconv.png)

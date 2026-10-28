@@ -146,7 +146,7 @@ class RaysidWrapper(DeviceWrapper):
         self.channels = 1800
 
     async def get_RealTimeData(self):
-        latest_rtd = await self.client.get_realtime()
+        latest_rtd = self.client.LatestRealTimeData
 
         if latest_rtd is None:
             return None
@@ -163,7 +163,7 @@ class RaysidWrapper(DeviceWrapper):
 
 
     async def get_Status(self):
-        latest_status = await self.client.get_status()
+        latest_status = self.client.LatestStatusData
 
         if latest_status is None:
             return None
@@ -183,8 +183,7 @@ class RaysidWrapper(DeviceWrapper):
 
 
     async def get_Spectrum(self):
-        latest_spectrum = await self.client.get_spectrum()
-
+        latest_spectrum = self.client.LatestSpectrum
         if latest_spectrum is None:
             return None
 
@@ -211,14 +210,11 @@ class RaysidWrapper(DeviceWrapper):
     def is_stopped(self):
         return getattr(self.client, "_stopped", True)
     
-    async def start(self):
-        return await self.client.start()
-
-    async def stop(self):
-        return await self.client.stop()
+    def reset_spectrum(self):
+        self.client.reset()
 
     def set_energy_range(self, energy_range):
-        self.client.clear(energy_range)
+        self.client.reset(energy_range)
         
         
         

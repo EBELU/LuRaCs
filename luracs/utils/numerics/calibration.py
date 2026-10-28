@@ -33,7 +33,7 @@ def calibrate_x_axis(
             ref_channel_points, current_x_axis, np.arange(axis_len)
         )
 
-    coefficients = np.polyfit(ref_channel_points, ref_energy_points, polynomial_degree)
+    coefficients = np.polyfit(ref_channel_points, ref_energy_points, polynomial_degree, )
     new_x = np.polyval(coefficients, np.arange(axis_len))
 
     if return_reference_points:
@@ -53,5 +53,3 @@ if __name__ == "__main__":
     new_x, coeff = calibrate_x_axis(
         ref_channel_points, ref_energy_points, 2, channels, current_x
     )
-
-    print(coeff)

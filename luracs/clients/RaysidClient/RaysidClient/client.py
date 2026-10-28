@@ -446,7 +446,6 @@ class RaysidClientAsync:
             return
 
         cps = decode_cps_packet(data)
-
         ERR, CPS, DR = range(3)
 
         error_code = cps[ERR]
@@ -514,7 +513,7 @@ class RaysidClientAsync:
                 # Try again!
                 data = data[:-1]
             else:
-                # Ok i guess it was wrongf
+                # Ok i guess it was wrong
                 logger.debug(
                     f"Invalid Spectrum checksum: expected=0x{expected:06X} calculated=0x{calculated:06X}"
                 )

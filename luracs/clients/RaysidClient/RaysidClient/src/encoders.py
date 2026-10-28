@@ -129,7 +129,7 @@ def build_tx2_packet(data: bytes) -> bytes:
 
 
 def build_ping_packet(active_tab) -> bytes:
-    """Builds a package to ping the device, updates which active tab and keeps connection som timing out."""
+    """Builds a package to ping the device, updates which active tab and keeps connection from timing out."""
     now_unix = int(time.time())
 
     data = bytearray(6)

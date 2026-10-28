@@ -93,7 +93,10 @@ class Spectrum:
 
         self.x_axis = np.polyval(coefficients, np.arange(self.channels))
         self.calibration_coefficients = coefficients
-        self.calibrated = True
+        if len(coefficients) >= 2 and (coefficients[-1] == 0 and coefficients[-2] == 1):
+            self.calibrated = False
+        else:
+            self.calibrated = True
 
     def get_foreground(self, log: bool = False, cps: bool = False) -> np.ndarray:
         """

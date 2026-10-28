@@ -116,7 +116,7 @@ class _SpectrumManager(QObject):
                 if spectrum_data.real_time
                 else spectrum_data.live_time
             )
-            start_date = datetime.now() - timedelta(seconds=duration)
+            start_date = datetime.now() - timedelta(seconds=float(duration))
             new_spectrum = SpectrumData(
                 y_axis=spectrum_data.y_axis,
                 channels=len(spectrum_data.y_axis),

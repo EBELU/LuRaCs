@@ -269,7 +269,7 @@ def decode_cps_packet(data) -> tuple:
         if base + 2 >= len(data):
             break
         dtype = data[base]
-        raw = unpack_value(two_bytes_to_int(data[base + 1], data[base + 2]))
+        raw = unpack_value(float(two_bytes_to_int(data[base + 1], data[base + 2])))
         value = raw / 600.0
         if dtype == 0:
             cps = value
