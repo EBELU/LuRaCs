@@ -207,7 +207,7 @@ class SourceParametersWidget(QWidget):
         distance = ufloat(self.distance_spin.value(), self.distance_uncert_spin.value())
         area = ufloat(self.parent_window.detector_area.value(), self.parent_window.detector_area_unc.value())
         
-        solid_angle = area / distance ** 2
+        solid_angle = area / (distance ** 2 * np.pi * 4)
         
         self.solid_angle_spin.setValue(solid_angle.n)
         self.solid_angle_uncert_spin.setValue(solid_angle.s)

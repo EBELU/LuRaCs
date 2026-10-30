@@ -157,7 +157,7 @@ def close():
         future.result(timeout=10)
 
         # Wait for the actual RunManager thread to exit
-        if not RunManager._thread_stopped.wait(timeout=10):
+        if not RunManager._thread_stopped.wait(timeout=20):
             raise RuntimeError(
                 "RunManager thread did not stop"
             )

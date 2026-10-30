@@ -1,6 +1,7 @@
 import warnings
 from dataclasses import replace
 from datetime import datetime
+from textwrap import dedent
 
 import numpy as np
 import pyqtgraph as pg
@@ -130,6 +131,8 @@ class EfficiencyWindow(QWidget):
         self.use_weighted_fit.setChecked(True)
         self.use_weighted_fit.setToolTip("Apply a 1/s² weight to each point where s is the \nstandard deviation during optimization")
         calc_layout.addWidget(self.use_weighted_fit)
+        self.force_intercept_check = QCheckBox("Include 0 intercept")
+        # calc_layout.addWidget(self.force_intercept_check)
         
         
         form.addRow("", calc_layout)
@@ -376,6 +379,9 @@ class EfficiencyWindow(QWidget):
             
     
     def auto_assign_sources(self):
+        if len(SpectrumManager.get_spectra_dict()) == self.source_list.count():
+            return
+        
         for spect_name in SpectrumManager.get_spectra_dict():
             rois = SpectrumManager.ROIManager.get_data_from_spectrum(spect_name)
             
@@ -386,7 +392,9 @@ class EfficiencyWindow(QWidget):
             
             for nuc in found_nuclides:
                 nuclide = SpectrumManager.NuclideLibrary.get_nuclide(nuc)
-                assert nuclide is not None
+                if nuclide is None:
+                    continue
+                
                 new_source = Source(
                     nuclide=nuc,
                     spectrum=spect_name
@@ -471,6 +479,10 @@ class EfficiencyWindow(QWidget):
         self.cov: list = []
         self.demo_plot.clear()
         
+        if self.force_intercept_check.isChecked():
+            self.energies.append(0.1)
+            self.efficiencies.append(ufloat(1e-4, 1e-4))
+        
         self.list_item_selected(self.source_list.currentIndex().row())
 
         # Gather the sources!
@@ -478,6 +490,12 @@ class EfficiencyWindow(QWidget):
         
         for name, src in sources.items():
             for ti in range(self.data_table.rowCount()):
+                container = self.data_table.cellWidget(ti, 0)
+                check = container.findChild(QCheckBox) if container else None
+
+                if check is None or not check.isChecked():
+                    continue
+                
                 combo: QComboBox = self.data_table.cellWidget(ti, 1)
                 if combo.currentText().strip() == name.strip():
                     roi = self.data_table.item(ti, 2).data(Qt.UserRole)
@@ -530,14 +548,14 @@ class EfficiencyWindow(QWidget):
                 ]
 
                 Log.info(
-                    "\n\t".join([
+                    dedent("\n\t".join([
                         "\n\t--- Efficiency Calculation ---",
                         f"Data Points: {len(self.efficiencies)}",
                         f"Efficiency Data: {data_points}",
                         f"Weighted Fit: {self.use_weighted_fit.isChecked()}",
                         f"Fit Parameters: {self.fit_params}",
                         f"Covariance: {self.cov}",
-                    ])
+                    ]))
                 )
 
 

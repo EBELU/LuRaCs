@@ -557,6 +557,17 @@ class SpectrogramTab(LibraryTab):
         )
         self.set_table()
 
+    def delete_selected(self):
+        selected = self._get_selection()
+        for s in selected:
+            print(s)
+            print(RunManager.SpectrogramManager.spectrogram_registry)
+            sg = Path(s).name
+            if sg in RunManager.SpectrogramManager.spectrogram_registry:
+                QMessageBox.warning(self, "Error", f"Spectrogram '{sg}' must be unloaded from memory before it can be deleted.")
+                return
+        
+        return super().delete_selected()
 
 class ROIsTab(LibraryTab):
     def __init__(self, parent):

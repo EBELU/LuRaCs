@@ -653,6 +653,7 @@ class MapWidget(QWidget):
                     return
                 
     def track_current_location(self, state: bool):
+        print(state)
         self.is_tracking_current_location = state
 
     # ------------------------------------------------------------------

@@ -142,7 +142,7 @@ def decode_spectrum_packet(data: np.array, spectrum: np.array):
         elif point_type == 1:
             amount_same_type = 0
             while amount_same_type < point_amount:
-                if not check_pos(data_len, pos, 1):
+                if not check_pos(data_len, pos, 0):
                     return 3, 0, 0, spectrum
                 diff = np.int8(data[pos])
 

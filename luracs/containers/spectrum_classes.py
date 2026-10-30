@@ -41,7 +41,6 @@ class Spectrum:
         self.remark: str = ""
 
         self.connection: str = kwargs.get("connection", None)
-        self.device_id: str = kwargs.get("device_id", None)
         self.instrument_id: str = kwargs.get("instrument_id", None)
         self.instrument_model: str = kwargs.get("instrument_model", None)
 

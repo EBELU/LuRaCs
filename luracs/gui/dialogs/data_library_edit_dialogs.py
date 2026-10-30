@@ -363,6 +363,8 @@ class InstrumentDialog(QDialog):
                     pen=None,
                     symbol="o",
                 )
+                if not kwargs.get("int_efficiency_E_points"):
+                    return
                 res_x = np.linspace(
                     25, max(kwargs.get("int_efficiency_E_points")) + 500, 1000
                 )

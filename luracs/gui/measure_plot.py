@@ -36,6 +36,7 @@ from PySide6.QtWidgets import (
     QTextEdit,
     QVBoxLayout,
     QWidget,
+    QGridLayout
 )
 
 from luracs.containers.report_template import MeasurementReport
@@ -319,11 +320,13 @@ class MeasurePlot(QWidget):
         
         main_layout.addLayout(start_stop_layout, 7)
 
+        # --- Central Layout ---
+        central_grid_layout = QGridLayout()
         
-        spectrum_layout = QHBoxLayout()
         self.info_text = QTextEdit()
         self.info_text.setReadOnly(True)
-        spectrum_layout.addWidget(self.info_text)
+        central_grid_layout.addWidget(self.info_text, 0, 0)
+        
         
         # --- Spectrum Plot ---
         self.spectrum_plot = pg.PlotWidget()
@@ -361,8 +364,7 @@ class MeasurePlot(QWidget):
             
 
         
-        spectrum_layout.addWidget(self.spectrum_plot)
-        main_layout.addLayout(spectrum_layout, 2)
+        central_grid_layout.addWidget(self.spectrum_plot, 0, 1)
         
         # --- Layout for rate plots bellow the spectrum ---
         fg_pen = pg.mkPen(fg_color)
@@ -383,7 +385,6 @@ class MeasurePlot(QWidget):
         rate_layout.addWidget(self.count_rate_plot)
         
         # --- Count Rate and Dose Rate Plots ---
-        rate_layout = QHBoxLayout()
 
         # Count Rate Plot
         self.count_rate_plot = pg.PlotWidget()
@@ -402,7 +403,7 @@ class MeasurePlot(QWidget):
             ),
         }
 
-        rate_layout.addWidget(self.count_rate_plot)
+        central_grid_layout.addWidget(self.count_rate_plot, 1, 0)
 
 
         # Dose Rate Plot
@@ -422,9 +423,12 @@ class MeasurePlot(QWidget):
             ),
         }
 
-        rate_layout.addWidget(self.dose_rate_plot)
+        central_grid_layout.addWidget(self.dose_rate_plot, 1, 1)
+        
+        central_grid_layout.setRowStretch(0, 2)
+        central_grid_layout.setRowStretch(1, 1)
 
-        main_layout.addLayout(rate_layout, 1)
+        main_layout.addLayout(central_grid_layout)
         
         core_utils.ThemeManager.register_plot(self.spectrum_plot, self.count_rate_plot, self.dose_rate_plot)
         core_utils.ThemeManager.register_legend(legend)

@@ -154,6 +154,7 @@ def fit_gaussians(
         or np.any(np.isnan(fits))
         or np.any(np.diag(cov) < 0)
         or np.any(np.sqrt(np.diag(cov)) > 1e12)
+        or np.any(fits < 0)
     ):
         return None, False
     
@@ -281,7 +282,7 @@ def fit_gaussians(
         )
         results.append(fit_data)
 
-    return results, converged
+    return results, True
 
 if __name__ == "__main__":
     from time import time

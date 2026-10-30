@@ -81,7 +81,7 @@ class CalibrationWindow(QWidget):
         self.poly_spin_list = [QDoubleSpinBox() for i in range(4)]
 
         for i, sb in enumerate(self.poly_spin_list):
-            sb.setDecimals(6)
+            sb.setDecimals(9)
             sb.setRange(-1e6, 1e6)
             parameter_layout.addRow(f"a{i} =", sb)
             if i > self.spin_poly_degree.value():
@@ -319,8 +319,8 @@ class CalibrationWindow(QWidget):
                 "\n\t".join([
                 "\n\t--- Calibration ---",
                 f"Spectrum: {spectrum.name}",
-                f"Reference Channels: {ref_points[0]}",
-                f"Reference Energies: {reference_energies}",
+                f"Reference Channels: {[round(v, 2) for v in sorted(ref_points[0])]}",
+                f"Reference Energies: {sorted(reference_energies)}",
                 f"Polynomial Degree: {self.spin_poly_degree.value()}",
                 f"New Coefficients: {new_coeff}",
                 ])
