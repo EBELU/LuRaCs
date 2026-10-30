@@ -560,8 +560,6 @@ class SpectrogramTab(LibraryTab):
     def delete_selected(self):
         selected = self._get_selection()
         for s in selected:
-            print(s)
-            print(RunManager.SpectrogramManager.spectrogram_registry)
             sg = Path(s).name
             if sg in RunManager.SpectrogramManager.spectrogram_registry:
                 QMessageBox.warning(self, "Error", f"Spectrogram '{sg}' must be unloaded from memory before it can be deleted.")
