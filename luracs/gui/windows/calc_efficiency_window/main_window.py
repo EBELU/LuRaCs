@@ -419,7 +419,7 @@ class EfficiencyWindow(QWidget):
                     if row_roi.spectrum != spect_name or row_roi.emission.parent_nuclide != nuc:
                         # Ensure we have found the correct row by matching nuclide and spectrum
                         # Each spectrum should only have one source of nuclide X
-                        # If its a combination of sources you have to solve the your self!
+                        # If its a combination of sources you have to solve it yourself!
                         continue
                     
                     src = None
@@ -505,7 +505,7 @@ class EfficiencyWindow(QWidget):
                         QMessageBox.warning(self, "Error", str(e))
                         return
                     if eff is not None:
-                        self.energies.append(roi.fit.mu)
+                        self.energies.append(roi.emission.energy_keV)
                         self.efficiencies.append(ufloat(*eff))
                     
         # Plot the data
@@ -527,7 +527,7 @@ class EfficiencyWindow(QWidget):
             error_weight = None
             if self.use_weighted_fit.isChecked():
                 def error_weight(r, yfit, p):
-                    return 1 / (yerr**2)
+                    return 1 / ((yerr / y)**2)
 
             # Suppress warnings during optimization
             with warnings.catch_warnings():

@@ -79,6 +79,7 @@ version_pattern = "MAJOR.MINOR.PATCH"
 
 commit = true
 tag = true
+tag_prefix = "v"
 push = false
 
 

@@ -154,7 +154,8 @@ class xml_parser(SpectrumParserBase):
         if instrument is not None:  
             new_spectrum.set_instrument(instrument)
         
-        new_spectrum.apply_calibration(xml_header.calibration)
+        if xml_header.calibration is not None and len(xml_header.calibration) > 0:
+            new_spectrum.apply_calibration(xml_header.calibration)
         
         for roi in self.get_rois():
             new_spectrum.set_roi(roi)
@@ -273,7 +274,8 @@ class xml_parser(SpectrumParserBase):
         if node is not None and node.text:
             b = _parse_array(node.text)
             # Convert to polynomial
-            data["calibration"] = np.polyfit(np.arange(len(b)), b, 3)
+            mask = b > 0
+            data["calibration"] = np.polyfit(np.arange(len(b))[mask], b[mask], 3)
 
         for meas in self.root.xpath(".//n42:RadMeasurement", namespaces=ns):
             code = meas.findtext(

@@ -61,7 +61,10 @@ The CLI is started by running with the `--headless` flag.
 
 
 ### Implemented Detectors
-Currently, drivers for the following detectors are included by default
+The following detectors are currently supported through unofficial integrations. These implementations are not affiliated with, endorsed by, or supported by the respective detector manufacturers.
+
+The software authors and integration contributors accept no responsibility for equipment damage, data loss, erroneous measurements, or other issues arising from the use of these integrations. Users are responsible for verifying their correct operation and validating any results obtained.
+
 - [RadiaCode-1xx series & Zero](https://www.radiacode.com/100-series) (USB, BLE)
 - [Raysid](https://raysid.com/) (BLE)
 - Oretc digiBase (USB)

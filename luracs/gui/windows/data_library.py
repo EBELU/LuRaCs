@@ -704,7 +704,7 @@ class InstrumentsTab(LibraryTab):
 
         edit_dialog = InstrumentDialog(
             **SpectrumManager.UniqueInstrumentLibrary.instrument_registry[
-                selection[0]
+                selection[0] # Will KeyError if something is wrong
             ].__dict__
         )
         res = edit_dialog.exec()
@@ -717,7 +717,7 @@ class InstrumentsTab(LibraryTab):
         new_instrument_dict = {}
 
         dialog_data, base_instrument_key = edit_dialog.get_data()
-
+        
         base_instrument_dict = (
             SpectrumManager.UniqueInstrumentLibrary.instrument_registry[
                 selection[0]

@@ -280,7 +280,13 @@ class InstrumentDialog(QDialog):
 
     def set_values(self, **kwargs):
         # --- Basic Info ---
-        self.name_input.setText(kwargs.get("name", ""))
+        instrument_name = kwargs.get("name", "")
+        if instrument_name:
+            # Treat the name special
+            # Selecting a generic instrument will otherwise always clear the name
+            # The user would thus be forces to manually write it back in
+            self.name_input.setText(instrument_name)
+            
         self.model_input.setText(kwargs.get("model", ""))
         self.manufacturer.setText(kwargs.get("manufacturer", ""))
         self.detector_material.setText(kwargs.get("detector_material", ""))
@@ -385,6 +391,7 @@ class InstrumentDialog(QDialog):
             instrument = SpectrumManager.GenericInstrumentLibrary.instrument_registry[
                 instrument_key
             ]
+            
             self.set_values(**instrument.__dict__)
 
     def get_data(self):
