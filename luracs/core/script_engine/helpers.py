@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from clients.DeviceWrappers import WrappedRealTimePackage, WrappedStatusPackage
-    from luracs.core.script_engine import ScriptEngine
+    from luracs.core.script_engine.script_engine import ScriptEngine
 
 import plotext as plt
 import numpy as np

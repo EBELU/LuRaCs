@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from PySide6.QtGui import QColor
 
-    from luracs.core.spectrum_manager import SpectrumManagerBase
+    from luracs.core.spectrum_manager.spectrum_manager import SpectrumManagerBase
 from collections import Counter
 
 import numpy as np
@@ -14,7 +14,7 @@ from PySide6.QtCore import QObject, Signal
 from luracs.containers.nuclide_classes import AnnihilationEmission, Emission, Nuclide
 from luracs.utils.file_io.nuclide_dataloader import load_nuclide_data
 
-from .settings import Settings
+from ..settings import Settings
 
 
 class NuclideLibrary(QObject):

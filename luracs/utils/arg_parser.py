@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from luracs.core.script_engine import ScriptEngine
+    from luracs.core.script_engine.script_engine import ScriptEngine
     from luracs.application import MainWindow
 
 import argparse

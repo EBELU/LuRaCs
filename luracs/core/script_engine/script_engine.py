@@ -8,13 +8,13 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import NestedCompleter
 from PySide6.QtCore import QObject, Signal
 
-from .script_engine_components.commands import register_commands
-from .script_engine_components.exceptions import (
+from .commands import register_commands
+from .exceptions import (
     ActiveGUIError,
     ArgumentError,
     InvalidCommandError,
 )
-from .script_engine_components.registry import CommandRegistry
+from .registry import CommandRegistry
 
 
 def clear_terminal():
@@ -31,7 +31,7 @@ class ThreadBridge(QObject):
         
         from luracs.spectrogram import restart_spectrogram, start_spectrogram
 
-        from .run_manager import RunManager
+        from ..run_manager import RunManager
         
         self.sig_start_spectrogram.connect(start_spectrogram)
         self.sig_restart_spectrogram.connect(restart_spectrogram)

@@ -18,6 +18,10 @@ from .gui_logger import (
     _detach_console_handler,
 )
 
+# Wire the instrument connections
+SpectrumManager.UniqueInstrumentLibrary = IOManager.FileIndex.unique_instrument_index
+SpectrumManager.GenericInstrumentLibrary = IOManager.FileIndex.generic_instrument_index
+
 
 class log_utils:
     attach_file_handler = _attach_file_handler

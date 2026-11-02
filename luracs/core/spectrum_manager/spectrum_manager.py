@@ -1,3 +1,10 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..io_manager.indexers.instrument_index import InstrumentIndex
+
 from datetime import datetime, timedelta
 
 from PySide6.QtCore import QObject, Signal
@@ -9,11 +16,10 @@ from luracs.containers.spectrum_classes import Spectrum, SpectrumData
 from luracs.utils.color_rotator import ColorRotator
 from luracs.utils.file_io import xml_writer
 
-from .gui_logger import gui_logger
-from .instument_library import InstrumentLibrary
+from ..gui_logger import gui_logger
 from .nuclide_library import NuclideLibrary
 from .roi_manager import ROIManager
-from .settings import Settings
+from ..settings import Settings
 
 
 class EmittedSignals(QObject):
@@ -56,11 +62,10 @@ class _SpectrumManager(QObject):
 
         self.ROIManager = ROIManager(self)
 
-        self.UniqueInstrumentLibrary = InstrumentLibrary(UniqueInstrument)
-        self.UniqueInstrumentLibrary.sigInstrumentRemoved.connect(self.remove_instrument_from_spectra)
-        self.GenericInstrumentLibrary = InstrumentLibrary(GenericInstrument)
-
         self.NuclideLibrary = NuclideLibrary(self)
+        
+        self.UniqueInstrumentLibrary: InstrumentIndex = None
+        self.GenericInstrumentLibrary: InstrumentIndex = None
 
     # --- Spectrum manipulators ---
     def create_spectrum(self, name: str, channels: int, device: str | None = None):
@@ -330,7 +335,3 @@ class _SpectrumManager(QObject):
             if spectrum.instrument is instrument:
                 spectrum.clear_instrument()
                 self.Signals.spectrumUpdated.emit(spect_name)
-
-
-# Declare ONE instance
-SpectrumManager = _SpectrumManager()

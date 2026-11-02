@@ -11,160 +11,10 @@ import pyqtgraph as pg
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QColor
 
-from luracs.containers.roi_classes import ROI, CoreSpectrumROI, Fit
+from luracs.containers.roi_classes import ROI, CoreSpectrumROI
 from luracs.containers.spectrum_classes import Spectrum
 from luracs.core import Settings
-from luracs.utils.numerics import (
-    curve_fit,
-    multi_gaussian,
-    multi_gaussian_jacobian,
-    poisson_weights,
-)
-
 from luracs.utils.numerics import fit_gaussians
-
-# def fit_gaussians(
-#     x_axis: np.ndarray,
-#     y_axis: np.ndarray,
-#     bounds: tuple,
-#     fit_type: str,
-#     use_poisson_weights: bool,
-#     weigh_cov_chi2: bool,
-#     bkg_type: str,
-#     bkg_est_channels: int,
-# ):
-#     "Fit peaks to roi_group"
-#     region_min, region_max = np.min(bounds), np.max(bounds)
-#     region = slice(np.searchsorted(x_axis, region_min), np.searchsorted(x_axis, region_max))
-#     x_region = x_axis[region].copy().astype(float)
-#     y_region = y_axis[region].copy().astype(float)
-
-#     p0 = []
-#     for b in bounds:
-#         lower, upper = np.min(b), np.max(b)
-
-#         # mask for this peak window
-#         peak_mask = slice(np.searchsorted(x_region, lower), np.searchsorted(x_region, upper))
-
-#         x_peak = x_region[peak_mask]
-#         y_peak = y_region[peak_mask]
-
-#         if len(x_peak) == 0:
-#             continue  # skip empty regions
-
-#         # Initial guesses
-#         A0 = np.max(y_peak)
-#         mu0 = x_peak[np.argmax(y_peak)]
-#         s0 = (upper - lower) / 6.0
-
-#         p0.extend([A0, mu0, s0])
-
-#     p0s = np.asarray(p0)
-#     if np.any(p0s < 1e-8):
-#         return None, False
-
-#     # --- Fit the background as a polynomial ---
-#     if bkg_type != "None":
-#         i_low = np.searchsorted(x_axis, region_min)
-#         i_high = np.searchsorted(x_axis, region_max)
-
-#         bkg_extention_lower = i_low - bkg_est_channels
-#         bkg_extention_lower = max(bkg_extention_lower, 0)
-
-#         lower_bkg_points_x = x_axis[bkg_extention_lower:i_low]
-#         lower_bkg_points_y = y_axis[bkg_extention_lower:i_low]
-
-#         bkg_extention_upper = i_high + bkg_est_channels
-#         if bkg_extention_upper > len(x_axis):
-#             bkg_extention_lower = len(x_axis)
-
-#         upper_bkg_points_x = x_axis[i_high:bkg_extention_upper]
-#         upper_bkg_points_y = y_axis[i_high:bkg_extention_upper]
-
-#         if bkg_type == "Linear":
-#             poly_order = 1
-#         elif bkg_type == "Quadratic":
-#             poly_order = 2
-#         else:
-#             raise ValueError(f"Invald background type {bkg_type}")
-
-#         bkg_fit = np.polyfit(
-#             np.concatenate((lower_bkg_points_x, upper_bkg_points_x)),
-#             np.concatenate((lower_bkg_points_y, upper_bkg_points_y)),
-#             poly_order,
-#         )
-
-#         y_region -= np.polyval(bkg_fit, x_region)
-
-#     else:
-#         bkg_fit = None
-
-#     # Vectorize!
-#     p0 = p0s.flatten()
-
-#     # If you want to emulate PML
-#     weight = None
-#     if use_poisson_weights:
-#         weight = poisson_weights
-
-#     # Perform fit
-#     fits, cov, converged = curve_fit(
-#         multi_gaussian,
-#         x_region,
-#         y_region,
-#         p0,
-#         jac=multi_gaussian_jacobian,
-#         weight_fn=weight,
-#         weight_cov_chi2=weigh_cov_chi2,
-#     )
-
-#     # Sanity check
-#     if (
-#         np.any(fits > 1e12)
-#         or np.any(fits == np.nan)
-#         or np.any(np.diag(cov) < 0)
-#         or np.any(np.sqrt(np.diag(cov)) > 1e12)
-#     ):
-#         return None, False
-
-#     # Turn the vectorized array back to one list per peak
-#     fits = fits.reshape(-1, 3)
-#     errs = np.sqrt(np.diag(cov)).reshape(-1, 3)
-
-#     # --- Evaluation ---
-#     results = []
-#     for b, fit, err in zip(bounds, fits, errs):
-#         lower, upper = np.min(b), np.max(b)
-        
-#         i0 = np.searchsorted(x_axis, lower)
-#         i1 = np.searchsorted(x_axis, upper)
-
-#         x_peak = x_axis[i0:i1]
-#         y_peak = y_axis[i0:i1]
-
-#         # Unnecessary?
-#         G = np.sum(y_peak)
-#         B = np.sum(np.polyval(bkg_fit, x_peak))
-#         N = G - B
-
-#         peak_area = np.sum(multi_gaussian(x_region, fit))
-#         fit_data = Fit(
-#             region_min,
-#             region_max,
-#             lower,
-#             upper,
-#             fit,
-#             err,
-#             bkg_fit,
-#             bkg_est_channels,
-#             G,
-#             B,
-#             N,
-#             peak_area,
-#         )
-#         results.append(fit_data)
-
-#     return results, converged
 
 
 class ROIManager(QObject):
@@ -188,6 +38,7 @@ class ROIManager(QObject):
         # Spectrum state
         self.spectrum_is_cps = False
         self.spectrum_is_bkg_sub = False
+        self._block_roi_updates = False
 
         self.roi_groupings: list[set[str]] = []
 
@@ -200,6 +51,9 @@ class ROIManager(QObject):
         "Communication with SpectrumPlot"
         self.spectrum_is_cps = cps_bool
         self.sigCpsChanged.emit(cps_bool)
+        
+    def block_roi_updates(self, state: bool):
+        self._block_roi_updates = state
 
     def add_roi(self, x_low=None, x_high=None, **kwargs):
         "Add a ROI to the plot, kwargs are given to the class CoreSpectrumROI"
@@ -275,7 +129,7 @@ class ROIManager(QObject):
                 return key
 
     def on_roi_change(self, roi_tag: str, update_all: bool = True):
-        """Callback for when a roi is moved, recalculates everything"""
+        """Callback for when a roi is moved, recalculates everything"""        
         # Save the old group so all rois can be updated
         old_group = {roi_tag}  # Put this in for newly added rois
         for g in self.roi_groupings:
@@ -400,7 +254,7 @@ class ROIManager(QObject):
         """Update fits for a ROI, if None all rois for the given spectrum is updated.
         If The spectrum is None all spectra is updated for the given ROI.
         If both are None everything is updated"""
-        if not len(self.roi_registry):
+        if not len(self.roi_registry) or self._block_roi_updates:
             return
         # --- Get spectra ---
         spectra_dict = self.spectrum_manager.get_spectra_dict()

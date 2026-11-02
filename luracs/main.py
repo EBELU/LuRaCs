@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
 
 from luracs.gui.splash_screen import create_splash_pixmap
 
+import traceback
 
 def main():
     app = QApplication(sys.argv)
@@ -26,9 +27,16 @@ def main():
 
     def initialize():
         # --- Build the application ---
-        from luracs.application import build_application
-
-        app, win, script_engine = build_application()
+        # If the startup fails, force exit
+        try:
+            from luracs.application import build_application
+            
+            app, win, script_engine = build_application()
+        except Exception:
+            traceback.print_exc()
+            splash.close()
+            QApplication.exit(1)
+            return 1
 
         # Dont show the window in headless, since it does not exist
         # Also splash does not exist

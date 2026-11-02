@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from core.nuclide_library import NuclideLibrary
+    from luracs.core.spectrum_manager.nuclide_library import NuclideLibrary
     from luracs.gui.dialogs.roi_editor import ROIEditor
 
 from dataclasses import dataclass

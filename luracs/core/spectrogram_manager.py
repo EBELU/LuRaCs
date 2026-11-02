@@ -13,7 +13,6 @@ import numpy as np
 from PySide6.QtCore import QObject, Signal
 
 from luracs.containers.roi_classes import SpectrogramROI
-from luracs.utils.file_io import MapPoint
 
 
 class SpectrogramManager(QObject):
@@ -102,7 +101,6 @@ class SpectrogramManager(QObject):
             
         else:
             results = {}
-        
         if True: #self.run_manager.has_gps and np.any(buffer.gps_queue):
             mapping_buffer = {
                 "timestamp": np.asarray(buffer.timestamp_deque),
