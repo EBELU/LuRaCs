@@ -11,15 +11,15 @@ from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QColor
 
 from luracs.clients import WrappedSpectrumPackage
-from luracs.containers.instrument_classes import GenericInstrument, UniqueInstrument
+from luracs.containers.instrument_classes import UniqueInstrument
 from luracs.containers.spectrum_classes import Spectrum, SpectrumData
 from luracs.utils.color_rotator import ColorRotator
 from luracs.utils.file_io import xml_writer
 
 from ..gui_logger import gui_logger
+from ..settings import Settings
 from .nuclide_library import NuclideLibrary
 from .roi_manager import ROIManager
-from ..settings import Settings
 
 
 class EmittedSignals(QObject):

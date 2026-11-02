@@ -672,7 +672,7 @@ class InstrumentsTab(LibraryTab):
         for (
             key,
             instr,
-        ) in SpectrumManager.UniqueInstrumentLibrary.instrument_registry.items():
+        ) in SpectrumManager.UniqueInstrumentLibrary.index_registry.items():
             calibration = str(instr.calibration_coefficients is not None)
             resolution = str(instr.resolution_fn is not None)
             efficiency = str(instr.int_efficiency_fn is not None)
@@ -703,7 +703,7 @@ class InstrumentsTab(LibraryTab):
             return
 
         edit_dialog = InstrumentDialog(
-            **SpectrumManager.UniqueInstrumentLibrary.instrument_registry[
+            **SpectrumManager.UniqueInstrumentLibrary.index_registry[
                 selection[0] # Will KeyError if something is wrong
             ].__dict__
         )
@@ -719,7 +719,7 @@ class InstrumentsTab(LibraryTab):
         dialog_data, base_instrument_key = edit_dialog.get_data()
         
         base_instrument_dict = (
-            SpectrumManager.UniqueInstrumentLibrary.instrument_registry[
+            SpectrumManager.UniqueInstrumentLibrary.index_registry[
                 selection[0]
             ].__dict__
         )
@@ -755,7 +755,7 @@ class InstrumentsTab(LibraryTab):
 
         if base_instrument_key is not None:
             base_instrument_dict = (
-                SpectrumManager.GenericInstrumentLibrary.instrument_registry[
+                SpectrumManager.GenericInstrumentLibrary.index_registry[
                     base_instrument_key
                 ].__dict__
             )
@@ -783,7 +783,7 @@ class InstrumentsTab(LibraryTab):
         QMessageBox.information(
             self,
             "New Instrument Loaded",
-            f"A new instrument was found when loading a spectrum\nInstrument '{SpectrumManager.UniqueInstrumentLibrary.instrument_registry[instrument_file_path].name}' has been added",
+            f"A new instrument was found when loading a spectrum\nInstrument '{SpectrumManager.UniqueInstrumentLibrary.index_registry[instrument_file_path].name}' has been added",
         )
 
 
@@ -805,7 +805,7 @@ class GenericInstrumentsTab(LibraryTab):
         for (
             key,
             instr,
-        ) in SpectrumManager.GenericInstrumentLibrary.instrument_registry.items():
+        ) in SpectrumManager.GenericInstrumentLibrary.index_registry.items():
             resolution = str(instr.resolution_fn is not None)
             efficiency = str(instr.int_efficiency_fn is not None)
             response_matrix = str(instr.response_matrix is not None)
@@ -832,7 +832,7 @@ class GenericInstrumentsTab(LibraryTab):
 
         edit_dialog = InstrumentDialog(
             generic_selection=False,
-            **SpectrumManager.GenericInstrumentLibrary.instrument_registry[
+            **SpectrumManager.GenericInstrumentLibrary.index_registry[
                 selection[0]
             ].__dict__
         )
@@ -850,7 +850,7 @@ class GenericInstrumentsTab(LibraryTab):
         del dialog_data["name"]
 
         base_instrument_dict = (
-            SpectrumManager.GenericInstrumentLibrary.instrument_registry[
+            SpectrumManager.GenericInstrumentLibrary.index_registry[
                 selection[0]
             ].__dict__
         )
@@ -889,7 +889,7 @@ class GenericInstrumentsTab(LibraryTab):
 
         if base_instrument_key is not None:
             base_instrument_dict = (
-                SpectrumManager.GenericInstrumentLibrary.instrument_registry[
+                SpectrumManager.GenericInstrumentLibrary.index_registry[
                     base_instrument_key
                 ].__dict__
             )

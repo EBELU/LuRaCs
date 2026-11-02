@@ -33,7 +33,18 @@ def test_main_window_shows(app_context, qtbot):
 
     assert window.isVisible()
 
-
+def test_showing_data_library(
+    main_window: MainWindow,
+    qtbot: qtbot,
+):
+    main_window.data_library.show()
+    
+    qtbot.wait(500)
+    assert main_window.data_library.isVisible()
+    
+    main_window.data_library.close()
+    
+    
 def test_add_detector(
     main_window: MainWindow,
     qtbot: qtbot,

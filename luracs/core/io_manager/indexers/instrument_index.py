@@ -24,8 +24,13 @@ class InstrumentIndex(Indexer):
     sigInstrumentRenamed = Signal(str, object)
 
     def __init__(self, parent, instrument_type: UniqueInstrument | GenericInstrument):
+        if instrument_type is UniqueInstrument:
+            lib_path = Settings.Paths.unique_instrument_library
+        else:
+            lib_path = Settings.Paths.generic_instrument_library
+        
         super().__init__(
-            parent=parent, path=Settings.Paths.generic_instrument_library
+            parent=parent, path=lib_path
         )  # Library path
         self._instrument_class = instrument_type
 
