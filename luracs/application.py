@@ -87,7 +87,7 @@ from luracs.gui.windows import (
     SmallDocumentationDialog,
     USBListPopup,
 )
-from luracs.theme_manager import ThemeManager
+from luracs.utils.theme_manager import ThemeManager
 from luracs.utils import ascii_art
 from luracs.utils.arg_parser import parse_cli_args
 from luracs.utils.startup import startup_script

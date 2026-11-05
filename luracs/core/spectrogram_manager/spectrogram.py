@@ -387,9 +387,6 @@ class Spectrogram(QObject):
         latest.latest_timestamp = new_ts
 
         processed_spectrum = self.process_spectrum(spectrum)
-        print(
-            f"Processed spectrum: ({np.sum(processed_spectrum)}) {processed_spectrum}"
-        )
         # Update accumulated spectrum
         if accum.accumulated_spectrum is None:
             accum.accumulated_spectrum = processed_spectrum.copy()

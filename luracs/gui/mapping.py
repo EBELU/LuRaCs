@@ -246,13 +246,13 @@ class MapWidget(QWidget):
 
         # Data source combo
         self.combo_spectrogram = QComboBox()
-        self.combo_spectrogram.currentIndexChanged.connect(self.combo_changed)
+        self.combo_spectrogram.currentIndexChanged.connect(self.on_combo_changed)
 
         # Data kind combo
         self.combo_shown_data = QComboBox()
         self.combo_shown_data.addItem("Count Rate [/s]", "count_rate")
         self.combo_shown_data.addItem("Dose Rate [uSv/h]", "dose_rate")
-        self.combo_shown_data.currentIndexChanged.connect(self.combo_changed)
+        self.combo_shown_data.currentIndexChanged.connect(self.on_combo_changed)
 
         # Add toolbar
         tool_bar.addWidget(self.combo_spectrogram, 2)
@@ -344,22 +344,26 @@ class MapWidget(QWidget):
     # ------------------------------------------------------------------
     # Data handling
     # ------------------------------------------------------------------
-
+    
+    @Slot(str)
     def catch_spectrogram_added(self, spectrogram_name: str):
         print(spectrogram_name)
         self.combo_spectrogram.addItem(spectrogram_name)
-
+        
+    @Slot(str)
     def catch_spectrogram_closed(self, spectrogram_name: str):
         for i in range(self.combo_spectrogram.count()):
             if self.combo_spectrogram.itemText(i) == spectrogram_name:
                 self.combo_spectrogram.removeItem(i)
                 break
-
+            
+    @Slot(object)
     def catch_roi_added(self, roi: SpectrogramROI):
         self.combo_shown_data.addItem(roi.alias, roi.tag)
         for sg in SpectrogramManager.spectrogram_registry.values():
             sg.request_data()
 
+    @Slot(object)
     def catch_roi_removed(self, roi: SpectrogramROI):
         for i in range(self.combo_shown_data.count()):
             if self.combo_shown_data.itemData(i) == roi.tag:
@@ -371,7 +375,7 @@ class MapWidget(QWidget):
             if roi.tag in buffer.buffers:
                 del buffer.buffers[roi.tag]
 
-    def combo_changed(self, index: int):
+    def on_combo_changed(self, index: int):
         "Update everything when a combobox changes. Clears the whole map and redraws."
         if self.bridge is None:
             return
@@ -779,7 +783,7 @@ class MapWidget(QWidget):
             SpectrogramManager.MappingHandler.import_simple_mapping_data(Path(file))
         )
         self.combo_spectrogram.addItem(imported_map_name)
-        self.combo_changed(0)
+        self.on_combo_changed(0)
 
     def export_to_geojson(self):
         name = self.combo_spectrogram.currentText()
