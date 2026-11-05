@@ -12,7 +12,7 @@ from pathlib import Path
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import QObject, Qt, QUrl, Signal, Slot
+from PySide6.QtCore import QObject, Qt, QUrl, Signal, Slot, QTimer
 from PySide6.QtGui import QAction
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEngineSettings
@@ -332,13 +332,15 @@ class MapWidget(QWidget):
         SpectrogramManager.sigSpectrogramClosed.connect(self.catch_spectrogram_closed)
         SpectrogramManager.ROIHandler.sigAddROI.connect(self.catch_roi_added)
         SpectrogramManager.ROIHandler.sigRemoveROI.connect(self.catch_roi_removed)
+        SpectrogramManager.sigMappingDataUpdated.connect(self.add_points)
         # RunManager.SpectrogramManager.sigMapBufferUpdated.connect(self.catch_map_buffer)
         RunManager.Signals.GPSConnection.connect(self.catch_gps_connected)
         RunManager.Signals.GPSUpdated.connect(self.catch_gps_update)
-        self.move_to_current_proxy = pg.SignalProxy(
-            self.sigMoveToCurrent,
-            delay=Settings.Advanced.map_move_to_current_max_rate_s,
-            slot=self.move_to_current,
+        
+        self.move_to_current_timer = QTimer(self)
+        self.move_to_current_timer.setSingleShot(True)
+        self.move_to_current_timer.setInterval(
+            int(Settings.Advanced.map_move_to_current_max_rate_s * 1000)
         )
 
     # ------------------------------------------------------------------
@@ -347,7 +349,6 @@ class MapWidget(QWidget):
     
     @Slot(str)
     def catch_spectrogram_added(self, spectrogram_name: str):
-        print(spectrogram_name)
         self.combo_spectrogram.addItem(spectrogram_name)
         
     @Slot(str)
@@ -430,7 +431,7 @@ class MapWidget(QWidget):
                     "lat": float(lat),
                     "lon": float(lng),
                     "colour": rgba_to_css(self.value_to_color(p)),
-                    "popup_text": f"TS: {datetime.fromtimestamp(timestamp)}, Value {round(p, 2)}",
+                    "popup_text": f"TS: {datetime.fromtimestamp(round(timestamp))}, Value {round(p, 2)}",
                 }
             )
 
@@ -501,7 +502,7 @@ class MapWidget(QWidget):
                 "lat": float(lat),
                 "lng": float(lng),
                 "css_color": rgba_to_css(self.value_to_color(p)),
-                "popup_text": f"TS: {datetime.fromtimestamp(timestamp)}, Value {round(p, 2)}",
+                "popup_text": f"TS: {datetime.fromtimestamp(round(timestamp))}, Value {round(p, 2)}",
             }
 
             self.bridge.add_data_point(self.web_engine_view, **pt_data)
@@ -551,8 +552,10 @@ class MapWidget(QWidget):
             self.bridge.move_current_location_point(
                 self.web_engine_view, data.latitude, data.longitude
             )
-            if self.is_tracking_current_location:
-                self.sigMoveToCurrent.emit()
+
+            if self.is_tracking_current_location and not self.move_to_current_timer.isActive():
+                self.move_to_current()
+                self.move_to_current_timer.start()
 
     # ------------------------------------------------------------------
     # GUI interaction
@@ -567,17 +570,25 @@ class MapWidget(QWidget):
             )
 
     def move_to_start(self):
-        data = self.get_data()
+        data = SpectrogramManager.MappingHandler.get_complete_data(
+            self.combo_spectrogram.currentText(), self.combo_shown_data.currentData()
+            )
+        longitude, latitude = data[1], data[2]
+        
         if data is not None and self.web_engine_view is not None:
-            for lng, lat, _ in zip(*data):
+            for lng, lat in list(zip(longitude, latitude)):
                 if lng is not None and lat is not None:
                     self.bridge.move_view_to(self.web_engine_view, lat, lng)
                     return
 
     def move_to_end(self):
-        data = self.get_data()
+        data = SpectrogramManager.MappingHandler.get_complete_data(
+            self.combo_spectrogram.currentText(), self.combo_shown_data.currentData()
+            )
+        longitude, latitude = data[1], data[2]
+        
         if data is not None and self.web_engine_view is not None:
-            for lng, lat, _ in reversed(list(zip(*data))):
+            for lng, lat in reversed(list(zip(longitude, latitude))):
                 if lng is not None and lat is not None:
                     self.bridge.move_view_to(self.web_engine_view, lat, lng)
                     return

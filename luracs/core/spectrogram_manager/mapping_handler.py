@@ -99,7 +99,7 @@ class MappingHandler(QObject):
 
     def get_complete_data(
         self, sg_name: str, data_name: str
-    ) -> tuple[str, list, list, list, dict[str, list]]:
+    ) -> tuple[str, list, list, list, dict[str, list]] | None:
         "Returns the complete mapping data for a given spectrogram and data type (count_rate, dose_rate, or ROI). The returned tuple contains the spectrogram name, lists of longitude, latitude, timestamps, and a dictionary of values corresponding to the specified data type. Explicit returns: (spectrogram_name, longitude_list, latitude_list, timestamps_list, value_dict)"
         if sg_name in self.spectrogram_manager.spectrogram_registry:
             return self.get_complete_data_from_spectrogram(sg_name, data_name)
@@ -131,29 +131,31 @@ class MappingHandler(QObject):
         else:
             values = self.spectrogram_manager.get_roi_data(sg_name, data_name)
 
-        wrapper_buffer = self.spectrogram_manager.wrapper_buffer[sg_name]
+        wrapper_buffer = self.spectrogram_manager.wrapper_buffer.get(sg_name)
+        
+        if wrapper_buffer is None or values is None:
+            return
 
-        longitude_with_None = np.array(
-            [p.longitude for p in wrapper_buffer.wrapped_queues.gps_queue]
+        gps_queue_with_None = wrapper_buffer.wrapped_queues.gps_queue
+
+        is_none = np.frompyfunc(lambda x: x is None, 1, 1)
+
+        mask = ~(
+            is_none(gps_queue_with_None).astype(bool)
         )
-        latitude_with_None = np.array(
-            [p.latitude for p in wrapper_buffer.wrapped_queues.gps_queue]
-        )
+        
+        longitude = [p.longitude for p in gps_queue_with_None[mask]]
+        latitude = [p.latitude for p in gps_queue_with_None[mask]]
 
         timestamps = wrapper_buffer.wrapped_queues.timestamp_queue
 
         is_none = np.frompyfunc(lambda x: x is None, 1, 1)
 
-        mask = ~(
-            is_none(longitude_with_None).astype(bool)
-            | is_none(latitude_with_None).astype(bool)
-        )
-
         # spectrogram_name: str, longitude: list, latitude: list, timestamps: list, value_dict: dict[str, list]
         return (
             sg_name,
-            list(longitude_with_None[mask]),
-            list(latitude_with_None[mask]),
+            list(longitude),
+            list(latitude),
             list(timestamps[mask]),
             {data_name: list(values[mask])},
         )

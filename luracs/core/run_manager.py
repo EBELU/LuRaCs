@@ -17,6 +17,7 @@ import numpy as np
 from bleak import BleakScanner
 from PySide6.QtCore import QObject, Signal, Slot
 from PySide6.QtSerialPort import QSerialPort
+from luracs.clients.mock_gps import MockGPS
 
 from .settings import Settings
 
@@ -513,7 +514,10 @@ class _RunManager(QObject):
             self.gps.close()
             self.gps = None
 
-        self.gps = GPS(port, baud_rate)
+        if port == "Mock":
+            self.gps = MockGPS()
+        else:
+            self.gps = GPS(port, baud_rate)
         if not self.gps.open():
             self.gps.log.error(f"Failed to open: {self.gps.port.errorString()}")
             return

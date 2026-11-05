@@ -67,7 +67,6 @@ class SpectrogramWidget(QWidget):
         self.sigStartSpectrogram.connect(SpectrogramManager.start_new_spectrogram)
         self.sigLoadSpectrogram.connect(SpectrogramManager.restart_spectrogram)
         SpectrogramManager.sigDataUpdated.connect(self.receive_data)
-        SpectrogramManager.sigSpectrogramStarted.connect(self.on_spectrogram_started)
         SpectrogramManager.sigSpectrogramDequeResized.connect(
             self.update_on_spectrogram_selection
         )
@@ -393,11 +392,6 @@ class SpectrogramWidget(QWidget):
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
-    @Slot()
-    def on_spectrogram_started(self, sg_name: str):
-        assert isinstance(sg_name, str), f"Invladid name! Value {sg_name}, Type {type(sg_name)}"
-        self.spectrogram_selection.addItem(f"[Running] {sg_name}", sg_name)
-
     def show_data_library(self):
         self.sigShowDataStore.emit(1)
 

@@ -74,6 +74,8 @@ def parse_cli_args(main_window: MainWindow, script_engine: ScriptEngine):
 
     if args.debug:
         RunManager.add_device("None", "mock", "BLE")
+        
+        RunManager.connect_serial_gps("Mock", baud_rate=9600)
 
     if args.bluetooth:
         Log.info(f"Initializing BLE devices: {args.bluetooth}")
