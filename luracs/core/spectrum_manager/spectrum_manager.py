@@ -64,6 +64,7 @@ class _SpectrumManager(QObject):
 
         self.NuclideLibrary = NuclideLibrary(self)
         
+        # These are bound to the IOManager and are set after the IOManager is initialized
         self.UniqueInstrumentLibrary: InstrumentIndex = None
         self.GenericInstrumentLibrary: InstrumentIndex = None
 

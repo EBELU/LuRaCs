@@ -24,6 +24,7 @@ from luracs.core import (
     RunManager,
     Settings,
     SpectrumManager,
+    SpectrogramManager,
     core_utils,
     log_utils,
 )
@@ -133,9 +134,9 @@ def close():
         Settings.save_settings()
         
         # Clost spectrograms before shutting down the RunManager thread, since they live in the GUI thread
-        for name in list(RunManager.SpectrogramManager.spectrogram_registry):
+        for name in list(SpectrogramManager.spectrogram_registry):
             try:
-                RunManager.close_spectrogram(name)
+                SpectrogramManager.close_spectrogram(name)
             except Exception as e:
                 Log.warning(
                     f"Closing spectrogram {name} raised: {e}"

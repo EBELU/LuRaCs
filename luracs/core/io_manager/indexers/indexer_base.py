@@ -10,7 +10,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal
 
-from luracs.utils.file_io import xml_parser
+from luracs.utils.file_io import xml_parser, db_parser
 
 
 class Indexer(QObject):
@@ -113,5 +113,5 @@ class Indexer(QObject):
             except KeyError:
                 raise KeyError(f"Key '{attr}' does no exists in {item.__class__}")
 
-    def get_index(self):
+    def get_index(self) -> dict[str, xml_parser | db_parser]:
         return self.index_registry.copy()

@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from luracs.core import RunManager, Settings, core_utils
+from luracs.core import RunManager, Settings, core_utils, SpectrogramManager
 from luracs.gui.misc.calc_roi import CalcROI, _ScrollablePlotWidget
 from luracs.utils.color_rotator import ColorRotator
 
@@ -73,7 +73,7 @@ class PlotContainer(QWidget):
             showValues=False,
             tickLength=0
         )
-        new_plot.setLabel("right", RunManager.SpectrogramManager.roi_registry[roi].alias, siPrefixEnableRanges=((0., 0.), (1e20, 1e20)),  **{'font-size': f'{Settings.Appearance.font_size}pt'})
+        new_plot.setLabel("right", SpectrogramManager.ROIHandler.roi_registry[roi].alias, siPrefixEnableRanges=((0., 0.), (1e20, 1e20)),  **{'font-size': f'{Settings.Appearance.font_size}pt'})
 
         legend = new_plot.addLegend(verSpacing=-10)
         legend.setOffset((2, 2))
@@ -207,7 +207,7 @@ class PlotContainer(QWidget):
 
         
     def plot_line(self, db_name: str, roi_data: dict):
-        time_interval = RunManager.SpectrogramManager.spectrogram_registry[db_name].save_interval        
+        time_interval = SpectrogramManager.spectrogram_registry[db_name].save_interval        
         for roi, data in roi_data.items():
             if roi not in self.plot_registry:
                 self.add_plot(roi)
@@ -282,9 +282,9 @@ class SpectrogramROITab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent=parent)
         
-        RunManager.SpectrogramManager.sigROICountsUpdated.connect(self.receive_update)
-        RunManager.SpectrogramManager.sigRemoveROI.connect(self.roi_removed)
-        RunManager.Signals.spectrogramClosed.connect(self.db_removed)
+        SpectrogramManager.sigROIDataUpdated.connect(self.receive_update)
+        SpectrogramManager.ROIHandler.sigRemoveROI.connect(self.roi_removed)
+        SpectrogramManager.sigSpectrogramClosed.connect(self.db_removed)
         
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -312,11 +312,11 @@ class SpectrogramROITab(QWidget):
     
     @Slot(str, dict)
     def receive_update(self, db_name: str, roi_data: dict):
-        time_interval = RunManager.SpectrogramManager.spectrogram_registry[db_name].save_interval  
+        time_interval = SpectrogramManager.spectrogram_registry[db_name].save_interval  
         self.plot_container.plot_line(db_name, roi_data)
         for roi, data in roi_data.items():
             if roi not in self.stats_text_containers:
-                self.stats_text_containers[roi] = StatsTextContainer(RunManager.SpectrogramManager.roi_registry[roi].alias)
+                self.stats_text_containers[roi] = StatsTextContainer(SpectrogramManager.ROIHandler.roi_registry[roi].alias)
             
             x_axis = np.arange(len(data)) * time_interval
             region = x_axis <= Settings.Advanced.spectrogram_roi_display_length_s

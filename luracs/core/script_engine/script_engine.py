@@ -28,14 +28,14 @@ class ThreadBridge(QObject):
     
     def __init__(self, parent):
         super().__init__(parent=parent)
-        
-        from luracs.spectrogram import restart_spectrogram, start_spectrogram
+    
 
         from ..run_manager import RunManager
+        from ..spectrogram_manager import SpectrogramManager
         
-        self.sig_start_spectrogram.connect(start_spectrogram)
-        self.sig_restart_spectrogram.connect(restart_spectrogram)
-        self.sig_close_spectrogram.connect(RunManager.close_spectrogram)
+        self.sig_start_spectrogram.connect(SpectrogramManager.start_new_spectrogram)
+        self.sig_restart_spectrogram.connect(SpectrogramManager.restart_spectrogram)
+        self.sig_close_spectrogram.connect(SpectrogramManager.close_spectrogram)
         
     def restart_spectrogram(self, db_name: str):
         self.sig_restart_spectrogram.emit(db_name)

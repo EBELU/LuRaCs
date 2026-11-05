@@ -12,7 +12,10 @@ from datetime import datetime
 import numpy as np
 import pytest
 
-from luracs.core import IOManager, RunManager
+from luracs.core import (
+    IOManager,
+    SpectrogramManager,
+)
 from luracs.utils import file_io
 
 pytestmark = pytest.mark.order(2)
@@ -21,7 +24,7 @@ def test_spectrogram_start(script_engine, qtbot):
     script_engine.submit_from_sync("spectrogram start all")
     qtbot.wait(2000)
     
-    assert len(RunManager.SpectrogramManager.spectrogram_registry)
+    assert len(SpectrogramManager.spectrogram_registry)
     
 def test_spectrogram_time_selector(main_window: MainWindow, qtbot: qtbot_t):
     main_window.spectrogram.action_time_selector.trigger()
@@ -37,6 +40,7 @@ def test_import_spectrogram(main_window: MainWindow, qtbot: qtbot_t, test_data):
     qtbot.wait(500)
     
     main_window.spectrogram.spectrogram_selection.setCurrentIndex(1)
+    assert main_window.spectrogram.spectrogram_selection.currentData() is not None
     
 def test_spectrogram_to_spectrum(main_window: MainWindow, qtbot: qtbot_t, tmp_path):
     main_window.spectrogram.action_time_selector.setChecked(True)
@@ -47,7 +51,7 @@ def test_spectrogram_to_spectrum(main_window: MainWindow, qtbot: qtbot_t, tmp_pa
     ymin, ymax = main_window.spectrogram.time_selector.getRegion()
     ymin, ymax = round(ymin), round(ymax)
 
-    timestamps = np.array(main_window.spectrogram.current_packet_buffer.timestamp_deque)[::-1]
+    timestamps = np.array(main_window.spectrogram.current_packet_buffer.wrapped_queues.timestamp_queue)[::-1]
 
     start_index = max(0, min(ymax - 1, len(timestamps) - 1))
     stop_index = max(0, min(ymin, len(timestamps) - 1))

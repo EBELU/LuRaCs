@@ -19,6 +19,7 @@ from ..gui_logger import gui_logger
 from ..run_manager import RunManager
 from ..settings import Settings
 from ..spectrum_manager import SpectrumManager
+from ..spectrogram_manager import SpectrogramManager
 
 
 class _Exporter(QObject):
@@ -80,10 +81,10 @@ class _Exporter(QObject):
         Create a spectrum from a spectrogram and add it to the Data Library.
         """
 
-        assert isinstance(spectrogram_name, str)
+        assert isinstance(spectrogram_name, str), f"Spectrogram name is type: {type(spectrogram_name)}, value: {spectrogram_name}"
         if spectrogram_is_loaded:
             current_spectrogram = (
-                RunManager.SpectrogramManager.spectrogram_registry.get(spectrogram_name)
+                SpectrogramManager.spectrogram_registry.get(spectrogram_name)
             )
             parser = file_io.db_parser(connection=current_spectrogram.connection)
         else:

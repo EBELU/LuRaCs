@@ -13,15 +13,13 @@ from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import QFileDialog
 
 from luracs.containers.spectrum_classes import Spectrum
+from luracs.containers.instrument_classes import GenericInstrument, UniqueInstrument
 from luracs.utils import file_io
 from luracs.utils.file_io import (
     io_dispatcher,
     spe_parser,
     tka_parser,
     xml_parser,
-)
-from luracs.utils.save_to_internal import (
-    save_instrument_to_library,
 )
 
 from ..gui_logger import gui_logger
@@ -169,8 +167,17 @@ class _Importer(QObject):
                 parser = io_dispatcher(file_path)
                 if isinstance(parser, xml_parser):
                     instrument = parser.get_instrument()
-                    if instrument is not None:
-                        save_instrument_to_library(instrument)
+
+                    if isinstance(instrument, GenericInstrument):
+                        self.io_manager.FileIndex.generic_instrument_index.save_to_library(instrument)
+                    elif isinstance(instrument, UniqueInstrument):
+                        self.io_manager.FileIndex.unique_instrument_index.save_to_library(instrument)
+                    elif instrument is None:
+                        return
+                    else:
+                        gui_logger.warning(
+                            f"Instrument {instrument} is not a valid instrument type"
+                        )
 
         if file_path is not None:
             Settings.Paths.last_opened_dir = file_path.parent

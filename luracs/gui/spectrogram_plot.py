@@ -10,7 +10,7 @@ from textwrap import dedent
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import QRectF, Qt, Signal
+from PySide6.QtCore import QRectF, Qt, Signal, Slot
 from PySide6.QtGui import QAction, QFont
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -32,13 +32,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from luracs.core import IOManager, Log, RunManager, Settings, core_utils
+from luracs.core import IOManager, Log, RunManager, Settings, core_utils, SpectrogramManager
 from luracs.gui.dialogs.save_dialog import SaveNamingDialog
-from luracs.spectrogram import (
-    WrappedSpectrogramData,
-    restart_spectrogram,
-    start_spectrogram,
-)
+from luracs.core.spectrogram_manager import WrappedSpectrogramData
 from luracs.utils import file_io
 
 pg.setConfigOptions(antialias=True)
@@ -136,16 +132,17 @@ class SpectrogramWidget(QWidget):
         super().__init__(parent=parent)
         self.setWindowTitle("Waterfall")
 
-        self.sigStartSpectrogram.connect(start_spectrogram)
-        self.sigLoadSpectrogram.connect(restart_spectrogram)
-        RunManager.Signals.spectrogramStarted.connect(self.connect_logger)
-        RunManager.Signals.spectrogramDequeResized.connect(
+        self.sigStartSpectrogram.connect(SpectrogramManager.start_new_spectrogram)
+        self.sigLoadSpectrogram.connect(SpectrogramManager.restart_spectrogram)
+        SpectrogramManager.sigDataUpdated.connect(self.receive_data)
+        SpectrogramManager.sigSpectrogramStarted.connect(self.on_spectrogram_started)
+        SpectrogramManager.sigSpectrogramDequeResized.connect(
             self.update_on_spectrogram_selection
         )
-        RunManager.SpectrogramManager.sigAddROI.connect(self.add_roi)
-        RunManager.SpectrogramManager.sigRemoveROI.connect(self.remove_roi)
+        SpectrogramManager.ROIHandler.sigAddROI.connect(self.add_roi)
+        SpectrogramManager.ROIHandler.sigRemoveROI.connect(self.remove_roi)
 
-        self.sigRequestClearROIs.connect(RunManager.SpectrogramManager.clear_rois)
+        self.sigRequestClearROIs.connect(SpectrogramManager.ROIHandler.clear_rois)
 
         # Default values
         self.y_len = Settings.Advanced.spectrogram_deque_length
@@ -415,7 +412,7 @@ class SpectrogramWidget(QWidget):
         "Restart a loaded spectrogram"
         current_spectrogram_name = self.spectrogram_selection.currentData()
 
-        current_spectrogram = RunManager.SpectrogramManager.spectrogram_registry.get(
+        current_spectrogram = SpectrogramManager.spectrogram_registry.get(
             current_spectrogram_name
         )
         if (
@@ -439,7 +436,7 @@ class SpectrogramWidget(QWidget):
     def pause_logger(self):
         "Pause the data accumulation on the logger level"
         current_spectrogram_name = self.spectrogram_selection.currentData()
-        current_spectrogram = RunManager.SpectrogramManager.spectrogram_registry.get(
+        current_spectrogram = SpectrogramManager.spectrogram_registry.get(
             current_spectrogram_name
         )
 
@@ -451,7 +448,7 @@ class SpectrogramWidget(QWidget):
 
     def unload_logger(self):
         "Unload a spectrogram, can be ignored but nice to avoid clutter"
-        RunManager.close_spectrogram(self.spectrogram_selection.currentData())
+        SpectrogramManager.close_spectrogram(self.spectrogram_selection.currentData())
         index = self.spectrogram_selection.currentIndex()
         if index != -1:
             self.spectrogram_selection.removeItem(index)
@@ -464,18 +461,18 @@ class SpectrogramWidget(QWidget):
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+    @Slot()
+    def on_spectrogram_started(self, sg_name: str):
+        assert isinstance(sg_name, str), f"Invladid name! Value {sg_name}, Type {type(sg_name)}"
+        self.spectrogram_selection.addItem(f"[Running] {sg_name}", sg_name)
 
     def show_data_library(self):
         self.sigShowDataStore.emit(1)
 
-    def connect_logger(self):
-        for logger in list(RunManager.SpectrogramManager.spectrogram_registry.values()):
-            logger.sigDataUpdated.connect(self.receive_data)
-
     def update_on_spectrogram_selection(self):
         "Update the spectrogram selected, when changing the combo box or toggling break lines"
         db_name = self.spectrogram_selection.currentData()
-        logger = RunManager.SpectrogramManager.spectrogram_registry.get(db_name)
+        sg = SpectrogramManager.spectrogram_registry.get(db_name)
         self.y_axis = np.zeros_like(self.y_axis)  # Reset the y-axis
 
         # Ensure old breaklines are removed
@@ -483,17 +480,17 @@ class SpectrogramWidget(QWidget):
             self.plot.removeItem(line)
         self.break_lines.clear()
 
-        if logger:
-            if logger.paused:
+        if sg:
+            if sg.paused:
                 self.btn_resume.setEnabled(True)
                 self.btn_stop.setEnabled(False)
             else:
                 self.btn_resume.setEnabled(False)
                 self.btn_stop.setEnabled(True)
-            logger.request_data()
+            sg.request_data()
 
-        for roi in RunManager.SpectrogramManager.roi_registry.values():
-            E_axis = RunManager.SpectrogramManager.energy_axes_buffer.get(db_name)
+        for roi in SpectrogramManager.ROIHandler.roi_registry.values():
+            E_axis = sg.data_wrapper.wrapped_header.x_axis
             if E_axis is not None:
                 roi.set_idx_region(E_axis)
 
@@ -501,13 +498,14 @@ class SpectrogramWidget(QWidget):
     # Data socket
     # ------------------------------------------------------------------
 
+    @Slot()
     def receive_data(self, logger_name: str, data_packet: WrappedSpectrogramData):
         "Socket for receiving data emitted from the spectrogram upon update"
         if self.action_pause_visual_updates.isChecked():
             return
         index = find_index_by_data(self.spectrogram_selection, logger_name)
 
-        state_text = data_packet.status.name
+        state_text = data_packet.wrapped_temp_values.status.name
 
         if index == -1:
             # Add new item
@@ -520,63 +518,64 @@ class SpectrogramWidget(QWidget):
             self.spectrogram_selection.setItemText(
                 index, f"[{state_text}] {logger_name}"
             )
-        if data_packet.db_name != self.spectrogram_selection.currentData():
+        if data_packet.wrapped_header.db_name != self.spectrogram_selection.currentData():
             return
 
         self.current_packet_buffer = data_packet
 
         if (
-            max(min(data_packet.spectrogram.maxlen, len(data_packet.spectrogram)), 256)
+            max(min(Settings.Advanced.spectrogram_deque_length, data_packet.wrapped_queues.spectrogram.shape[0]), 256)
             != self.y_len
         ):
             self.y_len = max(
-                min(data_packet.spectrogram.maxlen, len(data_packet.spectrogram)), 256
+                min(Settings.Advanced.spectrogram_deque_length, data_packet.wrapped_queues.spectrogram.shape[0]), 256
             )
             self.plot.setLimits(yMax=self.y_len)
 
         # Change unit for readability
         # Set to 0 if no dose has been recorded
-        if data_packet.estimated_dose is not None:
-            if data_packet.estimated_dose < 5e-1:
-                dose = data_packet.estimated_dose * 1e3
+        if data_packet.wrapped_accumulated_values.estimated_dose is not None:
+            if data_packet.wrapped_accumulated_values.estimated_dose < 5e-1:
+                dose = data_packet.wrapped_accumulated_values.estimated_dose * 1e3
                 dose_unit = "nSv"
-            elif data_packet.estimated_dose > 5e2:
-                dose = data_packet.estimated_dose * 1e-3
+            elif data_packet.wrapped_accumulated_values.estimated_dose > 5e2:
+                dose = data_packet.wrapped_accumulated_values.estimated_dose * 1e-3
                 dose_unit = "mSv"
             else:
-                dose = data_packet.estimated_dose
+                dose = data_packet.wrapped_accumulated_values.estimated_dose
                 dose_unit = "uSv"
         else:
             dose = 0
             dose_unit = "nSv"
 
+        duration = data_packet.wrapped_accumulated_values.duration
         self.info_text_total = dedent(f"""
             Database:
-                {data_packet.db_name}
-            Instrument: {data_packet.instrument}
-            Start Date: {datetime.fromtimestamp(round(data_packet.start_date))}
-            Duration: {timedelta(seconds=np.floor(data_packet.duration)) if data_packet.duration else 0}
+                {data_packet.wrapped_header.db_name}
+            Instrument: {data_packet.wrapped_header.instrument}
+            Start Date: {datetime.fromtimestamp(round(data_packet.wrapped_header.start_date))}
+            Duration: {timedelta(seconds=np.floor(duration)) if duration else 0}
             Estimated Dose: {round(dose, 3)} {dose_unit}
-            Time Interval: {data_packet.save_interval}s
-            Spectrum Concat Factor: {data_packet.concat}
-            Spectrum Channels: {data_packet.spect_channels}
+            Time Interval: {data_packet.wrapped_header.save_interval}s
+            Spectrum Concat Factor: {data_packet.wrapped_header.concat}
+            Spectrum Channels: {data_packet.wrapped_header.spect_channels}
         """).strip()
         self.set_info_text()
 
         self.update_x_len(
-            data_packet.spect_channels,
-            data_packet.calibration_coefficients,
-            data_packet.concat,
+            data_packet.wrapped_header.spect_channels,
+            data_packet.wrapped_header.calibration_coefficients,
+            data_packet.wrapped_header.concat,
         )  # Update x-axis if changed
-        self.update_spectrogram_y(data_packet.timestamp_deque)
-        self.draw_y_break_lines(data_packet.save_interval)
-        if data_packet.latest_spectrum is None:
+        self.update_spectrogram_y(data_packet.wrapped_queues.timestamp_queue)
+        self.draw_y_break_lines(data_packet.wrapped_header.save_interval)
+        if data_packet.wrapped_temp_values.latest_row is None:
             return
         if not self.action_time_selector.isChecked():
             self.bar.setOpts(
-                height=data_packet.latest_spectrum
+                height=data_packet.wrapped_temp_values.latest_row
             )  # Update bar plot above the waterfall
-        self.update_spectrogram_img(data_packet.spectrogram)
+        self.update_spectrogram_img(data_packet.wrapped_queues.spectrogram)
 
     # ------------------------------------------------------------------
     # GUI Updaters
@@ -714,6 +713,8 @@ class SpectrogramWidget(QWidget):
 
     def update_spectrogram_img(self, view_buf):
         # Flip the view buffer so the earliest is at the top
+        if len(view_buf) == 0:
+            return
         current_spectrogram = np.vstack(view_buf)[::-1]
         self.img.setImage(
             current_spectrogram.T,
@@ -738,19 +739,19 @@ class SpectrogramWidget(QWidget):
         ymin, ymax = self.time_selector.getRegion()
         ymin, ymax = round(ymin), round(ymax)
         
-        if not len(self.current_packet_buffer.spectrogram):
+        if not len(self.current_packet_buffer.wrapped_queues.spectrogram):
             # Stop numpy from freaking out in vstack if the is empty
             return
 
         self.bar.setOpts(
             height=np.sum(
-                np.vstack(self.current_packet_buffer.spectrogram)[::-1][
+                np.vstack(self.current_packet_buffer.wrapped_queues.spectrogram)[::-1][
                     max(ymin, 0) : min(ymax, self.y_len - 1)
                 ],
                 axis=0,
             )
         )
-        timestamps = np.asarray(self.current_packet_buffer.timestamp_deque)[::-1]
+        timestamps = np.asarray(self.current_packet_buffer.wrapped_queues.timestamp_queue)[::-1]
 
         if ymin >= len(timestamps):
             return
@@ -763,7 +764,7 @@ class SpectrogramWidget(QWidget):
 
         self.info_text_selector = (
             "= Time Selector =\n"
-            f"Duration: {timedelta(seconds=self.current_packet_buffer.save_interval * (min(ymax, len(self.current_packet_buffer.spectrogram)) - ymin))}\n"
+            f"Duration: {timedelta(seconds=self.current_packet_buffer.wrapped_header.save_interval * (min(ymax, len(self.current_packet_buffer.wrapped_queues.spectrogram)) - ymin))}\n"
             f"{datetime.fromtimestamp(start_time).strftime(time_str)} -> {datetime.fromtimestamp(stop_time).strftime(time_str)}\n"
         )
         self.set_info_text()
@@ -776,8 +777,8 @@ class SpectrogramWidget(QWidget):
             self.plot.removeItem(self.time_selector)
             self.info_text_selector = ""
             self.set_info_text()
-            if len(self.current_packet_buffer.spectrogram) > 0:
-                self.bar.setOpts(height=self.current_packet_buffer.spectrogram[0])
+            if len(self.current_packet_buffer.wrapped_queues.spectrogram) > 0:
+                self.bar.setOpts(height=self.current_packet_buffer.wrapped_queues.spectrogram[0])
 
     # ------------------------------------------------------------------
     # Exporters
@@ -787,7 +788,7 @@ class SpectrogramWidget(QWidget):
         "Export the total accumulated spectrum in a spectrogram to a spectrum"
 
         current_spectrogram_name = self.spectrogram_selection.currentData()
-        current_spectrogram = RunManager.SpectrogramManager.spectrogram_registry.get(
+        current_spectrogram = SpectrogramManager.spectrogram_registry.get(
             current_spectrogram_name
         )
 
@@ -818,7 +819,7 @@ class SpectrogramWidget(QWidget):
             return
 
         current_spectrogram_name = self.spectrogram_selection.currentData()
-        current_spectrogram = RunManager.SpectrogramManager.spectrogram_registry.get(
+        current_spectrogram = SpectrogramManager.spectrogram_registry.get(
             current_spectrogram_name
         )
 
@@ -829,7 +830,7 @@ class SpectrogramWidget(QWidget):
         ymin, ymax = self.time_selector.getRegion()
         ymin, ymax = round(ymin), round(ymax)
 
-        timestamps = np.array(self.current_packet_buffer.timestamp_deque)[::-1]
+        timestamps = np.asarray(self.current_packet_buffer.wrapped_queues.timestamp_queue)[::-1]
 
         start_index = max(0, min(ymax - 1, len(timestamps) - 1))
         stop_index = max(0, min(ymin, len(timestamps) - 1))
@@ -855,14 +856,16 @@ class SpectrogramWidget(QWidget):
     # ROIs
     # ------------------------------------------------------------------
 
+    @Slot()
     def add_roi(self, roi: SpectrogramROI):
         if self.current_packet_buffer:
-            roi.set_idx_region(RunManager.SpectrogramManager.energy_axes_buffer[self.current_packet_buffer.db_name])
+            roi.set_idx_region(self.current_packet_buffer.wrapped_header.x_axis)
         self.top_spectrum_plot.addItem(roi)
         
-        for sg in RunManager.SpectrogramManager.spectrogram_registry.values():
+        for sg in SpectrogramManager.spectrogram_registry.values():
             sg.request_data()
-
+            
+    @Slot()
     def remove_roi(self, roi: SpectrogramROI):
         self.top_spectrum_plot.removeItem(roi)
 
@@ -872,7 +875,7 @@ class SpectrogramWidget(QWidget):
             self.current_calibration, np.array(x_range_idx) * self.current_concat_factor
         )
 
-        RunManager.SpectrogramManager.add_roi(*x_range)
+        SpectrogramManager.ROIHandler.add_roi(*x_range)
 
     def clear_rois(self):
         res = QMessageBox.question(None, "Clear ROIS", "Clear all spectrogram ROIs?")
@@ -890,7 +893,7 @@ class SpectrogramWidget(QWidget):
             QMessageBox.warning(self, "Warning", "No ROIs found in imported file")
             return
 
-        RunManager.SpectrogramManager.load_rois(parser)
+        SpectrogramManager.ROIHandler.load_rois(parser)
 
 
 if __name__ == "__main__":

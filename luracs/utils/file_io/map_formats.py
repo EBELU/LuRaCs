@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from luracs.gui.mapping import MappingDataBuffer
-    
 import json
 from dataclasses import dataclass
 from datetime import datetime
@@ -71,8 +67,10 @@ class MapFormatParser:
 
         title = json_data["title"]
 
-        return SimpleMappingData(file_path.name, device_id, start_time, end_time, points, {"title": title})
-    
+        return SimpleMappingData(
+            file_path.name, device_id, start_time, end_time, points, {"title": title}
+        )
+
     def parse_geojson(self, file_path: str) -> SimpleMappingData:
         with open(file_path, "r", encoding="utf-8") as f:
             geojson = json.load(f)
@@ -112,8 +110,8 @@ class MapFormatParser:
                 if k not in {"device_id", "start", "end"}
             },
         )
-    
-    
+
+
 def export_geojson(mapping_data: SimpleMappingData, file_path: str | Path):
     "Export the mapped data to a standard GeoJSON GIS file for use in GIS programs like QGis"
     file_path = Path(file_path)
@@ -127,14 +125,16 @@ def export_geojson(mapping_data: SimpleMappingData, file_path: str | Path):
             "other_data_points": point.other_data_points,
         }
 
-        features.append({
-            "type": "Feature",
-            "geometry": {
-                "type": "Point",
-                "coordinates": [point.lng, point.lat],  # GeoJSON is [lon, lat]
-            },
-            "properties": properties,
-        })
+        features.append(
+            {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [point.lng, point.lat],  # GeoJSON is [lon, lat]
+                },
+                "properties": properties,
+            }
+        )
 
     geojson = {
         "type": "FeatureCollection",
@@ -150,9 +150,10 @@ def export_geojson(mapping_data: SimpleMappingData, file_path: str | Path):
 
     with open(file_path.with_suffix(".geojson"), "w", encoding="utf-8") as f:
         json.dump(geojson, f, indent=2)
-    
+
+
 if __name__ == "__main__":
     pth = Path("~/NS2 - pinne och kullen.rctrk")
     parser = MapFormatParser(pth)
-    
+
     print(parser.data)

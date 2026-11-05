@@ -7,6 +7,7 @@ from .settings import Settings
 from .spectrum_manager import SpectrumManager
 from .calculator import Calculator
 from .io_manager import IOManager
+from .spectrogram_manager import SpectrogramManager
 from .utils import _theme_manager
 
 from .gui_logger import (
@@ -21,6 +22,11 @@ from .gui_logger import (
 # Wire the instrument connections
 SpectrumManager.UniqueInstrumentLibrary = IOManager.FileIndex.unique_instrument_index
 SpectrumManager.GenericInstrumentLibrary = IOManager.FileIndex.generic_instrument_index
+
+# ------------------------------------------------------------------
+# Connect the IOManagers signal
+IOManager.Importer.sigImportSpectrogram.connect(SpectrogramManager.restart_spectrogram)
+# ------------------------------------------------------------------
 
 
 class log_utils:

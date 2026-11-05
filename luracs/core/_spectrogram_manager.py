@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from luracs.spectrogram import Spectrogram, WrappedSpectrogramData
+    from luracs.core.spectrogram_manager.spectrogram import Spectrogram, WrappedSpectrogramData
     from luracs.utils.file_io import xml_parser
 
     from .run_manager import _RunManager
@@ -103,7 +103,7 @@ class SpectrogramManager(QObject):
             results = {}
         if True: #self.run_manager.has_gps and np.any(buffer.gps_queue):
             mapping_buffer = {
-                "timestamp": np.asarray(buffer.timestamp_deque),
+                "timestamp": np.asarray(buffer.timestamp_queue),
                 "gps": np.asarray(buffer.gps_queue),
                 "count_rate": np.asarray(buffer.count_rate_queue),
                 "dose_rate": np.asarray(buffer.dose_rate_queue),

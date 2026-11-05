@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from luracs.spectrogram import Spectrogram
+    from luracs.core.spectrogram_manager.spectrogram import Spectrogram
 
 import logging
 import os

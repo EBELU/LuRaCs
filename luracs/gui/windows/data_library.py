@@ -22,10 +22,9 @@ from PySide6.QtWidgets import (
 
 from luracs.containers.instrument_classes import GenericInstrument, UniqueInstrument
 from luracs.containers.spectrum_classes import Spectrum
-from luracs.core import IOManager, RunManager, SpectrumManager
+from luracs.core import IOManager, RunManager, SpectrumManager, SpectrogramManager
 from luracs.gui.dialogs.data_library_edit_dialogs import InstrumentDialog, ROIDialog
 from luracs.gui.dialogs.save_dialog import SaveNamingDialog
-from luracs.spectrogram import restart_spectrogram
 from luracs.utils import file_io
 from luracs.utils.file_io import io_dispatcher
 
@@ -480,7 +479,7 @@ class SpectrogramTab(LibraryTab):
             return
 
         for file in selection:
-            restart_spectrogram(Path(file).name)
+            SpectrogramManager.restart_spectrogram(Path(file).name)
 
     def export_xlsx(self):
         selection = self._get_selection()
@@ -536,7 +535,7 @@ class SpectrogramTab(LibraryTab):
             )
             return
 
-        if Path(selection[0]).name in RunManager.SpectrogramManager.spectrogram_registry:
+        if Path(selection[0]).name in SpectrogramManager.spectrogram_registry:
             QMessageBox.warning(
                 self,
                 "Error",
@@ -561,7 +560,7 @@ class SpectrogramTab(LibraryTab):
         selected = self._get_selection()
         for s in selected:
             sg = Path(s).name
-            if sg in RunManager.SpectrogramManager.spectrogram_registry:
+            if sg in SpectrogramManager.spectrogram_registry:
                 QMessageBox.warning(self, "Error", f"Spectrogram '{sg}' must be unloaded from memory before it can be deleted.")
                 return
         
@@ -615,7 +614,7 @@ class ROIsTab(LibraryTab):
 
         for file in selection:
             parser = io_dispatcher(file)
-            RunManager.SpectrogramManager.load_rois(parser)
+            SpectrogramManager.ROIHandler.load_rois(parser)
 
     def edit(self):
         selection = self._get_selection()

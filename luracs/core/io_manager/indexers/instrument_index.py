@@ -48,7 +48,7 @@ class InstrumentIndex(Indexer):
         if nr_changed > 0:
             self.sigIndexUpdated.emit()
 
-    def save_instrument_to_library(self, instrument: GenericInstrument):
+    def save_to_library(self, instrument: GenericInstrument):
         # Build dummy spectrum for the xml writer
         dummy_spectrum = Spectrum(1, "Dummy")
         dummy_spectrum.instrument = instrument
