@@ -12,7 +12,7 @@ from pathlib import Path
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import QObject, Qt, QUrl, Signal, Slot, QTimer
+from PySide6.QtCore import QObject, Qt, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QAction
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEngineSettings
@@ -333,10 +333,9 @@ class MapWidget(QWidget):
         SpectrogramManager.ROIHandler.sigAddROI.connect(self.catch_roi_added)
         SpectrogramManager.ROIHandler.sigRemoveROI.connect(self.catch_roi_removed)
         SpectrogramManager.sigMappingDataUpdated.connect(self.add_points)
-        # RunManager.SpectrogramManager.sigMapBufferUpdated.connect(self.catch_map_buffer)
         RunManager.Signals.GPSConnection.connect(self.catch_gps_connected)
         RunManager.Signals.GPSUpdated.connect(self.catch_gps_update)
-        
+
         self.move_to_current_timer = QTimer(self)
         self.move_to_current_timer.setSingleShot(True)
         self.move_to_current_timer.setInterval(
@@ -346,18 +345,18 @@ class MapWidget(QWidget):
     # ------------------------------------------------------------------
     # Data handling
     # ------------------------------------------------------------------
-    
+
     @Slot(str)
     def catch_spectrogram_added(self, spectrogram_name: str):
         self.combo_spectrogram.addItem(spectrogram_name)
-        
+
     @Slot(str)
     def catch_spectrogram_closed(self, spectrogram_name: str):
         for i in range(self.combo_spectrogram.count()):
             if self.combo_spectrogram.itemText(i) == spectrogram_name:
                 self.combo_spectrogram.removeItem(i)
                 break
-            
+
     @Slot(object)
     def catch_roi_added(self, roi: SpectrogramROI):
         self.combo_shown_data.addItem(roi.alias, roi.tag)
@@ -553,7 +552,10 @@ class MapWidget(QWidget):
                 self.web_engine_view, data.latitude, data.longitude
             )
 
-            if self.is_tracking_current_location and not self.move_to_current_timer.isActive():
+            if (
+                self.is_tracking_current_location
+                and not self.move_to_current_timer.isActive()
+            ):
                 self.move_to_current()
                 self.move_to_current_timer.start()
 
@@ -572,9 +574,9 @@ class MapWidget(QWidget):
     def move_to_start(self):
         data = SpectrogramManager.MappingHandler.get_complete_data(
             self.combo_spectrogram.currentText(), self.combo_shown_data.currentData()
-            )
+        )
         longitude, latitude = data[1], data[2]
-        
+
         if data is not None and self.web_engine_view is not None:
             for lng, lat in list(zip(longitude, latitude)):
                 if lng is not None and lat is not None:
@@ -584,9 +586,9 @@ class MapWidget(QWidget):
     def move_to_end(self):
         data = SpectrogramManager.MappingHandler.get_complete_data(
             self.combo_spectrogram.currentText(), self.combo_shown_data.currentData()
-            )
+        )
         longitude, latitude = data[1], data[2]
-        
+
         if data is not None and self.web_engine_view is not None:
             for lng, lat in reversed(list(zip(longitude, latitude))):
                 if lng is not None and lat is not None:

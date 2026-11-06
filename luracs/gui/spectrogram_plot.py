@@ -45,9 +45,6 @@ def find_index_by_data(combobox, target):
             return i
     return -1
 
-
-
-
 class SpectrogramWidget(QWidget):
     "Main spectrogram widget and functionality to interact with it from the GUI"
 

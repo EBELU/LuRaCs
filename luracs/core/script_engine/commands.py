@@ -19,7 +19,13 @@ import usb.core
 from PySide6.QtSerialPort import QSerialPortInfo
 
 from luracs.clients import DeviceWrapper, WrappedRealTimePackage, WrappedStatusPackage
-from luracs.core import IOManager, RunManager, Settings, SpectrumManager
+from luracs.core import (
+    IOManager,
+    RunManager,
+    Settings,
+    SpectrogramManager,
+    SpectrumManager,
+)
 from luracs.utils import ascii_art
 from luracs.utils.file_io import db_parser, xml_parser
 
@@ -266,7 +272,7 @@ class ListCommand(Command):
             spectrum_table = TableFormatter(
                 ["Index", "Name"], title="Loaded Spectrogram"
             )
-            for i, key in enumerate(RunManager.SpectrogramManager.spectrogram_registry):
+            for i, key in enumerate(SpectrogramManager.spectrogram_registry):
                 spectrum_table.add_row([i, key])
             return spectrum_table.get_table()
 
@@ -391,7 +397,7 @@ class ViewCommand(Command):
     def get_auto_complete(self):
         return {
             "spectrum": {
-                key: None for key in SpectrumManager.get_spectra_dict().keys()
+                key: None for key in SpectrumManager.get_spectra_dict()
             },
             "rois": None,
             "log": None,
@@ -437,7 +443,7 @@ class SpectrogramCommand(Command):
         Arguments:
             start           Start a new spectrogram for a detector or for all detectors
             pause           Pause a running spectrogram
-            unpause         Resume a paused spectrogram
+            resume          Resume a paused spectrogram
             load            Load a spectrogram from data library
             unload          Close a loaded spectrogram
 
@@ -489,14 +495,14 @@ class SpectrogramCommand(Command):
         # --- Pause a spectrogram ---
         elif args[0] == "pause":
             if args[-1] == "all":
-                for sg in RunManager.SpectrogramManager.spectrogram_registry.values():
+                for sg in SpectrogramManager.spectrogram_registry.values():
                     sg.set_paused(True)
                 return "All spectrograms paused"
             
-            if args[1] not in RunManager.SpectrogramManager.spectrogram_registry:
+            if args[1] not in SpectrogramManager.spectrogram_registry:
                 raise ArgumentError(f"'{args[1]}' does not match a loaded spectrogram")
 
-            sg = RunManager.SpectrogramManager.spectrogram_registry[args[1]]
+            sg = SpectrogramManager.spectrogram_registry[args[1]]
             if sg.paused:
                 return f"'{args[1]}' is already paused"
             else:
@@ -504,15 +510,15 @@ class SpectrogramCommand(Command):
                 return f"'{args[1]}' paused"
 
         # --- Unpause a spectrum ---
-        elif args[0] == "unpause":
+        elif args[0] == "resume":
             if args[-1] == "all":
-                for sg in RunManager.SpectrogramManager.spectrogram_registry.values():
+                for sg in SpectrogramManager.spectrogram_registry.values():
                     sg.set_paused(False)
                 return "All spectrograms unpaused"
-            if args[1] not in RunManager.SpectrogramManager.spectrogram_registry:
+            if args[1] not in SpectrogramManager.spectrogram_registry:
                 raise ArgumentError(f"'{args[1]}' does not match a loaded spectrogram")
 
-            sg = RunManager.SpectrogramManager.spectrogram_registry[args[1]]
+            sg = SpectrogramManager.spectrogram_registry[args[1]]
             if not sg.paused:
                 return f"'{args[1]}' is already running"
             else:
@@ -533,11 +539,11 @@ class SpectrogramCommand(Command):
         # --- Unload a spectrogram from active ---
         elif args[0] == "unload":
             if args[-1] == "all":
-                for sg in RunManager.SpectrogramManager.spectrogram_registry.values():
-                    engine.thread_bridge.close_spectrogram(sg.name)
+                for sg in SpectrogramManager.spectrogram_registry.values():
+                    engine.thread_bridge.close_spectrogram(sg.db_name)
                 return "All spectrograms closed"
             
-            if args[1] not in RunManager.SpectrogramManager.spectrogram_registry:
+            if args[1] not in SpectrogramManager.spectrogram_registry:
                 raise ArgumentError(f"'{args[1]}' does not match a loaded spectrogram")
 
             engine.thread_bridge.close_spectrogram(args[1])
@@ -549,17 +555,17 @@ class SpectrogramCommand(Command):
     def get_auto_complete(self):
         return {
             "start": {"all": None}
-            | {key: None for key in RunManager.device_registry.keys()},
+            | {key: None for key in RunManager.device_registry},
             "pause": {"all": None}
             | {
                 key: None
-                for key, sg in RunManager.SpectrogramManager.spectrogram_registry.items()
+                for key, sg in SpectrogramManager.spectrogram_registry.items()
                 if not sg.paused
             },
             "unpause": {"all": None}
             | {
                 key: None
-                for key, sg in RunManager.SpectrogramManager.spectrogram_registry.items()
+                for key, sg in SpectrogramManager.spectrogram_registry.items()
                 if sg.paused
             },
             "load": {
@@ -567,7 +573,7 @@ class SpectrogramCommand(Command):
                 for file in IOManager.FileIndex.spectrogram_index.index_registry
             },
             "unload": {"all": None}
-            | {key: None for key in RunManager.SpectrogramManager.spectrogram_registry.keys()},
+            | {key: None for key in SpectrogramManager.spectrogram_registry},
         }
 
 class MapCommand(Command):
@@ -761,7 +767,7 @@ class DetectorCommand(Command):
         return {
             "connect": {"usb": None, "ble": None},
             "disconnect": {"all": None}
-            | {key: None for key in RunManager.device_registry.keys()},
+            | {key: None for key in RunManager.device_registry},
             "scan": {"usb": None, "ble": None},
         }
         

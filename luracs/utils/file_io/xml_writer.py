@@ -449,12 +449,6 @@ def write_instrument_data(instrument: GenericInstrument | UniqueInstrument, root
             instrument.int_efficiency_E_points,
         )
 
-        if instrument.int_efficiency_created:
-            write_text_to_SubElement(
-                efficiency_section,
-                "Created",
-                instrument.int_efficiency_created.isoformat(),
-            )
         write_text_to_SubElement(
             efficiency_section, "Description", instrument.int_efficiency_description
         )
