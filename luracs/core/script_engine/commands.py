@@ -436,7 +436,7 @@ class SpectrogramCommand(Command):
         Usage:
             spectrogram start [-n <name>] [-i <save_interval>] [-c <concat>] <detector|all>
             spectrogram pause <name>
-            spectrogram unpause <name>
+            spectrogram resume <name>
             spectrogram load <path>
             spectrogram unload <name>
 
@@ -450,7 +450,7 @@ class SpectrogramCommand(Command):
         Options:
             -n <name>       Specify the name of the spectrogram
             -i <seconds>    Set the save interval (default: 1)
-            -c <count>      Number of spectra to concatenate before saving (default: 1)
+            -c <count>      Number of channels to concatenate before saving (default: 1)
 
         Operands:
             <detector>        Name of the detector to acquire from
@@ -471,7 +471,7 @@ class SpectrogramCommand(Command):
 
             if args[-1] == "all":
                 if parsed_args["-n"] is not None:
-                    raise ArgumentError("Name can not be specified when mass starting")
+                    raise ArgumentError("Name can not be specified when bulk starting")
 
                 for detector in RunManager.device_registry:
                     engine.thread_bridge.start_spectrogram(

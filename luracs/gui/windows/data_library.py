@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 
 from luracs.containers.instrument_classes import GenericInstrument, UniqueInstrument
 from luracs.containers.spectrum_classes import Spectrum
-from luracs.core import IOManager, RunManager, SpectrumManager, SpectrogramManager
+from luracs.core import IOManager, SpectrogramManager, SpectrumManager
 from luracs.gui.dialogs.data_library_edit_dialogs import InstrumentDialog, ROIDialog
 from luracs.gui.dialogs.save_dialog import SaveNamingDialog
 from luracs.utils import file_io
@@ -79,6 +79,7 @@ class DataLibrary(QWidget):
 
 class LibraryTab(QWidget):
     sigItemDeleted = Signal(str)
+
     def __init__(self, parent, columns, widths=None, include_checks=False):
         super().__init__(parent=parent)
 
@@ -323,7 +324,7 @@ class SpectrumTab(LibraryTab):
             **header_dict,
         )
         dummy_spectrum.set_foreground(parser.get_foreground_spectrum())
-        
+
         if parser.get_background_spectrum() is not None:
             dummy_spectrum.set_background(parser.get_background_spectrum())
 
@@ -561,10 +562,15 @@ class SpectrogramTab(LibraryTab):
         for s in selected:
             sg = Path(s).name
             if sg in SpectrogramManager.spectrogram_registry:
-                QMessageBox.warning(self, "Error", f"Spectrogram '{sg}' must be unloaded from memory before it can be deleted.")
+                QMessageBox.warning(
+                    self,
+                    "Error",
+                    f"Spectrogram '{sg}' must be unloaded from memory before it can be deleted.",
+                )
                 return
-        
+
         return super().delete_selected()
+
 
 class ROIsTab(LibraryTab):
     def __init__(self, parent):
@@ -575,7 +581,7 @@ class ROIsTab(LibraryTab):
         export_xml.triggered.connect(
             lambda: self.export_same("LuRaCs ROI file (*.xml)")
         )
-        
+
         self.btn_load.setText("Load to Spectrum")
         self.btn_load_to_spectrogram = QPushButton("Load to Spectrogram")
         self.btn_load_to_spectrogram.clicked.connect(self.load_to_spectrogram)
@@ -606,7 +612,7 @@ class ROIsTab(LibraryTab):
                 }
                 del extended_kwargs["tag"]
                 SpectrumManager.ROIManager.add_roi(*peak.roi_bound, **extended_kwargs)
-    
+
     def load_to_spectrogram(self):
         selection = self._get_selection()
         if selection is None:
@@ -703,7 +709,7 @@ class InstrumentsTab(LibraryTab):
 
         edit_dialog = InstrumentDialog(
             **SpectrumManager.UniqueInstrumentLibrary.index_registry[
-                selection[0] # Will KeyError if something is wrong
+                selection[0]  # Will KeyError if something is wrong
             ].__dict__
         )
         res = edit_dialog.exec()
@@ -716,12 +722,10 @@ class InstrumentsTab(LibraryTab):
         new_instrument_dict = {}
 
         dialog_data, base_instrument_key = edit_dialog.get_data()
-        
-        base_instrument_dict = (
-            SpectrumManager.UniqueInstrumentLibrary.index_registry[
-                selection[0]
-            ].__dict__
-        )
+
+        base_instrument_dict = SpectrumManager.UniqueInstrumentLibrary.index_registry[
+            selection[0]
+        ].__dict__
         new_instrument_dict.update(base_instrument_dict)
 
         new_instrument_dict.update(dialog_data)
@@ -833,7 +837,7 @@ class GenericInstrumentsTab(LibraryTab):
             generic_selection=False,
             **SpectrumManager.GenericInstrumentLibrary.index_registry[
                 selection[0]
-            ].__dict__
+            ].__dict__,
         )
         edit_dialog.name_input.setEnabled(False)
         res = edit_dialog.exec()
@@ -848,11 +852,9 @@ class GenericInstrumentsTab(LibraryTab):
         dialog_data, _ = edit_dialog.get_data()
         del dialog_data["name"]
 
-        base_instrument_dict = (
-            SpectrumManager.GenericInstrumentLibrary.index_registry[
-                selection[0]
-            ].__dict__
-        )
+        base_instrument_dict = SpectrumManager.GenericInstrumentLibrary.index_registry[
+            selection[0]
+        ].__dict__
         new_instrument_dict.update(base_instrument_dict)
 
         new_instrument_dict.update(dialog_data)
@@ -912,4 +914,3 @@ class GenericInstrumentsTab(LibraryTab):
                 existing_instrument_key, new_instrument
             )
         self.set_table()
-        

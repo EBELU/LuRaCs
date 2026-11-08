@@ -195,13 +195,13 @@ class EfficiencyWindow(QWidget):
     def set_instrument_combo(self):
         self.instrument_combo.clear()
         for key, i in sorted(
-            SpectrumManager.GenericInstrumentLibrary.instrument_registry.items(),
+            SpectrumManager.GenericInstrumentLibrary.index_registry.items(),
             key=lambda x: x[1].model,
         ):
             self.instrument_combo.addItem(i.model, key)
         self.instrument_combo.insertSeparator(self.instrument_combo.count())
         for key, i in sorted(
-            SpectrumManager.UniqueInstrumentLibrary.instrument_registry.items(),
+            SpectrumManager.UniqueInstrumentLibrary.index_registry.items(),
             key=lambda x: x[1].name,
         ):
             self.instrument_combo.addItem(i.name, key)
@@ -576,11 +576,11 @@ class EfficiencyWindow(QWidget):
         # Check if it matches a generic instrument, if so, update it
         if (
             instrument_key
-            in SpectrumManager.GenericInstrumentLibrary.instrument_registry
+            in SpectrumManager.GenericInstrumentLibrary.index_registry
         ):
             self.sigUpdateGenericInstrument.emit(instrument_key, data_dict)
             base_instrument = (
-                SpectrumManager.GenericInstrumentLibrary.instrument_registry[
+                SpectrumManager.GenericInstrumentLibrary.index_registry[
                     instrument_key
                 ]
             )
@@ -588,11 +588,11 @@ class EfficiencyWindow(QWidget):
         # Check if it matches a unique instrument, if so, update it
         elif (
             instrument_key
-            in SpectrumManager.UniqueInstrumentLibrary.instrument_registry
+            in SpectrumManager.UniqueInstrumentLibrary.index_registry
         ):
             self.sigUpdateUniqueInstrument.emit(instrument_key, data_dict)
             base_instrument = (
-                SpectrumManager.UniqueInstrumentLibrary.instrument_registry[
+                SpectrumManager.UniqueInstrumentLibrary.index_registry[
                     instrument_key
                 ]
             )
@@ -606,14 +606,14 @@ class EfficiencyWindow(QWidget):
             for (
                 key,
                 instr,
-            ) in SpectrumManager.UniqueInstrumentLibrary.instrument_registry.items():
+            ) in SpectrumManager.UniqueInstrumentLibrary.index_registry.items():
                 if instr.model == base_instrument.model:
                     self.sigUpdateUniqueInstrument.emit(key, data_dict)
 
             for (
                 key,
                 instr,
-            ) in SpectrumManager.GenericInstrumentLibrary.instrument_registry.items():
+            ) in SpectrumManager.GenericInstrumentLibrary.index_registry.items():
                 if instr.model == base_instrument.model:
                     self.sigUpdateGenericInstrument.emit(key, data_dict)
 

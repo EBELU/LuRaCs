@@ -51,7 +51,7 @@ class MainMenuBar(QMenuBar):
             )
         file_menu.addSeparator()
         file_menu_import_third_party_driver = file_menu.addAction("Import Drivers")
-        file_menu_import_third_party_driver.triggered.connect(self.import_thrid_party_driver)
+        file_menu_import_third_party_driver.triggered.connect(self.import_third_party_driver)
         file_menu_show_library = file_menu.addAction("Drivers")
         file_menu_show_library.triggered.connect(parent.driver_dialog.show)
         file_menu.addSeparator()
@@ -290,7 +290,7 @@ class MainMenuBar(QMenuBar):
             "LuRaCs - Lund University radiation computing suite\n\n A free and open source tool for measuring and analysing radiation spectra.\n\nCreated by Erik Ewald & Malte Axner \n\nSource code licenced under GPL-3.0\nDocumentation & Images licenced under CC BY-SA 4.0",
         )
         
-    def import_thrid_party_driver(self):
+    def import_third_party_driver(self):
         files, _ = IOManager.Importer.import_files(filter="Driver Files (*)")
         if files is None:
             return

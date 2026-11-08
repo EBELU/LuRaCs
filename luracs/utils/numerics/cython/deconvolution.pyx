@@ -73,7 +73,7 @@ cdef void backward(
     cdef Py_ssize_t j
 
     for j in range(
-        correction.shape[0] - 1
+        correction.shape[0]
     ):
         correction[j] = back_project_row(
             j,

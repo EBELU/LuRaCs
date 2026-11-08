@@ -31,7 +31,7 @@ class ArgumentParser:
                 default_argument = self.signatures[arg_key]
                 if isinstance(default_argument, (tuple, list)):
                     self.signatures[arg_key] = args[i : i + len(default_argument)]
-                    assert not any([p.startswith("-") for p in self.signatures[args]])
+                    assert not any(p.startswith("-") for p in self.signatures[args])
                     i += 1 + len(default_argument)
                 elif isinstance(default_argument, bool):
                     self.signatures[arg_key] = not default_argument

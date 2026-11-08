@@ -157,13 +157,13 @@ class DeconvolutionWindow(QWidget):
     def set_instrument_combo(self):
         self.combo_instrument.clear()
         for key, i in sorted(
-            SpectrumManager.GenericInstrumentLibrary.instrument_registry.items(),
+            SpectrumManager.GenericInstrumentLibrary.index_registry.items(),
             key=lambda x: x[1].model,
         ):
             self.combo_instrument.addItem(i.model, key)
         self.combo_instrument.insertSeparator(self.combo_instrument.count())
         for key, i in sorted(
-            SpectrumManager.UniqueInstrumentLibrary.instrument_registry.items(),
+            SpectrumManager.UniqueInstrumentLibrary.index_registry.items(),
             key=lambda x: x[1].name,
         ):
             self.combo_instrument.addItem(i.name, key)
@@ -210,10 +210,10 @@ class DeconvolutionWindow(QWidget):
         
     def calculate_rl(self):
         instrument_key = self.combo_instrument.currentData()
-        if instrument_key in SpectrumManager.UniqueInstrumentLibrary.instrument_registry:
-            instrument = SpectrumManager.UniqueInstrumentLibrary.instrument_registry[instrument_key]
-        elif instrument_key in SpectrumManager.GenericInstrumentLibrary.instrument_registry:
-            instrument = SpectrumManager.GenericInstrumentLibrary.instrument_registry[instrument_key]
+        if instrument_key in SpectrumManager.UniqueInstrumentLibrary.index_registry:
+            instrument = SpectrumManager.UniqueInstrumentLibrary.index_registry[instrument_key]
+        elif instrument_key in SpectrumManager.GenericInstrumentLibrary.index_registry:
+            instrument = SpectrumManager.GenericInstrumentLibrary.index_registry[instrument_key]
         else:
             QMessageBox.warning(self, "Error", "Not instrument selected")
             return
@@ -332,7 +332,7 @@ class DeconvolutionWindow(QWidget):
         
         if on_status is not None:
             on_status(50, "Running ML-EM...")
-            
+        
         result = ml_em(
             spectrum_y,
             processed_response[0],
