@@ -40,6 +40,11 @@ dependencies = [
 
 ]
 
+[project.urls]
+Homepage = "https://github.com/EBELU/LuRaCs"
+Repository = "https://github.com/EBELU/LuRaCs"
+Issues = "https://github.com/EBELU/LuRaCs/issues/"
+
 [project.optional-dependencies]
 dev = [
     "pandas", 
