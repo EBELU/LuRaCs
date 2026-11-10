@@ -50,7 +50,7 @@ if is_windows:
     plotext_dll = ROOT / "venv" / "Lib" / "site-packages" / "plotext" / "_kernel" / "cpp" / "kernel.dll"
     bins.append((str(plotext_dll), 'plotext/_kernel/cpp'))
 else:
-    plotext_so = ROOT / "linuxVenv" / "Lib" / "site-packages" / "plotext" / "_kernel" / "cpp" / "kernel.so"
+    plotext_so = ROOT / "venv" / "Lib" / "site-packages" / "plotext" / "_kernel" / "cpp" / "kernel.so"
     if plotext_so.is_file():
         bins.append((str(plotext_so), 'plotext/_kernel/cpp'))
 
