@@ -1,0 +1,1987 @@
+//! Save the current plot view to a PNG (silx `saveGraph`).
+//!
+//! [`save_graph`] renders the data layer (background clear, image, curves) for
+//! the plot's current limits into an offscreen texture at a chosen pixel size,
+//! copies it back to the CPU, and writes a PNG. This captures the wgpu-rendered
+//! data layer; the egui-drawn chrome (axes, ticks, colorbar) is not included
+//! (`doc/design.md` §13 E1).
+//!
+//! The readback's row stride is padded to `COPY_BYTES_PER_ROW_ALIGNMENT`, and
+//! the bytes are converted to tightly packed RGBA8 (swapping channels when the
+//! surface format is BGRA). The pure byte-layout and PNG-encoding helpers are
+//! unit-tested; the GPU render + readback runs only with a real device.
+//!
+//! Beyond PNG, the raster snapshot can also be exported as PPM (P6), SVG (a
+//! base64 PNG `<image>`), uncompressed baseline TIFF (with DPI resolution
+//! tags), EPS (an embedded `colorimage` raster), and PDF (a single-page
+//! `/DeviceRGB` image XObject), mirroring silx `PlotImageFile.saveImageToFile`
+//! / `BackendBase.saveGraph(fileName, fileFormat, dpi)`.
+//! [`save_graph_with_format`] dispatches by [`SaveFormat`], and each `encode_*`
+//! helper is a pure function over the RGBA pixels so it is testable without a
+//! GPU or the filesystem.
+//!
+//! DEFERRED (not implemented here): true *vector* export of plot primitives
+//! (the SVG/EPS/PDF embed the rendered raster rather than re-emitting geometry,
+//! which would require the backend to record draw ops); and matplotlib-parity
+//! DPI scaling of the actual render (DPI is recorded in the TIFF resolution
+//! tags / JFIF density but does not rescale the rendered pixel grid). JPEG is
+//! covered by the hand-written baseline encoder in [`crate::render::jpeg`].
+
+use std::fmt;
+use std::path::Path;
+
+use egui::{Pos2, Rect};
+use egui_wgpu::{RenderState, wgpu};
+
+use crate::core::plot::Plot;
+use crate::core::transform::Scale;
+use crate::render::backend_wgpu::WgpuResources;
+
+/// Why a [`save_graph`] call failed.
+#[derive(Debug)]
+pub enum SaveError {
+    /// Writing the PNG file to disk failed.
+    Io(std::io::Error),
+    /// Encoding the pixels as PNG failed.
+    Encode(png::EncodingError),
+    /// The GPU readback (buffer map / device poll) failed, or the size was zero.
+    Readback(String),
+}
+
+impl fmt::Display for SaveError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SaveError::Io(e) => write!(f, "save_graph: writing PNG: {e}"),
+            SaveError::Encode(e) => write!(f, "save_graph: encoding PNG: {e}"),
+            SaveError::Readback(e) => write!(f, "save_graph: GPU readback: {e}"),
+        }
+    }
+}
+
+impl std::error::Error for SaveError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            SaveError::Io(e) => Some(e),
+            SaveError::Encode(e) => Some(e),
+            SaveError::Readback(_) => None,
+        }
+    }
+}
+
+impl From<std::io::Error> for SaveError {
+    fn from(e: std::io::Error) -> Self {
+        SaveError::Io(e)
+    }
+}
+
+impl From<png::EncodingError> for SaveError {
+    fn from(e: png::EncodingError) -> Self {
+        SaveError::Encode(e)
+    }
+}
+
+/// Row stride, in bytes, for an `width`-pixel RGBA8 row padded up to wgpu's
+/// `COPY_BYTES_PER_ROW_ALIGNMENT` (the alignment `copy_texture_to_buffer`
+/// requires).
+pub(crate) fn padded_bytes_per_row(width: u32) -> u32 {
+    let unpadded = 4 * width;
+    let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+    unpadded.div_ceil(align) * align
+}
+
+/// Convert a mapped readback buffer (rows padded to `bytes_per_row`) into a
+/// tightly packed `width * height * 4` RGBA8 image, swapping R/B when the
+/// surface format is BGRA so the output is always RGBA.
+pub(crate) fn rows_to_rgba8(
+    mapped: &[u8],
+    width: u32,
+    height: u32,
+    bytes_per_row: u32,
+    format: wgpu::TextureFormat,
+) -> Vec<u8> {
+    let w = width as usize;
+    let h = height as usize;
+    let bpr = bytes_per_row as usize;
+    let row_bytes = w * 4;
+    let swap = matches!(
+        format,
+        wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb
+    );
+
+    let mut out = vec![0u8; w * h * 4];
+    for row in 0..h {
+        let src = &mapped[row * bpr..row * bpr + row_bytes];
+        let dst = &mut out[row * row_bytes..(row + 1) * row_bytes];
+        if swap {
+            for (s, d) in src
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .zip(dst.as_chunks_mut::<4>().0.iter_mut())
+            {
+                d[0] = s[2];
+                d[1] = s[1];
+                d[2] = s[0];
+                d[3] = s[3];
+            }
+        } else {
+            dst.copy_from_slice(src);
+        }
+    }
+    out
+}
+
+/// Encode tightly packed `width * height` RGBA8 pixels as a PNG byte stream.
+pub fn encode_png(rgba: &[u8], width: u32, height: u32) -> Result<Vec<u8>, png::EncodingError> {
+    let mut out = Vec::new();
+    {
+        let mut encoder = png::Encoder::new(&mut out, width, height);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder.write_header()?;
+        writer.write_image_data(rgba)?;
+    }
+    Ok(out)
+}
+
+/// Drop the alpha channel of a tightly packed `width * height` RGBA8 buffer,
+/// returning tightly packed `width * height` RGB8 (3 bytes per pixel).
+///
+/// silx's raster image export (`PlotImageFile.saveImageToFile`) operates on an
+/// `(h, w, 3)` RGB array; the PPM body carries RGB, so the readback's RGBA is
+/// reduced to RGB by discarding alpha.
+pub fn rgba_to_rgb(rgba: &[u8], width: u32, height: u32) -> Vec<u8> {
+    let n = (width as usize) * (height as usize);
+    let mut out = Vec::with_capacity(n * 3);
+    for px in rgba.as_chunks::<4>().0.iter().take(n) {
+        out.push(px[0]);
+        out.push(px[1]);
+        out.push(px[2]);
+    }
+    out
+}
+
+/// Encode tightly packed `width * height` RGBA8 pixels as a binary (P6) PPM
+/// byte stream.
+///
+/// Faithful to silx `PlotImageFile.saveImageToFile` (`fileFormat == "ppm"`):
+/// the header is `P6\n<width> <height>\n255\n` followed by raw RGB bytes (the
+/// alpha channel is dropped). The header is ASCII and self-describing.
+pub fn encode_ppm(rgba: &[u8], width: u32, height: u32) -> Vec<u8> {
+    let rgb = rgba_to_rgb(rgba, width, height);
+    let header = format!("P6\n{width} {height}\n255\n");
+    let mut out = Vec::with_capacity(header.len() + rgb.len());
+    out.extend_from_slice(header.as_bytes());
+    out.extend_from_slice(&rgb);
+    out
+}
+
+/// Encode a 2D `uint8` array `(height, width)` (row-major / C-order) as a NumPy
+/// `.npy` v1.0 byte stream.
+///
+/// Mirrors `numpy.save` of a `uint8` array (silx `MaskToolsWidget.save(..,
+/// "npy")`): a `\x93NUMPY` magic, a `\x01\x00` version, a little-endian `u16`
+/// header length, then the ASCII header dict
+/// `{'descr': '|u1', 'fortran_order': False, 'shape': (h, w), }` padded with
+/// spaces so the whole preamble length is a multiple of 64 and terminated by a
+/// newline, then the raw C-order bytes. Pure (no GPU / filesystem) so it is
+/// directly unit-testable; `data` is expected to be `height * width` bytes long.
+pub fn encode_mask_npy(height: u32, width: u32, data: &[u8]) -> Vec<u8> {
+    const MAGIC: &[u8] = b"\x93NUMPY";
+    let header =
+        format!("{{'descr': '|u1', 'fortran_order': False, 'shape': ({height}, {width}), }}");
+    // Preamble = magic(6) + version(2) + header-len(2) + header + '\n',
+    // padded with spaces so the whole preamble length is a multiple of 64.
+    let unpadded = MAGIC.len() + 2 + 2 + header.len() + 1;
+    let pad = (64 - (unpadded % 64)) % 64;
+    let header_len = header.len() + pad + 1; // padding + trailing newline
+    debug_assert!(header_len <= u16::MAX as usize);
+
+    let mut out = Vec::with_capacity(unpadded + pad + data.len());
+    out.extend_from_slice(MAGIC);
+    out.extend_from_slice(&[1u8, 0u8]); // version 1.0
+    out.extend_from_slice(&(header_len as u16).to_le_bytes());
+    out.extend_from_slice(header.as_bytes());
+    out.extend(std::iter::repeat_n(b' ', pad));
+    out.push(b'\n');
+    out.extend_from_slice(data);
+    out
+}
+
+/// Decode a 2D `uint8` NumPy `.npy` byte stream into `(height, width, data)` in
+/// C (row-major) order.
+///
+/// Accepts only `descr` of `|u1` / `<u1` / `>u1` / `u1` (uint8) with
+/// `fortran_order: False` and a 2D shape — what [`encode_mask_npy`] /
+/// `numpy.save` of a mask produces. Any other dtype, Fortran order,
+/// dimensionality, truncated body, or malformed header is an
+/// [`std::io::ErrorKind::InvalidData`] error. Pure over a byte stream so the
+/// round-trip is directly unit-testable.
+pub fn decode_mask_npy(bytes: &[u8]) -> std::io::Result<(u32, u32, Vec<u8>)> {
+    use std::io::Read;
+    let mut r = bytes;
+    let invalid = |msg: &str| std::io::Error::new(std::io::ErrorKind::InvalidData, msg.to_string());
+
+    let mut magic = [0u8; 6];
+    r.read_exact(&mut magic)?;
+    if &magic != b"\x93NUMPY" {
+        return Err(invalid("not a .npy file (bad magic)"));
+    }
+
+    let mut version = [0u8; 2];
+    r.read_exact(&mut version)?;
+    // Header length is u16 (v1.0) or u32 (v2.0+); support both.
+    let header_len = if version[0] >= 2 {
+        let mut len = [0u8; 4];
+        r.read_exact(&mut len)?;
+        u32::from_le_bytes(len) as usize
+    } else {
+        let mut len = [0u8; 2];
+        r.read_exact(&mut len)?;
+        u16::from_le_bytes(len) as usize
+    };
+
+    let mut header_bytes = vec![0u8; header_len];
+    r.read_exact(&mut header_bytes)?;
+    let header =
+        std::str::from_utf8(&header_bytes).map_err(|_| invalid("npy header is not UTF-8"))?;
+
+    let descr =
+        npy_header_field(header, "descr").ok_or_else(|| invalid("npy header missing 'descr'"))?;
+    // uint8: '|u1' is canonical; tolerate explicit endianness markers.
+    if !matches!(descr.as_str(), "|u1" | "<u1" | ">u1" | "u1") {
+        return Err(invalid("npy mask must be uint8 ('|u1')"));
+    }
+
+    let fortran = npy_header_field(header, "fortran_order")
+        .ok_or_else(|| invalid("npy header missing 'fortran_order'"))?;
+    if fortran != "False" {
+        return Err(invalid("npy mask must be C-order (fortran_order: False)"));
+    }
+
+    let (height, width) = npy_shape_2d(header)?;
+
+    let count = (height as usize) * (width as usize);
+    let mut data = vec![0u8; count];
+    r.read_exact(&mut data)?;
+    Ok((height, width, data))
+}
+
+/// Extract the value of a `key` from a NumPy `.npy` header dict literal,
+/// stripping surrounding quotes (so `'|u1'` becomes `|u1` and the bare literal
+/// `False` stays `False`). Returns `None` if the key is absent.
+fn npy_header_field(header: &str, key: &str) -> Option<String> {
+    // Match `'key':` then take up to the next ',' or '}'.
+    let needle = format!("'{key}':");
+    let start = header.find(&needle)? + needle.len();
+    let rest = &header[start..];
+    let end = rest.find([',', '}'])?;
+    let value = rest[..end].trim();
+    Some(value.trim_matches(['\'', '"']).to_string())
+}
+
+/// Parse the `shape` tuple of a 2D NumPy `.npy` header into `(height, width)`.
+///
+/// Rejects shapes that are not exactly 2D, matching silx's mask load which only
+/// handles 2D image masks.
+fn npy_shape_2d(header: &str) -> std::io::Result<(u32, u32)> {
+    let invalid = |msg: &str| std::io::Error::new(std::io::ErrorKind::InvalidData, msg.to_string());
+    let start = header
+        .find("'shape':")
+        .ok_or_else(|| invalid("npy header missing 'shape'"))?
+        + "'shape':".len();
+    let rest = &header[start..];
+    let open = rest.find('(').ok_or_else(|| invalid("malformed shape"))?;
+    let close = rest.find(')').ok_or_else(|| invalid("malformed shape"))?;
+    let dims: Vec<u32> = rest[open + 1..close]
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.parse::<u32>())
+        .collect::<Result<_, _>>()
+        .map_err(|_| invalid("non-integer shape dimension"))?;
+    if dims.len() != 2 {
+        return Err(invalid("npy mask must be 2D"));
+    }
+    Ok((dims[0], dims[1]))
+}
+
+/// Encode a 2D `uint8` mask `(height, width)` (row-major / C-order) as an ESRF
+/// Data Format (EDF) byte stream.
+///
+/// Mirrors `fabio.edfimage` writing of a `uint8` image (silx
+/// `MaskToolsWidget.save(.., "edf")`): an ASCII header block opening with `{`,
+/// one `KEY = VALUE ;` line per field (`HeaderID`/`Image`/`ByteOrder`/
+/// `DataType`/`Dim_1`/`Dim_2`/`Size`), space-padded so the header block length
+/// (through the closing `}\n`) is a multiple of 512 bytes, then the raw C-order
+/// pixel bytes. `Dim_1` is the fast axis (width / columns) and `Dim_2` the slow
+/// axis (height / rows), so the byte layout matches the row-major mask directly
+/// with no transpose. Pure (no GPU / filesystem); `data` is expected to be
+/// `height * width` bytes long.
+pub fn encode_mask_edf(height: u32, width: u32, data: &[u8]) -> Vec<u8> {
+    const BLOCK: usize = 512;
+    let size = (height as usize) * (width as usize);
+    let mut header = String::from("{\n");
+    header.push_str("HeaderID = EH:000001:000000:000000 ;\n");
+    header.push_str("Image = 1 ;\n");
+    header.push_str("ByteOrder = LowByteFirst ;\n");
+    header.push_str("DataType = UnsignedByte ;\n");
+    header.push_str(&format!("Dim_1 = {width} ;\n"));
+    header.push_str(&format!("Dim_2 = {height} ;\n"));
+    header.push_str(&format!("Size = {size} ;\n"));
+    // Pad with spaces so the block (including the closing "}\n") is 512-aligned.
+    let unpadded = header.len() + 2; // + "}\n"
+    let pad = (BLOCK - (unpadded % BLOCK)) % BLOCK;
+    header.extend(std::iter::repeat_n(' ', pad));
+    header.push_str("}\n");
+
+    let mut out = Vec::with_capacity(header.len() + data.len());
+    out.extend_from_slice(header.as_bytes());
+    out.extend_from_slice(data);
+    out
+}
+
+/// Decode a 2D `uint8` EDF byte stream into `(height, width, data)` in C
+/// (row-major) order.
+///
+/// Accepts the `UnsignedByte` 2D layout that [`encode_mask_edf`] / fabio
+/// produce: the ASCII `{ … }` header supplies `Dim_1` (width), `Dim_2` (height)
+/// and `DataType`, and the pixel data is the `Dim_1 * Dim_2` bytes that begin
+/// immediately after the header's closing `}` (skipping the single `\n` the
+/// encoder writes there). Any other `DataType`, a missing/non-integer
+/// dimension, an unterminated header, or a body shorter than `Dim_1 * Dim_2` is
+/// an [`std::io::ErrorKind::InvalidData`] error. Pure over a byte stream so the
+/// round-trip is directly unit-testable.
+pub fn decode_mask_edf(bytes: &[u8]) -> std::io::Result<(u32, u32, Vec<u8>)> {
+    let invalid = |msg: &str| std::io::Error::new(std::io::ErrorKind::InvalidData, msg.to_string());
+    let open = bytes
+        .iter()
+        .position(|&b| b == b'{')
+        .ok_or_else(|| invalid("not an EDF file (no '{')"))?;
+    let close = bytes[open..]
+        .iter()
+        .position(|&b| b == b'}')
+        .ok_or_else(|| invalid("EDF header not terminated ('}' missing)"))?
+        + open;
+    let header = std::str::from_utf8(&bytes[open + 1..close])
+        .map_err(|_| invalid("EDF header is not UTF-8"))?;
+
+    let data_type = edf_header_field(header, "DataType")
+        .ok_or_else(|| invalid("EDF header missing 'DataType'"))?;
+    if data_type != "UnsignedByte" {
+        return Err(invalid("EDF mask must be UnsignedByte"));
+    }
+    let width: u32 = edf_header_field(header, "Dim_1")
+        .ok_or_else(|| invalid("EDF header missing 'Dim_1'"))?
+        .parse()
+        .map_err(|_| invalid("EDF 'Dim_1' is not an integer"))?;
+    let height: u32 = edf_header_field(header, "Dim_2")
+        .ok_or_else(|| invalid("EDF header missing 'Dim_2'"))?
+        .parse()
+        .map_err(|_| invalid("EDF 'Dim_2' is not an integer"))?;
+
+    // The body begins right after the closing brace; our encoder (and fabio)
+    // writes a single '\n' there before the block-aligned data.
+    let mut data_start = close + 1;
+    if bytes.get(data_start) == Some(&b'\n') {
+        data_start += 1;
+    }
+    let count = (height as usize) * (width as usize);
+    if bytes.len().saturating_sub(data_start) < count {
+        return Err(invalid("EDF body shorter than Dim_1 * Dim_2"));
+    }
+    let data = bytes[data_start..data_start + count].to_vec();
+    Ok((height, width, data))
+}
+
+/// Extract the value of `key` from an EDF ASCII header (the inside of the
+/// `{ … }` block): fields are `KEY = VALUE ;`-separated. Returns `None` if the
+/// key is absent.
+fn edf_header_field(header: &str, key: &str) -> Option<String> {
+    header.split(';').find_map(|entry| {
+        let (k, v) = entry.split_once('=')?;
+        (k.trim() == key).then(|| v.trim().to_string())
+    })
+}
+
+/// Encode a 2D `uint8` mask `(height, width)` (row-major / C-order) as a
+/// single-page grayscale TIFF byte stream.
+///
+/// Mirrors silx `MaskToolsWidget.save(.., "tif")` (via fabio / `tifffile`): a
+/// 2D `uint8` image is exactly a `width × height` grayscale TIFF. Encoded with
+/// the image-rs `tiff` crate (uncompressed `Gray8`), so the row-major mask bytes
+/// map directly to scanlines. Fallible (the encoder writes into an in-memory
+/// buffer); `data` is expected to be `height * width` bytes long.
+pub fn encode_mask_tiff(height: u32, width: u32, data: &[u8]) -> std::io::Result<Vec<u8>> {
+    use tiff::encoder::{TiffEncoder, colortype::Gray8};
+    let to_io = |e: tiff::TiffError| std::io::Error::new(std::io::ErrorKind::InvalidData, e);
+    let mut cursor = std::io::Cursor::new(Vec::new());
+    let mut encoder = TiffEncoder::new(&mut cursor).map_err(to_io)?;
+    encoder
+        .write_image::<Gray8>(width, height, data)
+        .map_err(to_io)?;
+    Ok(cursor.into_inner())
+}
+
+/// Decode a single-page grayscale `uint8` TIFF byte stream into
+/// `(height, width, data)` in C (row-major) order.
+///
+/// Accepts the 2D `uint8` layout that [`encode_mask_tiff`] / fabio / `tifffile`
+/// produce — any common single-channel compression (deflate/lzw/packbits) the
+/// `tiff` crate handles. A multi-channel (e.g. RGB) image, a non-`uint8` sample
+/// type, or a body whose length is not `width * height` is an
+/// [`std::io::ErrorKind::InvalidData`] error (a mask is a single-channel 2D
+/// `uint8` array, faithful to silx loading the image as a 2D mask).
+pub fn decode_mask_tiff(bytes: &[u8]) -> std::io::Result<(u32, u32, Vec<u8>)> {
+    use tiff::decoder::{Decoder, DecodingResult};
+    let invalid = |msg: &str| std::io::Error::new(std::io::ErrorKind::InvalidData, msg.to_string());
+    let to_io = |e: tiff::TiffError| std::io::Error::new(std::io::ErrorKind::InvalidData, e);
+
+    let mut decoder = Decoder::new(std::io::Cursor::new(bytes)).map_err(to_io)?;
+    let (width, height) = decoder.dimensions().map_err(to_io)?;
+    let data = match decoder.read_image().map_err(to_io)? {
+        DecodingResult::U8(v) => v,
+        _ => return Err(invalid("TIFF mask must be 8-bit (uint8) samples")),
+    };
+    // A 2D mask is single-channel: width*height samples. An RGB(A) image has
+    // 3/4× that and is not a mask.
+    let count = (width as usize) * (height as usize);
+    if data.len() != count {
+        return Err(invalid(
+            "TIFF mask must be single-channel (width * height uint8 samples)",
+        ));
+    }
+    Ok((height, width, data))
+}
+
+/// Write the 2D `uint8` mask to an HDF5 dataset at `data_path` inside `path`.
+///
+/// Mirrors silx `MaskToolsWidget._saveToHdf5` (gui/plot/MaskToolsWidget.py:143-174),
+/// writing the mask as a `(height, width)` `uint8` dataset. HDF5 is a
+/// random-access container, not a byte stream, so — unlike the npy/edf/tiff
+/// codecs — it operates on a file path rather than `impl Write`, via the
+/// pure-Rust `rust-hdf5` crate.
+///
+/// Faithful to silx's "a" mode: an existing file is opened for append
+/// ([`H5File::open_rw`](rust_hdf5::H5File::open_rw)) so its other datasets are
+/// preserved, and an existing dataset at `data_path` is deleted first (silx's
+/// overwrite branch); a missing file is created. The file is finalized with
+/// `close()` before it can be read back.
+pub fn write_mask_hdf5(
+    path: &std::path::Path,
+    data_path: &str,
+    height: u32,
+    width: u32,
+    data: &[u8],
+) -> std::io::Result<()> {
+    use rust_hdf5::H5File;
+    let to_io = |e: rust_hdf5::Hdf5Error| std::io::Error::other(e.to_string());
+    // silx opens an existing file in append mode ("a"), else creates it.
+    let file = if path.exists() {
+        H5File::open_rw(path).map_err(to_io)?
+    } else {
+        H5File::create(path).map_err(to_io)?
+    };
+    // silx deletes an existing dataset at the path before recreating it.
+    if file.dataset_names().iter().any(|n| n == data_path) {
+        file.delete_dataset(data_path).map_err(to_io)?;
+    }
+    let ds = file
+        .new_dataset::<u8>()
+        .shape([height as usize, width as usize])
+        .create(data_path)
+        .map_err(to_io)?;
+    ds.write_raw(data).map_err(to_io)?;
+    // Finalize the file (superblock/headers) before it can be read back.
+    file.close().map_err(to_io)?;
+    Ok(())
+}
+
+/// List the paths of every 2D dataset in the HDF5 file at `path`, sorted.
+///
+/// This is the data source for silx's "Select a 2D dataset" dialog
+/// (`_selectDataset` / `DatasetDialog`, gui/plot/MaskToolsWidget.py:63-78): the
+/// dialog browses the file tree and offers the 2D datasets a mask can be loaded
+/// from. `rust-hdf5`'s [`dataset_names`](rust_hdf5::H5File::dataset_names)
+/// enumerates every dataset (full paths, nested included); the result is sorted
+/// so the auto-selection ([`read_mask_hdf5_auto`]) is deterministic.
+pub fn list_mask_datasets_hdf5(path: &std::path::Path) -> std::io::Result<Vec<String>> {
+    use rust_hdf5::H5File;
+    let to_io = |e: rust_hdf5::Hdf5Error| std::io::Error::other(e.to_string());
+    let file = H5File::open(path).map_err(to_io)?;
+    let mut out = Vec::new();
+    for name in file.dataset_names() {
+        let ds = file.dataset(&name).map_err(to_io)?;
+        if ds.ndims() == 2 {
+            out.push(name);
+        }
+    }
+    out.sort();
+    Ok(out)
+}
+
+/// Read the 2D `uint8` mask stored at `data_path` in the HDF5 file at `path`,
+/// returning `(height, width, data)` in C (row-major) order.
+///
+/// Mirrors silx `MaskToolsWidget._loadFromHdf5` (gui/plot/MaskToolsWidget.py:679-696):
+/// the dataset is opened and read; a non-2D dataset is rejected. The samples are
+/// read as `uint8` (a mask is `uint8`); a dataset whose element size is not one
+/// byte is a [`rust_hdf5::Hdf5Error`] type mismatch surfaced as an I/O error. A
+/// body whose length is not `width * height` is an
+/// [`std::io::ErrorKind::InvalidData`] error.
+pub fn read_mask_hdf5(
+    path: &std::path::Path,
+    data_path: &str,
+) -> std::io::Result<(u32, u32, Vec<u8>)> {
+    use rust_hdf5::H5File;
+    let to_io = |e: rust_hdf5::Hdf5Error| std::io::Error::other(e.to_string());
+    let invalid = |msg: &str| std::io::Error::new(std::io::ErrorKind::InvalidData, msg.to_string());
+    let file = H5File::open(path).map_err(to_io)?;
+    let ds = file.dataset(data_path).map_err(to_io)?;
+    if ds.ndims() != 2 {
+        return Err(invalid("HDF5 mask dataset must be 2-dimensional"));
+    }
+    let shape = ds.shape();
+    let (height, width) = (shape[0], shape[1]);
+    let data: Vec<u8> = ds.read_raw().map_err(to_io)?;
+    if data.len() != height * width {
+        return Err(invalid(
+            "HDF5 mask body length does not match its (height, width) shape",
+        ));
+    }
+    Ok((height as u32, width as u32, data))
+}
+
+/// Read the first (lexicographically smallest path) 2D `uint8` dataset in the
+/// HDF5 file at `path`.
+///
+/// Convenience over [`read_mask_hdf5`] for the common single-dataset file:
+/// silx's `_selectDataset` dialog would auto-resolve when there is one choice.
+/// When several 2D datasets exist, the first by sorted path is read; callers that
+/// need an explicit choice enumerate with [`list_mask_datasets_hdf5`] and call
+/// [`read_mask_hdf5`]. An error is returned when the file holds no 2D dataset.
+pub fn read_mask_hdf5_auto(path: &std::path::Path) -> std::io::Result<(u32, u32, Vec<u8>)> {
+    let datasets = list_mask_datasets_hdf5(path)?;
+    let first = datasets.first().ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "HDF5 file contains no 2D dataset to load a mask from",
+        )
+    })?;
+    read_mask_hdf5(path, first)
+}
+
+/// Read an HDF5 dataset's elements as `f32`, dispatching on the stored element
+/// byte size.
+///
+/// CAVEAT: `rust-hdf5` 0.2's public dataset API surfaces only the *byte size* of
+/// an element ([`element_size`](rust_hdf5::H5Dataset::element_size)), not its
+/// datatype *class*. So this reads a 4-byte element as `f32` and an 8-byte
+/// element as `f64` (cast to `f32`) — correct for float datasets (the common
+/// scientific-image case), but a 4-byte *integer* dataset would be reinterpreted
+/// as `f32` bit-for-bit (wrong values), as the crate cannot distinguish them.
+/// Datasets with any other element size are rejected. This is a documented
+/// limitation of the dependency, not silently masked. `elements` is the expected
+/// element count, used to reject a short/long read.
+fn read_hdf5_elements_as_f32(
+    ds: &rust_hdf5::H5Dataset,
+    elements: usize,
+) -> std::io::Result<Vec<f32>> {
+    let to_io = |e: rust_hdf5::Hdf5Error| std::io::Error::other(e.to_string());
+    let invalid = |msg: String| std::io::Error::new(std::io::ErrorKind::InvalidData, msg);
+    let data: Vec<f32> = match ds.element_size() {
+        4 => ds.read_raw::<f32>().map_err(to_io)?,
+        8 => ds
+            .read_raw::<f64>()
+            .map_err(to_io)?
+            .into_iter()
+            .map(|x| x as f32)
+            .collect(),
+        n => {
+            return Err(invalid(format!(
+                "unsupported HDF5 element size {n} (only 4-byte f32 / 8-byte f64 images are read)"
+            )));
+        }
+    };
+    if data.len() != elements {
+        return Err(invalid(format!(
+            "HDF5 image body length {} does not match its shape ({elements} elements)",
+            data.len()
+        )));
+    }
+    Ok(data)
+}
+
+/// Read a 2D HDF5 dataset at `data_path` as `(height, width, row-major f32)`
+/// (the `(rows, cols)` convention shared with [`read_mask_hdf5`]).
+///
+/// This is the on-demand image read behind [`crate::Hdf5FrameLoader`] (the
+/// `ImageStack` lazy path / silx `silx.io.get_data` of a `DataUrl`). A non-2D
+/// dataset is rejected. Only float datasets are read (4-byte `f32` / 8-byte
+/// `f64`→`f32`); `rust-hdf5` 0.2 exposes only an element's byte size, not its
+/// datatype class, so a same-width integer dataset would be reinterpreted — a
+/// documented limitation of the dependency, with other element sizes rejected.
+pub fn read_image_hdf5(
+    path: &std::path::Path,
+    data_path: &str,
+) -> std::io::Result<(u32, u32, Vec<f32>)> {
+    use rust_hdf5::H5File;
+    let to_io = |e: rust_hdf5::Hdf5Error| std::io::Error::other(e.to_string());
+    let invalid = |msg: &str| std::io::Error::new(std::io::ErrorKind::InvalidData, msg.to_string());
+    let file = H5File::open(path).map_err(to_io)?;
+    let ds = file.dataset(data_path).map_err(to_io)?;
+    if ds.ndims() != 2 {
+        return Err(invalid("HDF5 image dataset must be 2-dimensional"));
+    }
+    let shape = ds.shape();
+    let (height, width) = (shape[0], shape[1]);
+    let data = read_hdf5_elements_as_f32(&ds, height.saturating_mul(width))?;
+    Ok((height as u32, width as u32, data))
+}
+
+/// Read one 2D slice (frame `index` along axis 0) of a 3D HDF5 dataset at
+/// `data_path` as `(height, width, row-major f32)`.
+///
+/// This is the lazy-stack read for a `[N, H, W]` image stack stored as a single
+/// 3D dataset: only the requested frame is read off disk
+/// ([`read_slice`](rust_hdf5::H5Dataset::read_slice)), which is the point of the
+/// lazy path. A non-3D dataset or an out-of-range `index` is rejected. Only
+/// float datasets are read (4-byte `f32` / 8-byte `f64`→`f32`); see
+/// [`read_image_hdf5`] for the float-dtype caveat.
+pub fn read_image_hdf5_slice(
+    path: &std::path::Path,
+    data_path: &str,
+    index: usize,
+) -> std::io::Result<(u32, u32, Vec<f32>)> {
+    use rust_hdf5::H5File;
+    let to_io = |e: rust_hdf5::Hdf5Error| std::io::Error::other(e.to_string());
+    let invalid = |msg: String| std::io::Error::new(std::io::ErrorKind::InvalidData, msg);
+    let file = H5File::open(path).map_err(to_io)?;
+    let ds = file.dataset(data_path).map_err(to_io)?;
+    if ds.ndims() != 3 {
+        return Err(invalid(
+            "HDF5 image-stack dataset must be 3-dimensional".into(),
+        ));
+    }
+    let shape = ds.shape();
+    let (n, height, width) = (shape[0], shape[1], shape[2]);
+    if index >= n {
+        return Err(invalid(format!(
+            "HDF5 slice index {index} out of range (stack has {n} frames)"
+        )));
+    }
+    let elements = height.saturating_mul(width);
+    let data: Vec<f32> = match ds.element_size() {
+        4 => ds
+            .read_slice::<f32>(&[index, 0, 0], &[1, height, width])
+            .map_err(to_io)?,
+        8 => ds
+            .read_slice::<f64>(&[index, 0, 0], &[1, height, width])
+            .map_err(to_io)?
+            .into_iter()
+            .map(|x| x as f32)
+            .collect(),
+        sz => {
+            return Err(invalid(format!(
+                "unsupported HDF5 element size {sz} (only 4-byte f32 / 8-byte f64 images are read)"
+            )));
+        }
+    };
+    if data.len() != elements {
+        return Err(invalid(format!(
+            "HDF5 slice body length {} does not match its shape ({elements} elements)",
+            data.len()
+        )));
+    }
+    Ok((height as u32, width as u32, data))
+}
+
+/// Encode a 2D mask as an Andy Hammersley fit2d `.msk` byte stream.
+///
+/// Faithful port of fabio `Fit2dMaskImage.write` (fabio/fit2dmaskimage.py:118-142).
+/// The format is a 1024-byte header (`MASK` magic — bytes 0/4/8/12 = `M`/`A`/`S`/`K`
+/// — `dim1`=width at byte 16 and `dim2`=height at byte 20 as little-endian `u32`,
+/// byte 24 = 1) followed by one bit per pixel, LSB-first, packed into rows of
+/// `((width + 31) / 32)` 32-bit ints (`num_ints * 4` bytes/row, trailing bits
+/// zero). fit2d masks are **binary**: every non-zero mask level is written as a
+/// set bit, so multi-level information is collapsed to masked/unmasked (exactly
+/// as fabio writes `self.data != 0`). Infallible (an in-memory buffer), like the
+/// npy/edf codecs; `data` is expected to be `height * width` bytes.
+pub fn encode_mask_msk(height: u32, width: u32, data: &[u8]) -> Vec<u8> {
+    let (h, w) = (height as usize, width as usize);
+    let num_ints = w.div_ceil(32);
+    let bytes_per_row = num_ints * 4;
+    let mut out = vec![0u8; 1024 + h * bytes_per_row];
+    // Header magic + dimensions (little-endian), mirroring fabio's writer.
+    out[0] = b'M';
+    out[4] = b'A';
+    out[8] = b'S';
+    out[12] = b'K';
+    out[16..20].copy_from_slice(&width.to_le_bytes());
+    out[20..24].copy_from_slice(&height.to_le_bytes());
+    out[24] = 1;
+    // Bit-pack each row: pixel column c -> byte c/8, bit c%8 (LSB-first).
+    for y in 0..h {
+        let row = 1024 + y * bytes_per_row;
+        for x in 0..w {
+            if data[y * w + x] != 0 {
+                out[row + (x >> 3)] |= 1 << (x & 7);
+            }
+        }
+    }
+    out
+}
+
+/// Decode a fit2d `.msk` byte stream into `(height, width, data)` in C
+/// (row-major) order; the returned mask is binary (`0`/`1`).
+///
+/// Faithful port of fabio `Fit2dMaskImage._readheader` + `read`
+/// (fabio/fit2dmaskimage.py:55-116): the 1024-byte header is validated against
+/// the `MASK` magic, `dim1`/`dim2` give width/height, and the bit-packed body
+/// (LSB-first, `((width + 31) / 32)` 32-bit ints per row) is expanded to one
+/// `uint8` per pixel (`1` where the bit is set). A missing/short header, a bad
+/// magic, or a body shorter than `height * ((width + 31) / 32) * 4` bytes is an
+/// [`std::io::ErrorKind::InvalidData`] error.
+pub fn decode_mask_msk(bytes: &[u8]) -> std::io::Result<(u32, u32, Vec<u8>)> {
+    let invalid = |msg: &str| std::io::Error::new(std::io::ErrorKind::InvalidData, msg.to_string());
+    if bytes.len() < 1024 {
+        return Err(invalid(
+            "fit2d mask file is shorter than its 1024-byte header",
+        ));
+    }
+    // Magic: 'M','A','S','K' at byte offsets 0/4/8/12 (one per 32-bit slot).
+    if bytes[0] != b'M' || bytes[4] != b'A' || bytes[8] != b'S' || bytes[12] != b'K' {
+        return Err(invalid("Not a fit2d mask file (bad MASK magic)"));
+    }
+    let width = u32::from_le_bytes([bytes[16], bytes[17], bytes[18], bytes[19]]);
+    let height = u32::from_le_bytes([bytes[20], bytes[21], bytes[22], bytes[23]]);
+    let (h, w) = (height as usize, width as usize);
+    let num_ints = w.div_ceil(32);
+    let bytes_per_row = num_ints * 4;
+    let total = h * bytes_per_row;
+    if bytes.len() < 1024 + total {
+        return Err(invalid(
+            "fit2d mask body is shorter than its (height, width) shape requires",
+        ));
+    }
+    let mut data = vec![0u8; w * h];
+    for y in 0..h {
+        let row = 1024 + y * bytes_per_row;
+        for x in 0..w {
+            let bit = (bytes[row + (x >> 3)] >> (x & 7)) & 1;
+            data[y * w + x] = bit;
+        }
+    }
+    Ok((height, width, data))
+}
+
+/// Standard base64 alphabet (RFC 4648), used by [`encode_svg`].
+const BASE64_ALPHABET: &[u8; 64] =
+    b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+/// Encode bytes as standard (RFC 4648) base64 with `=` padding.
+///
+/// Implemented inline so the SVG export needs no external base64 crate
+/// (mirrors silx using the stdlib `base64.b64encode`).
+fn base64_encode(data: &[u8]) -> String {
+    let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
+    for chunk in data.chunks(3) {
+        let b0 = chunk[0] as u32;
+        let b1 = *chunk.get(1).unwrap_or(&0) as u32;
+        let b2 = *chunk.get(2).unwrap_or(&0) as u32;
+        let n = (b0 << 16) | (b1 << 8) | b2;
+        out.push(BASE64_ALPHABET[((n >> 18) & 0x3F) as usize] as char);
+        out.push(BASE64_ALPHABET[((n >> 12) & 0x3F) as usize] as char);
+        if chunk.len() > 1 {
+            out.push(BASE64_ALPHABET[((n >> 6) & 0x3F) as usize] as char);
+        } else {
+            out.push('=');
+        }
+        if chunk.len() > 2 {
+            out.push(BASE64_ALPHABET[(n & 0x3F) as usize] as char);
+        } else {
+            out.push('=');
+        }
+    }
+    out
+}
+
+/// Encode tightly packed `width * height` RGB8 pixels (3 bytes/pixel) as PNG.
+fn encode_rgb_png(rgb: &[u8], width: u32, height: u32) -> Result<Vec<u8>, png::EncodingError> {
+    let mut out = Vec::new();
+    {
+        let mut encoder = png::Encoder::new(&mut out, width, height);
+        encoder.set_color(png::ColorType::Rgb);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder.write_header()?;
+        writer.write_image_data(rgb)?;
+    }
+    Ok(out)
+}
+
+/// Encode tightly packed `width * height` RGBA8 pixels as an SVG document that
+/// embeds the raster as a base64 PNG `<image>`.
+///
+/// Faithful to silx `PlotImageFile.saveImageToFile` (`fileFormat == "svg"`):
+/// the same XML declaration, SVG 1.1 DOCTYPE, root `<svg>` carrying `width`/
+/// `height` in px, and a single `<image xlink:href="data:image/png;base64,…">`
+/// placed at `x=0 y=0` with the same width/height and `id="image"`. silx tracks
+/// no vector primitives in its raster path, so the rendered bitmap is embedded
+/// rather than re-emitted as vector geometry (see Defer note in the module).
+///
+/// The embedded PNG is RGB (alpha dropped) to match silx's `(h, w, 3)` array.
+pub fn encode_svg(rgba: &[u8], width: u32, height: u32) -> Result<String, png::EncodingError> {
+    let rgb = rgba_to_rgb(rgba, width, height);
+    let png = encode_rgb_png(&rgb, width, height)?;
+    let b64 = base64_encode(&png);
+    let mut s = String::new();
+    s.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n");
+    s.push_str("<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\"\n");
+    s.push_str("  \"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd\">\n");
+    s.push_str("<svg xmlns:xlink=\"http://www.w3.org/1999/xlink\"\n");
+    s.push_str("     xmlns=\"http://www.w3.org/2000/svg\"\n");
+    s.push_str("     version=\"1.1\"\n");
+    s.push_str(&format!("     width=\"{width}\"\n"));
+    s.push_str(&format!("     height=\"{height}\">\n"));
+    s.push_str("    <image xlink:href=\"data:image/png;base64,");
+    s.push_str(&b64);
+    s.push_str("\"\n");
+    s.push_str("           x=\"0\"\n");
+    s.push_str("           y=\"0\"\n");
+    s.push_str(&format!("           width=\"{width}\"\n"));
+    s.push_str(&format!("           height=\"{height}\"\n"));
+    s.push_str("           id=\"image\" />\n");
+    s.push_str("</svg>");
+    Ok(s)
+}
+
+/// Encode tightly packed `width * height` RGBA8 pixels as an uncompressed
+/// baseline TIFF (RGB, alpha dropped) with the requested resolution.
+///
+/// Hand-written little-endian (`II`/42) baseline TIFF — no external crate. The
+/// IFD carries the baseline required tags plus resolution:
+///
+/// - 256 ImageWidth (LONG), 257 ImageLength (LONG)
+/// - 258 BitsPerSample (3 × SHORT = 8,8,8, stored out-of-line)
+/// - 259 Compression = 1 (none)
+/// - 262 PhotometricInterpretation = 2 (RGB)
+/// - 273 StripOffsets (LONG, single strip)
+/// - 277 SamplesPerPixel = 3
+/// - 278 RowsPerStrip = `height`
+/// - 279 StripByteCounts (LONG = width·height·3)
+/// - 282 XResolution (RATIONAL = `dpi`/1), 283 YResolution (RATIONAL)
+/// - 296 ResolutionUnit = 2 (inch)
+///
+/// Tags are emitted in ascending ID order as the baseline spec requires. This
+/// extends silx's TIFF path (which delegates to fabio's `TiffIO.writeImage`)
+/// with explicit DPI resolution tags, as `saveGraph(..., dpi)` requests.
+pub fn encode_tiff(rgba: &[u8], width: u32, height: u32, dpi: u32) -> Vec<u8> {
+    let rgb = rgba_to_rgb(rgba, width, height);
+    let dpi = dpi.max(1);
+
+    // 12 IFD entries: 256, 257, 258, 259, 262, 273, 277, 278, 279, 282, 283, 296.
+    const N_ENTRIES: u16 = 12;
+    // Header (8) + entry count (2) + entries (12·N) + next-IFD offset (4).
+    let ifd_start: u32 = 8;
+    let ifd_len: u32 = 2 + 12 * (N_ENTRIES as u32) + 4;
+    // Out-of-line data that follows the IFD, in the order it is written:
+    //   BitsPerSample (3 × SHORT = 6 bytes),
+    //   XResolution (RATIONAL = 8 bytes), YResolution (RATIONAL = 8 bytes).
+    let after_ifd: u32 = ifd_start + ifd_len;
+    let bits_offset: u32 = after_ifd;
+    let xres_offset: u32 = bits_offset + 6;
+    let yres_offset: u32 = xres_offset + 8;
+    let strip_offset: u32 = yres_offset + 8;
+    let strip_byte_count: u32 = width * height * 3;
+
+    let mut out: Vec<u8> = Vec::with_capacity(strip_offset as usize + rgb.len());
+
+    // --- Image File Header (little-endian) ---
+    out.extend_from_slice(b"II"); // byte order: little-endian
+    out.extend_from_slice(&42u16.to_le_bytes()); // magic
+    out.extend_from_slice(&ifd_start.to_le_bytes()); // offset of first IFD
+
+    // --- Image File Directory ---
+    out.extend_from_slice(&N_ENTRIES.to_le_bytes());
+
+    // Helper closures append one 12-byte IFD entry.
+    // type codes: 3 = SHORT, 4 = LONG, 5 = RATIONAL.
+    let mut entry = |tag: u16, typ: u16, count: u32, value_or_offset: u32, is_short: bool| {
+        out.extend_from_slice(&tag.to_le_bytes());
+        out.extend_from_slice(&typ.to_le_bytes());
+        out.extend_from_slice(&count.to_le_bytes());
+        if is_short {
+            // A single SHORT value is left-justified in the 4-byte field.
+            out.extend_from_slice(&(value_or_offset as u16).to_le_bytes());
+            out.extend_from_slice(&0u16.to_le_bytes());
+        } else {
+            out.extend_from_slice(&value_or_offset.to_le_bytes());
+        }
+    };
+
+    entry(256, 4, 1, width, false); // ImageWidth (LONG)
+    entry(257, 4, 1, height, false); // ImageLength (LONG)
+    entry(258, 3, 3, bits_offset, false); // BitsPerSample (3 SHORTs, out-of-line)
+    entry(259, 3, 1, 1, true); // Compression = none
+    entry(262, 3, 1, 2, true); // Photometric = RGB
+    entry(273, 4, 1, strip_offset, false); // StripOffsets (LONG)
+    entry(277, 3, 1, 3, true); // SamplesPerPixel = 3
+    entry(278, 4, 1, height, false); // RowsPerStrip = height (one strip)
+    entry(279, 4, 1, strip_byte_count, false); // StripByteCounts (LONG)
+    entry(282, 5, 1, xres_offset, false); // XResolution (RATIONAL, out-of-line)
+    entry(283, 5, 1, yres_offset, false); // YResolution (RATIONAL, out-of-line)
+    entry(296, 3, 1, 2, true); // ResolutionUnit = inch
+
+    out.extend_from_slice(&0u32.to_le_bytes()); // next IFD offset = 0 (last)
+
+    // --- Out-of-line values ---
+    // BitsPerSample: 8,8,8.
+    out.extend_from_slice(&8u16.to_le_bytes());
+    out.extend_from_slice(&8u16.to_le_bytes());
+    out.extend_from_slice(&8u16.to_le_bytes());
+    // XResolution = dpi/1.
+    out.extend_from_slice(&dpi.to_le_bytes());
+    out.extend_from_slice(&1u32.to_le_bytes());
+    // YResolution = dpi/1.
+    out.extend_from_slice(&dpi.to_le_bytes());
+    out.extend_from_slice(&1u32.to_le_bytes());
+
+    // --- Image data (single strip) ---
+    debug_assert_eq!(out.len() as u32, strip_offset);
+    out.extend_from_slice(&rgb);
+    out
+}
+
+/// Lowercase hex digits for the PostScript/PDF ASCII-hex image bodies.
+const HEX_DIGITS: &[u8; 16] = b"0123456789ABCDEF";
+
+/// Append `data` as an ASCII-hex stream to `s`, wrapping lines at 40 bytes
+/// (80 hex chars) so neither PostScript nor PDF readers see an over-long line.
+fn push_ascii_hex(s: &mut String, data: &[u8]) {
+    for (i, &b) in data.iter().enumerate() {
+        s.push(HEX_DIGITS[(b >> 4) as usize] as char);
+        s.push(HEX_DIGITS[(b & 0x0F) as usize] as char);
+        if (i + 1) % 40 == 0 {
+            s.push('\n');
+        }
+    }
+}
+
+/// Encode tightly packed `width * height` RGBA8 pixels as an Encapsulated
+/// PostScript (EPS) byte stream embedding the raster (alpha dropped).
+///
+/// Like [`encode_svg`], this is the faithful raster-embedding substitute for
+/// silx's matplotlib-only vector EPS (rsplot has no matplotlib dependency): a
+/// minimal EPSF-3.0 document whose body is a single `colorimage` operator. The
+/// `[W 0 0 -H 0 H]` image matrix flips Y so the first scanline (top of the
+/// image) maps to the top of the page, and the RGB samples are fed as
+/// whitespace-tolerant ASCII hex. Pure over the RGBA pixels (no GPU /
+/// filesystem) so it is directly testable.
+pub fn encode_eps(rgba: &[u8], width: u32, height: u32) -> Vec<u8> {
+    let rgb = rgba_to_rgb(rgba, width, height);
+    let mut s = String::with_capacity(200 + rgb.len() * 2);
+    s.push_str("%!PS-Adobe-3.0 EPSF-3.0\n");
+    s.push_str(&format!("%%BoundingBox: 0 0 {width} {height}\n"));
+    s.push_str("%%EndComments\n");
+    s.push_str("gsave\n");
+    // Map the unit image square onto the bounding box, then draw the raster.
+    s.push_str(&format!("{width} {height} scale\n"));
+    s.push_str(&format!("/picstr {} string def\n", width as usize * 3));
+    s.push_str(&format!(
+        "{width} {height} 8 [ {width} 0 0 -{height} 0 {height} ]\n"
+    ));
+    s.push_str("{ currentfile picstr readhexstring pop } false 3 colorimage\n");
+    push_ascii_hex(&mut s, &rgb);
+    s.push('\n');
+    s.push_str("grestore\nshowpage\n");
+    s.push_str("%%EOF\n");
+    s.into_bytes()
+}
+
+/// Encode tightly packed `width * height` RGBA8 pixels as a single-page PDF
+/// embedding the raster (alpha dropped).
+///
+/// Like [`encode_eps`], this is the faithful raster-embedding substitute for
+/// silx's matplotlib-only vector PDF (rsplot has no matplotlib dependency): a
+/// minimal PDF-1.4 file with a catalog, one page sized to the image, and a
+/// `/DeviceRGB` `/ASCIIHexDecode` image XObject drawn by a content stream whose
+/// `cm` matrix scales the unit image to the page. PDF image space puts the
+/// first sample row at the top, so feeding top-to-bottom RGB renders upright
+/// (no Y-flip needed). The cross-reference table records each object's byte
+/// offset. Pure over the RGBA pixels (no GPU / filesystem) so it is directly
+/// testable.
+pub fn encode_pdf(rgba: &[u8], width: u32, height: u32) -> Vec<u8> {
+    let rgb = rgba_to_rgb(rgba, width, height);
+    // Image stream: ASCII-hex samples terminated by the '>' EOD marker.
+    let mut hex = String::with_capacity(rgb.len() * 2 + 1);
+    push_ascii_hex(&mut hex, &rgb);
+    hex.push('>');
+    let img_len = hex.len();
+
+    // Content stream: scale the unit image to the page and paint it.
+    let content = format!("q {width} 0 0 {height} 0 0 cm /Im0 Do Q");
+    let content_len = content.len();
+
+    let mut out: Vec<u8> = Vec::with_capacity(img_len + 600);
+    // Byte offset of each object (index = object number; slot 0 is the free head).
+    let mut offsets = [0usize; 6];
+
+    out.extend_from_slice(b"%PDF-1.4\n");
+
+    offsets[1] = out.len();
+    out.extend_from_slice(b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+
+    offsets[2] = out.len();
+    out.extend_from_slice(b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n");
+
+    offsets[3] = out.len();
+    out.extend_from_slice(
+        format!(
+            "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {width} {height}] \
+             /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        )
+        .as_bytes(),
+    );
+
+    offsets[4] = out.len();
+    out.extend_from_slice(
+        format!(
+            "4 0 obj\n<< /Type /XObject /Subtype /Image /Width {width} /Height {height} \
+             /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /ASCIIHexDecode \
+             /Length {img_len} >>\nstream\n"
+        )
+        .as_bytes(),
+    );
+    out.extend_from_slice(hex.as_bytes());
+    out.extend_from_slice(b"\nendstream\nendobj\n");
+
+    offsets[5] = out.len();
+    out.extend_from_slice(format!("5 0 obj\n<< /Length {content_len} >>\nstream\n").as_bytes());
+    out.extend_from_slice(content.as_bytes());
+    out.extend_from_slice(b"\nendstream\nendobj\n");
+
+    // Cross-reference table: 20 bytes per entry (10-digit offset, 5-digit gen).
+    let xref_offset = out.len();
+    out.extend_from_slice(b"xref\n0 6\n");
+    out.extend_from_slice(b"0000000000 65535 f \n");
+    for &off in &offsets[1..6] {
+        out.extend_from_slice(format!("{off:010} 00000 n \n").as_bytes());
+    }
+    out.extend_from_slice(
+        format!("trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF\n").as_bytes(),
+    );
+    out
+}
+
+/// Per-axis log flags `[x, y]` (1.0 = log10) for the shaders, matching a
+/// transform's scales.
+fn axis_log_flags(t: &crate::core::transform::Transform) -> [f32; 2] {
+    [
+        f32::from(t.x.scale == Scale::Log10),
+        f32::from(t.y.scale == Scale::Log10),
+    ]
+}
+
+/// An output image format for [`save_graph_with_format`].
+///
+/// Faithful to silx `PlotWidget.saveGraph` / `PlotImageFile.saveImageToFile`,
+/// which support PNG, PPM, SVG, and TIFF over a raster snapshot, plus EPS and
+/// PDF as raster-embedding substitutes for silx's matplotlib-only vector EPS/
+/// PDF and JPEG via the hand-written baseline encoder
+/// ([`crate::render::jpeg`]). True vector export is not implemented (see the
+/// module-level Defer note).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SaveFormat {
+    /// PNG (RGBA), via [`encode_png`].
+    Png,
+    /// Binary (P6) PPM (RGB), via [`encode_ppm`].
+    Ppm,
+    /// SVG wrapping a base64 PNG `<image>` (RGB), via [`encode_svg`].
+    Svg,
+    /// Uncompressed baseline TIFF (RGB) with resolution tags, via
+    /// [`encode_tiff`].
+    Tiff,
+    /// Baseline JFIF JPEG (RGB, alpha dropped), via
+    /// [`crate::render::jpeg::encode_jpeg`].
+    Jpeg,
+    /// Encapsulated PostScript embedding the raster (RGB), via [`encode_eps`].
+    Eps,
+    /// Single-page PDF embedding the raster (RGB), via [`encode_pdf`].
+    Pdf,
+}
+
+impl SaveFormat {
+    /// Map a file extension (case-insensitive, no leading dot) to a format.
+    ///
+    /// Recognizes silx's raster extensions `png`, `ppm`, `svg`, `tif`/`tiff`,
+    /// `jpg`/`jpeg` plus `eps`/`pdf` (raster-embedding). Returns `None` for
+    /// still-unsupported extensions (`ps`).
+    pub fn from_extension(ext: &str) -> Option<Self> {
+        match ext.to_ascii_lowercase().as_str() {
+            "png" => Some(SaveFormat::Png),
+            "ppm" => Some(SaveFormat::Ppm),
+            "svg" => Some(SaveFormat::Svg),
+            "tif" | "tiff" => Some(SaveFormat::Tiff),
+            "jpg" | "jpeg" => Some(SaveFormat::Jpeg),
+            "eps" => Some(SaveFormat::Eps),
+            "pdf" => Some(SaveFormat::Pdf),
+            _ => None,
+        }
+    }
+
+    /// Infer the format from a path's extension via [`Self::from_extension`].
+    pub fn from_path(path: &Path) -> Option<Self> {
+        path.extension()
+            .and_then(|e| e.to_str())
+            .and_then(Self::from_extension)
+    }
+}
+
+/// Render the plot's current view to a `size = (width, height)` pixel image and
+/// return the readback as tightly packed RGBA8. Captures the data layer (clear,
+/// image, curves); chrome is not included. Requires [`crate::install`] to have
+/// run on `render_state`.
+///
+/// This is the single owner of the plot→pixels readback: [`save_graph`] and
+/// [`save_graph_with_format`] encode its output to a file, and the print-preview
+/// page editor ([`crate::PrintPreview::add_image`]) takes the same RGBA in memory
+/// to place the plot on a printable page.
+pub fn render_plot_rgba(
+    render_state: &RenderState,
+    plot: &Plot,
+    size: (u32, u32),
+) -> Result<Vec<u8>, SaveError> {
+    let (w, h) = size;
+    if w == 0 || h == 0 {
+        return Err(SaveError::Readback("zero-size target".into()));
+    }
+
+    // Build the transform for a target-sized area. The ortho mapping is area
+    // independent, but the viewport pixel size drives the line-width expansion.
+    let area = Rect::from_min_size(Pos2::ZERO, egui::vec2(w as f32, h as f32));
+    let transform = plot.transform(area);
+    let transform_right = plot.transform_y2(area);
+    let ortho_left = transform.ortho_matrix();
+    let axis_log_left = axis_log_flags(&transform);
+    let (ortho_right, axis_log_right) = match &transform_right {
+        Some(t) => (t.ortho_matrix(), axis_log_flags(t)),
+        None => (ortho_left, axis_log_left),
+    };
+    // Per-extra-axis matrices (parallel to plot.extra); curves on extra axes
+    // render in saves even though their tick chrome is not drawn here. An axis
+    // with no range falls back to the left matrix.
+    let mut ortho_extra = Vec::with_capacity(plot.extra.len());
+    let mut axis_log_extra = Vec::with_capacity(plot.extra.len());
+    for i in 0..plot.extra.len() {
+        match plot.transform_extra(i, area) {
+            Some(t) => {
+                ortho_extra.push(t.ortho_matrix());
+                axis_log_extra.push(axis_log_flags(&t));
+            }
+            None => {
+                ortho_extra.push(ortho_left);
+                axis_log_extra.push(axis_log_left);
+            }
+        }
+    }
+    let renderer = render_state.renderer.read();
+    let res: &WgpuResources = renderer
+        .callback_resources
+        .get()
+        .expect("WgpuResources not installed — call rsplot::install() first");
+    let bg = res.encode_color(plot.data_background);
+    res.render_to_rgba(
+        &render_state.device,
+        &render_state.queue,
+        render_state.target_format,
+        plot.id,
+        size,
+        bg,
+        ortho_left,
+        axis_log_left,
+        ortho_right,
+        axis_log_right,
+        &ortho_extra,
+        &axis_log_extra,
+    )
+}
+
+/// Render the plot's current view to a `size = (width, height)` pixel PNG at
+/// `path`. Captures the data layer (clear + image + curves); chrome is not
+/// included. Requires [`crate::install`] to have run on `render_state`.
+pub fn save_graph(
+    render_state: &RenderState,
+    plot: &Plot,
+    size: (u32, u32),
+    path: impl AsRef<Path>,
+) -> Result<(), SaveError> {
+    let (w, h) = size;
+    let rgba = render_plot_rgba(render_state, plot, size)?;
+    let png = encode_png(&rgba, w, h)?;
+    std::fs::write(path, png)?;
+    Ok(())
+}
+
+/// Render the plot's current view and save it to `path` in the given
+/// [`SaveFormat`], at the requested `dpi` (used where the format carries
+/// resolution — currently TIFF). Captures the data layer only; chrome is not
+/// included.
+///
+/// Faithful to silx `BackendBase.saveGraph(fileName, fileFormat, dpi)`: the
+/// caller chooses the format explicitly and threads DPI through. For raster
+/// formats (PNG/PPM/SVG) `dpi` is recorded only where the container supports it
+/// (SVG width/height stay in px); TIFF writes `XResolution`/`YResolution`.
+pub fn save_graph_with_format(
+    render_state: &RenderState,
+    plot: &Plot,
+    size: (u32, u32),
+    path: impl AsRef<Path>,
+    format: SaveFormat,
+    dpi: u32,
+) -> Result<(), SaveError> {
+    let (w, h) = size;
+    let rgba = render_plot_rgba(render_state, plot, size)?;
+    match format {
+        SaveFormat::Png => {
+            let bytes = encode_png(&rgba, w, h)?;
+            std::fs::write(path, bytes)?;
+        }
+        SaveFormat::Ppm => {
+            let bytes = encode_ppm(&rgba, w, h);
+            std::fs::write(path, bytes)?;
+        }
+        SaveFormat::Svg => {
+            let svg = encode_svg(&rgba, w, h)?;
+            std::fs::write(path, svg)?;
+        }
+        SaveFormat::Tiff => {
+            let bytes = encode_tiff(&rgba, w, h, dpi);
+            std::fs::write(path, bytes)?;
+        }
+        SaveFormat::Jpeg => {
+            let bytes = crate::render::jpeg::encode_jpeg(&rgba, w, h, dpi);
+            std::fs::write(path, bytes)?;
+        }
+        SaveFormat::Eps => {
+            let bytes = encode_eps(&rgba, w, h);
+            std::fs::write(path, bytes)?;
+        }
+        SaveFormat::Pdf => {
+            let bytes = encode_pdf(&rgba, w, h);
+            std::fs::write(path, bytes)?;
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// One parsed IFD entry: (type code, count, raw 4-byte value/offset field).
+    type IfdEntry = (u16, u32, [u8; 4]);
+    /// Map of TIFF tag ID → parsed IFD entry.
+    type IfdTags = std::collections::HashMap<u16, IfdEntry>;
+    /// Parsed baseline TIFF: (width, height, IFD tags, strip pixel bytes).
+    type ParsedTiff = (u32, u32, IfdTags, Vec<u8>);
+
+    #[test]
+    fn bytes_per_row_rounds_up_to_256() {
+        assert_eq!(padded_bytes_per_row(1), 256); // 4 → 256
+        assert_eq!(padded_bytes_per_row(64), 256); // 256 → 256 (exact)
+        assert_eq!(padded_bytes_per_row(65), 512); // 260 → 512
+        assert_eq!(padded_bytes_per_row(100), 512); // 400 → 512
+    }
+
+    #[test]
+    fn rows_to_rgba8_unpads_and_passes_rgba_through() {
+        // 1×2 image, row stride padded to 256. Rgba format → no channel swap.
+        let bpr = padded_bytes_per_row(1);
+        let mut mapped = vec![0u8; (bpr as usize) * 2];
+        mapped[0..4].copy_from_slice(&[10, 20, 30, 40]); // row 0
+        mapped[bpr as usize..bpr as usize + 4].copy_from_slice(&[50, 60, 70, 80]); // row 1
+        let out = rows_to_rgba8(&mapped, 1, 2, bpr, wgpu::TextureFormat::Rgba8UnormSrgb);
+        assert_eq!(out, vec![10, 20, 30, 40, 50, 60, 70, 80]);
+    }
+
+    #[test]
+    fn rows_to_rgba8_swaps_bgra_to_rgba() {
+        let bpr = padded_bytes_per_row(1);
+        let mut mapped = vec![0u8; bpr as usize];
+        mapped[0..4].copy_from_slice(&[30, 20, 10, 40]); // stored BGRA
+        let out = rows_to_rgba8(&mapped, 1, 1, bpr, wgpu::TextureFormat::Bgra8UnormSrgb);
+        assert_eq!(out, vec![10, 20, 30, 40]); // → RGBA
+    }
+
+    // ── HDF5 image read (ImageStack lazy path) ──────────────────────────────
+
+    fn temp_h5(tag: &str) -> std::path::PathBuf {
+        let mut path = std::env::temp_dir();
+        path.push(format!("rsplot_image_h5_{}_{}.h5", tag, std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        path
+    }
+
+    /// Write one dataset of any [`rust_hdf5::H5Type`] at `name` with `shape`.
+    fn seed_dataset<T: rust_hdf5::types::H5Type>(
+        path: &std::path::Path,
+        name: &str,
+        shape: &[usize],
+        data: &[T],
+    ) {
+        use rust_hdf5::H5File;
+        let file = if path.exists() {
+            H5File::open_rw(path).unwrap()
+        } else {
+            H5File::create(path).unwrap()
+        };
+        let ds = file.new_dataset::<T>().shape(shape).create(name).unwrap();
+        ds.write_raw(data).unwrap();
+        file.close().unwrap();
+    }
+
+    #[test]
+    fn read_image_hdf5_roundtrips_f32() {
+        let path = temp_h5("f32_2d");
+        // 2 rows x 3 cols, row-major.
+        seed_dataset(&path, "/img", &[2, 3], &[0.0f32, 1.0, 2.0, 3.0, 4.0, 5.0]);
+        let (h, w, data) = read_image_hdf5(&path, "/img").expect("read 2D f32");
+        assert_eq!((h, w), (2, 3));
+        assert_eq!(data, vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0]);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn read_image_hdf5_casts_f64_to_f32() {
+        let path = temp_h5("f64_2d");
+        seed_dataset(&path, "/img", &[1, 2], &[1.5f64, 2.5]);
+        let (h, w, data) = read_image_hdf5(&path, "/img").expect("read 2D f64");
+        assert_eq!((h, w), (1, 2));
+        assert_eq!(data, vec![1.5f32, 2.5]);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn read_image_hdf5_rejects_non_2d() {
+        let path = temp_h5("rank");
+        seed_dataset(&path, "/vec", &[4], &[0.0f32, 1.0, 2.0, 3.0]);
+        assert!(read_image_hdf5(&path, "/vec").is_err());
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn read_image_hdf5_slice_reads_one_frame() {
+        let path = temp_h5("f32_3d");
+        // 2 frames x 2 rows x 2 cols: frame 0 = 0..4, frame 1 = 10..14.
+        seed_dataset(
+            &path,
+            "/stack",
+            &[2, 2, 2],
+            &[0.0f32, 1.0, 2.0, 3.0, 10.0, 11.0, 12.0, 13.0],
+        );
+        let (h, w, f0) = read_image_hdf5_slice(&path, "/stack", 0).expect("slice 0");
+        assert_eq!((h, w), (2, 2));
+        assert_eq!(f0, vec![0.0, 1.0, 2.0, 3.0]);
+        let (_, _, f1) = read_image_hdf5_slice(&path, "/stack", 1).expect("slice 1");
+        assert_eq!(f1, vec![10.0, 11.0, 12.0, 13.0]);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn read_image_hdf5_slice_rejects_oob_and_non_3d() {
+        let path = temp_h5("slice_reject");
+        seed_dataset(&path, "/stack", &[2, 1, 1], &[0.0f32, 1.0]);
+        // index past the last frame.
+        assert!(read_image_hdf5_slice(&path, "/stack", 2).is_err());
+        // a 2D dataset is not sliceable as a stack.
+        seed_dataset(&path, "/img2d", &[1, 2], &[0.0f32, 1.0]);
+        assert!(read_image_hdf5_slice(&path, "/img2d", 0).is_err());
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn encode_png_round_trips() {
+        // 2×2 RGBA encoded then decoded yields the same pixels.
+        let rgba: Vec<u8> = (0..16).map(|i| i as u8 * 16).collect();
+        let png = encode_png(&rgba, 2, 2).expect("encode");
+
+        let decoder = png::Decoder::new(std::io::Cursor::new(&png));
+        let mut reader = decoder.read_info().expect("read info");
+        let mut buf = vec![0u8; reader.output_buffer_size().expect("buffer size")];
+        let info = reader.next_frame(&mut buf).expect("frame");
+        assert_eq!(info.width, 2);
+        assert_eq!(info.height, 2);
+        assert_eq!(info.color_type, png::ColorType::Rgba);
+        assert_eq!(&buf[..rgba.len()], rgba.as_slice());
+    }
+
+    #[test]
+    fn save_format_from_extension_maps_silx_raster_formats() {
+        assert_eq!(SaveFormat::from_extension("png"), Some(SaveFormat::Png));
+        assert_eq!(SaveFormat::from_extension("PNG"), Some(SaveFormat::Png));
+        assert_eq!(SaveFormat::from_extension("ppm"), Some(SaveFormat::Ppm));
+        assert_eq!(SaveFormat::from_extension("svg"), Some(SaveFormat::Svg));
+        assert_eq!(SaveFormat::from_extension("tif"), Some(SaveFormat::Tiff));
+        assert_eq!(SaveFormat::from_extension("TIFF"), Some(SaveFormat::Tiff));
+        assert_eq!(SaveFormat::from_extension("eps"), Some(SaveFormat::Eps));
+        assert_eq!(SaveFormat::from_extension("EPS"), Some(SaveFormat::Eps));
+        assert_eq!(SaveFormat::from_extension("pdf"), Some(SaveFormat::Pdf));
+        assert_eq!(SaveFormat::from_extension("PDF"), Some(SaveFormat::Pdf));
+        assert_eq!(SaveFormat::from_extension("jpg"), Some(SaveFormat::Jpeg));
+        assert_eq!(SaveFormat::from_extension("JPEG"), Some(SaveFormat::Jpeg));
+    }
+
+    #[test]
+    fn save_format_rejects_still_unsupported_and_unknown_extensions() {
+        // PostScript (`ps`) is not wired → still unsupported. (EPS, PDF, and
+        // JPEG are now covered by the hand-written encoders.)
+        assert_eq!(SaveFormat::from_extension("ps"), None);
+        assert_eq!(SaveFormat::from_extension("bmp"), None);
+        assert_eq!(SaveFormat::from_extension(""), None);
+    }
+
+    #[test]
+    fn save_format_from_path_uses_extension() {
+        use std::path::Path;
+        assert_eq!(
+            SaveFormat::from_path(Path::new("/tmp/out.tiff")),
+            Some(SaveFormat::Tiff)
+        );
+        assert_eq!(SaveFormat::from_path(Path::new("/tmp/noext")), None);
+    }
+
+    #[test]
+    fn rgba_to_rgb_drops_alpha() {
+        // 2×1 RGBA → RGB; alpha bytes (4th of each quad) are removed.
+        let rgba = [10, 20, 30, 99, 40, 50, 60, 88];
+        let rgb = rgba_to_rgb(&rgba, 2, 1);
+        assert_eq!(rgb, vec![10, 20, 30, 40, 50, 60]);
+    }
+
+    #[test]
+    fn encode_ppm_header_and_pixels_round_trip() {
+        // 2×1 image with distinct pixels.
+        let rgba = [1, 2, 3, 255, 4, 5, 6, 255];
+        let ppm = encode_ppm(&rgba, 2, 1);
+
+        // Header is exactly "P6\n2 1\n255\n" then raw RGB.
+        let header = b"P6\n2 1\n255\n";
+        assert_eq!(&ppm[..header.len()], header);
+        // Raw RGB body, alpha dropped.
+        assert_eq!(&ppm[header.len()..], &[1, 2, 3, 4, 5, 6]);
+        // Total length = header + width*height*3 (2×1 pixels × 3 channels).
+        assert_eq!(ppm.len(), header.len() + 6);
+    }
+
+    #[test]
+    fn encode_eps_is_well_formed_and_hex_body_round_trips() {
+        // 2×2 image with distinct pixels; the alpha channel is dropped.
+        let rgba = [
+            10, 20, 30, 255, // (0,0)
+            40, 50, 60, 255, // (0,1)
+            70, 80, 90, 255, // (1,0)
+            100, 110, 120, 255, // (1,1)
+        ];
+        let eps = encode_eps(&rgba, 2, 2);
+        let text = std::str::from_utf8(&eps).expect("EPS is ASCII");
+
+        assert!(text.starts_with("%!PS-Adobe-3.0 EPSF-3.0\n"));
+        assert!(text.contains("%%BoundingBox: 0 0 2 2\n"));
+        // The Y-flip matrix and the colorimage operator drive the raster.
+        assert!(text.contains("2 2 8 [ 2 0 0 -2 0 2 ]"));
+        assert!(text.contains("false 3 colorimage"));
+        assert!(text.trim_end().ends_with("%%EOF"));
+
+        // The ASCII-hex body decodes back to the RGB (alpha-dropped) pixels.
+        // Bound it to before the `grestore` trailer (whose letters are hex too).
+        let body = text
+            .split("colorimage\n")
+            .nth(1)
+            .expect("body after colorimage")
+            .split("\ngrestore")
+            .next()
+            .expect("hex before grestore");
+        let hex: String = body.chars().filter(|c| c.is_ascii_hexdigit()).collect();
+        let decoded: Vec<u8> = hex
+            .as_bytes()
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+            .collect();
+        assert_eq!(decoded, rgba_to_rgb(&rgba, 2, 2));
+    }
+
+    #[test]
+    fn encode_pdf_is_well_formed_and_xref_offsets_point_at_objects() {
+        let rgba = [
+            10, 20, 30, 255, // (0,0)
+            40, 50, 60, 255, // (0,1)
+            70, 80, 90, 255, // (1,0)
+            100, 110, 120, 255, // (1,1)
+        ];
+        let pdf = encode_pdf(&rgba, 2, 2);
+        let text = std::str::from_utf8(&pdf).expect("PDF body is ASCII here");
+
+        assert!(text.starts_with("%PDF-1.4\n"));
+        assert!(text.contains("/Type /Catalog"));
+        assert!(text.contains("/MediaBox [0 0 2 2]"));
+        assert!(text.contains("/Subtype /Image /Width 2 /Height 2"));
+        assert!(text.contains("/ColorSpace /DeviceRGB"));
+        assert!(text.contains("/Filter /ASCIIHexDecode"));
+        assert!(text.trim_end().ends_with("%%EOF"));
+
+        // startxref points at the `xref` keyword.
+        let sx = text.rfind("startxref\n").expect("startxref");
+        let after = &text[sx + "startxref\n".len()..];
+        let xref_off: usize = after
+            .lines()
+            .next()
+            .unwrap()
+            .trim()
+            .parse()
+            .expect("xref offset int");
+        assert!(
+            text[xref_off..].starts_with("xref\n"),
+            "startxref must point at xref"
+        );
+
+        // The image hex stream decodes back to the RGB (alpha-dropped) pixels.
+        let stream_at = text.find("/ASCIIHexDecode").expect("image dict");
+        let body = &text[stream_at..];
+        let body = &body[body.find("stream\n").expect("stream kw") + "stream\n".len()..];
+        let hex = &body[..body.find('>').expect("hex EOD marker")];
+        let hex: String = hex.chars().filter(|c| c.is_ascii_hexdigit()).collect();
+        let decoded: Vec<u8> = hex
+            .as_bytes()
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+            .collect();
+        assert_eq!(decoded, rgba_to_rgb(&rgba, 2, 2));
+    }
+
+    // --- NumPy .npy mask codec ---
+
+    #[test]
+    fn mask_npy_round_trips_bytes_and_shape() {
+        // A small 2x3 uint8 mask round-trips through encode -> decode with
+        // identical shape and data.
+        let data: Vec<u8> = vec![0, 1, 2, 250, 254, 255];
+        let bytes = encode_mask_npy(2, 3, &data);
+        let (h, w, out) = decode_mask_npy(&bytes).expect("decode");
+        assert_eq!((h, w), (2, 3));
+        assert_eq!(out, data);
+    }
+
+    #[test]
+    fn mask_npy_header_is_valid_v1_format() {
+        let data = vec![7u8; 4];
+        let bytes = encode_mask_npy(2, 2, &data);
+        // Magic \x93NUMPY, version 1.0.
+        assert_eq!(&bytes[0..6], b"\x93NUMPY");
+        assert_eq!(&bytes[6..8], &[1, 0]);
+        // header_len (u16 LE) and the preamble length is a multiple of 64.
+        let header_len = u16::from_le_bytes([bytes[8], bytes[9]]) as usize;
+        let preamble = 10 + header_len;
+        assert_eq!(preamble % 64, 0, "preamble {preamble} not 64-aligned");
+        // The header dict carries descr/fortran_order/shape and ends in newline.
+        let header = std::str::from_utf8(&bytes[10..preamble]).expect("ascii header");
+        assert!(header.contains("'descr': '|u1'"));
+        assert!(header.contains("'fortran_order': False"));
+        assert!(header.contains("'shape': (2, 2)"));
+        assert!(header.ends_with('\n'));
+        // The raw C-order body follows the preamble exactly.
+        assert_eq!(&bytes[preamble..], data.as_slice());
+    }
+
+    #[test]
+    fn mask_npy_rejects_bad_magic_and_non_uint8() {
+        // Bad magic.
+        let err = decode_mask_npy(b"not-a-npy-file-at-all").unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+
+        // Valid framing but a float64 dtype is rejected.
+        let mut bytes = encode_mask_npy(1, 1, &[0]);
+        let header_len = u16::from_le_bytes([bytes[8], bytes[9]]) as usize;
+        let header = std::str::from_utf8(&bytes[10..10 + header_len])
+            .unwrap()
+            .replace("|u1", "<f8");
+        bytes.splice(10..10 + header_len, header.bytes());
+        let err = decode_mask_npy(&bytes).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn mask_npy_rejects_non_2d_shape() {
+        // Reshape the header to a 3D shape; decode must reject it.
+        let mut bytes = encode_mask_npy(1, 1, &[0]);
+        let header_len = u16::from_le_bytes([bytes[8], bytes[9]]) as usize;
+        let header = std::str::from_utf8(&bytes[10..10 + header_len])
+            .unwrap()
+            .replace("(1, 1)", "(1, 1, 1)");
+        // Keep total length stable by trimming/padding spaces before newline.
+        let mut header = header;
+        while header.len() < header_len {
+            header.insert(header.len() - 1, ' ');
+        }
+        let header = &header[..header_len];
+        bytes.splice(10..10 + header_len, header.bytes());
+        let err = decode_mask_npy(&bytes).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn mask_edf_round_trips_bytes_and_shape() {
+        // A small 2x3 uint8 mask round-trips through encode -> decode with
+        // identical shape and data. Note byte values 10 (b'\n') and 32 (b' ')
+        // appear in the body to prove the trailing-bytes split is not confused
+        // by header whitespace.
+        let data: Vec<u8> = vec![0, 10, 32, 250, 254, 255];
+        let bytes = encode_mask_edf(2, 3, &data);
+        let (h, w, out) = decode_mask_edf(&bytes).expect("decode");
+        assert_eq!((h, w), (2, 3));
+        assert_eq!(out, data);
+    }
+
+    #[test]
+    fn mask_edf_header_is_512_aligned_and_self_describing() {
+        let data = vec![7u8; 6];
+        let bytes = encode_mask_edf(2, 3, &data);
+        // The header block (everything before the raw body) is 512-aligned.
+        let body_start = bytes.len() - data.len();
+        assert_eq!(
+            body_start % 512,
+            0,
+            "header block {body_start} not 512-aligned"
+        );
+        let header = std::str::from_utf8(&bytes[..body_start]).expect("ascii header");
+        assert!(header.starts_with('{'));
+        assert!(header.contains("DataType = UnsignedByte ;"));
+        assert!(header.contains("Dim_1 = 3 ;")); // width = fast axis
+        assert!(header.contains("Dim_2 = 2 ;")); // height = slow axis
+        assert!(header.contains("Size = 6 ;"));
+        assert!(header.trim_end().ends_with('}'));
+        // The raw C-order body follows the aligned header exactly.
+        assert_eq!(&bytes[body_start..], data.as_slice());
+    }
+
+    #[test]
+    fn mask_edf_rejects_non_byte_type_and_truncated_body() {
+        // A float dtype is rejected.
+        let bytes = encode_mask_edf(1, 1, &[0]);
+        let header_end = bytes.len() - 1;
+        let header = std::str::from_utf8(&bytes[..header_end])
+            .unwrap()
+            .replace("UnsignedByte", "FloatValue ");
+        let mut tampered = header.into_bytes();
+        tampered.push(0);
+        let err = decode_mask_edf(&tampered).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+
+        // A body shorter than Dim_1 * Dim_2 is rejected.
+        let mut short = encode_mask_edf(4, 4, &[1u8; 16]);
+        short.truncate(short.len() - 8);
+        let err = decode_mask_edf(&short).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn mask_tiff_round_trips_bytes_and_shape() {
+        // A small 2x3 uint8 mask round-trips through the grayscale TIFF codec
+        // with identical shape and row-major data (full uint8 range included).
+        let data: Vec<u8> = vec![0, 1, 127, 200, 254, 255];
+        let bytes = encode_mask_tiff(2, 3, &data).expect("encode");
+        let (h, w, out) = decode_mask_tiff(&bytes).expect("decode");
+        assert_eq!((h, w), (2, 3));
+        assert_eq!(out, data);
+    }
+
+    #[test]
+    fn mask_tiff_rejects_a_multichannel_image() {
+        // An RGB (3-channel) TIFF is not a 2D uint8 mask: its sample count is
+        // 3 × width × height, so decode_mask_tiff must reject it rather than
+        // silently mis-shape the mask.
+        use tiff::encoder::{TiffEncoder, colortype::RGB8};
+        let mut cursor = std::io::Cursor::new(Vec::new());
+        TiffEncoder::new(&mut cursor)
+            .unwrap()
+            .write_image::<RGB8>(2, 2, &[0u8; 12])
+            .unwrap();
+        let rgb_tiff = cursor.into_inner();
+        let err = decode_mask_tiff(&rgb_tiff).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn mask_msk_round_trips_as_binary_with_odd_width() {
+        // A width that is not a multiple of 32 exercises the bit-padding
+        // (width 33 -> num_ints 2 -> 8 bytes/row, 31 trailing pad bits). The
+        // fit2d format is binary: every non-zero level collapses to 1.
+        let (h, w) = (2u32, 33u32);
+        let mut data = vec![0u8; (h * w) as usize];
+        data[0] = 5; // non-zero level -> bit set -> reads back as 1
+        data[32] = 200; // last column of row 0 (index 32) -> bit set
+        data[(w as usize) + 1] = 1; // row 1, column 1
+        let bytes = encode_mask_msk(h, w, &data);
+        // Header is 1024 bytes; body is height * ((w+31)/32)*4 = 2*8 = 16 bytes.
+        assert_eq!(bytes.len(), 1024 + 16);
+        let (dh, dw, out) = decode_mask_msk(&bytes).expect("decode");
+        assert_eq!((dh, dw), (h, w));
+        let mut expected = vec![0u8; (h * w) as usize];
+        expected[0] = 1;
+        expected[32] = 1;
+        expected[(w as usize) + 1] = 1;
+        assert_eq!(out, expected);
+    }
+
+    #[test]
+    fn mask_msk_rejects_bad_magic_and_short_header() {
+        // A buffer shorter than the 1024-byte header, and a full-size buffer
+        // with the wrong magic, are both rejected (faithful to fabio's
+        // "Not a fit2d mask file").
+        assert_eq!(
+            decode_mask_msk(&[0u8; 16]).unwrap_err().kind(),
+            std::io::ErrorKind::InvalidData
+        );
+        let mut buf = vec![0u8; 1024 + 4];
+        buf[0] = b'X'; // not 'M'
+        assert_eq!(
+            decode_mask_msk(&buf).unwrap_err().kind(),
+            std::io::ErrorKind::InvalidData
+        );
+    }
+
+    #[test]
+    fn mask_msk_matches_fabio_reference_bytes() {
+        // Byte-for-byte parity with fabio Fit2dMaskImage.save: the reference was
+        // generated by `fabio.fit2dmaskimage` on the mask [[0,1,0,1,1],[0,0,1,0,0]]
+        // (h=2, w=5) and produces a 1032-byte file — magic M/A/S/K at bytes
+        // 0/4/8/12, dim1=5 @16, dim2=2 @20, byte 24 = 1, then the 8-byte
+        // bit-packed body `1a00000004000000` (row0 cols 1/3/4 -> 0x1A,
+        // row1 col 2 -> 0x04). Our encoder must reproduce this exactly.
+        let data: Vec<u8> = vec![0, 1, 0, 1, 1, /**/ 0, 0, 1, 0, 0];
+        let mut expected = vec![0u8; 1024 + 8];
+        expected[0] = b'M';
+        expected[4] = b'A';
+        expected[8] = b'S';
+        expected[12] = b'K';
+        expected[16] = 5; // dim1 = width, LE
+        expected[20] = 2; // dim2 = height, LE
+        expected[24] = 1;
+        expected[1024] = 0x1A;
+        expected[1028] = 0x04;
+        assert_eq!(encode_mask_msk(2, 5, &data), expected);
+        // And the reference bytes decode back to the same binary mask.
+        let (h, w, out) = decode_mask_msk(&expected).expect("decode");
+        assert_eq!((h, w), (2, 5));
+        assert_eq!(out, data);
+    }
+
+    #[test]
+    fn base64_encode_matches_known_vector() {
+        // RFC 4648 test vectors.
+        assert_eq!(base64_encode(b""), "");
+        assert_eq!(base64_encode(b"f"), "Zg==");
+        assert_eq!(base64_encode(b"fo"), "Zm8=");
+        assert_eq!(base64_encode(b"foo"), "Zm9v");
+        assert_eq!(base64_encode(b"foob"), "Zm9vYg==");
+        assert_eq!(base64_encode(b"fooba"), "Zm9vYmE=");
+        assert_eq!(base64_encode(b"foobar"), "Zm9vYmFy");
+    }
+
+    #[test]
+    fn encode_svg_is_well_formed_with_size_and_png_payload() {
+        let rgba = [
+            11, 22, 33, 255, 44, 55, 66, 255, 77, 88, 99, 255, 1, 2, 3, 255,
+        ];
+        let svg = encode_svg(&rgba, 2, 2).expect("svg");
+
+        // XML declaration and SVG 1.1 DOCTYPE.
+        assert!(svg.starts_with("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>"));
+        assert!(svg.contains("<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\""));
+        // Root dimensions in px appear on the <svg> element.
+        assert!(svg.contains("width=\"2\""));
+        assert!(svg.contains("height=\"2\""));
+        // The <image> element with a base64 PNG data URI and id.
+        assert!(svg.contains("<image xlink:href=\"data:image/png;base64,"));
+        assert!(svg.contains("x=\"0\""));
+        assert!(svg.contains("y=\"0\""));
+        assert!(svg.contains("id=\"image\" />"));
+        assert!(svg.trim_end().ends_with("</svg>"));
+
+        // The embedded payload decodes to a valid RGB PNG of the right size,
+        // matching the input pixels (alpha dropped).
+        let marker = "base64,";
+        let start = svg.find(marker).expect("data uri") + marker.len();
+        let end = svg[start..].find('"').expect("end quote") + start;
+        let b64 = &svg[start..end];
+        let png_bytes = base64_decode_for_test(b64);
+        let decoder = png::Decoder::new(std::io::Cursor::new(&png_bytes));
+        let mut reader = decoder.read_info().expect("read info");
+        let mut buf = vec![0u8; reader.output_buffer_size().expect("buffer size")];
+        let info = reader.next_frame(&mut buf).expect("frame");
+        assert_eq!(info.width, 2);
+        assert_eq!(info.height, 2);
+        assert_eq!(info.color_type, png::ColorType::Rgb);
+        let expected_rgb = rgba_to_rgb(&rgba, 2, 2);
+        assert_eq!(&buf[..expected_rgb.len()], expected_rgb.as_slice());
+    }
+
+    /// Minimal base64 decoder for the SVG payload round-trip test.
+    fn base64_decode_for_test(s: &str) -> Vec<u8> {
+        fn val(c: u8) -> Option<u8> {
+            match c {
+                b'A'..=b'Z' => Some(c - b'A'),
+                b'a'..=b'z' => Some(c - b'a' + 26),
+                b'0'..=b'9' => Some(c - b'0' + 52),
+                b'+' => Some(62),
+                b'/' => Some(63),
+                _ => None,
+            }
+        }
+        let mut out = Vec::new();
+        let mut acc = 0u32;
+        let mut bits = 0u32;
+        for &c in s.as_bytes() {
+            if c == b'=' {
+                break;
+            }
+            let Some(v) = val(c) else { continue };
+            acc = (acc << 6) | v as u32;
+            bits += 6;
+            if bits >= 8 {
+                bits -= 8;
+                out.push((acc >> bits) as u8);
+            }
+        }
+        out
+    }
+
+    // --- TIFF ---
+
+    /// Minimal little-endian baseline-TIFF reader for tests: returns
+    /// `(width, height, ifd_entries, pixel_bytes)` where `ifd_entries` maps
+    /// tag → (type, count, raw 4-byte value/offset field) and `pixel_bytes` is
+    /// the StripOffsets/StripByteCounts strip.
+    fn parse_tiff(bytes: &[u8]) -> ParsedTiff {
+        assert_eq!(&bytes[0..2], b"II", "byte order must be little-endian");
+        assert_eq!(u16::from_le_bytes([bytes[2], bytes[3]]), 42, "magic 42");
+        let ifd_off = u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]) as usize;
+        let n = u16::from_le_bytes([bytes[ifd_off], bytes[ifd_off + 1]]) as usize;
+        let mut tags = std::collections::HashMap::new();
+        for i in 0..n {
+            let base = ifd_off + 2 + i * 12;
+            let tag = u16::from_le_bytes([bytes[base], bytes[base + 1]]);
+            let typ = u16::from_le_bytes([bytes[base + 2], bytes[base + 3]]);
+            let count = u32::from_le_bytes([
+                bytes[base + 4],
+                bytes[base + 5],
+                bytes[base + 6],
+                bytes[base + 7],
+            ]);
+            let val = [
+                bytes[base + 8],
+                bytes[base + 9],
+                bytes[base + 10],
+                bytes[base + 11],
+            ];
+            tags.insert(tag, (typ, count, val));
+        }
+        // The next-IFD pointer must be 0 (single image).
+        let next_off = ifd_off + 2 + n * 12;
+        assert_eq!(
+            u32::from_le_bytes([
+                bytes[next_off],
+                bytes[next_off + 1],
+                bytes[next_off + 2],
+                bytes[next_off + 3]
+            ]),
+            0,
+            "single-image TIFF: next IFD offset is 0"
+        );
+
+        let width = le_u32(&tags[&256].2);
+        let height = le_u32(&tags[&257].2);
+        let strip_off = le_u32(&tags[&273].2) as usize;
+        let strip_len = le_u32(&tags[&279].2) as usize;
+        let pixels = bytes[strip_off..strip_off + strip_len].to_vec();
+        (width, height, tags, pixels)
+    }
+
+    fn le_u32(v: &[u8; 4]) -> u32 {
+        u32::from_le_bytes(*v)
+    }
+
+    /// Read a SHORT value left-justified in a 4-byte IFD field.
+    fn le_short(v: &[u8; 4]) -> u16 {
+        u16::from_le_bytes([v[0], v[1]])
+    }
+
+    /// Read a RATIONAL (num/den) given the byte stream and its out-of-line
+    /// offset (stored in the IFD value field).
+    fn read_rational(bytes: &[u8], off: u32) -> (u32, u32) {
+        let o = off as usize;
+        let num = u32::from_le_bytes([bytes[o], bytes[o + 1], bytes[o + 2], bytes[o + 3]]);
+        let den = u32::from_le_bytes([bytes[o + 4], bytes[o + 5], bytes[o + 6], bytes[o + 7]]);
+        (num, den)
+    }
+
+    #[test]
+    fn encode_tiff_header_tags_and_pixels_round_trip() {
+        // 2×2 RGBA image, distinct pixels.
+        let rgba = [
+            10, 20, 30, 255, 40, 50, 60, 255, 70, 80, 90, 255, 100, 110, 120, 255,
+        ];
+        let tiff = encode_tiff(&rgba, 2, 2, 96);
+        let (w, h, tags, pixels) = parse_tiff(&tiff);
+
+        assert_eq!((w, h), (2, 2));
+        // Baseline required tags.
+        assert_eq!(le_short(&tags[&259].2), 1, "Compression = none");
+        assert_eq!(le_short(&tags[&262].2), 2, "Photometric = RGB");
+        assert_eq!(le_short(&tags[&277].2), 3, "SamplesPerPixel = 3");
+        assert_eq!(le_u32(&tags[&278].2), 2, "RowsPerStrip = height");
+        assert_eq!(le_u32(&tags[&279].2), 2 * 2 * 3, "StripByteCounts = w*h*3");
+
+        // BitsPerSample is 3 SHORTs stored out-of-line; verify 8,8,8.
+        let (typ, count, bits_val) = tags[&258];
+        assert_eq!(typ, 3);
+        assert_eq!(count, 3);
+        let bits_off = le_u32(&bits_val) as usize;
+        assert_eq!(
+            &tiff[bits_off..bits_off + 6],
+            &[8, 0, 8, 0, 8, 0],
+            "BitsPerSample = 8,8,8"
+        );
+
+        // Pixel bytes round-trip as RGB (alpha dropped).
+        let expected_rgb = rgba_to_rgb(&rgba, 2, 2);
+        assert_eq!(pixels, expected_rgb);
+    }
+
+    #[test]
+    fn encode_tiff_resolution_tags_reflect_dpi() {
+        let rgba = [1, 2, 3, 255];
+        let tiff = encode_tiff(&rgba, 1, 1, 300);
+        let (_, _, tags, _) = parse_tiff(&tiff);
+
+        // ResolutionUnit = 2 (inch).
+        assert_eq!(le_short(&tags[&296].2), 2, "ResolutionUnit = inch");
+        // XResolution / YResolution are RATIONAL = 300/1.
+        let xres = read_rational(&tiff, le_u32(&tags[&282].2));
+        let yres = read_rational(&tiff, le_u32(&tags[&283].2));
+        assert_eq!(xres, (300, 1), "XResolution = 300 dpi");
+        assert_eq!(yres, (300, 1), "YResolution = 300 dpi");
+    }
+
+    #[test]
+    fn encode_tiff_clamps_zero_dpi_to_one() {
+        // dpi = 0 would write a 0/1 rational; clamp to 1 so the tag is valid.
+        let rgba = [1, 2, 3, 255];
+        let tiff = encode_tiff(&rgba, 1, 1, 0);
+        let (_, _, tags, _) = parse_tiff(&tiff);
+        assert_eq!(read_rational(&tiff, le_u32(&tags[&282].2)), (1, 1));
+    }
+}

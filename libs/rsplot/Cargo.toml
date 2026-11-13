@@ -1,0 +1,276 @@
+[package]
+name = "rsplot"
+version = "0.6.1"
+edition = "2024"
+rust-version = "1.95"
+license = "MIT OR Apache-2.0"
+description = "silx-style scientific plotting for egui, rendered with wgpu"
+repository = "https://github.com/physwkim/rsplot"
+readme = "README.md"
+
+[workspace]
+# rsplot is the root package and an implicit member; `rsdm` (the PyDM-style
+# EPICS display layer, ported from ~/codes/pydm onto rsplot + epics-rs) is the
+# second member; `adl2rsdm` (a MEDM `.adl` -> RsDM Rust-source converter,
+# mirroring ~/codes/adl2pydm) is the third. Resolver 3 matches the edition 2024
+# packages.
+members = ["."]
+resolver = "3"
+
+# The library itself does not depend on eframe (windowing). It works purely as
+# an egui widget + egui-wgpu paint callback. wgpu types are reached through the
+# egui-wgpu re-export to avoid version skew (a duplicate wgpu).
+[dependencies]
+egui = "0.37"
+egui-wgpu = "0.37"
+bytemuck = { version = "1", features = ["derive"] }
+# f16 encoding for the volume ray-caster's premultiplied 3D texture. Already in
+# the tree transitively (via wgpu), so this pins no new major version.
+half = "2"
+colorous = "1"
+# PNG encoding for save_graph (offscreen readback → file). Already in the tree
+# transitively via egui's image loading, so this pins no new major version.
+png = "0.18"
+# TIFF mask save/load (silx MaskToolsWidget save/load TIFF branch, via fabio /
+# tifffile). The image-rs `tiff` crate reads/writes a single-page grayscale
+# uint8 image — exactly a 2D uint8 mask. Default features cover the common
+# compressions (deflate/lzw/packbits) so masks other tools wrote still load.
+tiff = "0.11"
+# HDF5 mask save/load (silx MaskToolsWidget HDF5 branch, via h5py). The
+# pure-Rust `rust-hdf5` crate reads/writes HDF5 with no native libhdf5
+# dependency, so it is a plain build-everywhere dependency.
+rust-hdf5 = "0.2"
+# Native Save/load file dialog for the toolbar Save action (mirrors silx's QFileDialog).
+rfd = "0.17"
+# System clipboard for the toolbar Copy action (set_image with the wgpu readback RGBA).
+# Default features; the `image` crate it pulls is already in the tree via egui-winit.
+arboard = "3.6"
+# Fast slice median for the median-filter analysis action (silx MedianFilterAction
+# / silx.math.medianfilter). The crate's `Medianf64::medf_unchecked` gives the silx
+# selection (sorted[n/2]) for the odd, NaN-free windows that dominate; the even /
+# NaN-reduced "highest-of-two-central" case is handled in analysis.rs to stay
+# byte-faithful to the silx C++ median<T>().
+medians = "3.0.12"
+# SIFT keypoint registration for CompareImages AUTO alignment (silx
+# `CompareImages` AUTO mode = `silx.image.sift` SiftPlan + MatchPlan +
+# matching_correction + LinearAlign). `lowe-sift` is a pure-Rust implementation
+# of Lowe's SIFT (DoG scale space, 128-d descriptors, the distance-ratio
+# matcher) plus `geometry::estimate_affine_from_pairs` — the same 6-param affine
+# least squares silx solves in `matching_correction`. `default-features = false`
+# drops its optional `image`-crate conversion helpers; rsplot feeds raw `f32`
+# pixels through `GrayImage::new`, so no extra dependency is pulled.
+lowe-sift = { version = "0.2", default-features = false }
+# IANA tz database for DST-aware named-zone offsets on date-time axes (silx
+# Axis.setTimeZone with a dateutil.tz zone / tz=None local time). `tzdb` bundles
+# the compiled database (deterministic, no system tzdb dependency) and resolves
+# names + the local zone; `tz-rs` provides `TimeZoneRef`/`find_local_time_type`
+# whose `ut_offset` gives the instant-dependent offset behind
+# `TimeZone::offset_at`. The constant-offset zones (Utc/FixedOffset) need
+# neither crate.
+tz-rs = "0.7.3"
+tzdb = "0.7.3"
+
+# Only the example (an eframe app) needs a window + RenderState.
+[dev-dependencies]
+eframe = "0.37"
+egui_kittest = { version = "0.37", features = ["wgpu", "snapshot"] }
+
+[[example]]
+name = "bootstrap"
+path = "examples/bootstrap.rs"
+
+[[example]]
+name = "image"
+path = "examples/image.rs"
+
+[[example]]
+name = "image_and_curve"
+path = "examples/image_and_curve.rs"
+
+[[example]]
+name = "high_level_plot_widget"
+path = "examples/high_level_plot_widget.rs"
+
+[[example]]
+name = "high_level_plot1d"
+path = "examples/high_level_plot1d.rs"
+
+[[example]]
+name = "high_level_plot2d"
+path = "examples/high_level_plot2d.rs"
+
+[[example]]
+name = "high_level_clear_action"
+path = "examples/high_level_clear_action.rs"
+
+[[example]]
+name = "high_level_live_update"
+path = "examples/high_level_live_update.rs"
+
+[[example]]
+name = "high_level_roi_stats"
+path = "examples/high_level_roi_stats.rs"
+
+[[example]]
+name = "high_level_items_selector"
+path = "examples/high_level_items_selector.rs"
+
+[[example]]
+name = "high_level_context_menu"
+path = "examples/high_level_context_menu.rs"
+
+[[example]]
+name = "high_level_shift_action"
+path = "examples/high_level_shift_action.rs"
+
+[[example]]
+name = "high_level_live_image"
+path = "examples/high_level_live_image.rs"
+
+[[example]]
+name = "high_level_legend"
+path = "examples/high_level_legend.rs"
+
+[[example]]
+name = "live_update"
+path = "examples/live_update.rs"
+
+[[example]]
+name = "log_axis"
+path = "examples/log_axis.rs"
+
+[[example]]
+name = "aspect_ratio"
+path = "examples/aspect_ratio.rs"
+
+[[example]]
+name = "y2_axis"
+path = "examples/y2_axis.rs"
+
+[[example]]
+name = "thick_lines"
+path = "examples/thick_lines.rs"
+
+[[example]]
+name = "markers"
+path = "examples/markers.rs"
+
+[[example]]
+name = "picking"
+path = "examples/picking.rs"
+
+[[example]]
+name = "roi"
+path = "examples/roi.rs"
+
+[[example]]
+name = "decimation"
+path = "examples/decimation.rs"
+
+[[example]]
+name = "large_image"
+path = "examples/large_image.rs"
+
+[[example]]
+name = "save_graph"
+path = "examples/save_graph.rs"
+
+[[example]]
+name = "labels"
+path = "examples/labels.rs"
+
+[[example]]
+name = "per_vertex_color"
+path = "examples/per_vertex_color.rs"
+
+[[example]]
+name = "line_styles"
+path = "examples/line_styles.rs"
+
+[[example]]
+name = "fill"
+path = "examples/fill.rs"
+
+[[example]]
+name = "error_bars"
+path = "examples/error_bars.rs"
+
+[[example]]
+name = "colormap_norm"
+path = "examples/colormap_norm.rs"
+
+[[example]]
+name = "rgba_image"
+path = "examples/rgba_image.rs"
+
+[[example]]
+name = "plot_markers"
+path = "examples/plot_markers.rs"
+
+[[example]]
+name = "shapes"
+path = "examples/shapes.rs"
+
+[[example]]
+name = "triangles"
+path = "examples/triangles.rs"
+
+[[example]]
+name = "high_level_roi_profile"
+path = "examples/high_level_roi_profile.rs"
+
+[[example]]
+name = "high_level_fit_widget"
+path = "examples/high_level_fit_widget.rs"
+
+[[example]]
+name = "high_level_mask_tools"
+path = "examples/high_level_mask_tools.rs"
+
+[[example]]
+name = "high_level_colormap_dialog"
+path = "examples/high_level_colormap_dialog.rs"
+
+[[example]]
+name = "high_level_limits_widget"
+path = "examples/high_level_limits_widget.rs"
+
+[[example]]
+name = "high_level_roi_manager"
+path = "examples/high_level_roi_manager.rs"
+
+[[example]]
+name = "gallery"
+path = "examples/gallery.rs"
+
+[[example]]
+name = "scene3d"
+path = "examples/scene3d.rs"
+
+[[example]]
+name = "scalar_field_view"
+path = "examples/scalar_field_view.rs"
+
+[[example]]
+name = "scene_window"
+path = "examples/scene_window.rs"
+
+[[example]]
+name = "scene3d_scatter"
+path = "examples/scene3d_scatter.rs"
+
+[[example]]
+name = "scene3d_mesh"
+path = "examples/scene3d_mesh.rs"
+
+[[example]]
+name = "scene3d_image"
+path = "examples/scene3d_image.rs"
+
+[[example]]
+name = "scene3d_update"
+path = "examples/scene3d_update.rs"
+
+[[example]]
+name = "complex_field3d"
+path = "examples/complex_field3d.rs"

@@ -1,0 +1,242 @@
+digraph internal_deps {
+
+ graph [rankdir=LR];
+ edge [fontname="Courier New", fontsize=8, color="#555"];
+ graph  [fontname="Helvetica", fontsize=12];
+ node [
+    shape=box
+    style=filled
+    fontname="Helvetica"
+    fontsize=12
+    fillcolor="white"
+    color="#555"
+ ];
+ 
+  compound=true;
+  node [shape=box];
+  subgraph "cluster_app" {
+    label="app";
+    style="rounded,filled";
+    color="#1f77b4";
+    fillcolor="#c6dbef";
+    "app";
+  }
+  subgraph "cluster_clients" {
+    label="clients";
+    style="rounded,filled";
+    color="#ff7f0e";
+    fillcolor="#ffe7c6";
+    "clients";
+  }
+  subgraph "cluster_containers" {
+    label="containers";
+    style="rounded,filled";
+    color="#2ca02c";
+    fillcolor="#c6efcd";
+    "containers::physure_helper";
+    "containers::spectrum";
+    "containers::roi::roi_event";
+    "containers::nuclide";
+    "containers::roi::roi";
+    "containers::roi";
+    "containers::converters";
+    "containers::instrument";
+    "containers::roi::roi_view_state";
+    "containers";
+    "containers::roi::roi_view";
+  }
+  subgraph "cluster_core" {
+    label="core";
+    style="rounded,filled";
+    color="#d62728";
+    fillcolor="#f4c6c6";
+    "core::nuclide_library";
+    "core";
+    "core::spectogram_manager";
+    "core::instrument_library";
+    "core::roi_manager";
+    "core::io_manager";
+    "core::spectrum_manager";
+    "core::run_manager";
+  }
+  subgraph "cluster_crate" {
+    label="crate";
+    style="rounded,filled";
+    color="#9467bd";
+    fillcolor="#e8d6ef";
+    "crate";
+  }
+  subgraph "cluster_gui" {
+    label="gui";
+    style="rounded,filled";
+    color="#8c564b";
+    fillcolor="#e9d6ca";
+    "gui::menu_bar";
+    "gui::plot_screen";
+    "gui";
+    "gui::modals";
+    "gui::spectrum_plot";
+  }
+  subgraph "cluster_logging" {
+    label="logging";
+    style="rounded,filled";
+    color="#e377c2";
+    fillcolor="#f7d6e9";
+    "logging";
+  }
+  subgraph "cluster_main" {
+    label="main";
+    style="rounded,filled";
+    color="#7f7f7f";
+    fillcolor="#d6d6d6";
+    "main";
+  }
+  subgraph "cluster_settings" {
+    label="settings";
+    style="rounded,filled";
+    color="#bcbd22";
+    fillcolor="#ecebc6";
+    "settings";
+  }
+  subgraph "cluster_spectogram" {
+    label="spectogram";
+    style="rounded,filled";
+    color="#17becf";
+    fillcolor="#c6eef0";
+    "spectogram";
+  }
+  subgraph "cluster_theme_manager" {
+    label="theme_manager";
+    style="rounded,filled";
+    color="#1f77b4";
+    fillcolor="#c6dbef";
+    "theme_manager";
+  }
+  subgraph "cluster_utils" {
+    label="utils";
+    style="rounded,filled";
+    color="#ff7f0e";
+    fillcolor="#ffe7c6";
+    "utils::numerics::polyfit";
+    "utils::file_io::db_converter";
+    "utils::file_io";
+    "utils::file_io::tka_parser";
+    "utils::file_io::export";
+    "utils::numerics::efficiency";
+    "utils::file_io::n42_writer";
+    "utils::file_io::spe_parser";
+    "utils::numerics";
+    "utils::numerics::gaussian_fitter";
+    "utils";
+    "utils::file_io::base_parser";
+    "utils::file_io::n42_report_writer";
+    "utils::save_to_internal";
+    "utils::numerics::peak_detection";
+    "utils::numerics::savgol";
+    "utils::file_io::db_parser";
+    "utils::file_io::nuclide_loader";
+    "utils::file_io::xml_parser";
+  }
+  "app" -> "core" [label="RunManagerEvent\nRunManager\nRoiManagerEvent\n…",lhead="cluster_core"];
+  "app" -> "gui" [label="Modal\nmenu_bar\nStubWindow\n…",lhead="cluster_gui"];
+  "app" -> "logging" [label="LogBuffer",lhead="cluster_logging"];
+  "app" -> "settings" [label="SharedSettings",lhead="cluster_settings"];
+  "app" -> "theme_manager" [label="ThemeManagerEvent\nThemeManager",lhead="cluster_theme_manager"];
+  "containers::converters" -> "containers::spectrum" [label="Spectrum",lhead="cluster_containers"];
+  "containers::instrument" -> "containers::physure_helper" [label="opt_vec_quantity_serde",lhead="cluster_containers"];
+  "containers::instrument" -> "utils" [label="ResolutionSignature\nEfficiencySignature",lhead="cluster_utils"];
+  "containers::nuclide" -> "containers::physure_helper" [label="seconds\nopt_quantity_serde\nkev\n…",lhead="cluster_containers"];
+  "containers::roi::roi" -> "containers" [label="Fit",lhead="cluster_containers"];
+  "containers::roi::roi" -> "containers::nuclide" [label="Emission",lhead="cluster_containers"];
+  "containers::roi::roi_view" -> "containers::roi::roi" [label="Roi\nFitType\nBkgType",lhead="cluster_containers"];
+  "containers::roi::roi_view" -> "containers::roi::roi_event" [label="RoiEvent",lhead="cluster_containers"];
+  "containers::roi::roi_view" -> "containers::roi::roi_view_state" [label="RoiViewState\nRoiInteraction\nEdge\n…",lhead="cluster_containers"];
+  "containers::roi::roi_view_state" -> "containers::nuclide" [label="Emission",lhead="cluster_containers"];
+  "containers::roi::roi_view_state" -> "containers::roi" [label="Roi",lhead="cluster_containers"];
+  "containers::spectrum" -> "containers::instrument" [label="UniqueInstrument",lhead="cluster_containers"];
+  "containers::spectrum" -> "containers::roi" [label="Roi",lhead="cluster_containers"];
+  "core::instrument_library" -> "containers" [label="UniqueInstrument\nGenericInstrument",lhead="cluster_containers"];
+  "core::instrument_library" -> "utils" [label="XmlParser\nInstrumentData",lhead="cluster_utils"];
+  "core::io_manager" -> "containers" [label="Roi\nGenericInstrument\nUniqueInstrument\n…",lhead="cluster_containers"];
+  "core::io_manager" -> "utils" [label="SaveError\nInstrumentData\nunzip_library\n…",lhead="cluster_utils"];
+  "core::nuclide_library" -> "containers" [label="Roi\nEmission\nNuclide",lhead="cluster_containers"];
+  "core::nuclide_library" -> "utils" [label="NuclideLoadError\nload_nuclide_data",lhead="cluster_utils"];
+  "core::roi_manager" -> "containers" [label="BkgType\nSpectrumData\nSpectrum\n…",lhead="cluster_containers"];
+  "core::roi_manager" -> "utils" [label="fit_gaussians",lhead="cluster_utils"];
+  "core::run_manager" -> "clients" [label="WrappedSpectrumPackage\nConnectionType\nGps\n…",lhead="cluster_clients"];
+  "core::run_manager" -> "core" [label="SpectrogramManager\nMappingBuffer\nSpectrogramRoi\n…",lhead="cluster_core"];
+  "core::run_manager" -> "spectogram" [label="SpectrogramConfig\nBoundedDeque\nWrappedSpectrogramData\n…",lhead="cluster_spectogram"];
+  "core::spectogram_manager" -> "clients" [label="GpsData",lhead="cluster_clients"];
+  "core::spectogram_manager" -> "containers" [label="Roi\nEmission",lhead="cluster_containers"];
+  "core::spectogram_manager" -> "spectogram" [label="Spectrogram\nWrappedSpectrogramData",lhead="cluster_spectogram"];
+  "core::spectrum_manager" -> "containers" [label="FitType\nSpectrumData\nRoi\n…",lhead="cluster_containers"];
+  "core::spectrum_manager" -> "core" [label="Instrument\nNuclideLibrary\nInstrumentLibrary\n…",lhead="cluster_core"];
+  "core::spectrum_manager" -> "core::roi_manager" [label="RoiManager\nNewRoi",lhead="cluster_core"];
+  "core::spectrum_manager" -> "gui" [label="ColorRotator\nColorScheme",lhead="cluster_gui"];
+  "core::spectrum_manager" -> "utils" [label="N42Writer\nInstrumentData\nN42Error\n…",lhead="cluster_utils"];
+  "crate" -> "app" [label="",lhead="cluster_app"];
+  "crate" -> "clients" [label="",lhead="cluster_clients"];
+  "crate" -> "containers" [label="",lhead="cluster_containers"];
+  "crate" -> "core" [label="",lhead="cluster_core"];
+  "crate" -> "gui" [label="",lhead="cluster_gui"];
+  "crate" -> "logging" [label="",lhead="cluster_logging"];
+  "crate" -> "settings" [label="",lhead="cluster_settings"];
+  "crate" -> "spectogram" [label="",lhead="cluster_spectogram"];
+  "crate" -> "theme_manager" [label="",lhead="cluster_theme_manager"];
+  "crate" -> "utils" [label="",lhead="cluster_utils"];
+  "gui::menu_bar" -> "app" [label="LuRaCsApp",lhead="cluster_app"];
+  "gui::menu_bar" -> "core" [label="ExportOutcome\nInstrument\nImportFilter\n…",lhead="cluster_core"];
+  "gui::menu_bar" -> "gui::modals" [label="Modal\nModalKind\nConfirmAction\n…",lhead="cluster_gui"];
+  "gui::menu_bar" -> "gui::plot_screen" [label="PlotMode",lhead="cluster_gui"];
+  "gui::menu_bar" -> "utils" [label="InstrumentData",lhead="cluster_utils"];
+  "gui::modals" -> "app" [label="LuRaCsApp",lhead="cluster_app"];
+  "gui::plot_screen" -> "containers" [label="Roi\nEmission",lhead="cluster_containers"];
+  "gui::plot_screen" -> "core" [label="SpectrumManager",lhead="cluster_core"];
+  "gui::plot_screen" -> "gui::spectrum_plot" [label="self\nFeatureLine\nSpectrumPlotState",lhead="cluster_gui"];
+  "gui::plot_screen" -> "settings" [label="Settings",lhead="cluster_settings"];
+  "gui::plot_screen" -> "theme_manager" [label="Palette",lhead="cluster_theme_manager"];
+  "gui::spectrum_plot" -> "containers" [label="Roi\nBkgType\nEmissionType",lhead="cluster_containers"];
+  "gui::spectrum_plot" -> "core" [label="SpectrumManager\nMatchOptions\nNewRoi",lhead="cluster_core"];
+  "gui::spectrum_plot" -> "settings" [label="Settings",lhead="cluster_settings"];
+  "gui::spectrum_plot" -> "theme_manager" [label="Palette",lhead="cluster_theme_manager"];
+  "gui::spectrum_plot" -> "utils" [label="multi_gaussian",lhead="cluster_utils"];
+  "main" -> "app" [label="LuRaCsApp",lhead="cluster_app"];
+  "main" -> "clients" [label="PollConfig\nWrappedSpectrumPackage",lhead="cluster_clients"];
+  "main" -> "containers" [label="SpectrumData",lhead="cluster_containers"];
+  "main" -> "core" [label="ForegroundInput\nRunManager\nSaveFn\n…",lhead="cluster_core"];
+  "main" -> "gui" [label="ColorScheme",lhead="cluster_gui"];
+  "main" -> "logging" [label="LogBuffer",lhead="cluster_logging"];
+  "main" -> "settings" [label="SharedSettings\nSettings",lhead="cluster_settings"];
+  "main" -> "theme_manager" [label="ThemeManager",lhead="cluster_theme_manager"];
+  "main" -> "utils" [label="save_rois_to_library\nsave_instrument_to_library\nsave_spectrum_to_library\n…",lhead="cluster_utils"];
+  "settings" -> "gui" [label="ColorScheme",lhead="cluster_gui"];
+  "spectogram" -> "clients" [label="WrappedRealTimePackage\nWrappedStatusPackage\nWrappedSpectrumPackage\n…",lhead="cluster_clients"];
+  "spectogram" -> "utils" [label="decompress_spectrum\nCompressionError\ncompress_spectrum_f64",lhead="cluster_utils"];
+  "utils::file_io::base_parser" -> "containers" [label="Spectrum\nGenericInstrument\nRoi\n…",lhead="cluster_containers"];
+  "utils::file_io::db_converter" -> "containers" [label="SpectrumData\nSpectrum",lhead="cluster_containers"];
+  "utils::file_io::db_converter" -> "utils::file_io::db_parser" [label="DbParser\nDbHeader\nDbSummary\n…",lhead="cluster_utils"];
+  "utils::file_io::db_parser" -> "utils" [label="decompress_spectrum\nCompressionError",lhead="cluster_utils"];
+  "utils::file_io::export" -> "containers" [label="Spectrum\nEmission\nEmissionOrigin\n…",lhead="cluster_containers"];
+  "utils::file_io::n42_report_writer" -> "containers" [label="Spectrum\nGroundMeasurement\nMeasurementReport",lhead="cluster_containers"];
+  "utils::file_io::n42_report_writer" -> "utils::file_io::n42_writer" [label="append_text\nappend_text_attrs\nN42Result\n…",lhead="cluster_utils"];
+  "utils::file_io::n42_writer" -> "containers" [label="Fit\nEmissionType\nGenericInstrument\n…",lhead="cluster_containers"];
+  "utils::file_io::n42_writer" -> "utils" [label="compress_spectrum\nencode_base64",lhead="cluster_utils"];
+  "utils::file_io::nuclide_loader" -> "containers" [label="Emission\nbq_per_g\nNuclide\n…",lhead="cluster_containers"];
+  "utils::file_io::spe_parser" -> "containers" [label="Spectrum\nSpectrumData",lhead="cluster_containers"];
+  "utils::file_io::spe_parser" -> "utils" [label="SpectrumParser\nParsedData",lhead="cluster_utils"];
+  "utils::file_io::tka_parser" -> "containers" [label="Spectrum\nSpectrumData",lhead="cluster_containers"];
+  "utils::file_io::tka_parser" -> "utils" [label="ParsedData\nSpectrumParser",lhead="cluster_utils"];
+  "utils::file_io::xml_parser" -> "containers" [label="percent\nGenericInstrument\nEmissionOrigin\n…",lhead="cluster_containers"];
+  "utils::file_io::xml_parser" -> "utils" [label="ResolutionSignature\nEfficiencySignature",lhead="cluster_utils"];
+  "utils::file_io::xml_parser" -> "utils::numerics" [label="PolyfitError\npolyfit_weighted",lhead="cluster_utils"];
+  "utils::numerics::efficiency" -> "containers" [label="dimensionless",lhead="cluster_containers"];
+  "utils::numerics::gaussian_fitter" -> "containers" [label="FitType\nFit\nBkgType",lhead="cluster_containers"];
+  "utils::numerics::gaussian_fitter" -> "utils" [label="polyfit_weighted\nPolyfitError",lhead="cluster_utils"];
+  "utils::numerics::gaussian_fitter" -> "utils::numerics" [label="poisson_weights\nmulti_gaussian\npseudo_inverse\n…",lhead="cluster_utils"];
+  "utils::numerics::peak_detection" -> "utils" [label="multi_gaussian_jacobian\nmulti_gaussian",lhead="cluster_utils"];
+  "utils::numerics::peak_detection" -> "utils::numerics::savgol" [label="median\nSavgolError\nsavgol_filter\n…",lhead="cluster_utils"];
+  "utils::numerics::polyfit" -> "utils::numerics" [label="pseudo_inverse",lhead="cluster_utils"];
+  "utils::numerics::savgol" -> "utils::numerics" [label="pseudo_inverse",lhead="cluster_utils"];
+  "utils::save_to_internal" -> "containers" [label="GenericInstrument\nSpectrum\nUniqueInstrument",lhead="cluster_containers"];
+  "utils::save_to_internal" -> "utils::file_io" [label="WriteOptions\nN42Writer\nN42Error",lhead="cluster_utils"];
+}

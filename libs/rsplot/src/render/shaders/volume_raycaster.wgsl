@@ -1,0 +1,130 @@
+// Volume ray-caster — front-to-back alpha compositing over a 3D RGBA texture.
+//
+// A full-screen triangle generates one camera ray per pixel from the inverse
+// view-projection matrix. Each ray is clipped to the volume's axis-aligned box
+// and marched in fixed steps. The 3D texture holds PREMULTIPLIED RGBA in
+// `Rgba16Float` (the uploader premultiplies straight alpha) so the hardware
+// linear filter interpolates premultiplied colour — a colour/transparent
+// boundary stays the right hue instead of bleeding toward black — while the
+// product `rgb·a` keeps enough precision for `fs_main` to divide the straight
+// colour back out at low coverage. Samples accumulate front-to-back
+// into premultiplied colour that blends with `PREMULTIPLIED_ALPHA_BLENDING`
+// straight into egui's render pass (no offscreen target, no depth).
+//
+// The texels are already in the render target's encoding (the uploader keeps
+// the sRGB bytes for a non-sRGB target and linearises them for an sRGB one), so
+// nothing here converts colour: the composite is written out as is.
+
+struct Uniforms {
+    // Inverse of the camera clip matrix P·V (OpenGL clip, z in [-1, 1]).
+    inv_mvp: mat4x4<f32>,
+    vol_min: vec4<f32>, // world-space AABB min (xyz)
+    vol_max: vec4<f32>, // world-space AABB max (xyz)
+    // x = step count, y = alpha scale, z = sample-alpha cull floor, w unused.
+    params: vec4<f32>,
+};
+
+@group(0) @binding(0) var<storage, read> u: Uniforms;
+@group(0) @binding(1) var vol_tex: texture_3d<f32>;
+@group(0) @binding(2) var vol_samp: sampler;
+
+// The reference sample spacing is `box_diagonal / REF_STEPS`, a WORLD distance:
+// a voxel's authored coverage is the opacity it contributes over exactly that
+// much traversed thickness. Every sample is corrected from the ray's actual
+// spacing `dt` to that reference (see `fs_main`), which makes the accumulated
+// opacity depend on the traversed path length and not on the sample count.
+//
+// REF_STEPS matches the widget's default `steps`, so a ray crossing the full
+// box diagonal at the default step count is unchanged from an uncorrected
+// march.
+const REF_STEPS: f32 = 256.0;
+
+struct VsOut {
+    @builtin(position) clip: vec4<f32>,
+    @location(0) ndc: vec2<f32>,
+};
+
+@vertex
+fn vs_main(@builtin(vertex_index) vid: u32) -> VsOut {
+    // Oversized triangle covering the NDC square [-1, 1]^2.
+    var xy = array<vec2<f32>, 3>(
+        vec2<f32>(-1.0, -1.0),
+        vec2<f32>(3.0, -1.0),
+        vec2<f32>(-1.0, 3.0),
+    );
+    let p = xy[vid];
+    var out: VsOut;
+    out.clip = vec4<f32>(p, 0.0, 1.0);
+    out.ndc = p;
+    return out;
+}
+
+// Ray / AABB slab test. Returns (t_near, t_far); a miss has t_far < t_near.
+fn intersect_box(ro: vec3<f32>, rd: vec3<f32>, bmin: vec3<f32>, bmax: vec3<f32>) -> vec2<f32> {
+    let inv = 1.0 / rd;
+    let t0 = (bmin - ro) * inv;
+    let t1 = (bmax - ro) * inv;
+    let tsmall = min(t0, t1);
+    let tbig = max(t0, t1);
+    let tnear = max(max(tsmall.x, tsmall.y), tsmall.z);
+    let tfar = min(min(tbig.x, tbig.y), tbig.z);
+    return vec2<f32>(tnear, tfar);
+}
+
+@fragment
+fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
+    // Un-project the near/far NDC points to build the world-space ray.
+    let near_h = u.inv_mvp * vec4<f32>(in.ndc, -1.0, 1.0);
+    let far_h = u.inv_mvp * vec4<f32>(in.ndc, 1.0, 1.0);
+    let near_w = near_h.xyz / near_h.w;
+    let far_w = far_h.xyz / far_h.w;
+    let ro = near_w;
+    let rd = normalize(far_w - near_w);
+
+    let hit = intersect_box(ro, rd, u.vol_min.xyz, u.vol_max.xyz);
+    let tnear = max(hit.x, 0.0);
+    let tfar = hit.y;
+    if tfar <= tnear {
+        discard;
+    }
+
+    let steps = max(i32(u.params.x), 1);
+    let alpha_scale = u.params.y;
+    let cull_floor = u.params.z;
+    let extent = u.vol_max.xyz - u.vol_min.xyz;
+    let dt = (tfar - tnear) / f32(steps);
+    // World-space reference spacing (see REF_STEPS). Positive for any non-empty
+    // box; `intersect_box` already rejected the degenerate ray.
+    let dt_ref = length(extent) / REF_STEPS;
+
+    var acc = vec4<f32>(0.0, 0.0, 0.0, 0.0); // premultiplied rgb + alpha
+    var t = tnear + dt * 0.5;
+    for (var i = 0; i < steps; i = i + 1) {
+        let p = ro + rd * t;
+        let uvw = (p - u.vol_min.xyz) / extent;
+        let s = textureSampleLevel(vol_tex, vol_samp, uvw, 0.0); // premultiplied rgb, coverage a
+        if s.a > cull_floor {
+            // Scale coverage by the user opacity knob, then correct it from the
+            // reference spacing to this ray's actual spacing `dt`
+            // (Beer–Lambert: transmittance (1-sa)^(dt/dt_ref) per sample, so the
+            // chord transmittance is (1-sa)^(L/dt_ref) — a function of the
+            // traversed thickness L alone, not of the sample count).
+            let sa = clamp(s.a * alpha_scale, 0.0, 1.0);
+            let sa_c = 1.0 - pow(1.0 - sa, dt / dt_ref);
+            // Rescale the premultiplied colour to the corrected coverage
+            // (gain = sa_c/s.a). Compositing stays in premultiplied space, so no
+            // dark fringe at boundaries. The division recovers the straight
+            // colour, which is why the texture is Rgba16Float and not Rgba8Unorm:
+            // an 8-bit product `rgb·a` only resolves the quotient to steps of
+            // 1/a, i.e. 3 colour levels at the coverage a=3/255 a march uses.
+            let gain = sa_c / max(s.a, 1e-6);
+            let w = 1.0 - acc.a;
+            acc = vec4<f32>(acc.rgb + s.rgb * gain * w, acc.a + sa_c * w);
+        }
+        if acc.a >= 0.995 {
+            break;
+        }
+        t = t + dt;
+    }
+    return acc; // premultiplied, for PREMULTIPLIED_ALPHA_BLENDING
+}

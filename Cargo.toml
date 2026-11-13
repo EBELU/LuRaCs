@@ -1,0 +1,51 @@
+[package]
+name = "LuRaCs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rsplot = { path = "./libs/rsplot" }
+async-trait = "0.1.92"
+base64 = "0.23.1"
+chrono = { version = "=0.4.39", features = ["serde"] }
+clap = { version = "4.6.7", features = ["derive"] }
+csv = "1.4.0"
+ctrlc = "3.5.2"
+directories = "6.0.0"
+eframe = { version = "0.37.0", features = ["persistence", "serde"] }
+flate2 = "1.1.11"
+glob = "0.3.4"
+mendeleev = { version = "0.8.4", features = ["serde"] }
+nalgebra = { version = "0.35.0", features = ["serde"] }
+ndarray = { version = "0.17.2", features = ["rayon", "serde"] }
+nucleide-nuclei = "0.17.0"
+physure = "0.3.0"
+quick-xml = { version = "0.42.0", features = ["serde"] }
+rfd = "0.18.0"
+roxmltree = "0.21.2"
+rusb = { version = "0.9.4", features = ["serde", "vendored"] }
+rusqlite = { version = "0.41.1", features = ["bundled"] }
+rust_xlsxwriter = { version = "0.102.0", features = ["serde"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+serialport = { version = "4.10.1", features = ["serde"] }
+strum = { version = "0.28.0", features = ["derive", "strum_macros"] }
+thiserror = "2.0.21"
+tokio = { version = "1.54.1", features = ["full"] }
+tokio-util = "0.7.20"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+uuid = { version = "1.29.2", features = ["v4", "serde"] }
+walkdir = "2.5.0"
+zip = { version = "9.5.1", default-features = false, features = [
+    "deflate",
+    "rayon",
+] }
+rand = "0.10.3"
+rand_distr = "0.6.0"
+walkers = { version = "^0.65.0", features = ["mvt", "pmtiles", "serde", "vector"] }
+pmtiles = "=0.24.0"
+rayon = "1.12.0"
+ndarray-npy = "0.10.0"
+chemometrics = "0.2.1"
+sci-find-peaks = "0.1.0"
