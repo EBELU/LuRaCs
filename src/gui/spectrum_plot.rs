@@ -22,6 +22,13 @@
 //! * Pointer position: `response.transform.pixel_to_data(pos)` after
 //!   `plot.show(ui)`.
 //!
+//! **Fill-under-line**: linear-mode only. `update_curve_spec` (required
+//!   to set `spec.fill`) breaks the log transform in rsplot 0.6.1 — every
+//!   curve disappears, not just the filled one. Fill is gated on
+//!   `!state.log` in the two collectors; the spectrum toolbar shows a
+//!   muted "fill disabled in log" hint when both Log and Brush are on,
+//!   and the settings dialog shows a footnote. Revisit if rsplot fixes
+//!   the spec path or exposes a fill-at-construction API.
 //! ## Bugs fixed vs Python
 //!
 //! * **CPS desync**: returning from Overlay/Subtract to None used to leave
@@ -30,16 +37,6 @@
 //!   on `Option`.
 //! * **Dead guard** removed: `live_time is not None`.
 //!
-//! ## TODO
-//!
-//! * **Fill-under-line**: rsplot supports it via `CurveSpec.fill = true`;
-//!   add once we settle how it interacts with log mode (baseline 0 is -inf).
-//! * **Y-axis lock**: rsplot has no per-axis mouse-enablement yet. The
-//!   `y_axis_locked` flag is stored but currently has no visual effect;
-//!   leave as-is until a per-axis interaction mode is available.
-//! * **Cursor emission lines**: the setting is read; drawing them requires
-//!   reading the cursor nuclide's emissions and pushing more markers —
-//!   follows once the data path is confirmed.
 
 use std::collections::HashMap;
 
@@ -50,8 +47,8 @@ use nucleide_nuclei::NuclideId;
 use rsplot::core::items::CurveInterpolation;
 use rsplot::{CurveSpec, LineStyle, Marker, Plot1D, YAxis};
 
-use crate::containers::EmissionType;
-use crate::containers::{BkgType, Roi};
+use crate::containers::{BkgType, Roi, RoiEvent, draw_rois};
+use crate::containers::{EmissionType, RoiViewState};
 use crate::core::NewRoi;
 use crate::core::SpectrumManager;
 use crate::settings::Settings;
@@ -94,18 +91,6 @@ pub struct FeatureLine {
 // State
 // ===========================================================================
 
-#[derive(Debug, Clone, Copy)]
-enum RoiSide {
-    Lower,
-    Upper,
-}
-
-#[derive(Debug, Clone)]
-struct DraggingRoi {
-    tag: String,
-    side: RoiSide,
-}
-
 pub struct SpectrumPlotState {
     /// Retained rsplot widget (owns wgpu resources for this plot).
     plot: Plot1D,
@@ -143,8 +128,7 @@ pub struct SpectrumPlotState {
     // When true, the next frame is allowed to auto-fit after rebuilding.
     reset_pending: bool,
 
-    dragging: Option<DraggingRoi>,
-    hovered: Option<(String, RoiSide)>,
+    pub roi_view: RoiViewState,
 }
 
 impl SpectrumPlotState {
@@ -186,8 +170,7 @@ impl SpectrumPlotState {
             cursor_emission_lines: Vec::new(),
             feature_lines: HashMap::new(),
             reset_pending: true,
-            dragging: None,
-            hovered: None,
+            roi_view: RoiViewState::default(),
         }
     }
 
@@ -209,109 +192,6 @@ fn plot_id_from(name: &str) -> u64 {
         h = h.wrapping_mul(0x100000001b3);
     }
     h
-}
-
-// ===========================================================================
-// ROI drag handling
-// ===========================================================================
-
-/// Hit radius in pixels — how close the pointer has to be to a bound to
-/// grab it.
-const ROI_HIT_PX: f32 = 8.0;
-
-fn handle_roi_drag(
-    state: &mut SpectrumPlotState,
-    spectrum_manager: &mut SpectrumManager,
-    settings: &Settings,
-    response: &rsplot::widget::plot_widget::PlotResponse,
-    ui: &egui::Ui,
-) {
-    // --- Hover cursor feedback (only when not already dragging) ---
-    if state.dragging.is_none() {
-        state.hovered = None;
-        if let Some(pointer) = response.response.hover_pos() {
-            if response.transform.area.contains(pointer) {
-                state.hovered = nearest_bound(state, spectrum_manager, response, pointer);
-                if state.hovered.is_some() {
-                    ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
-                }
-            }
-        }
-    }
-
-    // --- Drag start ---
-    if response.response.drag_started() {
-        if let Some(pointer) = response.response.interact_pointer_pos() {
-            if let Some((tag, side)) = nearest_bound(state, spectrum_manager, response, pointer) {
-                state.dragging = Some(DraggingRoi { tag, side });
-            }
-        }
-    }
-
-    // --- During drag: update bounds (no refit yet) ---
-    if let Some(drag) = state.dragging.clone() {
-        if let Some(pointer) = response.response.interact_pointer_pos() {
-            let (x, _) = response.transform.pixel_to_data(pointer);
-            if x.is_finite() {
-                if let Some(roi) = spectrum_manager.roi_manager.get_roi(&drag.tag) {
-                    let mut b = roi.roi_bound;
-                    match drag.side {
-                        RoiSide::Lower => b.0 = x.min(b.1 - 1.0),
-                        RoiSide::Upper => b.1 = x.max(b.0 + 1.0),
-                    }
-                    spectrum_manager.roi_manager.set_roi_bound_raw(&drag.tag, b);
-                }
-            }
-        }
-    }
-
-    // --- Drag stop: commit + refit ---
-    if response.response.drag_stopped() {
-        if let Some(drag) = state.dragging.take() {
-            let use_chi2 = settings.optimizer.use_chi2_weight;
-            spectrum_manager.roi_manager.on_roi_change(
-                &mut spectrum_manager.spectrum_registry,
-                &drag.tag,
-                use_chi2,
-                true,
-            );
-        }
-    }
-}
-
-/// Find the ROI bound closest to `pointer` in pixel space, if within
-/// `ROI_HIT_PX`. Only considers ROIs whose owner matches `state.owned_spectrum`
-/// (so tabbed mode doesn't grab ROIs from other tabs).
-fn nearest_bound(
-    state: &SpectrumPlotState,
-    spectrum_manager: &SpectrumManager,
-    response: &rsplot::widget::plot_widget::PlotResponse,
-    pointer: egui::Pos2,
-) -> Option<(String, RoiSide)> {
-    let mut best: Option<(String, RoiSide, f32)> = None;
-
-    for roi in spectrum_manager.roi_manager.registry().values() {
-        if let Some(owned) = &state.owned_spectrum {
-            if roi.owner_spectrum.as_deref() != Some(owned) {
-                continue;
-            }
-        }
-        for (side, x_val) in [
-            (RoiSide::Lower, roi.roi_bound.0),
-            (RoiSide::Upper, roi.roi_bound.1),
-        ] {
-            let (px, _) = response.transform.data_to_pixel(x_val, 0.0).into();
-            let dist = (pointer.x - px).abs();
-            if dist <= ROI_HIT_PX {
-                match &best {
-                    Some((_, _, d)) if *d <= dist => {}
-                    _ => best = Some((roi.tag.clone(), side, dist)),
-                }
-            }
-        }
-    }
-
-    best.map(|(tag, side, _)| (tag, side))
 }
 
 // ===========================================================================
@@ -343,7 +223,9 @@ pub fn render(
     state
         .plot
         .set_y_min_pos(Some(if state.log { -10.0 } else { 0.0 }));
-    state.plot.set_y_max_pos(Some(1e16));
+    if !state.log {
+        state.plot.set_y_max_pos(Some(1e16));
+    }
 
     // --- One-shot auto-fit if we've requested a reset ---
     state.plot.set_auto_reset_zoom(state.reset_pending);
@@ -376,7 +258,36 @@ pub fn render(
 
     // --- Show ---
     let response = state.plot.show(ui);
-    handle_roi_drag(state, spectrum_manager, settings, &response, ui);
+
+    // --- ROI overlay & interaction ---
+    let transform = &response.transform;
+    let roi_events = draw_rois(
+        ui,
+        &response.response,
+        transform.area,
+        &mut spectrum_manager.roi_manager,
+        state.owned_spectrum.as_deref(),
+        &mut state.roi_view,
+        |x| transform.data_to_pixel(x, 0.0).x,
+        |px| {
+            transform
+                .pixel_to_data(egui::pos2(px, transform.area.center().y))
+                .0
+        },
+        true,
+    );
+
+    let use_chi2 = settings.optimizer.use_chi2_weight;
+    for event in roi_events {
+        if let RoiEvent::SettingsUpdated(tag) = event {
+            spectrum_manager.roi_manager.on_roi_change(
+                &mut spectrum_manager.spectrum_registry,
+                &tag,
+                use_chi2,
+                true,
+            );
+        }
+    }
 
     // --- Read back bounds ---
     let (xmin, xmax) = (response.transform.x.min, response.transform.x.max);
@@ -460,6 +371,23 @@ fn render_toolbar(
         if ui.toggle_value(&mut state.log, "Log").changed() {
             state.request_reset();
         }
+        // Warn when log is on and the user has brush configured: the fill is
+        // silently disabled in log mode (update_curve_spec poisons the log
+        // transform), so the brush setting is being ignored right now.
+        if state.log && settings.plotting.brush {
+            ui.label(
+                egui::RichText::new("ⓘ fill disabled in log")
+                    .small()
+                    .italics()
+                    .color(ui.visuals().weak_text_color()),
+            )
+            .on_hover_text(
+                "Brush fill only works in linear mode.\n\n\
+                 The plotting library's log transform does not survive the \
+                 fill path, so fill is turned off in log view. The spectrum \
+                 outline still renders. Switch off Log to see the fill.",
+            );
+        }
 
         let cps_enabled = state.bkg_mode == BkgDisplayMode::None;
         ui.add_enabled_ui(cps_enabled, |ui| {
@@ -522,7 +450,10 @@ fn render_toolbar(
 struct CurveData {
     x: Vec<f64>,
     y: Vec<f64>,
-    color: Color32,
+    /// Outline. `None` = don't draw a line (brush-only).
+    stroke: Option<Color32>,
+    /// Area under the curve. `None` = no fill (pen-only).
+    fill: Option<Color32>,
     width: f32,
     legend: Option<String>,
 }
@@ -531,30 +462,76 @@ fn add_solid_curve(plot: &mut Plot1D, c: CurveData, interpolation: CurveInterpol
     if c.x.is_empty() || c.x.len() != c.y.len() {
         return;
     }
-    match &c.legend {
-        Some(name) => {
-            plot.add_curve_with_legend_and_interpolation(&c.x, &c.y, c.color, name, interpolation);
+
+    match (c.stroke, c.fill) {
+        (None, None) => {} // nothing to draw
+
+        (Some(stroke), None) => {
+            // Pen-only: one stroked curve.
+            match &c.legend {
+                Some(name) => plot.add_curve_with_legend_and_interpolation(
+                    &c.x,
+                    &c.y,
+                    stroke,
+                    name,
+                    interpolation,
+                ),
+                None => plot.add_curve_with_interpolation(&c.x, &c.y, stroke, interpolation),
+            };
         }
-        None => {
-            plot.add_curve_with_interpolation(&c.x, &c.y, c.color, interpolation);
+
+        (None, Some(fill)) => {
+            // Brush-only: filled area, no stroke. Fill inherits `spec.color`,
+            // so `spec.color` is the fill colour (already alpha-blended by
+            // the collector via `with_alpha`).
+            let handle = match &c.legend {
+                Some(name) => plot.add_curve_with_legend(&c.x, &c.y, fill, name),
+                None => plot.add_curve(&c.x, &c.y, fill),
+            };
+            let mut spec = CurveSpec::new(&c.x, &c.y, fill);
+            spec.line_style = LineStyle::None;
+            spec.line_width = 1.0; // ignored when line_style is None
+            spec.fill = true;
+            spec.interpolation = interpolation;
+            plot.update_curve_spec(handle, spec);
+        }
+
+        (Some(stroke), Some(fill)) => {
+            // Pen + brush: fill first (under), stroke second (over).
+            // Legend goes on the stroke curve — the picker shows one entry
+            // per spectrum, not two.
+            let fill_handle = plot.add_curve(&c.x, &c.y, fill);
+            let mut fill_spec = CurveSpec::new(&c.x, &c.y, fill);
+            fill_spec.line_style = LineStyle::None;
+            fill_spec.line_width = 1.0;
+            fill_spec.fill = true;
+            fill_spec.interpolation = interpolation;
+            plot.update_curve_spec(fill_handle, fill_spec);
+
+            match &c.legend {
+                Some(name) => plot.add_curve_with_legend_and_interpolation(
+                    &c.x,
+                    &c.y,
+                    stroke,
+                    name,
+                    interpolation,
+                ),
+                None => plot.add_curve_with_interpolation(&c.x, &c.y, stroke, interpolation),
+            };
         }
     }
-    // Width override: rsplot's `add_curve` uses a default width. To set
-    // width, re-apply a `CurveSpec`. Skipped here because the default is
-    // fine and re-applying doubles the work; add `update_curve_spec` if a
-    // specific width is needed.
-    let _ = c.width;
 }
 
 fn add_dashed_curve(plot: &mut Plot1D, c: CurveData) {
+    let Some(stroke) = c.stroke else { return };
     if c.x.is_empty() || c.x.len() != c.y.len() {
         return;
     }
     let handle = match &c.legend {
-        Some(name) => plot.add_curve_with_legend(&c.x, &c.y, c.color, name),
-        None => plot.add_curve(&c.x, &c.y, c.color),
+        Some(name) => plot.add_curve_with_legend(&c.x, &c.y, stroke, name),
+        None => plot.add_curve(&c.x, &c.y, stroke),
     };
-    let mut spec = CurveSpec::new(&c.x, &c.y, c.color);
+    let mut spec = CurveSpec::new(&c.x, &c.y, stroke);
     spec.line_style = LineStyle::Dashed;
     spec.line_width = c.width;
     plot.update_curve_spec(handle, spec);
@@ -569,6 +546,12 @@ fn collect_primary_curves(
     spectrum_manager: &SpectrumManager,
     settings: &Settings,
 ) -> Vec<CurveData> {
+    let pen = settings.plotting.pen;
+    let brush = settings.plotting.brush;
+    if !pen && !brush {
+        return Vec::new();
+    }
+
     let mut out = Vec::new();
     for (name, spectrum) in &spectrum_manager.spectrum_registry {
         if !spectrum.show_in_plot {
@@ -580,9 +563,6 @@ fn collect_primary_curves(
             }
         }
         if state.bkg_mode == BkgDisplayMode::Subtract && spectrum.background.is_none() {
-            continue;
-        }
-        if !settings.plotting.pen {
             continue;
         }
 
@@ -598,11 +578,13 @@ fn collect_primary_curves(
         out.push(CurveData {
             x: x.to_vec(),
             y: y.to_vec(),
-            color: spectrum.color_foreground,
+            stroke: pen.then_some(spectrum.color_foreground),
+            fill: (brush && !state.log).then(|| with_alpha(spectrum.color_foreground, 96)),
             width: 2.0,
             legend: Some(name.clone()),
         });
     }
+
     out
 }
 
@@ -611,7 +593,9 @@ fn collect_background_curves(
     spectrum_manager: &SpectrumManager,
     settings: &Settings,
 ) -> Vec<CurveData> {
-    if state.bkg_mode != BkgDisplayMode::Overlay || !settings.plotting.pen {
+    let pen = settings.plotting.pen;
+    let brush = settings.plotting.brush;
+    if state.bkg_mode != BkgDisplayMode::Overlay || (!pen && !brush) {
         return Vec::new();
     }
     let mut out = Vec::new();
@@ -634,7 +618,8 @@ fn collect_background_curves(
         out.push(CurveData {
             x: x.to_vec(),
             y: y.to_vec(),
-            color: spectrum.color_background,
+            stroke: pen.then_some(spectrum.color_background),
+            fill: (brush && !state.log).then(|| with_alpha(spectrum.color_background, 64)),
             width: 2.0,
             legend: Some(format!("{name} (bkg)")),
         });
@@ -728,7 +713,8 @@ fn collect_roi_curves(
                 gaussian: CurveData {
                     x: x_slice.clone(),
                     y: gauss_y,
-                    color: theme_def.colors.text.into(),
+                    stroke: Some(theme_def.colors.text.into()),
+                    fill: None,
                     width: 2.0,
                     legend: None,
                 },
@@ -736,7 +722,8 @@ fn collect_roi_curves(
                     Some(CurveData {
                         x: x_slice,
                         y: lin_y,
-                        color: theme_def.colors.text.into(),
+                        stroke: Some(theme_def.colors.text.into()),
+                        fill: None,
                         width: 1.0,
                         legend: None,
                     })
@@ -765,23 +752,6 @@ fn collect_markers(
     spectrum_manager: &SpectrumManager,
 ) -> Vec<MarkerData> {
     let mut markers = Vec::new();
-
-    for roi in spectrum_manager.roi_manager.registry().values() {
-        if let Some(owned) = &state.owned_spectrum {
-            if roi.owner_spectrum.as_deref() != Some(owned) {
-                continue;
-            }
-        }
-        let color = Color32::from_rgb(255, 200, 0);
-        for x in [roi.roi_bound.0, roi.roi_bound.1] {
-            markers.push(MarkerData {
-                x,
-                color,
-                width: 1.5,
-                line_style: LineStyle::Dashed,
-            });
-        }
-    }
 
     for nuclide_id in spectrum_manager.nuclide_library.selected().iter() {
         let Some(nuclide) = spectrum_manager.nuclide_library.get_nuclide(*nuclide_id) else {
@@ -1003,6 +973,11 @@ fn set_bkg_mode(
 // Small helpers
 // ===========================================================================
 
+fn with_alpha(c: Color32, a: u8) -> Color32 {
+    let [r, g, b, _] = c.to_srgba_unmultiplied();
+    Color32::from_rgba_unmultiplied(r, g, b, a)
+}
+
 /// Y-range that fits the visible data in the current x-window.
 ///
 /// Used by the y-axis lock to re-fit y each frame as the user pans or zooms x.
@@ -1063,7 +1038,7 @@ fn visible_y_range(
     }
 
     if state.log {
-        Some((y_max - 6.0, y_max + 0.5))
+        Some(((y_max - 6.0).max(1.0), y_max + 0.5))
     } else {
         Some((0.0, y_max * 1.05 + 1.0))
     }

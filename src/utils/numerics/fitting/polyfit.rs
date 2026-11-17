@@ -11,7 +11,7 @@
 use nalgebra::{DMatrix, DVector};
 use thiserror::Error;
 
-use super::pseudo_inverse;
+use super::optimizer::pseudo_inverse;
 
 #[derive(Debug, Error)]
 pub enum PolyfitError {

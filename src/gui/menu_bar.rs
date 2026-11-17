@@ -172,9 +172,44 @@ fn dispatch_import_outcomes(app: &mut LuRaCsApp, outcomes: Vec<ImportOutcome>) {
                 }
             }
             ImportOutcome::Spectrogram(name) => {
-                // TODO: open as a Spectrogram and register via RunManager
-                // once SpectrogramScreen is ported.
-                tracing::info!(name, "Imported spectrogram (registration pending)");
+                use crate::app::TopTab;
+                use crate::spectogram::{Spectrogram, SpectrogramConfig, SpectrogramMode};
+
+                let library_dir = app
+                    .settings
+                    .read_settings()
+                    .paths
+                    .spectrogram_library
+                    .clone();
+                let config = {
+                    let s = app.settings.read_settings();
+                    SpectrogramConfig {
+                        deque_length: s.spectrogram.history_length,
+                        map_save_extra_gps_data: s.gps.save_extra_gps_data,
+                        map_save_extra_measurement_time_data: s
+                            .gps
+                            .save_extra_measurement_time_data,
+                    }
+                };
+
+                match Spectrogram::open(&name, &library_dir, config, SpectrogramMode::Resume) {
+                    Ok(sp) => {
+                        if let Err(e) = app.run_manager.add_spectrogram(name.clone(), sp) {
+                            tracing::error!(name = %name, "add_spectrogram failed: {e}");
+                        } else {
+                            app.spectrogram_screen.selected_spectrogram = Some(name);
+                            app.top_tab = TopTab::Spectrogram;
+                        }
+                    }
+                    Err(e) => {
+                        tracing::error!(name = %name, "Spectrogram::open(Resume) failed: {e}");
+                        app.modal_stack
+                            .push(Modal::root(ModalKind::Info(InfoModal::new(
+                                "Import failed",
+                                format!("Could not open {name}: {e}"),
+                            ))));
+                    }
+                }
             }
             ImportOutcome::Rois(rois) => {
                 app.spectrum_manager.roi_manager.load_rois(&rois);

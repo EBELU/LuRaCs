@@ -10,9 +10,10 @@ use thiserror::Error;
 
 use crate::containers::Fit;
 use crate::containers::{BkgType, FitType};
-use crate::utils::numerics::pseudo_inverse;
-use crate::utils::numerics::{multi_gaussian, multi_gaussian_jacobian, poisson_weights};
-use crate::utils::{PolyfitError, polyfit_weighted};
+use super::gaussian::{multi_gaussian, multi_gaussian_jacobian};
+use super::optimizer::pseudo_inverse;
+use super::polyfit::{PolyfitError, polyfit_weighted};
+use super::weights::poisson_weights;
 
 // ---------------------------------------------------------------------------
 // Errors

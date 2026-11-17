@@ -23,7 +23,7 @@
 use ndarray::Array2;
 use rayon::prelude::*;
 
-use crate::utils::numerics::deconvolution::CsrMatrix;
+use super::csr::CsrMatrix;
 
 /// Sparsity filter threshold for emitted response-matrix entries.
 pub const SPARSITY_THRESHOLD: f64 = 1e-12;

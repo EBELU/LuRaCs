@@ -121,6 +121,9 @@ pub enum ConfirmAction {
     ExitSiMode,
     /// Escape hatch for ad-hoc actions.
     Custom(Box<dyn FnOnce(&mut LuRaCsApp)>),
+    /// The user clicked Cancel in the settings dialog with pending
+    /// unapplied changes and confirmed the discard prompt.
+    DiscardSettingsChanges,
 }
 
 // ===========================================================================
@@ -202,6 +205,9 @@ fn dispatch_action(app: &mut LuRaCsApp, action: ConfirmAction) {
         ConfirmAction::EnterSiMode => app.set_si_mode(true),
         ConfirmAction::ExitSiMode => app.set_si_mode(false),
         ConfirmAction::Custom(f) => f(app),
+        ConfirmAction::DiscardSettingsChanges => {
+            app.settings_dialog.open = false;
+        }
     }
 }
 

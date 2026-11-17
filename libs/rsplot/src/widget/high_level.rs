@@ -2711,7 +2711,7 @@ fn curve_spec_from_data(curve: &CurveData) -> CurveSpec<'_> {
         // record's labels are preserved across this re-application path.
         x_label: None,
         y_label: None,
-        interpolation: Linear,
+        interpolation: curve.interpolation,
     }
 }
 

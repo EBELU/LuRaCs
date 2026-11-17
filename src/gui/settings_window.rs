@@ -20,7 +20,7 @@ use eframe::egui;
 use serde_json::Value;
 
 use crate::app::LuRaCsApp;
-use crate::gui::{ColorScheme, InfoModal, Modal, ModalKind};
+use crate::gui::{ColorScheme, ConfirmAction, ConfirmModal, InfoModal, Modal, ModalKind};
 use crate::settings::{Category, Settings, SharedSettingsExt};
 
 // ===========================================================================
@@ -76,7 +76,7 @@ fn color_scheme_choices() -> [(ColorScheme, &'static str); 3] {
 
 /// Staged copy of every editable setting. Kept in lockstep with
 /// [`crate::settings::Settings`] by [`SettingsDraft::from_settings`].
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 struct SettingsDraft {
     // Theme
     theme_name: String,
@@ -127,6 +127,15 @@ struct SettingsDraft {
 }
 
 impl SettingsDraft {
+    /// True when the draft differs from `s` in any field. Compares by
+    /// constructing a fresh draft so adding a field to `SettingsDraft`
+    /// automatically participates in the check — no second field list to
+    /// forget to update.
+    fn has_changes(&self, s: &Settings) -> bool {
+        *self != Self::from_settings(s)
+    }
+
+    /// Create a new `SettingsDraft` from a `Settings` instance.
     fn from_settings(s: &Settings) -> Self {
         Self {
             theme_name: s.theme.name.clone(),
@@ -221,6 +230,7 @@ impl SettingsDialog {
         }
 
         let mut window_open = self.open;
+        let mut close_requested = false;
         egui::Window::new("Settings")
             .open(&mut window_open)
             .resizable(true)
@@ -230,9 +240,11 @@ impl SettingsDialog {
                     self.render_sections(app, ui);
                 });
                 ui.separator();
-                self.render_buttons(app, ui);
+                close_requested = self.render_buttons(app, ui);
             });
-        self.open = window_open;
+        // `close_requested` overrides a click on Cancel-while-clean; the
+        // window's X button still comes through `window_open`.
+        self.open = window_open && !close_requested;
     }
 
     fn render_sections(&mut self, app: &mut LuRaCsApp, ui: &mut egui::Ui) {
@@ -321,6 +333,15 @@ impl SettingsDialog {
             ui.radio_value(&mut self.draft.draw_mode, DrawMode::Brush, "Brush");
             ui.radio_value(&mut self.draft.draw_mode, DrawMode::Both, "Pen + Brush");
         });
+
+        if self.draft.draw_mode != DrawMode::Pen {
+            ui.label(
+                egui::RichText::new("Brush fill is disabled in logarithmic view.")
+                    .small()
+                    .italics()
+                    .color(ui.visuals().weak_text_color()),
+            );
+        }
         ui.add(
             egui::DragValue::new(&mut self.draft.energy_max)
                 .range(100.0..=10_000.0)
@@ -456,15 +477,36 @@ impl SettingsDialog {
         );
     }
 
-    fn render_buttons(&mut self, app: &mut LuRaCsApp, ui: &mut egui::Ui) {
+    fn render_buttons(&mut self, app: &mut LuRaCsApp, ui: &mut egui::Ui) -> bool {
+        let mut close_requested = false;
         ui.horizontal(|ui| {
             if ui.button("Apply").clicked() {
                 self.apply(app, ui);
+                close_requested = true;
             }
             if ui.button("Cancel").clicked() {
-                self.open = false;
+                close_requested = self.request_cancel(app);
             }
         });
+        close_requested
+    }
+
+    fn request_cancel(&mut self, app: &mut LuRaCsApp) -> bool {
+        let settings_guard = app.settings.read_settings();
+        let dirty = self.draft.has_changes(&settings_guard);
+        drop(settings_guard);
+
+        if !dirty {
+            return true; // clean → close immediately
+        }
+
+        app.modal_stack
+            .push(Modal::root(ModalKind::Confirm(ConfirmModal::new(
+                "Discard changes?",
+                "You have unapplied changes. Discard them and close the settings window?",
+                ConfirmAction::DiscardSettingsChanges,
+            ))));
+        false // keep dialog open until the modal decides
     }
 
     // -----------------------------------------------------------------------

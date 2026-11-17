@@ -12,11 +12,10 @@
 use ndarray::ArrayView1;
 use rsplot::{DEFAULT_DELTACHI, leastsq};
 
-use crate::utils::{multi_gaussian, multi_gaussian_jacobian};
+use super::filters::savgol::{SavgolError, median, savgol_filter};
+use super::fitting::{multi_gaussian, multi_gaussian_jacobian};
 
-use super::savgol::{SavgolError, median, savgol_filter};
-
-pub use super::savgol::SavgolError as PeakFinderError;
+pub use super::filters::savgol::SavgolError as PeakFinderError;
 pub type PeakResult<T> = std::result::Result<T, PeakFinderError>;
 
 // ---------------------------------------------------------------------------

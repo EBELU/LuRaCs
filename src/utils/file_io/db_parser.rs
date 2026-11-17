@@ -68,7 +68,7 @@ pub struct DbHeader {
     pub device_id: String,
     pub channels: usize,
     pub concat: i64,
-    pub save_interval: i64,
+    pub save_interval: f64,
     /// Polynomial coefficients (matches `Spectrum::apply_calibration`).
     pub calibration: Vec<f64>,
     pub meta: String,
@@ -101,12 +101,12 @@ pub struct DbDataColumns {
 // ---------------------------------------------------------------------------
 
 struct SpectrogramRow {
-    timestamp: i64,
+    timestamp: f64,
     avg_cps: f64,
-    avg_dr: f64,
-    temperature: f64,
-    latitude: f64,
-    longitude: f64,
+    avg_dr: Option<f64>,
+    temperature: Option<f64>,
+    latitude: Option<f64>,
+    longitude: Option<f64>,
     spectrum_blob: Vec<u8>,
     meta_blob: Option<Vec<u8>>,
 }
@@ -163,12 +163,12 @@ impl DbParser {
         let mut rows = stmt.query([])?;
         let row = rows.next()?.ok_or(DbParseError::NoHeader)?;
 
-        let created_secs: i64 = row.get(0)?;
+        let created_secs: f64 = row.get(0)?;
         let device_id: String = row.get(1)?;
         let channels_i64: i64 = row.get(2)?;
         let calibration_raw: Option<String> = row.get(3)?;
         let concat: i64 = row.get(4)?;
-        let save_interval: i64 = row.get(5)?;
+        let save_interval: f64 = row.get(5)?;
         let meta: String = row.get(6)?;
 
         let calibration: Vec<f64> = match calibration_raw {
@@ -177,9 +177,9 @@ impl DbParser {
         };
 
         let created = Local
-            .timestamp_opt(created_secs, 0)
+            .timestamp_opt(created_secs as i64, 0)
             .single()
-            .ok_or(DbParseError::InvalidTimestamp(created_secs))?;
+            .ok_or(DbParseError::InvalidTimestamp(created_secs as i64))?;
 
         Ok(DbHeader {
             created,
@@ -208,7 +208,7 @@ impl DbParser {
         let acc_blob: Option<Vec<u8>> = row.get(0)?;
         let total_duration: f64 = row.get(1)?;
         let total_dose: f64 = row.get(2)?;
-        let last_update_secs: i64 = row.get(3)?;
+        let last_update_secs: f64 = row.get(3)?;
 
         let total_spectrum = match acc_blob {
             Some(blob) if !blob.is_empty() => {
@@ -219,9 +219,9 @@ impl DbParser {
         };
 
         let last_update = Local
-            .timestamp_opt(last_update_secs, 0)
+            .timestamp_opt(last_update_secs as i64, 0)
             .single()
-            .ok_or(DbParseError::InvalidTimestamp(last_update_secs))?;
+            .ok_or(DbParseError::InvalidTimestamp(last_update_secs as i64))?;
 
         Ok(DbSummary {
             total_duration,
@@ -320,28 +320,26 @@ impl DbParser {
 
         for r in rows {
             let dt = Local
-                .timestamp_opt(r.timestamp, 0)
+                .timestamp_opt(r.timestamp as i64, 0)
                 .single()
-                .ok_or(DbParseError::InvalidTimestamp(r.timestamp))?;
+                .ok_or(DbParseError::InvalidTimestamp(r.timestamp as i64))?;
 
-            timestamps.push(r.timestamp as f64);
+            timestamps.push(r.timestamp);
             timestamps_datetime.push(dt);
 
             // Preserve Python's "0 means unknown → NaN" semantics.
-            temperatures.push(if r.temperature != 0.0 {
-                (r.temperature / 1000.0) as f32
-            } else {
-                f32::NAN
+            temperatures.push(match r.temperature {
+                Some(t) if t != 0.0 => (t / 1000.0) as f32,
+                _ => f32::NAN,
             });
             avg_cps.push((r.avg_cps / 1000.0) as f32);
-            avg_dr.push(if r.avg_dr != 0.0 {
-                (r.avg_dr / 1000.0) as f32
-            } else {
-                f32::NAN
+            avg_dr.push(match r.avg_dr {
+                Some(d) if d != 0.0 => (d / 1000.0) as f32,
+                _ => f32::NAN,
             });
 
-            latitudes.push(r.latitude);
-            longitudes.push(r.longitude);
+            latitudes.push(r.latitude.unwrap_or(f64::NAN));
+            longitudes.push(r.longitude.unwrap_or(f64::NAN));
 
             let counts = decompress_spectrum(&r.spectrum_blob, ch)?;
             spectra_flat.extend(counts.into_iter().map(|v| v as i32));

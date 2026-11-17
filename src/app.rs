@@ -414,18 +414,12 @@ impl LuRaCsApp {
 
         match self.top_tab {
             TopTab::Spectrum => {
-                // TODO: `SpectrumScreen::render` was `&Palette`; it now takes
-                // `&ThemeDefinition`. Update the signature and replace
-                // `palette.base` / `palette.text` / `palette.surface0` /
-                // `palette.dark` with `theme.colors.background` /
-                // `theme.colors.text` / `theme.colors.surface` /
-                // `matches!(theme.meta.variant, Variant::Dark)`.
-                let theme = self.theme_manager.current();
+                let theme_def = self.theme_manager.current();
                 let settings_guard = self.settings.read_settings();
                 self.spectrum_screen.render(
                     &mut self.spectrum_manager,
                     &settings_guard,
-                    theme,
+                    theme_def,
                     &self.render_state,
                     ui,
                 );

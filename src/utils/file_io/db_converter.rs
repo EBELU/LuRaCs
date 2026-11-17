@@ -109,7 +109,7 @@ fn header_to_sheet(h: &DbHeader) -> Sheet {
     s.scalar("device_id", Cell::Str(h.device_id.clone()));
     s.scalar("channels", Cell::Int(h.channels as i64));
     s.scalar("concat", Cell::Int(h.concat));
-    s.scalar("save_interval", Cell::Int(h.save_interval));
+    s.scalar("save_interval", Cell::Float(h.save_interval));
     s.push(
         "calibration",
         h.calibration.iter().map(|c| Cell::Float(*c)).collect(),

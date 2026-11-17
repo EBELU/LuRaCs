@@ -557,6 +557,22 @@ impl Importer {
     ) -> Vec<ImportOutcome> {
         let mut out = Vec::new();
         for path in paths {
+            let ext = path
+                .extension()
+                .and_then(|s| s.to_str())
+                .map(|s| s.to_ascii_lowercase());
+
+            // `.db` files are spectrogram databases, regardless of what filter
+            // the caller passed. Route them to the spectrogram importer.
+            if ext.as_deref() == Some("db") {
+                if let Some(name) = self.import_spectrogram(path, appdata_spectrogram_library) {
+                    out.push(ImportOutcome::Spectrogram(name));
+                } else {
+                    tracing::warn!(path = %path.display(), "failed to import spectrogram db");
+                }
+                continue;
+            }
+
             match filter {
                 ImportFilter::Spectrum | ImportFilter::All => {
                     if let Some(parsed) = self.parse_spectrum(path) {

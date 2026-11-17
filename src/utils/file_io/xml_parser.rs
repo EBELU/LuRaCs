@@ -13,6 +13,7 @@
 //!   * **Fixed:** `Description` for efficiency is looked up under `Efficiency`
 //!     (Python searches under `<Instrument>`, never finds it).
 
+use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
@@ -33,7 +34,7 @@ use crate::utils::{EfficiencySignature, ResolutionSignature};
 
 const N42: &str = "http://physics.nist.gov/N42/2011/N42";
 const LRC: &str = "https://example.com/n42/extensions";
-const DHS: &str = "DHS";
+const DHS: &str = "http://www.dhs.gov/n42";
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -139,7 +140,8 @@ impl XmlParser {
             .and_then(|s| s.to_str())
             .unwrap_or("unknown")
             .to_string();
-        let content = std::fs::read_to_string(&path)?;
+        let raw_content = std::fs::read_to_string(&path)?;
+        let content = sanitize_xml_namespaces(&raw_content);
         let doc = Document::parse(&content)?;
         let root = doc.root_element();
         let data = Self::dispatch(root, &file_name, meta_only)?;
@@ -228,6 +230,21 @@ impl XmlParser {
     }
 }
 
+/// Raysid exports `<DHS:Raysid>` without declaring `xmlns:DHS` on the root element,
+/// which causes `roxmltree` to reject the document with `UnknownNamespace`.
+/// Only intervenes when `<DHS:` is used without an `xmlns:DHS` declaration.
+fn sanitize_xml_namespaces(xml: &str) -> Cow<'_, str> {
+    if xml.contains("<DHS:") && !xml.contains("xmlns:DHS") {
+        Cow::Owned(xml.replacen(
+            "<RadInstrumentData ",
+            &format!("<RadInstrumentData xmlns:DHS=\"{DHS}\" "),
+            1,
+        ))
+    } else {
+        Cow::Borrowed(xml)
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Text / attribute helpers
 // ---------------------------------------------------------------------------
@@ -305,7 +322,7 @@ fn parse_pair_at(node: Node, ns: Option<&str>, local: &str) -> Option<(f64, f64)
 }
 
 fn parse_iso8601_duration(text: Option<&str>) -> Option<f64> {
-    let s = text?;
+    let s = text?.trim();
     if s.starts_with("PT") && s.ends_with('S') {
         s[2..s.len() - 1].parse().ok()
     } else {
@@ -313,14 +330,16 @@ fn parse_iso8601_duration(text: Option<&str>) -> Option<f64> {
     }
 }
 
-/// Strip trailing `Z` and parse as naive; interpret the result as UTC.
-/// Matches Python's `datetime.fromisoformat(value.removesuffix("Z")).replace(tzinfo=None)`.
+/// Parse ISO-8601 timestamps with or without timezone offsets (`Z`, `+01:00`, or naive UTC).
 fn safe_iso(text: Option<&str>) -> Option<DateTime<Utc>> {
-    let s = text?;
-    let s = s.strip_suffix('Z').unwrap_or(s);
+    let s = text?.trim();
     if s.is_empty() {
         return None;
     }
+    if let Ok(dt) = DateTime::parse_from_rfc3339(s) {
+        return Some(dt.with_timezone(&Utc));
+    }
+    let s = s.strip_suffix('Z').unwrap_or(s);
     NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S")
         .or_else(|_| NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S%.f"))
         .ok()
@@ -393,16 +412,25 @@ fn build_spectrum(
 // ---------------------------------------------------------------------------
 
 impl XmlParser {
-    // In XmlParser:
     pub fn into_data(self) -> ParsedData {
         self.data
     }
     pub fn get_instrument_owned(&self) -> Option<InstrumentData> {
-        self.data.instrument.clone() // if InstrumentData: Clone
+        self.data.instrument.clone()
     }
 
     fn parse_raysid(root: Node, name: &str) -> XmlParserResult<ParsedData> {
         let mut data = ParsedData::new(name.to_string());
+
+        data.instrument_id = get_descendant_text(root, Some(N42), "RadInstrumentIdentifier")
+            .or_else(|| {
+                descendant(root, Some(N42), "RadInstrumentInformation")
+                    .and_then(|n| n.attribute("id"))
+                    .map(String::from)
+            });
+        data.instrument_model = get_descendant_text(root, Some(N42), "RadInstrumentModelName");
+        data.instrument_class_code = get_descendant_text(root, Some(N42), "RadInstrumentClassCode");
+        data.remark = get_descendant_text(root, Some(N42), "Remark");
 
         // Calibration is a degree-3 polynomial fit to energy boundary values.
         if let Some(ec) = descendant(root, Some(N42), "EnergyCalibration") {
@@ -421,6 +449,13 @@ impl XmlParser {
                 }
             }
         }
+
+        // `<DHS:Raysid>` sits at the root level in Raysid N42 exports (check `meas` as fallback).
+        // Unprefixed children inside `<DHS:Raysid>` inherit the default `N42` namespace.
+        let root_dose = child(root, Some(DHS), "Raysid")
+            .and_then(|n| child(n, Some(N42), "AverageDoseRate"))
+            .and_then(|n| n.text())
+            .and_then(|t| t.trim().parse().ok());
 
         for meas in descendants(root, Some(N42), "RadMeasurement") {
             let code = get_text(meas, Some(N42), "MeasurementClassCode").unwrap_or_default();
@@ -446,9 +481,10 @@ impl XmlParser {
             );
 
             let dose = child(meas, Some(DHS), "Raysid")
-                .and_then(|n| child(n, Some(DHS), "AverageDoseRate"))
+                .and_then(|n| child(n, Some(N42), "AverageDoseRate"))
                 .and_then(|n| n.text())
-                .and_then(|t| t.parse().ok());
+                .and_then(|t| t.trim().parse().ok())
+                .or(root_dose);
 
             let sd = build_spectrum(
                 y,
@@ -481,9 +517,6 @@ impl XmlParser {
                 .and_then(|n| n.text())
                 .map(String::from)
         });
-        // The above is approximate; the Python locates it via
-        // `.//ResultDataList/ResultData/DeviceConfigReference/Name`. Since the
-        // RadiaCode schema uses no namespaces, walk descendants directly:
         data.instrument_model = Some(
             descendant(root, None, "DeviceConfigReference")
                 .and_then(|n| child(n, None, "Name"))
@@ -541,7 +574,7 @@ impl XmlParser {
                     safe_iso(descendant(result, None, "EndTime").and_then(|n| n.text())),
                     spectrum_name,
                 ));
-                let _ = instrument; // Python passes as `instrument` kwarg; our SpectrumData can't hold a string.
+                let _ = instrument;
             }
 
             if let Some(bg_spec) = descendant(result, None, "BackgroundEnergySpectrum")
@@ -833,7 +866,6 @@ impl XmlParser {
         // Resolution
         let (res_fn, res_params, res_fwhm, res_e, res_created) =
             if let Some(res) = child(instrument, Some(N42), "Resolution") {
-                // was: let fn_name = get_text(res, Some(N42), "Function");
                 let fn_name: Option<ResolutionSignature> = get_text(res, Some(N42), "Function")
                     .and_then(|t| t.parse::<ResolutionSignature>().ok());
 
@@ -866,7 +898,6 @@ impl XmlParser {
         // Efficiency
         let (eff_fn, eff_params, eff_points, eff_e_pts, eff_created, eff_desc) =
             if let Some(eff) = child(instrument, Some(N42), "Efficiency") {
-                // was: let fn_name = get_text(eff, Some(N42), "Function");
                 let fn_name: Option<EfficiencySignature> = get_text(eff, Some(N42), "Function")
                     .and_then(|t| t.parse::<EfficiencySignature>().ok());
 
@@ -877,8 +908,6 @@ impl XmlParser {
                 let created = get_text(eff, Some(N42), "CreatedTS")
                     .and_then(|t| DateTime::parse_from_rfc3339(&t).ok())
                     .map(|dt| dt.with_timezone(&Utc));
-                // BUG FIX: Python looks for Description under Instrument;
-                // it's actually under Efficiency.
                 let desc = get_text(eff, Some(N42), "Description");
 
                 let mut eff_pts: Vec<Quantity> = Vec::new();

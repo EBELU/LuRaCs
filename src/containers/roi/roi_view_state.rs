@@ -1,3 +1,5 @@
+// src/roi_view_state.rs
+
 use crate::containers::{nuclide::Emission, roi::Roi};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -13,9 +15,19 @@ pub enum RoiInteraction {
     /// User is dragging one edge of a specific ROI.
     DraggingEdge { tag: String, edge: Edge },
     /// User is dragging the whole region (both bounds together).
-    DraggingRegion { tag: String, grab_x: f64 },
+    DraggingRegion {
+        tag: String,
+        grab_x: f64,
+        initial_bound: (f64, f64),
+    },
     /// Modal editor is open for this ROI.
     Editing { tag: String },
+}
+
+impl RoiInteraction {
+    pub fn is_active(&self) -> bool {
+        !matches!(self, RoiInteraction::Idle)
+    }
 }
 
 /// UI-only flags. Model state lives in `Roi`.

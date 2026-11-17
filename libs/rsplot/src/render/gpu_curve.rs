@@ -134,7 +134,8 @@ struct FillParams {
     ortho: [[f32; 4]; 4],
     color: [f32; 4],
     axis_log: [f32; 2],
-    _pad: [f32; 2],
+    interpolation: u32,
+    _padding: u32,
 }
 
 /// Params block for the error-bar shader. Same layout as the marker block up
@@ -1522,7 +1523,8 @@ impl GpuCurve {
             ortho,
             color: self.color,
             axis_log,
-            _pad: [0.0; 2],
+            interpolation: self.interpolation as u32,
+            _padding: 0,
         };
         queue.write_buffer(&self.fill_params, 0, bytemuck::bytes_of(&fill));
 
@@ -1539,9 +1541,6 @@ impl GpuCurve {
         queue.write_buffer(&self.errorbar_params, 0, bytemuck::bytes_of(&errorbar));
     }
 
-    /// Draw the fill band between the curve and its baseline, if filled. A no-op
-    /// when fill is off or there is fewer than one segment. Drawn before the
-    /// line so the stroke sits on top of its own fill.
     pub(crate) fn draw_fill(
         &self,
         render_pass: &mut wgpu::RenderPass<'_>,
@@ -1550,8 +1549,15 @@ impl GpuCurve {
         if !self.fill || self.count < 2 {
             return;
         }
-        // 6 vertices (two triangles) per segment; segment count = points - 1.
-        let vertices = 6 * (self.count - 1);
+        // 6 vertices (two triangles) per segment. Non-linear interpolation
+        // expands each point-pair into 2 (pre/post) or 3 (mid) sub-segments,
+        // so the vertex count scales accordingly — matching polyline.wgsl.
+        let segments_per_pair: u32 = match self.interpolation {
+            CurveInterpolation::Linear => 1,
+            CurveInterpolation::StepPre | CurveInterpolation::StepPost => 2,
+            CurveInterpolation::StepMid => 3,
+        };
+        let vertices = 6 * (self.count - 1) * segments_per_pair;
         render_pass.set_pipeline(&pipeline.fill_pipeline);
         render_pass.set_bind_group(0, &self.fill_bind_group, &[]);
         render_pass.draw(0..vertices, 0..1);

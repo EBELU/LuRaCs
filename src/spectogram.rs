@@ -341,10 +341,10 @@ impl Spectrogram {
         match mode {
             SpectrogramMode::Resume => {
                 sp.load_from_db()?;
-                // Preserve Python behaviour: resumed spectrograms start
-                // paused until the caller explicitly unpauses them.
                 sp.paused = true;
                 sp.state = SpectrogramState::Loaded;
+                // Emit the loaded state so the UI has something to render on frame 1.
+                sp.request_data();
             }
             SpectrogramMode::New {
                 save_interval,
