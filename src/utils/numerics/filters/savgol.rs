@@ -76,7 +76,7 @@ pub fn savgol_coeffs(
         }
         let scale = (vt[(k, deriv)] / s[k]) * fact;
         for i in 0..window_length {
-            coeffs[i] += scale * u[(i, k)];
+            coeffs[i] = scale.mul_add(u[(i, k)], coeffs[i]);
         }
     }
 

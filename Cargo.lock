@@ -20,7 +20,6 @@ dependencies = [
  "mendeleev",
  "nalgebra 0.35.0",
  "ndarray 0.17.2",
- "ndarray-ndimage",
  "ndarray-npy",
  "nucleide-nuclei",
  "physure",
@@ -3880,15 +3879,6 @@ checksum = "a6cb138bb79a146c1bd460005623e142ef0181e3d0219cb493e02f7d08a35695"
 
 [[package]]
 name = "itertools"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285"
@@ -4613,7 +4603,6 @@ version = "0.17.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "520080814a7a6b4a6e9070823bb24b4531daac8c4627e08ba5de8c5ef2f2752d"
 dependencies = [
- "approx 0.5.1",
  "matrixmultiply",
  "num-complex 0.4.6",
  "num-integer",
@@ -4623,17 +4612,6 @@ dependencies = [
  "rawpointer",
  "rayon",
  "serde",
-]
-
-[[package]]
-name = "ndarray-ndimage"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "467eb07fa67483ae5690d7940409e225f170607fd6058650cccfa6111953e803"
-dependencies = [
- "ndarray 0.17.2",
- "ndarray-stats",
- "num-traits",
 ]
 
 [[package]]
@@ -4648,21 +4626,6 @@ dependencies = [
  "num-traits",
  "py_literal",
  "zip 6.0.0",
-]
-
-[[package]]
-name = "ndarray-stats"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b6e54a8b65764f71827a90ca1d56965ec0c67f069f996477bd493402a901d1f"
-dependencies = [
- "indexmap",
- "itertools 0.13.0",
- "ndarray 0.17.2",
- "noisy_float",
- "num-integer",
- "num-traits",
- "rand 0.8.8",
 ]
 
 [[package]]
@@ -4723,15 +4686,6 @@ name = "nohash-hasher"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2bf50223579dc7cdcfb3bfcacf7069ff68243f8c363f62ffa99cf000a6b9c451"
-
-[[package]]
-name = "noisy_float"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c16843be85dd410c6a12251c4eca0dd1d3ee8c5725f746c4d5e0fdcec0a864b2"
-dependencies = [
- "num-traits",
-]
 
 [[package]]
 name = "nom"

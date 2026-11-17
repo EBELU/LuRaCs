@@ -48,12 +48,14 @@ mod opt_nuclide_id_string {
         D: Deserializer<'de>,
     {
         let opt = Option::<String>::deserialize(deserializer)?;
-        match opt {
-            Some(s) => NuclideId::from_name(&s)
-                .map(Some)
-                .map_err(serde::de::Error::custom),
-            None => Ok(None),
-        }
+        opt.map_or_else(
+            || Ok(None),
+            |s| {
+                NuclideId::from_name(&s)
+                    .map(Some)
+                    .map_err(serde::de::Error::custom)
+            },
+        )
     }
 }
 
@@ -61,7 +63,7 @@ mod vec_nuclide_id_string_string_f64 {
     use nucleide_nuclei::NuclideId;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-    pub fn serialize<S>(v: &Vec<(NuclideId, String, f64)>, serializer: S) -> Result<S::Ok, S::Error>
+    pub fn serialize<S>(v: &[(NuclideId, String, f64)], serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -133,7 +135,7 @@ pub struct Emission {
 
 impl Emission {
     /// Placeholder equivalent to Python's `EmptyEmission`.
-    pub fn empty() -> Self {
+    pub const fn empty() -> Self {
         Self {
             parent_nuclide: None,
             energy_kev: None,

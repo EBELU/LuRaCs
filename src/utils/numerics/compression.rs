@@ -105,7 +105,7 @@ pub fn decompress_spectrum(blob: &[u8], channel_count: usize) -> CompressionResu
     }
 
     let mut out = Vec::with_capacity(channel_count);
-    for chunk in raw[..needed].chunks_exact(4) {
+    for chunk in raw[..needed].as_chunks::<4>().0 {
         out.push(u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]));
     }
     Ok(out)

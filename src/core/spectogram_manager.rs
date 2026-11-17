@@ -175,11 +175,11 @@ impl SpectrogramManager {
         self.energy_axes_buffer.remove(name);
     }
 
-    pub fn set_roi_edit_mode(&mut self, state: bool) {
+    pub const fn set_roi_edit_mode(&mut self, state: bool) {
         self.roi_edit_mode = state;
     }
 
-    pub fn roi_edit_mode(&self) -> bool {
+    pub const fn roi_edit_mode(&self) -> bool {
         self.roi_edit_mode
     }
 
@@ -383,9 +383,11 @@ pub fn energy_axis_from_calibration(coeffs: &[f64], channels: usize) -> Array1<f
     if coeffs.is_empty() {
         return Array1::from_iter((0..channels).map(|i| i as f64));
     }
-    Array1::from_iter(
-        (0..channels).map(|i| coeffs.iter().fold(0.0, |acc, &c| acc * (i as f64) + c)),
-    )
+    Array1::from_iter((0..channels).map(|i| {
+        coeffs
+            .iter()
+            .fold(0.0, |acc, &c| f64::mul_add(acc, i as f64, c))
+    }))
 }
 
 /// Convenience: derive the axis directly from a spectrogram's header.

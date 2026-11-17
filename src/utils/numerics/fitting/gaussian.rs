@@ -11,11 +11,11 @@ use ndarray::{Array1, Array2, ArrayView1};
 /// `params` length that isn't a multiple of 3 — the trailing partial
 /// group is silently ignored. If you'd rather reject that as an error,
 /// call `try_multi_gaussian` (below).
-pub fn multi_gaussian(x: ArrayView1<f64>, params: &[f64]) -> Array1<f64> {
+pub fn multi_gaussian(x: ArrayView1<'_, f64>, params: &[f64]) -> Array1<f64> {
     let mut y = Array1::<f64>::zeros(x.len());
 
-    for group in params.chunks_exact(3) {
-        let (a, mu, var) = (group[0], group[1], group[2]);
+    for group in params.as_chunks::<3>().0 {
+        let (a, mu, var): (f64, f64, f64) = (*group).into();
         y += &x.mapv(|xj| {
             let d = xj - mu;
             a * (-0.5 * d * d / var).exp()
@@ -34,13 +34,13 @@ pub fn multi_gaussian(x: ArrayView1<f64>, params: &[f64]) -> Array1<f64> {
 /// - `J[:, 3i]     = exp(-(x-μ)² / (2·var))`
 /// - `J[:, 3i + 1] = A · exp(...) · (x-μ) / var`
 /// - `J[:, 3i + 2] = A · exp(...) · (x-μ)² / (var² · 2)`
-pub fn multi_gaussian_jacobian(x: ArrayView1<f64>, params: &[f64]) -> Array2<f64> {
+pub fn multi_gaussian_jacobian(x: ArrayView1<'_, f64>, params: &[f64]) -> Array2<f64> {
     let m = x.len();
     let n = params.len();
     let mut jac = Array2::<f64>::zeros((m, n));
 
-    for (i, group) in params.chunks_exact(3).enumerate() {
-        let (a, mu, var) = (group[0], group[1], group[2]);
+    for (i, group) in params.as_chunks::<3>().0.iter().enumerate() {
+        let (a, mu, var): (f64, f64, f64) = (*group).into();
 
         let exp_vals: Array1<f64> = x.mapv(|xj| {
             let d = xj - mu;
@@ -85,7 +85,7 @@ pub struct ParamLenError {
 /// Same as `multi_gaussian`, but returns `Err` if `params.len() % 3 != 0`
 /// instead of silently dropping the trailing group.
 pub fn try_multi_gaussian(
-    x: ArrayView1<f64>,
+    x: ArrayView1<'_, f64>,
     params: &[f64],
 ) -> Result<Array1<f64>, ParamLenError> {
     if params.len() % 3 != 0 {
@@ -95,7 +95,7 @@ pub fn try_multi_gaussian(
 }
 
 pub fn try_multi_gaussian_jacobian(
-    x: ArrayView1<f64>,
+    x: ArrayView1<'_, f64>,
     params: &[f64],
 ) -> Result<Array2<f64>, ParamLenError> {
     if params.len() % 3 != 0 {

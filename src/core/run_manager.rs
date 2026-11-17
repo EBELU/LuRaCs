@@ -208,7 +208,7 @@ pub struct RunManagerShared {
 
 impl RunManagerShared {
     fn emit(&self, ev: RunManagerEvent) {
-        let _ = self.gui_event_tx.send(ev);
+        drop(self.gui_event_tx.send(ev));
     }
 }
 
@@ -270,7 +270,7 @@ impl RunManager {
 
     // ---- Shared accessors ----------------------------------------------
 
-    pub fn shared(&self) -> &Arc<RunManagerShared> {
+    pub const fn shared(&self) -> &Arc<RunManagerShared> {
         &self.shared
     }
 
@@ -296,11 +296,11 @@ impl RunManager {
         self.spectrograms.get_mut(name)
     }
 
-    pub fn spectrogram_manager(&self) -> &SpectrogramManager {
+    pub const fn spectrogram_manager(&self) -> &SpectrogramManager {
         &self.spectrogram_manager
     }
 
-    pub fn spectrogram_manager_mut(&mut self) -> &mut SpectrogramManager {
+    pub const fn spectrogram_manager_mut(&mut self) -> &mut SpectrogramManager {
         &mut self.spectrogram_manager
     }
 
@@ -318,17 +318,18 @@ impl RunManager {
     /// accumulated UI events. Call once per frame.
     pub fn poll(&mut self) -> Vec<RunManagerEvent> {
         // 1. GPS
-        if let Some(gps) = self.gps.as_mut() {
-            if gps.poll() {
-                let data = gps.data().clone();
-                for sp in self.spectrograms.values_mut() {
-                    sp.receive_gps(&data);
-                }
-                let _ = self
-                    .shared
-                    .gui_event_tx
-                    .send(RunManagerEvent::GpsUpdated(data));
+        if let Some(gps) = self.gps.as_mut()
+            && gps.poll()
+        {
+            let data = gps.data().clone();
+            for sp in self.spectrograms.values_mut() {
+                sp.receive_gps(&data);
             }
+            drop(
+                self.shared
+                    .gui_event_tx
+                    .send(RunManagerEvent::GpsUpdated(data)),
+            );
         }
 
         // 2. Device events
@@ -354,13 +355,13 @@ impl RunManager {
                         // Handled in add_spectrogram.
                     }
                     SpectrogramEvent::DataUpdated { db_name, data } => {
-                        let _ = self.spectrogram_manager.receive_buffer(&db_name, &data);
-                        let _ = self.shared.gui_event_tx.send(
+                        drop(self.spectrogram_manager.receive_buffer(&db_name, &data));
+                        drop(self.shared.gui_event_tx.send(
                             RunManagerEvent::SpectrogramDataUpdated {
                                 name: db_name,
                                 data,
                             },
-                        );
+                        ));
                     }
                 }
             }
@@ -390,7 +391,7 @@ impl RunManager {
                     buffer,
                 },
             };
-            let _ = self.shared.gui_event_tx.send(rm_ev);
+            drop(self.shared.gui_event_tx.send(rm_ev));
         }
 
         // 5. Drain the outbound queue
@@ -414,6 +415,8 @@ impl RunManager {
                     if let Some(buf) = dr.get_mut(&name) {
                         buf.push(data.dr);
                     }
+                    drop(dr);
+                    drop(cps);
                 }
                 let (cps_vec, dr_vec) = {
                     let cps = self.shared.cps_buffers.lock().unwrap();
@@ -423,14 +426,15 @@ impl RunManager {
                         dr.get(&name).map(|b| b.to_vec()).unwrap_or_default(),
                     )
                 };
-                let _ = self
-                    .shared
-                    .gui_event_tx
-                    .send(RunManagerEvent::RealTimeBuffersUpdated {
-                        name: name.clone(),
-                        cps: cps_vec,
-                        dr: dr_vec,
-                    });
+                drop(
+                    self.shared
+                        .gui_event_tx
+                        .send(RunManagerEvent::RealTimeBuffersUpdated {
+                            name: name.clone(),
+                            cps: cps_vec,
+                            dr: dr_vec,
+                        }),
+                );
 
                 // Forward to spectrograms matching the device
                 for sp in self.spectrograms.values_mut() {
@@ -438,10 +442,11 @@ impl RunManager {
                         sp.receive_current(&name, &data);
                     }
                 }
-                let _ = self
-                    .shared
-                    .gui_event_tx
-                    .send(RunManagerEvent::CurrentUpdated { name, data });
+                drop(
+                    self.shared
+                        .gui_event_tx
+                        .send(RunManagerEvent::CurrentUpdated { name, data }),
+                );
             }
             DeviceEvent::StatusUpdated { name, data } => {
                 for sp in self.spectrograms.values_mut() {
@@ -449,27 +454,30 @@ impl RunManager {
                         sp.receive_status(&name, &data);
                     }
                 }
-                let _ = self
-                    .shared
-                    .gui_event_tx
-                    .send(RunManagerEvent::StatusUpdated { name, data });
+                drop(
+                    self.shared
+                        .gui_event_tx
+                        .send(RunManagerEvent::StatusUpdated { name, data }),
+                );
             }
             DeviceEvent::SpectrumUpdated { name, data } => {
                 for sp in self.spectrograms.values_mut() {
                     if sp.device_id() == name {
-                        let _ = sp.receive_spectrum(&name, &data);
+                        drop(sp.receive_spectrum(&name, &data));
                     }
                 }
-                let _ = self
-                    .shared
-                    .gui_event_tx
-                    .send(RunManagerEvent::SpectrumUpdated { name, data });
+                drop(
+                    self.shared
+                        .gui_event_tx
+                        .send(RunManagerEvent::SpectrumUpdated { name, data }),
+                );
             }
             DeviceEvent::DeviceStateUpdated { name, state } => {
-                let _ = self
-                    .shared
-                    .gui_event_tx
-                    .send(RunManagerEvent::DeviceStateUpdated { name, state });
+                drop(
+                    self.shared
+                        .gui_event_tx
+                        .send(RunManagerEvent::DeviceStateUpdated { name, state }),
+                );
             }
             DeviceEvent::PollBehindSchedule { name, behind_secs } => {
                 tracing::warn!(device = %name, behind_secs, "poll loop behind schedule");
@@ -479,17 +487,18 @@ impl RunManager {
                 state,
                 reason,
             } => {
-                let _ = self
-                    .shared
-                    .gui_event_tx
-                    .send(RunManagerEvent::DeviceStateUpdated {
-                        name: name.clone(),
-                        state,
-                    });
-                let _ = self.shared.gui_event_tx.send(RunManagerEvent::DeviceError {
+                drop(
+                    self.shared
+                        .gui_event_tx
+                        .send(RunManagerEvent::DeviceStateUpdated {
+                            name: name.clone(),
+                            state,
+                        }),
+                );
+                drop(self.shared.gui_event_tx.send(RunManagerEvent::DeviceError {
                     name,
                     error: reason,
-                });
+                }));
             }
         }
     }
@@ -556,22 +565,24 @@ impl RunManager {
 
         self.spectrograms.insert(name.clone(), spectrogram);
 
-        let _ = self
-            .shared
-            .gui_event_tx
-            .send(RunManagerEvent::SpectrogramStarted { name });
+        drop(
+            self.shared
+                .gui_event_tx
+                .send(RunManagerEvent::SpectrogramStarted { name }),
+        );
         Ok(())
     }
 
     pub fn close_spectrogram(&mut self, name: &str) {
         if self.spectrograms.remove(name).is_some() {
             self.spectrogram_manager.unregister_logger(name);
-            let _ = self
-                .shared
-                .gui_event_tx
-                .send(RunManagerEvent::SpectrogramClosed {
-                    name: name.to_string(),
-                });
+            drop(
+                self.shared
+                    .gui_event_tx
+                    .send(RunManagerEvent::SpectrogramClosed {
+                        name: name.to_string(),
+                    }),
+            );
         }
     }
 
@@ -579,10 +590,11 @@ impl RunManager {
         for sp in self.spectrograms.values_mut() {
             sp.resize_deque(new_len);
         }
-        let _ = self
-            .shared
-            .gui_event_tx
-            .send(RunManagerEvent::SpectrogramDequeResized);
+        drop(
+            self.shared
+                .gui_event_tx
+                .send(RunManagerEvent::SpectrogramDequeResized),
+        );
     }
 
     // ---- GPS ------------------------------------------------------------
@@ -597,36 +609,39 @@ impl RunManager {
         gps.open(port, baud_rate)?;
         self.gps = Some(gps);
         self.has_gps = true;
-        let _ = self
-            .shared
-            .gui_event_tx
-            .send(RunManagerEvent::GpsConnection(true));
+        drop(
+            self.shared
+                .gui_event_tx
+                .send(RunManagerEvent::GpsConnection(true)),
+        );
         Ok(())
     }
 
     pub fn set_gps(&mut self, state: bool) {
-        if self.has_gps {
-            if let Some(mut gps) = self.gps.take() {
-                gps.close();
-            }
+        if self.has_gps
+            && let Some(mut gps) = self.gps.take()
+        {
+            gps.close();
         }
         self.has_gps = state;
-        let _ = self
-            .shared
-            .gui_event_tx
-            .send(RunManagerEvent::GpsConnection(state));
+        drop(
+            self.shared
+                .gui_event_tx
+                .send(RunManagerEvent::GpsConnection(state)),
+        );
     }
 
     // ---- Bluetooth ------------------------------------------------------
 
-    pub fn find_bluetooth(&mut self, _timeout: Duration) -> Result<()> {
+    pub fn find_bluetooth(&self, _timeout: Duration) -> Result<()> {
         // Stub: wire up btleplug in a follow-up.
-        let _ = self
-            .shared
-            .gui_event_tx
-            .send(RunManagerEvent::BluetoothError(
-                "bluetooth scanning not yet implemented".into(),
-            ));
+        drop(
+            self.shared
+                .gui_event_tx
+                .send(RunManagerEvent::BluetoothError(
+                    "bluetooth scanning not yet implemented".into(),
+                )),
+        );
         Err(RunManagerError::BluetoothNotImplemented)
     }
 
@@ -657,10 +672,11 @@ impl RunManager {
     // ---- Shutdown -------------------------------------------------------
 
     pub fn shutdown(&mut self) {
-        let _ = self
-            .shared
-            .gui_event_tx
-            .send(RunManagerEvent::ShutdownStarted);
+        drop(
+            self.shared
+                .gui_event_tx
+                .send(RunManagerEvent::ShutdownStarted),
+        );
 
         // Remove all devices gracefully.
         let shared = Arc::clone(&self.shared);
@@ -675,7 +691,7 @@ impl RunManager {
                 }));
             }
             for t in tasks {
-                let _ = t.await;
+                drop(t.await);
             }
         });
 
@@ -683,13 +699,14 @@ impl RunManager {
             gps.close();
         }
 
-        let _ = self
-            .shared
-            .gui_event_tx
-            .send(RunManagerEvent::ShutdownFinished);
+        drop(
+            self.shared
+                .gui_event_tx
+                .send(RunManagerEvent::ShutdownFinished),
+        );
     }
 
-    pub fn poll_start_time(&self) -> Instant {
+    pub const fn poll_start_time(&self) -> Instant {
         self.poll_start_time
     }
 }
@@ -781,9 +798,13 @@ async fn add_device_async(
 
     // Buffers
     {
-        let mut cps = shared.cps_buffers.lock().unwrap();
+        shared
+            .cps_buffers
+            .lock()
+            .unwrap()
+            .insert(name.clone(), BoundedDeque::filled_nan(shared.queue_len));
         let mut dr = shared.dr_buffers.lock().unwrap();
-        cps.insert(name.clone(), BoundedDeque::filled_nan(shared.queue_len));
+
         dr.insert(name.clone(), BoundedDeque::filled_nan(shared.queue_len));
     }
 
@@ -813,7 +834,7 @@ async fn remove_device_async(shared: Arc<RunManagerShared>, name: String, remove
     }
 
     if let Some(handle) = handle {
-        let _ = handle.stop().await;
+        drop(handle.stop().await);
     }
 
     if let Some(device) = &device {

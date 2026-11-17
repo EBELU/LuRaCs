@@ -6,7 +6,7 @@ pub enum EdgeMode {
 }
 
 #[inline]
-pub fn map_index(index: isize, len: usize, mode: EdgeMode) -> Option<usize> {
+pub const fn map_index(index: isize, len: usize, mode: EdgeMode) -> Option<usize> {
     let n = len as isize;
     match mode {
         EdgeMode::Zeros => {
@@ -37,11 +37,7 @@ pub fn full_padded_buffer(signal: &[f64], radius: usize, edge_mode: EdgeMode) ->
     buf
 }
 
-pub fn edge_buffers(
-    signal: &[f64],
-    radius: usize,
-    edge_mode: EdgeMode,
-) -> (Vec<f64>, Vec<f64>) {
+pub fn edge_buffers(signal: &[f64], radius: usize, edge_mode: EdgeMode) -> (Vec<f64>, Vec<f64>) {
     let n = signal.len();
     debug_assert!(n > 2 * radius);
 

@@ -10,7 +10,7 @@ pub fn convert_background_to_spectrum(original: Spectrum) -> Spectrum {
 
     let mut new_spectrum = original.clone();
 
-    new_spectrum.foreground = original.background.clone();
+    new_spectrum.foreground = original.background;
     new_spectrum.background = None;
 
     new_spectrum

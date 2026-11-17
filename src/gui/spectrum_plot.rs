@@ -68,7 +68,7 @@ pub enum BkgDisplayMode {
 }
 
 impl BkgDisplayMode {
-    fn label(self) -> &'static str {
+    const fn label(self) -> &'static str {
         match self {
             Self::None => "No Background",
             Self::Overlay => "Background Overlay",
@@ -174,11 +174,11 @@ impl SpectrumPlotState {
         }
     }
 
-    fn sync_settings(&mut self, settings: &Settings) {
+    const fn sync_settings(&mut self, settings: &Settings) {
         self.x_max = settings.plotting.energy_max;
     }
 
-    pub fn request_reset(&mut self) {
+    pub const fn request_reset(&mut self) {
         self.reset_pending = true;
     }
 }
@@ -305,22 +305,22 @@ pub fn render(
     // Writing `plot.limits` directly matches the existing gesture-write
     // pattern (see rsplot's `commit()`), so the change is picked up on the
     // next frame's `show()` with a 1-frame lag invisible at 60 fps.
-    if state.y_axis_locked {
-        if let Some((lo, hi)) = visible_y_range(state, spectrum_manager) {
-            let plot = state.plot.plot_mut();
-            let (x0, x1, _, _) = plot.limits;
-            plot.limits = (x0, x1, lo, hi);
-        }
+    if state.y_axis_locked
+        && let Some((lo, hi)) = visible_y_range(state, spectrum_manager)
+    {
+        let plot = state.plot.plot_mut();
+        let (x0, x1, _, _) = plot.limits;
+        plot.limits = (x0, x1, lo, hi);
     }
 
     // --- Cursor ---
     if state.cursor_enabled {
-        if let Some(pointer) = response.response.hover_pos() {
-            if response.transform.area.contains(pointer) {
-                let (x, _y) = response.transform.pixel_to_data(pointer);
-                if x.is_finite() {
-                    state.cursor_x = x.clamp(xmin, xmax);
-                }
+        if let Some(pointer) = response.response.hover_pos()
+            && response.transform.area.contains(pointer)
+        {
+            let (x, _y) = response.transform.pixel_to_data(pointer);
+            if x.is_finite() {
+                state.cursor_x = x.clamp(xmin, xmax);
             }
         }
         update_cursor(state, spectrum_manager, settings);
@@ -400,12 +400,11 @@ fn render_toolbar(
         if ui
             .toggle_value(&mut state.cursor_enabled, "Cursor")
             .changed()
+            && !state.cursor_enabled
         {
-            if !state.cursor_enabled {
-                state.cursor_info.clear();
-                state.cursor_nuclide = None;
-                state.cursor_emission_lines.clear();
-            }
+            state.cursor_info.clear();
+            state.cursor_nuclide = None;
+            state.cursor_emission_lines.clear();
         }
 
         if ui.button("Add ROI").clicked() {
@@ -557,10 +556,10 @@ fn collect_primary_curves(
         if !spectrum.show_in_plot {
             continue;
         }
-        if let Some(owned) = &state.owned_spectrum {
-            if owned != name {
-                continue;
-            }
+        if let Some(owned) = &state.owned_spectrum
+            && owned != name
+        {
+            continue;
         }
         if state.bkg_mode == BkgDisplayMode::Subtract && spectrum.background.is_none() {
             continue;
@@ -603,10 +602,10 @@ fn collect_background_curves(
         if !spectrum.show_in_plot || spectrum.background.is_none() {
             continue;
         }
-        if let Some(owned) = &state.owned_spectrum {
-            if owned != name {
-                continue;
-            }
+        if let Some(owned) = &state.owned_spectrum
+            && owned != name
+        {
+            continue;
         }
         let Some(y) = spectrum.get_background(state.log, state.cps) else {
             continue;
@@ -647,10 +646,10 @@ fn collect_roi_curves(
         if !spectrum.show_in_plot {
             continue;
         }
-        if let Some(owned) = &state.owned_spectrum {
-            if owned != name {
-                continue;
-            }
+        if let Some(owned) = &state.owned_spectrum
+            && owned != name
+        {
+            continue;
         }
         if state.bkg_mode == BkgDisplayMode::Subtract && spectrum.background.is_none() {
             continue;
@@ -713,7 +712,7 @@ fn collect_roi_curves(
                 gaussian: CurveData {
                     x: x_slice.clone(),
                     y: gauss_y,
-                    stroke: Some(theme_def.colors.text.into()),
+                    stroke: Some(theme_def.colors.text),
                     fill: None,
                     width: 2.0,
                     legend: None,
@@ -722,7 +721,7 @@ fn collect_roi_curves(
                     Some(CurveData {
                         x: x_slice,
                         y: lin_y,
-                        stroke: Some(theme_def.colors.text.into()),
+                        stroke: Some(theme_def.colors.text),
                         fill: None,
                         width: 1.0,
                         legend: None,
@@ -998,7 +997,7 @@ fn visible_y_range(
     spectrum_manager: &SpectrumManager,
 ) -> Option<(f64, f64)> {
     let (xmin, xmax) = state.x_range;
-    if !(xmax > xmin) {
+    if !matches!(xmax.partial_cmp(&xmin), Some(std::cmp::Ordering::Greater)) {
         return None;
     }
 
@@ -1009,10 +1008,10 @@ fn visible_y_range(
         if !spectrum.show_in_plot {
             continue;
         }
-        if let Some(owned) = &state.owned_spectrum {
-            if owned != name {
-                continue;
-            }
+        if let Some(owned) = &state.owned_spectrum
+            && owned != name
+        {
+            continue;
         }
         let y = match state.bkg_mode {
             BkgDisplayMode::Subtract => spectrum.get_bkg_sub(state.log),
@@ -1040,16 +1039,19 @@ fn visible_y_range(
     if state.log {
         Some(((y_max - 6.0).max(1.0), y_max + 0.5))
     } else {
-        Some((0.0, y_max * 1.05 + 1.0))
+        Some((0.0, f64::mul_add(y_max, 1.05, 1.0)))
     }
 }
 
 fn roi_bounds_from_view(state: &SpectrumPlotState) -> (f64, f64) {
     let (x_min, x_max) = state.x_range;
     let diff = (x_max - x_min).min(400.0);
-    (x_min + diff * 0.15, x_min + diff * 0.45)
+    (
+        f64::mul_add(diff, 0.15, x_min),
+        f64::mul_add(diff, 0.45, x_min),
+    )
 }
 
 fn polyval(coeffs: &[f64], x: f64) -> f64 {
-    coeffs.iter().fold(0.0, |acc, &c| acc * x + c)
+    coeffs.iter().fold(0.0, |acc, &c| f64::mul_add(acc, x, c))
 }

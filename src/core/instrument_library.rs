@@ -40,8 +40,8 @@ pub enum LibraryKind {
 impl std::fmt::Display for LibraryKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
-            LibraryKind::Unique => "UniqueInstrument",
-            LibraryKind::Generic => "GenericInstrument",
+            Self::Unique => "UniqueInstrument",
+            Self::Generic => "GenericInstrument",
         })
     }
 }
@@ -58,28 +58,28 @@ impl Instrument {
     /// The field used as a "display name": `name` for Unique, `model` for Generic.
     pub fn name_or_model(&self) -> &str {
         match self {
-            Instrument::Unique(u) => &u.name,
-            Instrument::Generic(g) => &g.model,
+            Self::Unique(u) => &u.name,
+            Self::Generic(g) => &g.model,
         }
     }
 
-    pub fn kind(&self) -> LibraryKind {
+    pub const fn kind(&self) -> LibraryKind {
         match self {
-            Instrument::Unique(_) => LibraryKind::Unique,
-            Instrument::Generic(_) => LibraryKind::Generic,
+            Self::Unique(_) => LibraryKind::Unique,
+            Self::Generic(_) => LibraryKind::Generic,
         }
     }
 
-    pub fn as_unique(&self) -> Option<&UniqueInstrument> {
+    pub const fn as_unique(&self) -> Option<&UniqueInstrument> {
         match self {
-            Instrument::Unique(u) => Some(u),
+            Self::Unique(u) => Some(u),
             _ => None,
         }
     }
 
-    pub fn as_generic(&self) -> Option<&GenericInstrument> {
+    pub const fn as_generic(&self) -> Option<&GenericInstrument> {
         match self {
-            Instrument::Generic(g) => Some(g),
+            Self::Generic(g) => Some(g),
             _ => None,
         }
     }
@@ -164,7 +164,11 @@ impl InstrumentLibrary {
     /// Insert directly without emitting. Useful for event handlers that react to
     /// `NewInstrumentAdded` / `InstrumentRenamed` and must complete the insert
     /// the notification methods only announced.
-    pub fn set_raw(&mut self, key: impl Into<String>, instrument: Instrument) -> InstrumentLibraryResult<()> {
+    pub fn set_raw(
+        &mut self,
+        key: impl Into<String>,
+        instrument: Instrument,
+    ) -> InstrumentLibraryResult<()> {
         self.check_kind(&instrument)?;
         self.registry.insert(key.into(), instrument);
         Ok(())
@@ -172,7 +176,7 @@ impl InstrumentLibrary {
 
     // ---- Accessors ------------------------------------------------------
 
-    pub fn kind(&self) -> LibraryKind {
+    pub const fn kind(&self) -> LibraryKind {
         self.kind
     }
 

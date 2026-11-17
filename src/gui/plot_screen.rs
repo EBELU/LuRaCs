@@ -146,10 +146,10 @@ impl SpectrumScreen {
 
         if mode == PlotMode::Combined {
             self.combined.request_reset();
-        } else if let Some(name) = &self.current_tab {
-            if let Some(state) = self.tabs.get_mut(name) {
-                state.request_reset();
-            }
+        } else if let Some(name) = &self.current_tab
+            && let Some(state) = self.tabs.get_mut(name)
+        {
+            state.request_reset();
         }
     }
 
@@ -227,11 +227,7 @@ impl SpectrumScreen {
         }
 
         // --- Fix current_tab if it points at a removed spectrum ---
-        if self
-            .current_tab
-            .as_ref()
-            .map_or(true, |n| !alive.contains(n))
-        {
+        if self.current_tab.as_ref().is_none_or(|n| !alive.contains(n)) {
             self.current_tab = self.tab_order.first().cloned();
         }
     }
@@ -274,7 +270,7 @@ impl SpectrumScreen {
     /// (Button-created ROIs already carry `owner_spectrum = current tab`,
     /// so the adoption step is a no-op for them — harmless.)
     pub fn on_roi_created(
-        &mut self,
+        &self,
         tag: &str,
         spectrum_manager: &mut SpectrumManager,
         settings: &Settings,
@@ -289,12 +285,10 @@ impl SpectrumScreen {
                 .map(|r| r.owner_spectrum.is_none())
                 .unwrap_or(false);
 
-            if needs_owner {
-                if let Some(current) = self.current_tab.clone() {
-                    spectrum_manager
-                        .roi_manager
-                        .set_owner_spectrum(tag, Some(current));
-                }
+            if needs_owner && let Some(current) = self.current_tab.clone() {
+                spectrum_manager
+                    .roi_manager
+                    .set_owner_spectrum(tag, Some(current));
             }
         }
 
@@ -421,12 +415,11 @@ impl SpectrumScreen {
 
             // Owner filter: in tabbed mode, only unowned ROIs and ROIs owned
             // by the current tab qualify. Combined mode matches everything.
-            if let Some(owner) = &current_owner {
-                if let Some(r_owner) = &roi.owner_spectrum {
-                    if r_owner != owner {
-                        continue;
-                    }
-                }
+            if let Some(owner) = &current_owner
+                && let Some(r_owner) = &roi.owner_spectrum
+                && r_owner != owner
+            {
+                continue;
             }
             let alias = roi.alias.clone();
 

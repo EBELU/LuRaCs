@@ -27,6 +27,8 @@ use crate::containers::{Emission, Fit};
 use crate::containers::{Spectrum, SpectrumData};
 use crate::utils::fit_gaussians;
 
+type RoiGroupBuckets = (Vec<(String, f64, f64)>, Vec<String>);
+
 // ---------------------------------------------------------------------------
 // Events (replace Qt signals)
 // ---------------------------------------------------------------------------
@@ -39,7 +41,7 @@ pub enum RoiManagerEvent {
     Updated {
         tag: String,
         spectrum: String,
-        data: Roi,
+        data: Box<Roi>,
     },
     /// An ROI was removed from the registry.
     Deleted { tag: String },
@@ -153,14 +155,14 @@ impl RoiManager {
         self.emit(RoiManagerEvent::BkgSubChanged(on));
     }
 
-    pub fn spectrum_is_cps(&self) -> bool {
+    pub const fn spectrum_is_cps(&self) -> bool {
         self.spectrum_is_cps
     }
-    pub fn spectrum_is_bkg_sub(&self) -> bool {
+    pub const fn spectrum_is_bkg_sub(&self) -> bool {
         self.spectrum_is_bkg_sub
     }
 
-    pub fn registry(&self) -> &HashMap<String, Roi> {
+    pub const fn registry(&self) -> &HashMap<String, Roi> {
         &self.roi_registry
     }
     pub fn get_roi(&self, tag: &str) -> Option<&Roi> {
@@ -423,8 +425,7 @@ impl RoiManager {
         // Group by owner_spectrum. BTreeMap gives deterministic order
         // (None first, then by name) — HashMap iteration order is unstable
         // and Python's implicit dict order has no analogue here.
-        let mut by_owner: BTreeMap<Option<String>, (Vec<(String, f64, f64)>, Vec<String>)> =
-            BTreeMap::new();
+        let mut by_owner: BTreeMap<Option<String>, RoiGroupBuckets> = BTreeMap::new();
 
         for r in self.roi_registry.values() {
             let entry = by_owner.entry(r.owner_spectrum.clone()).or_default();
@@ -506,10 +507,10 @@ impl RoiManager {
             return;
         }
 
-        let names: Vec<String> = match spectrum_name {
-            Some(n) => vec![n.to_string()],
-            None => spectra.keys().cloned().collect(),
-        };
+        let names: Vec<String> = spectrum_name.map_or_else(
+            || spectra.keys().cloned().collect(),
+            |n| vec![n.to_string()],
+        );
         let tags: Vec<String> = match roi_tag {
             Some(t) => vec![t.to_string()],
             None => self.roi_registry.keys().cloned().collect(),
@@ -529,10 +530,10 @@ impl RoiManager {
                 // Owner check.
                 match self.roi_registry.get(tag) {
                     Some(r) => {
-                        if let Some(o) = &r.owner_spectrum {
-                            if o != &spectrum.name {
-                                continue;
-                            }
+                        if let Some(o) = &r.owner_spectrum
+                            && o != &spectrum.name
+                        {
+                            continue;
                         }
                     }
                     None => continue,
@@ -562,10 +563,10 @@ impl RoiManager {
             return;
         }
 
-        let names: Vec<String> = match spectrum_name {
-            Some(n) => vec![n.to_string()],
-            None => spectra.keys().cloned().collect(),
-        };
+        let names: Vec<String> = spectrum_name.map_or_else(
+            || spectra.keys().cloned().collect(),
+            |n| vec![n.to_string()],
+        );
         let tags: Vec<String> = match roi_tag {
             Some(t) => vec![t.to_string()],
             None => self.roi_registry.keys().cloned().collect(),
@@ -585,10 +586,10 @@ impl RoiManager {
                 // Owner check.
                 match self.roi_registry.get(tag) {
                     Some(r) => {
-                        if let Some(o) = &r.owner_spectrum {
-                            if o != &spectrum.name {
-                                continue;
-                            }
+                        if let Some(o) = &r.owner_spectrum
+                            && o != &spectrum.name
+                        {
+                            continue;
                         }
                     }
                     None => continue,
@@ -806,7 +807,7 @@ impl RoiManager {
             self.emit(RoiManagerEvent::Updated {
                 tag,
                 spectrum: spectrum_name,
-                data: roi,
+                data: Box::new(roi),
             });
         }
     }

@@ -307,10 +307,8 @@ impl SpectrumManager {
             spec.set_foreground(new_spectrum, None);
         }
 
-        if needs_calibration {
-            if let Some(cal) = calib_coeff {
-                self.calibrate_spectrum(name, cal)?;
-            }
+        if needs_calibration && let Some(cal) = calib_coeff {
+            self.calibrate_spectrum(name, cal)?;
         }
 
         self.emit(SpectrumManagerEvent::SpectrumUpdated(name.to_string()));
@@ -420,11 +418,11 @@ impl SpectrumManager {
         self.spectrum_registry.get(name)
     }
 
-    pub fn get_spectra_dict(&self) -> &HashMap<String, Spectrum> {
+    pub const fn get_spectra_dict(&self) -> &HashMap<String, Spectrum> {
         &self.spectrum_registry
     }
 
-    pub fn get_spectra_dict_mut(&mut self) -> &mut HashMap<String, Spectrum> {
+    pub const fn get_spectra_dict_mut(&mut self) -> &mut HashMap<String, Spectrum> {
         &mut self.spectrum_registry
     }
 
@@ -526,10 +524,10 @@ impl SpectrumManager {
             }
         }
 
-        if let Some(instr) = bundle.instrument {
-            if !opts.external_import || opts.load_instrument_on_import {
-                self.attach_or_store_instrument(&bundle.name, instr)?;
-            }
+        if let Some(instr) = bundle.instrument
+            && (!opts.external_import || opts.load_instrument_on_import)
+        {
+            self.attach_or_store_instrument(&bundle.name, instr)?;
         }
 
         if let Some(spec) = self.spectrum_registry.get_mut(&bundle.name) {

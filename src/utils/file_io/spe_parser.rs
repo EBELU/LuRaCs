@@ -107,11 +107,11 @@ impl SpeParser {
                         file: name.clone(),
                     })?;
                 let parts: Vec<&str> = raw.split_whitespace().collect();
-                if parts.len() == 2 {
-                    if let (Ok(l), Ok(r)) = (parts[0].parse::<f64>(), parts[1].parse::<f64>()) {
-                        live_time = Some(l);
-                        real_time = Some(r);
-                    }
+                if parts.len() == 2
+                    && let (Ok(l), Ok(r)) = (parts[0].parse::<f64>(), parts[1].parse::<f64>())
+                {
+                    live_time = Some(l);
+                    real_time = Some(r);
                 }
                 i += 2;
                 continue;
@@ -280,7 +280,7 @@ impl SpeParser {
             instrument: None,
             remark: Some(spec.remark.clone()),
             instrument_model: spec.instrument_model.clone(),
-            instrument_id: spec.instrument_id.clone(),
+            instrument_id: spec.instrument_id,
             peak_data: Vec::new(),
             instrument_class_code: None,
         }

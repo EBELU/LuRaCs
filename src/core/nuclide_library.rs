@@ -24,8 +24,8 @@ use eframe::egui::Color32;
 use nucleide_nuclei::NuclideId;
 use thiserror::Error;
 
-use crate::containers::{Emission, Nuclide};
 use crate::containers::Roi;
+use crate::containers::{Emission, Nuclide};
 use crate::utils::{NuclideLoadError, load_nuclide_data};
 
 // ---------------------------------------------------------------------------
@@ -203,13 +203,13 @@ impl NuclideLibrary {
         self.nuclides.values().flat_map(|n| n.emissions.iter())
     }
 
-    pub fn selected(&self) -> &HashSet<NuclideId> {
+    pub const fn selected(&self) -> &HashSet<NuclideId> {
         &self.selected
     }
 
     // ---- Decay chains ---------------------------------------------------
 
-    pub fn decay_chains(&self) -> &'static [(&'static str, &'static [&'static str])] {
+    pub const fn decay_chains(&self) -> &'static [(&'static str, &'static [&'static str])] {
         DECAY_CHAINS
     }
 
@@ -264,7 +264,7 @@ impl NuclideLibrary {
             .as_ref()
             .map(|q| q.value.mean())
             .unwrap_or(f64::NAN);
-        if (e_val - 511.0).abs() <= 1e-8 + 1e-5 * 511.0 {
+        if (e_val - 511.0).abs() <= 1e-5f64.mul_add(511.0, 1e-8) {
             return Some(Emission::annihilation());
         }
         Some(closest)

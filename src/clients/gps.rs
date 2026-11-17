@@ -104,7 +104,7 @@ fn nmea_coord(value: &str, hemisphere: &str) -> Option<f64> {
     }
     let v: f64 = value.parse().ok()?;
     let degrees = (v / 100.0) as i32;
-    let minutes = v - (degrees as f64) * 100.0;
+    let minutes = (degrees as f64).mul_add(-100.0, v);
     if !(0.0..60.0).contains(&minutes) {
         return None;
     }
@@ -217,20 +217,11 @@ pub fn parse_gps(nmea: &str) -> GpsData {
 // Merge state
 // ---------------------------------------------------------------------------
 
+#[derive(Default)]
 struct GpsState {
     data: GpsData,
     packets_received: u64,
     connection_time: Option<Instant>,
-}
-
-impl Default for GpsState {
-    fn default() -> Self {
-        Self {
-            data: GpsData::default(),
-            packets_received: 0,
-            connection_time: None,
-        }
-    }
 }
 
 impl GpsState {
@@ -337,11 +328,11 @@ impl Gps {
         self.port.is_some()
     }
 
-    pub fn data(&self) -> &GpsData {
+    pub const fn data(&self) -> &GpsData {
         &self.state.data
     }
 
-    pub fn packets_received(&self) -> u64 {
+    pub const fn packets_received(&self) -> u64 {
         self.state.packets_received
     }
 
@@ -358,7 +349,7 @@ impl Gps {
         // Fast path: nothing to read. `bytes_to_read` is a hint, not a
         // guarantee — if it fails or lies, the fallback `read` below picks
         // up the data with its 2 ms timeout.
-        if let Ok(0) = port.bytes_to_read() {
+        if matches!(port.bytes_to_read(), Ok(0)) {
             return false;
         }
 
@@ -397,10 +388,10 @@ fn find_crlf(buf: &[u8]) -> Option<usize> {
 // ---------------------------------------------------------------------------
 
 fn fmt_opt(v: Option<f64>, width: usize, decimals: usize) -> String {
-    match v {
-        None => format!("{:>1$}", "---", width),
-        Some(x) => format!("{:>1$.2$}", x, width, decimals),
-    }
+    v.map_or_else(
+        || format!("{:>1$}", "---", width),
+        |x| format!("{:>1$.2$}", x, width, decimals),
+    )
 }
 
 /// Human-readable one-line GPS status. Matches the Python `format_gps`.

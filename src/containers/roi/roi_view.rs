@@ -15,8 +15,9 @@ const GRAB_PX: f32 = 6.0;
 const MIN_ROI_WIDTH: f64 = 1.0;
 
 /// Draw and handle interaction for all ROIs visible in `plot_area`.
+#[allow(clippy::too_many_arguments)]
 pub fn draw_rois(
-    ui: &mut Ui,
+    ui: &Ui,
     plot_response: &egui::Response,
     plot_area: Rect,
     roi_manager: &mut RoiManager,
@@ -30,20 +31,17 @@ pub fn draw_rois(
     let painter = ui.painter_at(plot_area);
 
     let is_visible = |roi: &Roi| -> bool {
-        match owned_spectrum {
-            Some(owned) => roi.owner_spectrum.as_deref() == Some(owned),
-            None => true,
-        }
+        owned_spectrum.is_none_or(|owned| roi.owner_spectrum.as_deref() == Some(owned))
     };
 
     // --- 1. Active drag update & completion (independent of hover_pos) ---
     if editable && view.interaction.is_active() {
-        if plot_response.dragged() {
-            if let Some(pointer) = plot_response.interact_pointer_pos() {
-                let data_x = px_to_x(pointer.x);
-                if data_x.is_finite() {
-                    apply_drag(roi_manager, view, data_x);
-                }
+        if plot_response.dragged()
+            && let Some(pointer) = plot_response.interact_pointer_pos()
+        {
+            let data_x = px_to_x(pointer.x);
+            if data_x.is_finite() {
+                apply_drag(roi_manager, view, data_x);
             }
         }
 
@@ -62,89 +60,87 @@ pub fn draw_rois(
     // --- 2. Hover hit-testing, cursor icon, click & drag start -----------
     let mut hovered_tag: Option<String> = None;
 
-    if let Some(pointer) = plot_response.hover_pos() {
-        if plot_area.contains(pointer) {
-            let hit = hit_test_rois(roi_manager.registry(), &is_visible, &x_to_px, pointer.x);
+    if let Some(pointer) = plot_response.hover_pos()
+        && plot_area.contains(pointer)
+    {
+        let hit = hit_test_rois(roi_manager.registry(), &is_visible, &x_to_px, pointer.x);
 
-            if let Some((ref tag, _, _)) = hit {
-                hovered_tag = Some(tag.clone());
-            }
+        if let Some((ref tag, _, _)) = hit {
+            hovered_tag = Some(tag.clone());
+        }
 
-            if editable {
-                // Cursor icon feedback
-                match &view.interaction {
-                    RoiInteraction::DraggingEdge { .. } => {
+        if editable {
+            // Cursor icon feedback
+            match &view.interaction {
+                RoiInteraction::DraggingEdge { .. } => {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
+                }
+                RoiInteraction::DraggingRegion { .. } => {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+                }
+                _ => match &hit {
+                    Some((_, Some(_), true)) => {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
                     }
-                    RoiInteraction::DraggingRegion { .. } => {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+                    Some((_, None, true)) => {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
                     }
-                    _ => match &hit {
-                        Some((_, Some(_), true)) => {
-                            ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
-                        }
-                        Some((_, None, true)) => {
-                            ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
-                        }
-                        _ => {}
-                    },
-                }
+                    _ => {}
+                },
+            }
 
-                // Start a new drag (only if `roi.movable` is true)
-                if plot_response.drag_started() && !view.interaction.is_active() {
-                    if let Some(interact_pos) = plot_response.interact_pointer_pos() {
-                        let start_hit = hit_test_rois(
-                            roi_manager.registry(),
-                            &is_visible,
-                            &x_to_px,
-                            interact_pos.x,
-                        );
-                        match start_hit {
-                            Some((tag, Some(edge), true)) => {
-                                view.interaction = RoiInteraction::DraggingEdge { tag, edge };
-                            }
-                            Some((tag, None, true)) => {
-                                let grab_x = px_to_x(interact_pos.x);
-                                if let (true, Some(roi)) =
-                                    (grab_x.is_finite(), roi_manager.get_roi(&tag))
-                                {
-                                    view.interaction = RoiInteraction::DraggingRegion {
-                                        tag,
-                                        grab_x,
-                                        initial_bound: roi.roi_bound,
-                                    };
-                                }
-                            }
-                            Some(_) => {} // ROI is locked (`movable == false`)
-                            None => {
-                                roi_manager.clear_selection();
-                            }
+            // Start a new drag (only if `roi.movable` is true)
+            if plot_response.drag_started()
+                && !view.interaction.is_active()
+                && let Some(interact_pos) = plot_response.interact_pointer_pos()
+            {
+                let start_hit = hit_test_rois(
+                    roi_manager.registry(),
+                    &is_visible,
+                    &x_to_px,
+                    interact_pos.x,
+                );
+                match start_hit {
+                    Some((tag, Some(edge), true)) => {
+                        view.interaction = RoiInteraction::DraggingEdge { tag, edge };
+                    }
+                    Some((tag, None, true)) => {
+                        let grab_x = px_to_x(interact_pos.x);
+                        if let (true, Some(roi)) = (grab_x.is_finite(), roi_manager.get_roi(&tag)) {
+                            view.interaction = RoiInteraction::DraggingRegion {
+                                tag,
+                                grab_x,
+                                initial_bound: roi.roi_bound,
+                            };
                         }
                     }
+                    Some(_) => {} // ROI is locked (`movable == false`)
+                    None => {
+                        roi_manager.clear_selection();
+                    }
                 }
+            }
 
-                // Click (without drag) selects or clears selection
-                if plot_response.clicked() {
-                    match &hit {
-                        Some((tag, _, _)) => {
-                            roi_manager.select_roi(tag);
-                            events.push(RoiEvent::Selected(tag.clone()));
-                        }
-                        None => {
-                            roi_manager.clear_selection();
-                        }
+            // Click (without drag) selects or clears selection
+            if plot_response.clicked() {
+                match &hit {
+                    Some((tag, _, _)) => {
+                        roi_manager.select_roi(tag);
+                        events.push(RoiEvent::Selected(tag.clone()));
+                    }
+                    None => {
+                        roi_manager.clear_selection();
                     }
                 }
+            }
 
-                // Right-click opens modal draft editor
-                if plot_response.secondary_clicked() {
-                    if let Some((tag, _, _)) = &hit {
-                        if let Some(roi) = roi_manager.get_roi(tag) {
-                            view.interaction = RoiInteraction::Editing { tag: tag.clone() };
-                            view.edit_draft = Some(RoiEditDraft::from_roi(roi));
-                        }
-                    }
-                }
+            // Right-click opens modal draft editor
+            if plot_response.secondary_clicked()
+                && let Some((tag, _, _)) = &hit
+                && let Some(roi) = roi_manager.get_roi(tag)
+            {
+                view.interaction = RoiInteraction::Editing { tag: tag.clone() };
+                view.edit_draft = Some(RoiEditDraft::from_roi(roi));
             }
         }
     }
@@ -185,54 +181,51 @@ pub fn draw_rois(
     }
 
     // --- 4. Hover tooltip (suppressed while actively dragging) -----------
-    if !view.interaction.is_active() {
-        if let Some(tag) = hovered_tag {
-            if let Some(roi) = roi_manager.get_roi(&tag) {
-                let emission_line = roi
-                    .emission
+    if !view.interaction.is_active()
+        && let Some(tag) = hovered_tag
+        && let Some(roi) = roi_manager.get_roi(&tag)
+    {
+        let emission_line = roi
+            .emission
+            .as_ref()
+            .map(|e| {
+                let nuclide = e
+                    .parent_nuclide
                     .as_ref()
-                    .map(|e| {
-                        let nuclide = e
-                            .parent_nuclide
-                            .as_ref()
-                            .map(|n| n.to_name())
-                            .unwrap_or_default();
-                        let energy = e
-                            .energy_kev
-                            .as_ref()
-                            .map(|q| format!("{:.1} keV", q.value.mean()))
-                            .unwrap_or_default();
-                        format!("Nuclide: {nuclide} {energy}").trim().to_string()
-                    })
+                    .map(|n| n.to_name())
                     .unwrap_or_default();
+                let energy = e
+                    .energy_kev
+                    .as_ref()
+                    .map(|q| format!("{:.1} keV", q.value.mean()))
+                    .unwrap_or_default();
+                format!("Nuclide: {nuclide} {energy}").trim().to_string()
+            })
+            .unwrap_or_default();
 
-                egui::Tooltip::for_widget(plot_response)
-                    .at_pointer()
-                    .show(|ui| {
-                        let header = if roi.alias.is_empty() {
-                            format!("ROI: {:.1} – {:.1} keV", roi.roi_bound.0, roi.roi_bound.1)
-                        } else {
-                            format!(
-                                "ROI: {} ({:.1} – {:.1} keV)",
-                                roi.alias, roi.roi_bound.0, roi.roi_bound.1
-                            )
-                        };
-                        ui.label(header);
-                        if !emission_line.is_empty() {
-                            ui.label(emission_line);
-                        }
-                        if editable {
-                            if roi.movable {
-                                ui.weak(
-                                    "Drag edges to resize • Drag inside to move • Right-click to edit",
-                                );
-                            } else {
-                                ui.weak("Position locked • Right-click to edit");
-                            }
-                        }
-                    });
-            }
-        }
+        egui::Tooltip::for_widget(plot_response)
+            .at_pointer()
+            .show(|ui| {
+                let header = if roi.alias.is_empty() {
+                    format!("ROI: {:.1} – {:.1} keV", roi.roi_bound.0, roi.roi_bound.1)
+                } else {
+                    format!(
+                        "ROI: {} ({:.1} – {:.1} keV)",
+                        roi.alias, roi.roi_bound.0, roi.roi_bound.1
+                    )
+                };
+                ui.label(header);
+                if !emission_line.is_empty() {
+                    ui.label(emission_line);
+                }
+                if editable {
+                    if roi.movable {
+                        ui.weak("Drag edges to resize • Drag inside to move • Right-click to edit");
+                    } else {
+                        ui.weak("Position locked • Right-click to edit");
+                    }
+                }
+            });
     }
 
     events

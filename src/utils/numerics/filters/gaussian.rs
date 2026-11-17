@@ -19,7 +19,7 @@ pub fn gaussian_kernel(window_size: usize, sigma: f64) -> Option<Vec<f64>> {
         let val = (-0.5 * z * z).exp();
         kernel[radius - offset] = val;
         kernel[radius + offset] = val;
-        sum += 2.0 * val;
+        sum = 2.0f64.mul_add(val, sum);
     }
 
     let inv_sum = 1.0 / sum;

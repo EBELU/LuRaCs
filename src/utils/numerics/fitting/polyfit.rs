@@ -51,10 +51,10 @@ pub fn polyfit_weighted(
             needed: p,
         });
     }
-    if let Some(w) = w {
-        if w.len() != n {
-            return Err(PolyfitError::SizeMismatch { nx: n, ny: w.len() });
-        }
+    if let Some(w) = w
+        && w.len() != n
+    {
+        return Err(PolyfitError::SizeMismatch { nx: n, ny: w.len() });
     }
 
     // A = vander(x) .* w, b = y .* w

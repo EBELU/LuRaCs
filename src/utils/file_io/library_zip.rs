@@ -128,13 +128,10 @@ pub fn unzip_library(
         // `enclosed_name()` returns None for absolute paths or paths
         // containing `..`. This is the Zip Slip guard.
         let entry_name = entry.name()?.into_owned();
-        let safe_name = entry
-            .enclosed_name()
-            .ok_or_else(|| LibraryZipError::UnsafeEntry {
-                entry: entry_name,
-                reason: "path escapes the archive root",
-            })?
-            .to_owned();
+        let safe_name = entry.enclosed_name().ok_or(LibraryZipError::UnsafeEntry {
+            entry: entry_name,
+            reason: "path escapes the archive root",
+        })?;
 
         let out_path = library_path.join(&safe_name);
 

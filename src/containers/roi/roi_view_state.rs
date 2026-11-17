@@ -25,8 +25,8 @@ pub enum RoiInteraction {
 }
 
 impl RoiInteraction {
-    pub fn is_active(&self) -> bool {
-        !matches!(self, RoiInteraction::Idle)
+    pub const fn is_active(&self) -> bool {
+        !matches!(self, Self::Idle)
     }
 }
 
@@ -44,8 +44,8 @@ pub struct RoiEditDraft {
     pub tag: String,
     pub alias: String,
     pub roi_bound: (f64, f64),
-    pub fit_type: super::roi::FitType,
-    pub bkg_type: super::roi::BkgType,
+    pub fit_type: super::roi_types::FitType,
+    pub bkg_type: super::roi_types::BkgType,
     pub bkg_est_channels: i32,
     pub merge: bool,
     pub poisson_weights: bool,

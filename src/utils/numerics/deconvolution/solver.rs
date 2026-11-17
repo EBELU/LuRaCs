@@ -69,8 +69,8 @@ pub fn tikhonov_smooth(x: &mut DVector<f64>, lam: f64) {
         return;
     }
     for i in 1..n - 1 {
-        let lap = x[i - 1] - 2.0 * x[i] + x[i + 1];
-        x[i] += lam * lap;
+        let lap = 2.0f64.mul_add(-x[i], x[i - 1]) + x[i + 1];
+        x[i] = lam.mul_add(lap, x[i]);
     }
 }
 

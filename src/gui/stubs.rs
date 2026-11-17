@@ -13,11 +13,11 @@ pub struct Stub {
 }
 
 impl Stub {
-    pub fn new(label: &'static str) -> Self {
+    pub const fn new(label: &'static str) -> Self {
         Self { label }
     }
 
-    pub fn render(&mut self, ui: &mut egui::Ui) {
+    pub fn render(&self, ui: &mut egui::Ui) {
         ui.centered_and_justified(|ui| {
             ui.label(format!("{} — not yet ported", self.label));
         });
@@ -34,15 +34,15 @@ pub struct StubWindow {
 }
 
 impl StubWindow {
-    pub fn new(label: &'static str) -> Self {
+    pub const fn new(label: &'static str) -> Self {
         Self { label, open: false }
     }
 
-    pub fn open(&mut self) {
+    pub const fn open(&mut self) {
         self.open = true;
     }
 
-    pub fn render(&mut self, ui: &mut egui::Ui) {
+    pub fn render(&mut self, ui: &egui::Ui) {
         if !self.open {
             return;
         }

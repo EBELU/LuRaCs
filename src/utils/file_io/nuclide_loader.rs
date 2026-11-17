@@ -261,7 +261,7 @@ fn parse_emission(e: &Value, parent: NuclideId, path: &Path) -> NuclideLoadResul
 fn is_annihilation_energy(e: f64) -> bool {
     const RTOL: f64 = 1e-05;
     const ATOL: f64 = 1e-08;
-    (e - 511.0).abs() <= ATOL + RTOL * 511.0
+    (e - 511.0).abs() <= RTOL.mul_add(511.0, ATOL)
 }
 
 fn parse_emission_type(s: &str) -> Option<EmissionType> {
@@ -364,20 +364,20 @@ fn get_pair(value: &Value, field: &'static str, path: &Path) -> NuclideLoadResul
 }
 
 fn missing_or_wrong(value: &Value, field: &'static str, path: &Path) -> NuclideLoadError {
-    match value.get(field) {
-        Some(other) => NuclideLoadError::WrongType {
+    value.get(field).map_or_else(
+        || NuclideLoadError::MissingField {
+            path: path.to_path_buf(),
+            field,
+        },
+        |other| NuclideLoadError::WrongType {
             path: path.to_path_buf(),
             field,
             actual: type_name(other),
         },
-        None => NuclideLoadError::MissingField {
-            path: path.to_path_buf(),
-            field,
-        },
-    }
+    )
 }
 
-fn type_name(value: &Value) -> &'static str {
+const fn type_name(value: &Value) -> &'static str {
     match value {
         Value::Null => "null",
         Value::Bool(_) => "bool",

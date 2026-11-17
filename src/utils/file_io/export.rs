@@ -51,12 +51,12 @@ enum Cell {
 impl Cell {
     fn to_csv_field(&self) -> String {
         match self {
-            Cell::Text(s) => s.clone(),
-            Cell::Number(v) => v.to_string(),
-            Cell::Rounded { value, decimals } => {
+            Self::Text(s) => s.clone(),
+            Self::Number(v) => v.to_string(),
+            Self::Rounded { value, decimals } => {
                 format!("{:.*}", *decimals as usize, value)
             }
-            Cell::Empty => String::new(),
+            Self::Empty => String::new(),
         }
     }
 }
@@ -92,7 +92,7 @@ fn write_cell(
                 ws.write_number(row, col, rounded.round())?;
             } else {
                 let fmt =
-                    Format::new().set_num_format(&format!("0.{}", "0".repeat(*decimals as usize)));
+                    Format::new().set_num_format(format!("0.{}", "0".repeat(*decimals as usize)));
                 ws.write_number_with_format(row, col, rounded, &fmt)?;
             }
         }
@@ -406,11 +406,11 @@ pub mod xlsx_export {
             write_table(ws, &SPECTRUM_HEADERS, &rows)?;
         }
 
-        if opts.spectra {
-            if let Some(rows) = background_rows(spectrum) {
-                let ws = next_sheet!("Spectrum Background");
-                write_table(ws, &SPECTRUM_HEADERS, &rows)?;
-            }
+        if opts.spectra
+            && let Some(rows) = background_rows(spectrum)
+        {
+            let ws = next_sheet!("Spectrum Background");
+            write_table(ws, &SPECTRUM_HEADERS, &rows)?;
         }
 
         if opts.rois && !spectrum.rois.is_empty() {

@@ -73,18 +73,17 @@ fn file_menu(app: &mut LuRaCsApp, ui: &mut egui::Ui) {
             app.data_library.open();
         }
 
-        if ui.button("Export Data Library").clicked() {
-            if let Some(ExportOutcome::Library(zip_path)) =
+        if ui.button("Export Data Library").clicked()
+            && let Some(ExportOutcome::Library(zip_path)) =
                 app.io_manager.exporter.export_library_dialog()
+        {
+            let appdata = app.settings.read().unwrap().paths.appdata.clone();
+            if let Err(e) = app
+                .io_manager
+                .exporter
+                .do_export_library(&appdata, &zip_path)
             {
-                let appdata = app.settings.read().unwrap().paths.appdata.clone();
-                if let Err(e) = app
-                    .io_manager
-                    .exporter
-                    .do_export_library(&appdata, &zip_path)
-                {
-                    tracing::error!("Library export failed: {e}");
-                }
+                tracing::error!("Library export failed: {e}");
             }
         }
 
@@ -122,7 +121,7 @@ fn file_menu(app: &mut LuRaCsApp, ui: &mut egui::Ui) {
     });
 }
 
-fn import_third_party_drivers(app: &mut LuRaCsApp) {
+fn import_third_party_drivers(app: &LuRaCsApp) {
     let Some(files) = rfd::FileDialog::new()
         .set_title("Import driver files")
         .pick_files()
@@ -216,14 +215,13 @@ fn dispatch_import_outcomes(app: &mut LuRaCsApp, outcomes: Vec<ImportOutcome>) {
                 tracing::info!(count = rois.len(), "Imported ROIs");
             }
             ImportOutcome::Instrument(inst) => {
-                if let InstrumentData::Unique(u) = inst {
-                    if let Err(e) = app
+                if let InstrumentData::Unique(u) = inst
+                    && let Err(e) = app
                         .spectrum_manager
                         .unique_instrument_library
                         .add_instrument(Instrument::Unique(u))
-                    {
-                        tracing::error!("Instrument import failed: {e}");
-                    }
+                {
+                    tracing::error!("Instrument import failed: {e}");
                 }
             }
             ImportOutcome::SpectrumAsBackground(_) => {}
@@ -413,7 +411,7 @@ fn gamma_tools_menu(app: &mut LuRaCsApp, ui: &mut egui::Ui) {
 // Tools
 // ===========================================================================
 
-fn tools_menu(app: &mut LuRaCsApp, ui: &mut egui::Ui) {
+fn tools_menu(app: &LuRaCsApp, ui: &mut egui::Ui) {
     ui.menu_button("Tools", |ui| {
         if ui.button("Add Calc ROI").clicked() {
             // TODO: route into SpectrogramScreen once that tab is ported.

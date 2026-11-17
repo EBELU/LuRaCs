@@ -159,6 +159,7 @@ impl MockDevice {
             + Normal::new(0.0, 0.01)
                 .expect("std_dev > 0")
                 .sample(&mut state.rng);
+        drop(state);
         WrappedRealTimePackage {
             cps,
             dr,
@@ -248,9 +249,11 @@ impl DeviceWrapper for MockDevice {
     }
 
     async fn stop(&self) -> Result<(), DeviceError> {
-        let mut state = self.mock.lock().unwrap();
-        state.running = false;
-        state.stopped = true;
+        {
+            let mut state = self.mock.lock().unwrap();
+            state.running = false;
+            state.stopped = true;
+        }
         Ok(())
     }
 

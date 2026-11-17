@@ -69,6 +69,17 @@ pub enum SpectrogramError {
 
 pub type Result<T> = std::result::Result<T, SpectrogramError>;
 
+type SummaryRow = (Option<Vec<u8>>, f64, Option<f64>, Option<f64>);
+type SpectrogramRow = (
+    f64,
+    i64,
+    Option<i64>,
+    Option<f64>,
+    Option<f64>,
+    Vec<u8>,
+    Option<Vec<u8>>,
+);
+
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
@@ -138,15 +149,15 @@ impl<T> BoundedDeque<T> {
         self.inner.push_back(value);
     }
 
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.inner.len()
     }
 
-    pub fn capacity(&self) -> usize {
+    pub const fn capacity(&self) -> usize {
         self.capacity
     }
 
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }
 
@@ -321,7 +332,7 @@ impl Spectrogram {
         let connection = Connection::open(&db_path)?;
 
         let mut sp = Self {
-            db_name: db_name.clone(),
+            db_name,
             db_path,
             connection,
             buffers: Buffers::new(config.deque_length),
@@ -392,19 +403,19 @@ impl Spectrogram {
     pub fn device_id(&self) -> &str {
         &self.device_id
     }
-    pub fn spect_channels(&self) -> usize {
+    pub const fn spect_channels(&self) -> usize {
         self.spect_channels
     }
-    pub fn concat_factor(&self) -> usize {
+    pub const fn concat_factor(&self) -> usize {
         self.concat_factor
     }
-    pub fn save_interval(&self) -> f64 {
+    pub const fn save_interval(&self) -> f64 {
         self.save_interval
     }
     pub fn calibration_coeff(&self) -> &[f64] {
         &self.calibration_coeff
     }
-    pub fn start_date(&self) -> f64 {
+    pub const fn start_date(&self) -> f64 {
         self.start_date
     }
 
@@ -552,6 +563,7 @@ impl Spectrogram {
 
     fn load_from_db(&mut self) -> Result<()> {
         // Header
+        #[allow(non_exhaustive_omitted_patterns)]
         let (created, device_id, channels, calibration, concat, save_interval, _meta): (
             f64,
             String,
@@ -595,7 +607,7 @@ impl Spectrogram {
         };
 
         // Summary
-        let summary: Option<(Option<Vec<u8>>, f64, Option<f64>, Option<f64>)> = self
+        let summary: Option<SummaryRow> = self
             .connection
             .query_row(
                 "SELECT accumulated_spectrum, total_duration, total_dose, last_update
@@ -624,15 +636,7 @@ impl Spectrogram {
              ORDER BY timestamp DESC
              LIMIT ?1",
         )?;
-        let rows: Vec<(
-            f64,
-            i64,
-            Option<i64>,
-            Option<f64>,
-            Option<f64>,
-            Vec<u8>,
-            Option<Vec<u8>>,
-        )> = stmt
+        let rows: Vec<SpectrogramRow> = stmt
             .query_map(params![limit], |row| {
                 Ok((
                     row.get(0)?,
@@ -657,12 +661,11 @@ impl Spectrogram {
             let dr = avg_dr.map(|v| v as f64 / 1000.0).unwrap_or(f64::NAN);
             self.buffers.dose_rate_queue.push(dr);
             let gps = match (lat, lon) {
-                (Some(la), Some(lo)) => {
-                    let mut g = GpsData::default();
-                    g.latitude = Some(la);
-                    g.longitude = Some(lo);
-                    Some(g)
-                }
+                (Some(la), Some(lo)) => Some(GpsData {
+                    latitude: Some(la),
+                    longitude: Some(lo),
+                    ..GpsData::default()
+                }),
                 _ => None,
             };
             self.buffers.gps_queue.push(gps);
@@ -752,7 +755,8 @@ impl Spectrogram {
         self.buffers.dose_rate_queue.push(avg_dr);
         self.buffers.duration += dt;
         if self.buffers.dose_rate != 0.0 {
-            self.buffers.accumulated_dose_estimate += avg_dr / 3600.0 * dt;
+            self.buffers.accumulated_dose_estimate =
+                (avg_dr / 3600.0).mul_add(dt, self.buffers.accumulated_dose_estimate);
         }
 
         // Emit snapshot BEFORE persistence so the UI updates promptly.
@@ -831,20 +835,20 @@ impl Spectrogram {
 
     fn build_meta(&self, package: &WrappedSpectrumPackage) -> Value {
         let mut map = Map::new();
-        if let Some(gps) = &self.buffers.latest_gps {
-            if self.config.map_save_extra_gps_data {
-                map.insert(
-                    "extra_gps".into(),
-                    json!({
-                        "alt": gps.altitude,
-                        "course": gps.course,
-                        "speed": gps.speed,
-                        "hdop": gps.hdop,
-                        "vdop": gps.vdop,
-                        "ts": gps.timestamp,
-                    }),
-                );
-            }
+        if let Some(gps) = &self.buffers.latest_gps
+            && self.config.map_save_extra_gps_data
+        {
+            map.insert(
+                "extra_gps".into(),
+                json!({
+                    "alt": gps.altitude,
+                    "course": gps.course,
+                    "speed": gps.speed,
+                    "hdop": gps.hdop,
+                    "vdop": gps.vdop,
+                    "ts": gps.timestamp,
+                }),
+            );
         }
         if self.config.map_save_extra_measurement_time_data {
             map.insert(
@@ -877,10 +881,11 @@ impl Spectrogram {
         } else {
             Some((self.buffers.temperature * 1000.0).round() as i64)
         };
-        let (lat, lon) = match &self.buffers.latest_gps {
-            Some(g) => (g.latitude, g.longitude),
-            None => (None, None),
-        };
+        let (lat, lon) = self
+            .buffers
+            .latest_gps
+            .as_ref()
+            .map_or((None, None), |g| (g.latitude, g.longitude));
 
         let spectrum_bytes = compress_spectrum_f64(&processed.to_vec())?;
 

@@ -114,7 +114,7 @@ pub struct DeconvolutionWindow {
 }
 
 impl DeconvolutionWindow {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             open: false,
             algorithm: Algorithm::Mlem,
@@ -153,7 +153,7 @@ impl DeconvolutionWindow {
     // -----------------------------------------------------------------------
 
     /// Called every frame from `LuRaCsApp::render_windows`.
-    pub fn render(&mut self, app: &mut LuRaCsApp, ui: &mut egui::Ui) {
+    pub fn render(&mut self, app: &mut LuRaCsApp, ui: &egui::Ui) {
         if !self.open {
             return;
         }
@@ -362,7 +362,7 @@ impl DeconvolutionWindow {
     // Calculate dispatch
     // -----------------------------------------------------------------------
 
-    fn on_calculate(&mut self, app: &mut LuRaCsApp, ctx: &egui::Context) {
+    fn on_calculate(&mut self, app: &LuRaCsApp, ctx: &egui::Context) {
         let (_, channels) = match self.validate_spectrum(app) {
             Some(v) => v,
             None => return,
@@ -377,14 +377,14 @@ impl DeconvolutionWindow {
         self.dispatch_calculation(app, ctx, self.algorithm);
     }
 
-    fn dispatch_calculation(&mut self, app: &mut LuRaCsApp, ctx: &egui::Context, algo: Algorithm) {
+    fn dispatch_calculation(&mut self, app: &LuRaCsApp, ctx: &egui::Context, algo: Algorithm) {
         match algo {
             Algorithm::Rl => self.calculate_rl(app, ctx),
             Algorithm::Mlem => self.calculate_mlem(app, ctx),
         }
     }
 
-    fn calculate_rl(&mut self, app: &mut LuRaCsApp, ctx: &egui::Context) {
+    fn calculate_rl(&mut self, app: &LuRaCsApp, ctx: &egui::Context) {
         let source_key = match self.selected_spectrum.clone() {
             Some(k) => k,
             None => return,
@@ -446,7 +446,7 @@ impl DeconvolutionWindow {
         ctx.request_repaint();
     }
 
-    fn calculate_mlem(&mut self, app: &mut LuRaCsApp, ctx: &egui::Context) {
+    fn calculate_mlem(&mut self, app: &LuRaCsApp, ctx: &egui::Context) {
         let path = self.mlem_response_path.trim().to_string();
         if path.is_empty() {
             self.set_error("No response matrix path set");
@@ -482,7 +482,7 @@ impl DeconvolutionWindow {
         {
             let mut settings = app.settings.write_settings();
             settings.session.last_deconv_response_file = path;
-            let _ = settings.save();
+            drop(settings.save());
         }
 
         let iterations = self.mlem_iterations as usize;
@@ -625,13 +625,12 @@ impl DeconvolutionWindow {
                 ui.add(
                     egui::TextEdit::singleline(&mut self.mlem_response_path).desired_width(300.0),
                 );
-                if ui.button("Browse…").clicked() {
-                    if let Some(path) = rfd::FileDialog::new()
+                if ui.button("Browse…").clicked()
+                    && let Some(path) = rfd::FileDialog::new()
                         .add_filter("NPZ Files", &["npz"])
                         .pick_file()
-                    {
-                        self.mlem_response_path = path.display().to_string();
-                    }
+                {
+                    self.mlem_response_path = path.display().to_string();
                 }
             });
             ui.end_row();
@@ -681,7 +680,7 @@ impl DeconvolutionWindow {
         if let Some(msg) = self.error_message.clone() {
             let mut dismiss = false;
             egui::Window::new("⚠ Error")
-                .id(Id::new("deconv_error_modal"))
+                .id(Id::unique("deconv_error_modal"))
                 .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
                 .collapsible(false)
                 .resizable(false)
@@ -701,7 +700,7 @@ impl DeconvolutionWindow {
         if let Some(pending) = self.pending_confirmation.take() {
             let mut choice: Option<bool> = None;
             egui::Window::new("Proceed?")
-                .id(Id::new("deconv_confirm_modal"))
+                .id(Id::unique("deconv_confirm_modal"))
                 .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
                 .collapsible(false)
                 .resizable(false)
@@ -790,10 +789,10 @@ fn run_rl_worker(
     k: f64,
     iterations: usize,
 ) {
-    let _ = tx.send(Event::Progress {
+    drop(tx.send(Event::Progress {
         percent: 0,
         message: "Running RL…".into(),
-    });
+    }));
 
     let n = y_axis.len();
     let sensitivity = DVector::from_element(n, 1.0);
@@ -806,14 +805,14 @@ fn run_rl_worker(
         richardson_lucy(&x_axis, &y_axis, k, &sensitivity, &opts)
     })) {
         Ok(result) => {
-            let _ = tx.send(Event::Progress {
+            drop(tx.send(Event::Progress {
                 percent: 100,
                 message: "Done!".into(),
-            });
-            let _ = tx.send(Event::Done(result));
+            }));
+            drop(tx.send(Event::Done(result)));
         }
         Err(_) => {
-            let _ = tx.send(Event::Error("RL calculation panicked".into()));
+            drop(tx.send(Event::Error("RL calculation panicked".into())));
         }
     }
 }
@@ -828,10 +827,10 @@ fn run_mlem_worker(
     x_axis: DVector<f64>,
     iterations: usize,
 ) {
-    let _ = tx.send(Event::Progress {
+    drop(tx.send(Event::Progress {
         percent: 0,
         message: "Processing response matrix…".into(),
-    });
+    }));
 
     let idx_slice = indices.as_slice().unwrap_or(&[]);
     let bin_slice = bin_centres.as_slice().unwrap_or(&[]);
@@ -839,10 +838,10 @@ fn run_mlem_worker(
 
     let csr = process_matrix(&response_matrix, idx_slice, bin_slice, x_slice, x_slice);
 
-    let _ = tx.send(Event::Progress {
+    drop(tx.send(Event::Progress {
         percent: 50,
         message: "Running ML-EM…".into(),
-    });
+    }));
 
     let n = y_axis.len();
     let sensitivity = DVector::from_element(n, 1.0);
@@ -855,14 +854,14 @@ fn run_mlem_worker(
         ml_em(&y_axis, &csr, &sensitivity, &opts)
     })) {
         Ok(result) => {
-            let _ = tx.send(Event::Progress {
+            drop(tx.send(Event::Progress {
                 percent: 100,
                 message: "Done!".into(),
-            });
-            let _ = tx.send(Event::Done(result));
+            }));
+            drop(tx.send(Event::Done(result)));
         }
         Err(_) => {
-            let _ = tx.send(Event::Error("ML-EM calculation panicked".into()));
+            drop(tx.send(Event::Error("ML-EM calculation panicked".into())));
         }
     }
 }

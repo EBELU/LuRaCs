@@ -74,7 +74,7 @@ pub struct ParsedData {
 }
 
 impl ParsedData {
-    fn new(name: String) -> Self {
+    const fn new(name: String) -> Self {
         Self {
             name,
             instrument_model: None,
@@ -169,10 +169,10 @@ impl XmlParser {
         if let Some(InstrumentData::Unique(u)) = &self.data.instrument {
             spec.set_instrument((*u).clone());
         }
-        if let Some(cal) = &header.calibration {
-            if !cal.is_empty() {
-                spec.apply_calibration(cal.clone());
-            }
+        if let Some(cal) = &header.calibration
+            && !cal.is_empty()
+        {
+            spec.apply_calibration(cal.clone());
         }
         for roi in self.data.peaks.clone() {
             spec.set_roi(roi);
@@ -196,7 +196,7 @@ impl XmlParser {
         &self.data.peak_data
     }
 
-    pub fn get_instrument(&self) -> Option<&InstrumentData> {
+    pub const fn get_instrument(&self) -> Option<&InstrumentData> {
         self.data.instrument.as_ref()
     }
 
@@ -211,7 +211,7 @@ impl XmlParser {
         }
     }
 
-    fn dispatch(root: Node, name: &str, meta_only: bool) -> XmlParserResult<ParsedData> {
+    fn dispatch(root: Node<'_, '_>, name: &str, meta_only: bool) -> XmlParserResult<ParsedData> {
         match root.tag_name().name().to_lowercase().as_str() {
             "radinstrumentdata" => {
                 let is_raysid = descendant(root, Some(N42), "RadInstrumentInformation")
@@ -277,19 +277,19 @@ fn descendants<'a, 'input>(
     })
 }
 
-fn get_text(node: Node, ns: Option<&str>, local: &str) -> Option<String> {
+fn get_text(node: Node<'_, '_>, ns: Option<&str>, local: &str) -> Option<String> {
     child(node, ns, local)
         .and_then(|n| n.text())
         .map(String::from)
 }
 
-fn get_descendant_text(node: Node, ns: Option<&str>, local: &str) -> Option<String> {
+fn get_descendant_text(node: Node<'_, '_>, ns: Option<&str>, local: &str) -> Option<String> {
     descendant(node, ns, local)
         .and_then(|n| n.text())
         .map(String::from)
 }
 
-fn get_float(node: Node, ns: Option<&str>, local: &str) -> f64 {
+fn get_float(node: Node<'_, '_>, ns: Option<&str>, local: &str) -> f64 {
     get_descendant_text(node, ns, local)
         .and_then(|t| t.trim().parse().ok())
         .unwrap_or(0.0)
@@ -317,7 +317,7 @@ fn parse_pair(text: Option<&str>) -> Option<(f64, f64)> {
     Some((a, b))
 }
 
-fn parse_pair_at(node: Node, ns: Option<&str>, local: &str) -> Option<(f64, f64)> {
+fn parse_pair_at(node: Node<'_, '_>, ns: Option<&str>, local: &str) -> Option<(f64, f64)> {
     parse_pair(child(node, ns, local).and_then(|n| n.text()))
 }
 
@@ -419,7 +419,7 @@ impl XmlParser {
         self.data.instrument.clone()
     }
 
-    fn parse_raysid(root: Node, name: &str) -> XmlParserResult<ParsedData> {
+    fn parse_raysid(root: Node<'_, '_>, name: &str) -> XmlParserResult<ParsedData> {
         let mut data = ParsedData::new(name.to_string());
 
         data.instrument_id = get_descendant_text(root, Some(N42), "RadInstrumentIdentifier")
@@ -433,20 +433,19 @@ impl XmlParser {
         data.remark = get_descendant_text(root, Some(N42), "Remark");
 
         // Calibration is a degree-3 polynomial fit to energy boundary values.
-        if let Some(ec) = descendant(root, Some(N42), "EnergyCalibration") {
-            if let Some(ebv) = child(ec, Some(N42), "EnergyBoundaryValues") {
-                if let Some(text) = ebv.text() {
-                    let b = parse_array(text);
-                    let xs: Vec<f64> = (0..b.len())
-                        .filter(|&i| b[i] > 0.0)
-                        .map(|i| i as f64)
-                        .collect();
-                    let ys: Vec<f64> = (0..b.len()).filter(|&i| b[i] > 0.0).map(|i| b[i]).collect();
-                    if xs.len() > 3 {
-                        let pf = polyfit_weighted(&xs, &ys, None, 3, false)?;
-                        data.calibration = Some(pf.coefficients);
-                    }
-                }
+        if let Some(ec) = descendant(root, Some(N42), "EnergyCalibration")
+            && let Some(ebv) = child(ec, Some(N42), "EnergyBoundaryValues")
+            && let Some(text) = ebv.text()
+        {
+            let b = parse_array(text);
+            let xs: Vec<f64> = (0..b.len())
+                .filter(|&i| b[i] > 0.0)
+                .map(|i| i as f64)
+                .collect();
+            let ys: Vec<f64> = (0..b.len()).filter(|&i| b[i] > 0.0).map(|i| b[i]).collect();
+            if xs.len() > 3 {
+                let pf = polyfit_weighted(&xs, &ys, None, 3, false)?;
+                data.calibration = Some(pf.coefficients);
             }
         }
 
@@ -509,7 +508,7 @@ impl XmlParser {
     // RadiaCode
     // -----------------------------------------------------------------------
 
-    fn parse_radiacode(root: Node, name: &str) -> XmlParserResult<ParsedData> {
+    fn parse_radiacode(root: Node<'_, '_>, name: &str) -> XmlParserResult<ParsedData> {
         let mut data = ParsedData::new(name.to_string());
 
         data.instrument_model = descendant_no_ns(root, "Name").or_else(|| {
@@ -525,16 +524,16 @@ impl XmlParser {
                 .to_string(),
         );
 
-        if let Some(cal) = descendant(root, None, "EnergyCalibration") {
-            if let Some(coeffs_node) = descendant(cal, None, "Coefficients") {
-                let mut coeffs: Vec<f64> = descendants(coeffs_node, None, "Coefficient")
-                    .filter_map(|n| n.text().and_then(|t| t.parse().ok()))
-                    .collect();
-                coeffs.reverse();
-                coeffs.truncate(3);
-                if !coeffs.is_empty() {
-                    data.calibration = Some(coeffs);
-                }
+        if let Some(cal) = descendant(root, None, "EnergyCalibration")
+            && let Some(coeffs_node) = descendant(cal, None, "Coefficients")
+        {
+            let mut coeffs: Vec<f64> = descendants(coeffs_node, None, "Coefficient")
+                .filter_map(|n| n.text().and_then(|t| t.parse().ok()))
+                .collect();
+            coeffs.reverse();
+            coeffs.truncate(3);
+            if !coeffs.is_empty() {
+                data.calibration = Some(coeffs);
             }
         }
 
@@ -574,7 +573,7 @@ impl XmlParser {
                     safe_iso(descendant(result, None, "EndTime").and_then(|n| n.text())),
                     spectrum_name,
                 ));
-                let _ = instrument;
+                drop(instrument);
             }
 
             if let Some(bg_spec) = descendant(result, None, "BackgroundEnergySpectrum")
@@ -613,7 +612,7 @@ impl XmlParser {
     // N42 (with LuRaCs extensions)
     // -----------------------------------------------------------------------
 
-    fn parse_n42(root: Node, name: &str, meta_only: bool) -> XmlParserResult<ParsedData> {
+    fn parse_n42(root: Node<'_, '_>, name: &str, meta_only: bool) -> XmlParserResult<ParsedData> {
         let mut data = ParsedData::new(name.to_string());
 
         data.instrument_id = get_descendant_text(root, Some(N42), "RadInstrumentIdentifier");
@@ -621,16 +620,16 @@ impl XmlParser {
         data.instrument_class_code = get_descendant_text(root, Some(N42), "RadInstrumentClassCode");
         data.remark = get_descendant_text(root, Some(N42), "Remark");
 
-        if let Some(ec) = descendant(root, Some(N42), "EnergyCalibration") {
-            if let Some(text) = child(ec, Some(N42), "CoefficientValues").and_then(|n| n.text()) {
-                let mut coeffs: Vec<f64> = text
-                    .split_whitespace()
-                    .filter_map(|s| s.parse().ok())
-                    .collect();
-                coeffs.reverse();
-                if !coeffs.is_empty() {
-                    data.calibration = Some(coeffs);
-                }
+        if let Some(ec) = descendant(root, Some(N42), "EnergyCalibration")
+            && let Some(text) = child(ec, Some(N42), "CoefficientValues").and_then(|n| n.text())
+        {
+            let mut coeffs: Vec<f64> = text
+                .split_whitespace()
+                .filter_map(|s| s.parse().ok())
+                .collect();
+            coeffs.reverse();
+            if !coeffs.is_empty() {
+                data.calibration = Some(coeffs);
             }
         }
 
@@ -698,7 +697,7 @@ impl XmlParser {
     // ROIs
     // -----------------------------------------------------------------------
 
-    fn parse_rois_v1(ext_root: Node) -> (Vec<Roi>, Vec<Option<PeakExtras>>) {
+    fn parse_rois_v1(ext_root: Node<'_, '_>) -> (Vec<Roi>, Vec<Option<PeakExtras>>) {
         let mut peaks = Vec::new();
         let mut peak_data = Vec::new();
 
@@ -707,15 +706,15 @@ impl XmlParser {
             let spectrum = roi.attribute("spectrum_ref").unwrap_or("").to_string();
 
             let cont = child(roi, Some(N42), "PeakContinuum");
-            let (region_counts, live_time, e_low, e_high) = match cont {
-                Some(c) => (
-                    get_float(c, Some(N42), "RegionCounts"),
-                    get_float(c, Some(N42), "LiveTime"),
-                    get_float(c, Some(N42), "LowerEnergy"),
-                    get_float(c, Some(N42), "UpperEnergy"),
-                ),
-                None => (0.0, 0.0, 0.0, 0.0),
-            };
+            let (region_counts, live_time, e_low, e_high) =
+                cont.map_or((0.0, 0.0, 0.0, 0.0), |c| {
+                    (
+                        get_float(c, Some(N42), "RegionCounts"),
+                        get_float(c, Some(N42), "LiveTime"),
+                        get_float(c, Some(N42), "LowerEnergy"),
+                        get_float(c, Some(N42), "UpperEnergy"),
+                    )
+                });
 
             let mut meta: Map<String, Value> = Map::new();
             if let Some(c) = cont {
@@ -746,8 +745,9 @@ impl XmlParser {
             );
 
             // Peak fit results
-            let (fit, extras) = match child(roi, Some(N42), "Peak") {
-                Some(peak) => {
+            let (fit, extras) = child(roi, Some(N42), "Peak").map_or_else(
+                || (None, PeakExtras::default()),
+                |peak| {
                     let params = parse_array_opt(
                         child(peak, Some(N42), "FitParameters").and_then(|n| n.text()),
                     );
@@ -796,9 +796,8 @@ impl XmlParser {
                         peak_area: peak_area_pair.map(|(a, _)| a),
                     };
                     (fit, extras)
-                }
-                None => (None, PeakExtras::default()),
-            };
+                },
+            );
 
             // Emission (nuclide)
             let emission = child(roi, Some(N42), "Nuclide").and_then(parse_emission);
@@ -837,7 +836,7 @@ impl XmlParser {
     // Instrument
     // -----------------------------------------------------------------------
 
-    fn parse_instrument(ext_root: Node) -> XmlParserResult<Option<InstrumentData>> {
+    fn parse_instrument(ext_root: Node<'_, '_>) -> XmlParserResult<Option<InstrumentData>> {
         let Some(instrument) = descendant(ext_root, Some(N42), "Instrument") else {
             return Ok(None);
         };
@@ -865,75 +864,78 @@ impl XmlParser {
 
         // Resolution
         let (res_fn, res_params, res_fwhm, res_e, res_created) =
-            if let Some(res) = child(instrument, Some(N42), "Resolution") {
-                let fn_name: Option<ResolutionSignature> = get_text(res, Some(N42), "Function")
-                    .and_then(|t| t.parse::<ResolutionSignature>().ok());
+            child(instrument, Some(N42), "Resolution").map_or_else(
+                || (None, None, None, None, None),
+                |res| {
+                    let fn_name: Option<ResolutionSignature> = get_text(res, Some(N42), "Function")
+                        .and_then(|t| t.parse::<ResolutionSignature>().ok());
 
-                let params = parse_array_opt(get_text(res, Some(N42), "Parameters").as_deref())
-                    .map(|a| a.to_vec());
-                let created = get_text(res, Some(N42), "CreatedTS")
-                    .and_then(|t| DateTime::parse_from_rfc3339(&t).ok())
-                    .map(|dt| dt.with_timezone(&Utc));
+                    let params = parse_array_opt(get_text(res, Some(N42), "Parameters").as_deref())
+                        .map(|a| a.to_vec());
+                    let created = get_text(res, Some(N42), "CreatedTS")
+                        .and_then(|t| DateTime::parse_from_rfc3339(&t).ok())
+                        .map(|dt| dt.with_timezone(&Utc));
 
-                let mut fwhm: Vec<Quantity> = Vec::new();
-                let mut e_pts: Vec<f64> = Vec::new();
-                for dp in descendants(res, Some(N42), "DataPoint") {
-                    let f = get_float(dp, Some(N42), "FWHM");
-                    let fu = get_float(dp, Some(N42), "FWHMUncertainty");
-                    let e = get_float(dp, Some(N42), "Energy");
-                    fwhm.push(Quantity::new_scalar(f, fu, kev(), None, None));
-                    e_pts.push(e);
-                }
-                (
-                    fn_name,
-                    params,
-                    if fwhm.is_empty() { None } else { Some(fwhm) },
-                    if e_pts.is_empty() { None } else { Some(e_pts) },
-                    created,
-                )
-            } else {
-                (None, None, None, None, None)
-            };
+                    let mut fwhm: Vec<Quantity> = Vec::new();
+                    let mut e_pts: Vec<f64> = Vec::new();
+                    for dp in descendants(res, Some(N42), "DataPoint") {
+                        let f = get_float(dp, Some(N42), "FWHM");
+                        let fu = get_float(dp, Some(N42), "FWHMUncertainty");
+                        let e = get_float(dp, Some(N42), "Energy");
+                        fwhm.push(Quantity::new_scalar(f, fu, kev(), None, None));
+                        e_pts.push(e);
+                    }
+                    (
+                        fn_name,
+                        params,
+                        if fwhm.is_empty() { None } else { Some(fwhm) },
+                        if e_pts.is_empty() { None } else { Some(e_pts) },
+                        created,
+                    )
+                },
+            );
 
         // Efficiency
         let (eff_fn, eff_params, eff_points, eff_e_pts, eff_created, eff_desc) =
-            if let Some(eff) = child(instrument, Some(N42), "Efficiency") {
-                let fn_name: Option<EfficiencySignature> = get_text(eff, Some(N42), "Function")
-                    .and_then(|t| t.parse::<EfficiencySignature>().ok());
+            child(instrument, Some(N42), "Efficiency").map_or_else(
+                || (None, None, None, None, None, None),
+                |eff| {
+                    let fn_name: Option<EfficiencySignature> = get_text(eff, Some(N42), "Function")
+                        .and_then(|t| t.parse::<EfficiencySignature>().ok());
 
-                let means = parse_array_opt(get_text(eff, Some(N42), "Parameters").as_deref());
-                let uncerts =
-                    parse_array_opt(get_text(eff, Some(N42), "ParametersUncertainty").as_deref());
-                let params = combine_quantity_pairs(means, uncerts, dimensionless);
-                let created = get_text(eff, Some(N42), "CreatedTS")
-                    .and_then(|t| DateTime::parse_from_rfc3339(&t).ok())
-                    .map(|dt| dt.with_timezone(&Utc));
-                let desc = get_text(eff, Some(N42), "Description");
+                    let means = parse_array_opt(get_text(eff, Some(N42), "Parameters").as_deref());
+                    let uncerts = parse_array_opt(
+                        get_text(eff, Some(N42), "ParametersUncertainty").as_deref(),
+                    );
+                    let params = combine_quantity_pairs(means, uncerts, dimensionless);
+                    let created = get_text(eff, Some(N42), "CreatedTS")
+                        .and_then(|t| DateTime::parse_from_rfc3339(&t).ok())
+                        .map(|dt| dt.with_timezone(&Utc));
+                    let desc = get_text(eff, Some(N42), "Description");
 
-                let mut eff_pts: Vec<Quantity> = Vec::new();
-                let mut e_pts: Vec<f64> = Vec::new();
-                for dp in descendants(eff, Some(N42), "DataPoint") {
-                    let v = get_float(dp, Some(N42), "Efficiency");
-                    let vu = get_float(dp, Some(N42), "EfficiencyUncertainty");
-                    let e = get_float(dp, Some(N42), "Energy");
-                    eff_pts.push(Quantity::new_scalar(v, vu, dimensionless(), None, None));
-                    e_pts.push(e);
-                }
-                (
-                    fn_name,
-                    params,
-                    if eff_pts.is_empty() {
-                        None
-                    } else {
-                        Some(eff_pts)
-                    },
-                    if e_pts.is_empty() { None } else { Some(e_pts) },
-                    created,
-                    desc,
-                )
-            } else {
-                (None, None, None, None, None, None)
-            };
+                    let mut eff_pts: Vec<Quantity> = Vec::new();
+                    let mut e_pts: Vec<f64> = Vec::new();
+                    for dp in descendants(eff, Some(N42), "DataPoint") {
+                        let v = get_float(dp, Some(N42), "Efficiency");
+                        let vu = get_float(dp, Some(N42), "EfficiencyUncertainty");
+                        let e = get_float(dp, Some(N42), "Energy");
+                        eff_pts.push(Quantity::new_scalar(v, vu, dimensionless(), None, None));
+                        e_pts.push(e);
+                    }
+                    (
+                        fn_name,
+                        params,
+                        if eff_pts.is_empty() {
+                            None
+                        } else {
+                            Some(eff_pts)
+                        },
+                        if e_pts.is_empty() { None } else { Some(e_pts) },
+                        created,
+                        desc,
+                    )
+                },
+            );
 
         let generic = GenericInstrument {
             model,
@@ -965,33 +967,35 @@ impl XmlParser {
         // Unique-only fields
         let name = get_text(instrument, Some(N42), "Name").unwrap_or_default();
 
-        let (poly_order, coeffs, cal_e_pts, cal_c_pts, cal_date) =
-            if let Some(cal) = child(instrument, Some(N42), "Calibration") {
-                let order = get_text(cal, Some(N42), "PolynomialOrder")
-                    .and_then(|t| t.parse::<u32>().ok())
-                    .unwrap_or(1);
-                let coeffs = parse_array_opt(get_text(cal, Some(N42), "Coefficients").as_deref())
-                    .map(|a| a.to_vec());
+        let (poly_order, coeffs, cal_e_pts, cal_c_pts, cal_date) = child(
+            instrument,
+            Some(N42),
+            "Calibration",
+        )
+        .map_or((None, None, None, None, None), |cal| {
+            let order = get_text(cal, Some(N42), "PolynomialOrder")
+                .and_then(|t| t.parse::<u32>().ok())
+                .unwrap_or(1);
+            let coeffs = parse_array_opt(get_text(cal, Some(N42), "Coefficients").as_deref())
+                .map(|a| a.to_vec());
 
-                let mut e_pts: Vec<f64> = Vec::new();
-                let mut c_pts: Vec<f64> = Vec::new();
-                for dp in descendants(cal, Some(N42), "DataPoint") {
-                    e_pts.push(get_float(dp, Some(N42), "Energy"));
-                    c_pts.push(get_float(dp, Some(N42), "Channel"));
-                }
-                let date = get_text(cal, Some(N42), "Date")
-                    .and_then(|t| DateTime::parse_from_rfc3339(&t).ok())
-                    .map(|dt| dt.with_timezone(&Utc));
-                (
-                    Some(order),
-                    coeffs,
-                    if e_pts.is_empty() { None } else { Some(e_pts) },
-                    if c_pts.is_empty() { None } else { Some(c_pts) },
-                    date,
-                )
-            } else {
-                (None, None, None, None, None)
-            };
+            let mut e_pts: Vec<f64> = Vec::new();
+            let mut c_pts: Vec<f64> = Vec::new();
+            for dp in descendants(cal, Some(N42), "DataPoint") {
+                e_pts.push(get_float(dp, Some(N42), "Energy"));
+                c_pts.push(get_float(dp, Some(N42), "Channel"));
+            }
+            let date = get_text(cal, Some(N42), "Date")
+                .and_then(|t| DateTime::parse_from_rfc3339(&t).ok())
+                .map(|dt| dt.with_timezone(&Utc));
+            (
+                Some(order),
+                coeffs,
+                if e_pts.is_empty() { None } else { Some(e_pts) },
+                if c_pts.is_empty() { None } else { Some(c_pts) },
+                date,
+            )
+        });
 
         Ok(Some(InstrumentData::Unique(UniqueInstrument {
             name,
@@ -1053,7 +1057,7 @@ fn combine_quantity_pairs(
     }
 }
 
-fn parse_emission(nuclide: Node) -> Option<Emission> {
+fn parse_emission(nuclide: Node<'_, '_>) -> Option<Emission> {
     let parent_text = get_text(nuclide, Some(N42), "Name")?;
     let parent_nuclide = nucleide_nuclei::NuclideId::from_name(&parent_text).ok();
 
@@ -1073,7 +1077,7 @@ fn parse_emission(nuclide: Node) -> Option<Emission> {
     })
 }
 
-fn descendant_no_ns<'a, 'input>(node: Node<'a, 'input>, local: &'a str) -> Option<String> {
+fn descendant_no_ns<'a>(node: Node<'a, '_>, local: &'a str) -> Option<String> {
     descendant(node, None, local)
         .and_then(|n| n.text())
         .map(String::from)

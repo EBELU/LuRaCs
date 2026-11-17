@@ -49,6 +49,7 @@ use crate::theme_manager::{self, ThemeDefinition};
 // Events
 // ===========================================================================
 
+#[allow(clippy::enum_variant_names)]
 pub enum SpectrogramScreenEvent {
     RequestStart {
         db_name: String,
@@ -79,7 +80,7 @@ pub enum SpectrogramScreenEvent {
         /// Reversed-row indices: `0` = newest row.
         row_range: (usize, usize),
     },
-    /// Open the Data Library on the given tab (1 = Spectrograms, 2 = ROIs).
+    /// Open the Data Library on the given tab (1 = Spectrograms, 2 = ROI data).
     RequestShowDataStore {
         tab: usize,
     },
@@ -210,24 +211,24 @@ impl SpectrogramScreen {
                 .cloned();
         }
         // Prune stale selection.
-        if let Some(name) = &self.selected_spectrogram {
-            if !spectrogram_manager.spectrogram_registry.contains(name) {
-                self.selected_spectrogram = None;
-            }
+        if let Some(name) = &self.selected_spectrogram
+            && !spectrogram_manager.spectrogram_registry.contains(name)
+        {
+            self.selected_spectrogram = None;
         }
 
         // ---- Left column: controls + info ----
         egui::Panel::left("spectrogram_controls")
             .resizable(true)
             .default_size(280.0)
-            .show_inside(ui, |ui| {
+            .show(ui, |ui| {
                 self.render_controls(spectrogram_manager, &mut events, devices, ui);
                 ui.separator();
                 self.render_info_pane(spectrogram_data, ui);
             });
 
         // ---- Central column: bar plot + waterfall ----
-        egui::CentralPanel::default().show_inside(ui, |ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             let total_h = ui.available_height();
             let bar_h = (total_h * 0.30).max(80.0);
             let waterfall_h = (total_h - bar_h - 8.0).max(120.0);
@@ -288,12 +289,12 @@ impl SpectrogramScreen {
             if ui.button("Start New").clicked() {
                 self.start_dialog = Some(StartDialogState::new(devices.to_vec()));
             }
-            if ui.button("Unload").clicked() {
-                if let Some(name) = &self.selected_spectrogram {
-                    events.push(SpectrogramScreenEvent::RequestClose {
-                        db_name: name.clone(),
-                    });
-                }
+            if ui.button("Unload").clicked()
+                && let Some(name) = &self.selected_spectrogram
+            {
+                events.push(SpectrogramScreenEvent::RequestClose {
+                    db_name: name.clone(),
+                });
             }
             if ui.button("Load").clicked() {
                 events.push(SpectrogramScreenEvent::RequestShowDataStore { tab: 1 });
@@ -334,21 +335,21 @@ impl SpectrogramScreen {
                 && self.is_paused(spectrogram_manager);
 
             ui.add_enabled_ui(!is_paused, |ui| {
-                if ui.button("Stop").clicked() {
-                    if let Some(name) = &self.selected_spectrogram {
-                        events.push(SpectrogramScreenEvent::RequestPause {
-                            db_name: name.clone(),
-                        });
-                    }
+                if ui.button("Stop").clicked()
+                    && let Some(name) = &self.selected_spectrogram
+                {
+                    events.push(SpectrogramScreenEvent::RequestPause {
+                        db_name: name.clone(),
+                    });
                 }
             });
             ui.add_enabled_ui(is_paused, |ui| {
-                if ui.button("Resume").clicked() {
-                    if let Some(name) = &self.selected_spectrogram {
-                        events.push(SpectrogramScreenEvent::RequestResume {
-                            db_name: name.clone(),
-                        });
-                    }
+                if ui.button("Resume").clicked()
+                    && let Some(name) = &self.selected_spectrogram
+                {
+                    events.push(SpectrogramScreenEvent::RequestResume {
+                        db_name: name.clone(),
+                    });
                 }
             });
 
@@ -385,7 +386,7 @@ impl SpectrogramScreen {
         });
     }
 
-    fn is_paused(&self, _spectrogram_manager: &SpectrogramManager) -> bool {
+    const fn is_paused(&self, _spectrogram_manager: &SpectrogramManager) -> bool {
         // Pause state isn't stored in the manager's registry (which is just
         // names), so we reflect the local toggle. Replace with a manager
         // lookup once `Spectrogram::paused` is accessible from App.
@@ -397,7 +398,7 @@ impl SpectrogramScreen {
     // -----------------------------------------------------------------------
 
     fn render_info_pane(
-        &mut self,
+        &self,
         spectrogram_data: &HashMap<String, Arc<WrappedSpectrogramData>>,
         ui: &mut egui::Ui,
     ) {
@@ -540,7 +541,7 @@ impl SpectrogramScreen {
         self.bar_plot.add_curve_with_interpolation(
             &x,
             &heights,
-            theme_def.colors.text.into(),
+            theme_def.colors.text,
             CurveInterpolation::StepPost,
         );
 
@@ -548,7 +549,7 @@ impl SpectrogramScreen {
         if let Some(x_axis) = energy_axis(p) {
             // `spectrogram_manager` is not available here; ROIs are drawn
             // below in `draw_waterfall_plot` where we have the manager.
-            let _ = x_axis;
+            drop(x_axis);
         }
 
         // Include the bar y-max in the autoscale, floor at 0.
@@ -589,17 +590,17 @@ impl SpectrogramScreen {
         // TODO(rsplot-image): upload the spectrogram as an image item once
         // `Plot1D::add_image` / `set_image` is confirmed. For now, render
         // only the newest row so there's visible activity.
-        if n_rows > 0 {
-            if let Some(last) = p.spectrogram.last() {
-                let x: Vec<f64> = (0..channels).map(|i| i as f64).collect();
-                let y: Vec<f64> = last.iter().copied().collect();
-                self.waterfall_plot.add_curve_with_interpolation(
-                    &x,
-                    &y,
-                    theme_def.colors.text.0.gamma_multiply(0.8),
-                    CurveInterpolation::Linear,
-                );
-            }
+        if n_rows > 0
+            && let Some(last) = p.spectrogram.last()
+        {
+            let x: Vec<f64> = (0..channels).map(|i| i as f64).collect();
+            let y: Vec<f64> = last.iter().copied().collect();
+            self.waterfall_plot.add_curve_with_interpolation(
+                &x,
+                &y,
+                theme_def.colors.text.gamma_multiply(0.8),
+                CurveInterpolation::Linear,
+            );
         }
 
         // Break lines (reversed-row indices where a time gap appears).
@@ -612,12 +613,12 @@ impl SpectrogramScreen {
                 if t <= 0.0 {
                     continue;
                 }
-                if let Some(pt) = prev {
-                    if (t - pt).abs() > expected_dt * 1.5 + 1.0 {
-                        // Reversed-row index of the older side.
-                        let row = (n_rows - 1) as f64 - prev_idx as f64;
-                        break_rows.push(row.max(0.0));
-                    }
+                if let Some(pt) = prev
+                    && (t - pt).abs() > f64::mul_add(expected_dt, 1.5, 1.0)
+                {
+                    // Reversed-row index of the older side.
+                    let row = (n_rows - 1) as f64 - prev_idx as f64;
+                    break_rows.push(row.max(0.0));
                 }
                 prev = Some(t);
                 prev_idx = i as i64;
@@ -725,7 +726,7 @@ impl SpectrogramScreen {
     // Modals
     // -----------------------------------------------------------------------
 
-    fn render_start_dialog(&mut self, events: &mut Vec<SpectrogramScreenEvent>, ui: &mut egui::Ui) {
+    fn render_start_dialog(&mut self, events: &mut Vec<SpectrogramScreenEvent>, ui: &egui::Ui) {
         let Some(mut dialog) = self.start_dialog.take() else {
             return;
         };
@@ -806,11 +807,7 @@ impl SpectrogramScreen {
         }
     }
 
-    fn render_export_dialog(
-        &mut self,
-        events: &mut Vec<SpectrogramScreenEvent>,
-        ui: &mut egui::Ui,
-    ) {
+    fn render_export_dialog(&mut self, events: &mut Vec<SpectrogramScreenEvent>, ui: &egui::Ui) {
         let Some(mut dialog) = self.export_dialog.take() else {
             return;
         };
@@ -852,7 +849,6 @@ impl SpectrogramScreen {
         if accepted {
             if dialog.spectrum_name.trim().is_empty() {
                 self.pending_message = Some("Invalid name".into());
-                open = false;
             } else if let Some(range) = dialog.row_range {
                 events.push(SpectrogramScreenEvent::RequestExportSelection {
                     db_name: dialog.db_name.clone(),
@@ -860,15 +856,14 @@ impl SpectrogramScreen {
                     remark: dialog.remark.clone(),
                     row_range: range,
                 });
-                open = false;
             } else {
                 events.push(SpectrogramScreenEvent::RequestExportAccumulated {
                     db_name: dialog.db_name.clone(),
                     spectrum_name: dialog.spectrum_name.clone(),
                     remark: dialog.remark.clone(),
                 });
-                open = false;
             }
+            open = false;
         }
 
         if open {
@@ -880,7 +875,7 @@ impl SpectrogramScreen {
         &mut self,
         _spectrogram_manager: &SpectrogramManager,
         events: &mut Vec<SpectrogramScreenEvent>,
-        ui: &mut egui::Ui,
+        ui: &egui::Ui,
     ) {
         if !self.pending_clear_rois_confirm {
             return;
@@ -943,7 +938,7 @@ fn searchsorted_left(arr: &Array1<f64>, v: f64) -> usize {
 }
 
 fn polyval(coeffs: &[f64], x: f64) -> f64 {
-    coeffs.iter().fold(0.0, |acc, &c| acc * x + c)
+    coeffs.iter().fold(0.0, |acc, &c| f64::mul_add(acc, x, c))
 }
 
 fn epoch_to_local_string(ts: f64) -> String {

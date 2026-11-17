@@ -178,7 +178,7 @@ impl LuRaCsApp {
         }
         // The startup apply is not a user change — discard its event so we
         // don't persist a no-op write.
-        let _ = theme_manager.drain_events();
+        drop(theme_manager.drain_events());
         let initial_theme_version = theme_manager.version();
 
         let spectrum_screen = SpectrumScreen::new(&render_state);
@@ -250,7 +250,7 @@ impl LuRaCsApp {
     /// Port of `MainWindow.set_Si_interface`. Matches the Python tab-index
     /// choice: `Map` in Si-only builds, `Measure` in normal or H3 builds.
     /// (The H3 case in Python would index out of range; we don't.)
-    pub fn set_si_mode(&mut self, enabled: bool) {
+    pub const fn set_si_mode(&mut self, enabled: bool) {
         self.si_mode = enabled;
         if enabled {
             self.top_tab = if false { TopTab::Map } else { TopTab::Measure };
@@ -304,7 +304,7 @@ impl LuRaCsApp {
                 // dictionary pointer before borrowing the disjoint ROI manager.
                 // The two fields are independent and are not accessed through
                 // overlapping references during this call.
-                let spectra = self.spectrum_manager.get_spectra_dict_mut() as *mut _;
+                let spectra: *mut _ = self.spectrum_manager.get_spectra_dict_mut();
                 let roi_manager = &mut self.spectrum_manager.roi_manager;
                 // SAFETY: `spectra` points to the spectrum dictionary owned by
                 // `spectrum_manager`; `roi_manager` is a separate field.
@@ -344,7 +344,7 @@ impl LuRaCsApp {
         }
 
         // --- Spectrum manager events (passive) ---
-        let _ = self.spectrum_manager.drain_events();
+        drop(self.spectrum_manager.drain_events());
 
         // --- ROI manager: `Created` triggers owner adoption + fit ---
         let roi_events = self.spectrum_manager.roi_manager.drain_events();
@@ -565,11 +565,10 @@ impl LuRaCsApp {
                                 .io_manager
                                 .importer
                                 .pick_file(crate::core::ImportFilter::Rois)
+                                && let Ok(parser) = crate::utils::XmlParser::open(&path, false)
                             {
-                                if let Ok(parser) = crate::utils::XmlParser::open(&path, false) {
-                                    let rois: Vec<_> = parser.get_rois().to_vec();
-                                    self.run_manager.spectrogram_manager_mut().load_rois(&rois);
-                                }
+                                let rois: Vec<_> = parser.get_rois().to_vec();
+                                self.run_manager.spectrogram_manager_mut().load_rois(&rois);
                             }
                         }
                     }
@@ -630,13 +629,12 @@ impl LuRaCsApp {
         }
     }
 
-    fn render_windows(&mut self, ui: &mut egui::Ui) {
+    fn render_windows(&mut self, ui: &egui::Ui) {
         // Each StubWindow no-ops when `.open == false`. Real windows keep
         // the same contract: `render` checks its own `open` flag.
         self.data_library.render(ui);
         self.driver_dialog.render(ui);
-        let mut settings_dialog =
-            std::mem::replace(&mut self.settings_dialog, SettingsDialog::new());
+        let mut settings_dialog = std::mem::take(&mut self.settings_dialog);
         settings_dialog.render(self, ui);
         self.settings_dialog = settings_dialog;
         self.bluetooth_window.render(ui);

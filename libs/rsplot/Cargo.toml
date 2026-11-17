@@ -8,6 +8,12 @@ description = "silx-style scientific plotting for egui, rendered with wgpu"
 repository = "https://github.com/physwkim/rsplot"
 readme = "README.md"
 
+[lints.rust]
+warnings = "allow"
+
+[lints.clippy]
+all = { level = "allow", priority = -1 }
+
 [workspace]
 # rsplot is the root package and an implicit member; `rsdm` (the PyDM-style
 # EPICS display layer, ported from ~/codes/pydm onto rsplot + epics-rs) is the

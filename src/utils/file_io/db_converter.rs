@@ -47,16 +47,16 @@ enum Cell {
 impl Cell {
     fn write(&self, ws: &mut Worksheet, row: u32, col: u16) -> std::result::Result<(), XlsxError> {
         match self {
-            Cell::Str(s) => {
+            Self::Str(s) => {
                 ws.write_string(row, col, s)?;
             }
-            Cell::Int(i) => {
+            Self::Int(i) => {
                 ws.write_number(row, col, *i as f64)?;
             }
-            Cell::Float(f) => {
+            Self::Float(f) => {
                 ws.write_number(row, col, *f)?;
             }
-            Cell::Empty => {} // leave the cell blank
+            Self::Empty => {} // leave the cell blank
         }
         Ok(())
     }
@@ -68,7 +68,7 @@ struct Sheet {
 }
 
 impl Sheet {
-    fn new() -> Self {
+    const fn new() -> Self {
         Self {
             headers: Vec::new(),
             columns: Vec::new(),
@@ -257,8 +257,8 @@ impl DbWriter {
                 (
                     summary.total_spectrum.clone(),
                     summary.total_duration,
-                    header.created.clone(),
-                    summary.last_update.clone(),
+                    header.created,
+                    summary.last_update,
                 )
             } else {
                 let data = parser.get_spectrogram_by_date(start_time, stop_time)?;
@@ -269,19 +269,19 @@ impl DbWriter {
                     .map_axis(Axis(0), |col| col.iter().map(|&v| v as f64).sum::<f64>());
 
                 if !data.timestamps_datetime.is_empty() {
-                    let sd = data.timestamps_datetime.first().unwrap().clone();
-                    let ed = data.timestamps_datetime.last().unwrap().clone();
+                    let sd = *data.timestamps_datetime.first().unwrap();
+                    let ed = *data.timestamps_datetime.last().unwrap();
                     let lt = *data.timestamps.last().unwrap() - *data.timestamps.first().unwrap();
                     (y_axis, lt, sd, ed)
                 } else {
-                    (y_axis, 0.0, header.created.clone(), header.created.clone())
+                    (y_axis, 0.0, header.created, header.created)
                 }
             };
 
         let total_counts: u64 = y_axis.sum().max(0.0) as u64;
 
         let spectrum_data = SpectrumData {
-            y_axis: y_axis.clone(),
+            y_axis,
             channels: header.channels,
             total_counts,
             live_time,

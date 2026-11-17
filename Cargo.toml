@@ -50,4 +50,50 @@ ndarray-npy = "0.10.0"
 chemometrics = "0.2.1"
 sci-find-peaks = "0.1.0"
 toml = "1.2.1"
-ndarray-ndimage = "0.6.0"
+
+[lints.clippy]
+cargo = "warn"
+complexity = "deny"
+correctness = "deny"
+nursery = "deny"
+perf = "deny"
+# restriction = "deny"
+style = "deny"
+suspicious = "deny"
+pub-with-shorthand = { level = "allow", priority = 1 }
+use_debug = { level = "allow", priority = 1 }
+undocumented_unsafe_blocks = { level = "allow", priority = 1 }
+single_call_fn = { level = "allow", priority = 1 }
+cognitive_complexity = { level = "allow", priority = 1 }
+fn_to_numeric_cast_any = { level = "allow", priority = 1 }
+multiple_unsafe_ops_per_block = { level = "allow", priority = 1 }
+
+[lints.rust]
+ambiguous-negative-literals = "warn"
+closure_returning_async_block = "warn"
+elided_lifetimes_in_paths = "warn"
+explicit_outlives_requirements = "warn"
+fuzzy_provenance_casts = "warn"
+if_let_rescope = "warn"
+impl_trait_redundant_captures = "warn"
+let_underscore_drop = "warn"
+lossy_provenance_casts = "warn"
+macro_use_extern_crate = "warn"
+meta_variable_misuse = "deny"
+missing_debug_implementations = "deny"
+# missing_docs = "warn"
+missing_unsafe_on_extern = "deny"
+multiple_supertrait_upcastable = "warn"
+must_not_suspend = "warn"
+non_exhaustive_omitted_patterns = "warn"
+redundant_imports = "deny"
+redundant_lifetimes = "deny"
+single_use_lifetimes = "deny"
+trivial_casts = "deny"
+trivial_numeric_casts = "deny"
+unit_bindings = "warn"
+unnameable_types = "deny"
+unqualified_local_imports = "warn"
+unsafe_attr_outside_unsafe = "warn"
+unsafe_op_in_unsafe_fn = "warn"
+variant_size_differences = "warn"

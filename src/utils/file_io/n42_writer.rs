@@ -52,7 +52,7 @@ pub type N42Result<T> = std::result::Result<T, N42Error>;
 
 impl From<quick_xml::Error> for N42Error {
     fn from(e: quick_xml::Error) -> Self {
-        N42Error::Xml(e.to_string())
+        Self::Xml(e.to_string())
     }
 }
 
@@ -66,14 +66,14 @@ pub enum XmlNode {
         name: String,
         attrs: Vec<(String, String)>,
         text: Option<String>,
-        children: Vec<XmlNode>,
+        children: Vec<Self>,
     },
     Comment(String),
 }
 
 impl XmlNode {
     pub fn new(name: impl Into<String>) -> Self {
-        XmlNode::Element {
+        Self::Element {
             name: name.into(),
             attrs: Vec::new(),
             text: None,
@@ -82,28 +82,28 @@ impl XmlNode {
     }
 
     pub fn attr(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
-        if let XmlNode::Element { attrs, .. } = &mut self {
+        if let Self::Element { attrs, .. } = &mut self {
             attrs.push((key.into(), value.into()));
         }
         self
     }
 
     fn text(mut self, text: impl Into<String>) -> Self {
-        if let XmlNode::Element { text: t, .. } = &mut self {
+        if let Self::Element { text: t, .. } = &mut self {
             *t = Some(text.into());
         }
         self
     }
 
-    pub fn push(&mut self, child: XmlNode) {
-        if let XmlNode::Element { children, .. } = self {
+    pub fn push(&mut self, child: Self) {
+        if let Self::Element { children, .. } = self {
             children.push(child);
         }
     }
 
     fn write_to<W: Write>(&self, writer: &mut Writer<W>) -> N42Result<()> {
         match self {
-            XmlNode::Element {
+            Self::Element {
                 name,
                 attrs,
                 text,
@@ -117,10 +117,10 @@ impl XmlNode {
                     writer.write_event(Event::Empty(start))?;
                 } else {
                     writer.write_event(Event::Start(start))?;
-                    if let Some(t) = text {
-                        if !t.is_empty() {
-                            writer.write_event(Event::Text(BytesText::new(t)))?;
-                        }
+                    if let Some(t) = text
+                        && !t.is_empty()
+                    {
+                        writer.write_event(Event::Text(BytesText::new(t)))?;
                     }
                     for c in children {
                         c.write_to(writer)?;
@@ -128,7 +128,7 @@ impl XmlNode {
                     writer.write_event(Event::End(BytesEnd::new(name.as_str())))?;
                 }
             }
-            XmlNode::Comment(c) => {
+            Self::Comment(c) => {
                 writer.write_event(Event::Comment(BytesText::new(c.as_str())))?;
             }
         }
@@ -148,27 +148,27 @@ pub enum XmlValue {
 
 impl XmlValue {
     pub fn scalar(s: impl Into<String>) -> Self {
-        XmlValue::Scalar(s.into())
+        Self::Scalar(s.into())
     }
     pub fn float(v: f64) -> Self {
-        XmlValue::Scalar(v.to_string())
+        Self::Scalar(v.to_string())
     }
     fn int(v: i64) -> Self {
-        XmlValue::Scalar(v.to_string())
+        Self::Scalar(v.to_string())
     }
     fn floats(v: impl IntoIterator<Item = f64>) -> Self {
-        XmlValue::List(v.into_iter().map(|x| x.to_string()).collect())
+        Self::List(v.into_iter().map(|x| x.to_string()).collect())
     }
     fn ints(v: impl IntoIterator<Item = i64>) -> Self {
-        XmlValue::List(v.into_iter().map(|x| x.to_string()).collect())
+        Self::List(v.into_iter().map(|x| x.to_string()).collect())
     }
     pub fn strings(v: impl IntoIterator<Item = impl Into<String>>) -> Self {
-        XmlValue::List(v.into_iter().map(|x| x.into()).collect())
+        Self::List(v.into_iter().map(|x| x.into()).collect())
     }
     fn text(&self) -> String {
         match self {
-            XmlValue::Scalar(s) => s.clone(),
-            XmlValue::List(v) => v.join(" "),
+            Self::Scalar(s) => s.clone(),
+            Self::List(v) => v.join(" "),
         }
     }
 }
@@ -307,12 +307,12 @@ impl<'a> N42Writer<'a> {
             ext.push(peaks);
         }
 
-        if self.opts.export_instrument {
-            if let Some(inst) = &self.spectrum.instrument {
-                let ext = extension
-                    .get_or_insert_with(|| XmlNode::new("LRC:LuRaCs").attr("version", "1"));
-                write_instrument_data(inst, ext)?;
-            }
+        if self.opts.export_instrument
+            && let Some(inst) = &self.spectrum.instrument
+        {
+            let ext =
+                extension.get_or_insert_with(|| XmlNode::new("LRC:LuRaCs").attr("version", "1"));
+            write_instrument_data(inst, ext)?;
         }
 
         if let Some(ext) = extension {
@@ -353,19 +353,19 @@ impl<'a> N42Writer<'a> {
             .and_then(|d| d.spectrum_name.clone())
             .unwrap_or_else(|| "BkgSample0".into());
 
-        if s.calibrated {
-            if let Some(coeffs) = &s.calibration_coefficients {
-                let mut energy_cal = XmlNode::new("EnergyCalibration").attr("id", "EnergyCal0");
-                // Reverse: Spectrum stores highest-degree-first; N42 wants
-                // lowest-degree-first.
-                let reversed: Vec<f64> = coeffs.iter().rev().copied().collect();
-                append_text(
-                    &mut energy_cal,
-                    "CoefficientValues",
-                    XmlValue::floats(reversed),
-                );
-                root.push(energy_cal);
-            }
+        if s.calibrated
+            && let Some(coeffs) = &s.calibration_coefficients
+        {
+            let mut energy_cal = XmlNode::new("EnergyCalibration").attr("id", "EnergyCal0");
+            // Reverse: Spectrum stores highest-degree-first; N42 wants
+            // lowest-degree-first.
+            let reversed: Vec<f64> = coeffs.iter().rev().copied().collect();
+            append_text(
+                &mut energy_cal,
+                "CoefficientValues",
+                XmlValue::floats(reversed),
+            );
+            root.push(energy_cal);
         }
 
         if !s.remark.is_empty() {
@@ -393,21 +393,20 @@ fn write_spectrum_data(root: &mut XmlNode, data: &SpectrumData, kind: &str, spec
     append_text(&mut rad, "MeasurementClassCode", XmlValue::scalar(kind));
 
     // StartDateTime is always present; empty text when start_date is None.
-    let start_text = match &data.start_date {
-        Some(dt) => dt.format("%Y-%m-%dT%H:%M:%SZ").to_string(),
-        None => String::new(),
-    };
+    let start_text = data.start_date.as_ref().map_or_else(String::new, |dt| {
+        dt.format("%Y-%m-%dT%H:%M:%SZ").to_string()
+    });
     append_text(&mut rad, "StartDateTime", XmlValue::scalar(start_text));
 
     // RealTimeDuration: skip when zero (Python truthiness).
-    if let Some(rt) = data.real_time {
-        if rt != 0.0 {
-            append_text(
-                &mut rad,
-                "RealTimeDuration",
-                XmlValue::scalar(format!("PT{:.2}S", rt)),
-            );
-        }
+    if let Some(rt) = data.real_time
+        && rt != 0.0
+    {
+        append_text(
+            &mut rad,
+            "RealTimeDuration",
+            XmlValue::scalar(format!("PT{:.2}S", rt)),
+        );
     }
 
     let id = data.spectrum_name.clone().unwrap_or_else(|| match kind {
@@ -559,39 +558,39 @@ fn write_one_roi(parent: &mut XmlNode, tag: &str, roi: &Roi) {
     }
 
     // --- Nuclide ---
-    if let Some(em) = &roi.emission {
-        if let Some(nuclide_id) = &em.parent_nuclide {
-            let mut nuclide = XmlNode::new("Nuclide");
-            append_text(&mut nuclide, "Name", XmlValue::scalar(nuclide_id.to_name()));
+    if let Some(em) = &roi.emission
+        && let Some(nuclide_id) = &em.parent_nuclide
+    {
+        let mut nuclide = XmlNode::new("Nuclide");
+        append_text(&mut nuclide, "Name", XmlValue::scalar(nuclide_id.to_name()));
 
-            if let Some(q) = &em.energy_kev {
-                append_text_attrs(
-                    &mut nuclide,
-                    "Energy",
-                    XmlValue::floats([q.value.mean(), q.value.std_dev()]),
-                    &[("unit", "keV")],
-                );
-            }
-            if let Some(q) = &em.intensity_percent {
-                append_text_attrs(
-                    &mut nuclide,
-                    "Intensity",
-                    XmlValue::floats([q.value.mean(), q.value.std_dev()]),
-                    &[("unit", "%")],
-                );
-            }
-            if let Some(t) = em.r#type {
-                append_text(&mut nuclide, "Type", XmlValue::scalar(emission_type_str(t)));
-            }
-            if let Some(o) = em.origin {
-                append_text(
-                    &mut nuclide,
-                    "EmissionOrigin",
-                    XmlValue::scalar(emission_origin_str(o)),
-                );
-            }
-            peak.push(nuclide);
+        if let Some(q) = &em.energy_kev {
+            append_text_attrs(
+                &mut nuclide,
+                "Energy",
+                XmlValue::floats([q.value.mean(), q.value.std_dev()]),
+                &[("unit", "keV")],
+            );
         }
+        if let Some(q) = &em.intensity_percent {
+            append_text_attrs(
+                &mut nuclide,
+                "Intensity",
+                XmlValue::floats([q.value.mean(), q.value.std_dev()]),
+                &[("unit", "%")],
+            );
+        }
+        if let Some(t) = em.r#type {
+            append_text(&mut nuclide, "Type", XmlValue::scalar(emission_type_str(t)));
+        }
+        if let Some(o) = em.origin {
+            append_text(
+                &mut nuclide,
+                "EmissionOrigin",
+                XmlValue::scalar(emission_origin_str(o)),
+            );
+        }
+        peak.push(nuclide);
     }
 
     parent.push(peak);
@@ -757,10 +756,10 @@ fn write_instrument_data(instrument: &UniqueInstrument, root: &mut XmlNode) -> N
     // --- Response matrix ---
     if let Some(matrix) = &instrument.response_matrix {
         let encoded = encode_response_matrix(matrix)?;
-        let shape = match &instrument.response_matrix_shape {
-            Some(s) => format!("{} {}", s[0], s[1]),
-            None => format!("{} {}", matrix.nrows(), matrix.ncols()),
-        };
+        let shape = instrument.response_matrix_shape.as_ref().map_or_else(
+            || format!("{} {}", matrix.nrows(), matrix.ncols()),
+            |s| format!("{} {}", s[0], s[1]),
+        );
         append_text_attrs(
             &mut section,
             "ResponseMatrix",
@@ -883,7 +882,7 @@ fn emission_origin_str(o: EmissionOrigin) -> String {
 }
 
 /// Python `str(bool)` → "True"/"False". Preserved for XML-attribute fidelity.
-fn bool_py(b: bool) -> &'static str {
+const fn bool_py(b: bool) -> &'static str {
     if b { "True" } else { "False" }
 }
 

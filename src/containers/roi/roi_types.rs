@@ -66,7 +66,7 @@ pub enum CountField {
 }
 
 impl CountField {
-    pub fn is_count(self) -> bool {
+    pub const fn is_count(self) -> bool {
         use CountField::*;
         matches!(
             self,

@@ -45,15 +45,15 @@ impl CsrMatrix {
         }
     }
 
-    pub fn nrows(&self) -> usize {
+    pub const fn nrows(&self) -> usize {
         self.nrows
     }
 
-    pub fn ncols(&self) -> usize {
+    pub const fn ncols(&self) -> usize {
         self.ncols
     }
 
-    pub fn nnz(&self) -> usize {
+    pub const fn nnz(&self) -> usize {
         self.values.len()
     }
 
@@ -141,7 +141,7 @@ impl CsrMatrix {
             let end = self.offsets[r + 1];
             let mut acc = 0.0;
             for idx in start..end {
-                acc += self.values[idx] * x[self.indices[idx]];
+                acc = self.values[idx].mul_add(x[self.indices[idx]], acc);
             }
             acc
         };
@@ -181,7 +181,8 @@ impl CsrMatrix {
                             let start = self.offsets[r];
                             let end = self.offsets[r + 1];
                             for idx in start..end {
-                                local[self.indices[idx]] += self.values[idx] * yr;
+                                local[self.indices[idx]] =
+                                    self.values[idx].mul_add(yr, local[self.indices[idx]]);
                             }
                         }
                         local
@@ -208,7 +209,7 @@ impl CsrMatrix {
                 let start = self.offsets[r];
                 let end = self.offsets[r + 1];
                 for idx in start..end {
-                    out[self.indices[idx]] += self.values[idx] * yr;
+                    out[self.indices[idx]] = self.values[idx].mul_add(yr, out[self.indices[idx]]);
                 }
             }
         }
@@ -240,16 +241,16 @@ pub fn build_gaussian_response_dense(axis: &[f64], sigma: &[f64], nsigma: f64) -
     let fill_row = |i: usize, row: &mut [f64]| {
         let e = axis[i];
         let s = sigma[i];
-        let xmin = e - nsigma * s;
-        let xmax = e + nsigma * s;
+        let xmin = nsigma.mul_add(-s, e);
+        let xmax = nsigma.mul_add(s, e);
 
         // np.searchsorted equivalents (assumes `axis` is sorted ascending)
         let low = axis.partition_point(|&v| v < xmin);
         let high = axis.partition_point(|&v| v <= xmax);
 
         let mut norm = 0.0;
-        for j in low..high {
-            let t = (axis[j] - e) / s;
+        for &axis_j in &axis[low..high] {
+            let t = (axis_j - e) / s;
             norm += (-0.5 * t * t).exp();
         }
         for j in low..high {
@@ -258,13 +259,12 @@ pub fn build_gaussian_response_dense(axis: &[f64], sigma: &[f64], nsigma: f64) -
         }
     };
 
+    let flat = a.as_slice_mut().expect("Array2 is contiguous");
     if n >= PARALLEL_ROW_THRESHOLD {
-        let flat = a.as_slice_mut().expect("Array2 is contiguous");
         flat.par_chunks_mut(n)
             .enumerate()
             .for_each(|(i, row)| fill_row(i, row));
     } else {
-        let flat = a.as_slice_mut().expect("Array2 is contiguous");
         for i in 0..n {
             fill_row(i, &mut flat[i * n..(i + 1) * n]);
         }

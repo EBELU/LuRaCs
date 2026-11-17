@@ -16,12 +16,12 @@ pub use compression::*;
 pub use deconvolution::*;
 pub use filters::*;
 pub use fitting::*;
-pub use peak_detection::{
-    enforce_min_separation, find_peaks, local_mad_threshold, local_maxima, local_minima,
-    mad_threshold, peak_discriminator, post_process_peaks, PeakFinderError, PeakFinderResult,
-    PeakResult,
-};
 pub use peak_detection::median_filter as peak_median_filter;
+pub use peak_detection::{
+    PeakFinderError, PeakFinderResult, PeakResult, enforce_min_separation, find_peaks,
+    local_mad_threshold, local_maxima, local_minima, mad_threshold, peak_discriminator,
+    post_process_peaks,
+};
 
 #[cfg(test)]
 mod tests {
@@ -58,10 +58,14 @@ mod tests {
 
     #[test]
     fn test_calibration() {
-        let sig = "{}*EXP(-{}*E)".parse::<EfficiencySignature>().expect("parse failed");
+        let sig = "{}*EXP(-{}*E)"
+            .parse::<EfficiencySignature>()
+            .expect("parse failed");
         assert_eq!(sig, EfficiencySignature::ExpAtten);
 
-        let res_sig = "{}/SQRT(E)".parse::<ResolutionSignature>().expect("parse failed");
+        let res_sig = "{}/SQRT(E)"
+            .parse::<ResolutionSignature>()
+            .expect("parse failed");
         assert_eq!(res_sig, ResolutionSignature::KOverSqrtE);
     }
 
@@ -90,7 +94,8 @@ mod tests {
     fn test_compression() {
         let counts = vec![0, 10, 50, 100, 25, 5, 0];
         let compressed = compress_spectrum(&counts).expect("compress failed");
-        let decompressed = decompress_spectrum(&compressed, counts.len()).expect("decompress failed");
+        let decompressed =
+            decompress_spectrum(&compressed, counts.len()).expect("decompress failed");
         assert_eq!(counts, decompressed);
     }
 }

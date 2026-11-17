@@ -63,7 +63,7 @@ pub enum DeviceState {
 }
 
 impl DeviceState {
-    pub fn from_u8(v: u8) -> Self {
+    pub const fn from_u8(v: u8) -> Self {
         match v {
             1 => Self::Connecting,
             2 => Self::Connected,
@@ -216,17 +216,17 @@ pub enum DeviceAddress {
 impl DeviceAddress {
     pub fn display_name(&self) -> String {
         match self {
-            DeviceAddress::Usb {
+            Self::Usb {
                 vendor_id,
                 product_id,
                 serial,
-            } => match serial {
-                Some(s) => format!("USB:{vendor_id:04x}:{product_id:04x}:{s}"),
-                None => format!("USB:{vendor_id:04x}:{product_id:04x}"),
-            },
-            DeviceAddress::Ble { name } => format!("BLE:{name}"),
-            DeviceAddress::Network { host, port } => format!("NET:{host}:{port}"),
-            DeviceAddress::Other(s) => s.clone(),
+            } => serial.as_ref().map_or_else(
+                || format!("USB:{vendor_id:04x}:{product_id:04x}"),
+                |s| format!("USB:{vendor_id:04x}:{product_id:04x}:{s}"),
+            ),
+            Self::Ble { name } => format!("BLE:{name}"),
+            Self::Network { host, port } => format!("NET:{host}:{port}"),
+            Self::Other(s) => s.clone(),
         }
     }
 }
@@ -298,6 +298,7 @@ pub enum DeviceEvent {
 // ---------------------------------------------------------------------------
 
 #[async_trait]
+#[allow(multiple_supertrait_upcastable)]
 pub trait DeviceWrapper: Send + Sync + 'static {
     /// Stable key used for registry lookup (was `type` on the Python class).
     fn type_key(&self) -> &'static str;
@@ -377,12 +378,8 @@ pub fn get_registry() -> HashMap<&'static str, Arc<DeviceFactory>> {
 /// using `contains`. Same semantics as the Python `match_model_to_str`.
 pub fn match_model_to_str(name: &str) -> Option<Arc<DeviceFactory>> {
     let reg = registry().lock().unwrap();
-    for (key, factory) in reg.iter() {
-        if name.contains(key) {
-            return Some(factory.clone());
-        }
-    }
-    None
+    reg.iter()
+        .find_map(|(key, factory)| name.contains(key).then(|| factory.clone()))
 }
 
 // ---------------------------------------------------------------------------
@@ -405,7 +402,7 @@ async fn run_poll_loop(
     let send = |ev: DeviceEvent| {
         // Unbounded: only fails if the receiver has been dropped (manager
         // shutting down); ignoring the error is correct here.
-        let _ = events.send(ev);
+        drop(events.send(ev));
     };
 
     while wrapper.is_running() && !cancel.is_cancelled() {
@@ -554,10 +551,10 @@ impl DeviceHandle {
         settings: Arc<RwLock<PollConfig>>,
     ) {
         let mut lock = self.poll_task.lock().await;
-        if let Some(task) = lock.as_ref() {
-            if !task.join.is_finished() {
-                return; // already running
-            }
+        if let Some(task) = lock.as_ref()
+            && !task.join.is_finished()
+        {
+            return; // already running
         }
         let cancel = CancellationToken::new();
         let join = tokio::spawn(run_poll_loop(
@@ -573,7 +570,7 @@ impl DeviceHandle {
         let task = self.poll_task.lock().await.take();
         if let Some(task) = task {
             task.cancel.cancel();
-            let _ = task.join.await;
+            drop(task.join.await);
         }
     }
 

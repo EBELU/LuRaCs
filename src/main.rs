@@ -1,3 +1,99 @@
+#![allow(clippy::cargo_common_metadata)]
+#![allow(clippy::multiple_crate_versions)]
+#![feature(default_field_values)]
+#![feature(strict_provenance_lints)]
+#![feature(multiple_supertrait_upcastable)]
+#![feature(must_not_suspend)]
+#![feature(non_exhaustive_omitted_patterns_lint)]
+#![feature(unqualified_local_imports)]
+#![allow(unqualified_local_imports)]
+#![allow(unfulfilled_lint_expectations, reason = "I know what I want")]
+// === Style and Philosophy ===
+// #![warn(clippy::arithmetic_side_effects)]
+// #![warn(clippy::shadow_reuse, clippy::shadow_same, clippy::shadow_unrelated)]
+// #![warn(clippy::indexing_slicing)]
+// === Allowed stylistic choices ===
+#![expect(clippy::mod_module_files, reason = "self-imposed: allow mod files")]
+#![expect(
+    clippy::missing_docs_in_private_items,
+    reason = "self-imposed: prefer explicit documentation control"
+)]
+#![expect(
+    clippy::blanket_clippy_restriction_lints,
+    reason = "intentional: want clippy as a second brain"
+)]
+#![expect(
+    clippy::unseparated_literal_suffix,
+    reason = "self-imposed style choice"
+)]
+// #![expect(
+//     clippy::missing_trait_methods,
+//     reason = "self-imposed: allow partial trait implementations"
+// )]
+// #![expect(dead_code, reason = "self-imposed: allow staged development")]
+#![expect(
+    clippy::implicit_return,
+    reason = "self-imposed: prefer explicit returns for clarity"
+)]
+#![expect(
+    clippy::min_ident_chars,
+    reason = "self-imposed: allow short identifiers"
+)]
+#![expect(
+    clippy::arbitrary_source_item_ordering,
+    reason = "self-imposed: prefer logical grouping over ordering"
+)]
+#![expect(
+    clippy::multiple_inherent_impl,
+    reason = "self-imposed: can improve readability if unconnected parts of impl are in separate impls across files"
+)]
+#![expect(
+    clippy::partial_pub_fields,
+    reason = "self-imposed: allow mixed pub and priv"
+)]
+// === Explicitly allowed runtime patterns ===
+#![expect(
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::dbg_macro,
+    reason = "self-imposed: allow printing for diagnostics"
+)]
+// === Platform and environment ===
+#![expect(
+    clippy::host_endian_bytes,
+    reason = "intentional: allow endian-specific code"
+)]
+#![expect(
+    clippy::little_endian_bytes,
+    reason = "intentional: allow endian-specific code"
+)]
+#![expect(
+    clippy::big_endian_bytes,
+    reason = "intentional: allow endian-specific code"
+)]
+#![expect(
+    clippy::std_instead_of_alloc,
+    reason = "intentional: prefer std over alloc"
+)]
+// === Language constructs ===
+#![expect(
+    clippy::question_mark_used,
+    reason = "intentional: prefer ? for readability"
+)]
+#![expect(
+    clippy::as_conversions,
+    reason = "intentional: Other lints will warn for weird casts"
+)]
+// === Cryptographically important ===
+#![expect(
+    clippy::integer_division_remainder_used,
+    reason = "intentional: Comment out if intent is to be cryptographically sound"
+)]
+#![expect(clippy::float_arithmetic, reason = "Allow float ops")]
+#![expect(clippy::expect_used, reason = "Allow float ops")]
+#![allow(dead_code, reason = "too many errors")]
+#![allow(unused, reason = "too many errors")]
+
 //! LuRaCs entry point.
 //!
 //! Bootstrap sequence:
@@ -150,7 +246,7 @@ fn dispatch_cli_args(
     }
 
     if let Some(bounds) = &cli.roi {
-        for chunk in bounds.chunks_exact(2) {
+        for chunk in bounds.as_chunks::<2>().0 {
             spectrum_manager
                 .roi_manager
                 .add_roi(NewRoi::new(chunk[0], chunk[1]));
@@ -279,12 +375,7 @@ fn run_gui(
 }
 
 fn app_title() -> String {
-    let suffix = match (cfg!(feature = "si"), cfg!(feature = "h3")) {
-        (true, _) => "-Si",
-        (_, true) => "-H3",
-        _ => "",
-    };
-    format!("LuRaCs{suffix}")
+    "LuRaCs".to_string()
 }
 
 // ---------------------------------------------------------------------------
@@ -313,7 +404,7 @@ fn run_headless(
 
         // Drain spectrum-manager events (no consumer, but keeps the queue
         // small — cheap enough not to matter).
-        let _ = spectrum_manager.drain_events();
+        drop(spectrum_manager.drain_events());
 
         if stop_rx.recv_timeout(Duration::from_millis(50)).is_ok() {
             break;
@@ -371,7 +462,8 @@ fn handle_headless_event(
 /// Called from `LuRaCsApp::on_exit` in the GUI path (via `App::shutdown`) and
 /// from `run_headless` on Ctrl+C.
 fn shutdown_all(run_manager: &mut RunManager, shared_settings: &SharedSettings) {
-    if let Err(e) = shared_settings.read().unwrap().save() {
+    let value = shared_settings.read().unwrap().save();
+    if let Err(e) = value {
         tracing::error!("Save settings failed: {e}");
     }
 
@@ -405,7 +497,7 @@ fn load_settings(headless: bool) -> Result<SharedSettings, Box<dyn std::error::E
     Ok(Arc::new(RwLock::new(settings)))
 }
 
-fn poll_config_from(s: &Settings) -> PollConfig {
+const fn poll_config_from(s: &Settings) -> PollConfig {
     PollConfig {
         update_loop_delay: s.scanning.update_loop_delay_s,
         spectrum_update_delay: s.scanning.spectrum_update_delay_s,
@@ -493,9 +585,11 @@ fn dispatch_file_index_events(io: &mut IoManager, spectrum_manager: &mut Spectru
                         .and_then(|f| f.as_xml())
                     {
                         let key = path.to_string_lossy().into_owned();
-                        let _ = spectrum_manager
-                            .unique_instrument_library
-                            .set_instrument_from_parser(&key, p);
+                        drop(
+                            spectrum_manager
+                                .unique_instrument_library
+                                .set_instrument_from_parser(&key, p),
+                        );
                     }
                 }
                 IndexKind::GenericInstrument => {
@@ -506,9 +600,11 @@ fn dispatch_file_index_events(io: &mut IoManager, spectrum_manager: &mut Spectru
                         .and_then(|f| f.as_xml())
                     {
                         let key = path.to_string_lossy().into_owned();
-                        let _ = spectrum_manager
-                            .generic_instrument_library
-                            .set_instrument_from_parser(&key, p);
+                        drop(
+                            spectrum_manager
+                                .generic_instrument_library
+                                .set_instrument_from_parser(&key, p),
+                        );
                     }
                 }
                 IndexKind::Spectrum | IndexKind::Spectrogram | IndexKind::Roi => {}

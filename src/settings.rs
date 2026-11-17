@@ -163,7 +163,7 @@ impl Category {
 
     /// Whether `field` belongs to this category.
     pub fn contains_field(self, field: &str) -> bool {
-        self.fields().iter().any(|&f| f == field)
+        self.fields().contains(&field)
     }
 
     /// Find the category that owns `field` (field names are globally unique).
@@ -611,12 +611,11 @@ fn home_dir() -> SettingsResult<PathBuf> {
 /// Bundled-release exe directory (if `resources/` sits next to the exe),
 /// otherwise the crate root (development).
 fn runtime_base() -> PathBuf {
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(parent) = exe.parent() {
-            if parent.join("resources").exists() {
-                return parent.to_path_buf();
-            }
-        }
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(parent) = exe.parent()
+        && parent.join("resources").exists()
+    {
+        return parent.to_path_buf();
     }
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
@@ -634,7 +633,7 @@ pub struct Temp {
 }
 
 impl Temp {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             spectrum_view_cursor: false,
             spectrum_view_emission_lines_to_cursor: false,
@@ -665,7 +664,7 @@ pub enum SettingsEvent {
 }
 
 impl SettingsEvent {
-    pub fn as_setting_changed(&self) -> Option<&SettingChanged> {
+    pub const fn as_setting_changed(&self) -> Option<&SettingChanged> {
         match self {
             Self::SettingChanged(c) => Some(c),
             _ => None,
@@ -923,7 +922,7 @@ impl SettingsBuilder {
     pub fn new() -> Self {
         Self::default()
     }
-    pub fn headless(mut self, v: bool) -> Self {
+    pub const fn headless(mut self, v: bool) -> Self {
         self.headless = Some(v);
         self
     }
@@ -931,12 +930,12 @@ impl SettingsBuilder {
         self.paths = Some(v);
         self
     }
-    pub fn temp(mut self, v: Temp) -> Self {
+    pub const fn temp(mut self, v: Temp) -> Self {
         self.temp = Some(v);
         self
     }
     /// Load from `paths.settings_file` after construction. Missing file OK.
-    pub fn load_from_disk(mut self, v: bool) -> Self {
+    pub const fn load_from_disk(mut self, v: bool) -> Self {
         self.load_from_disk = v;
         self
     }

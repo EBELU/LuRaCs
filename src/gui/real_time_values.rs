@@ -106,9 +106,12 @@ impl RealTimeValuesTab {
 
         // Ensure every device with a buffer has a color (safety net in case
         // an update arrived before its `DeviceConnected` event was drained).
+        // `collect()` releases the immutable borrow on `self` before `ensure_color(&mut self)`.
+        #[allow(clippy::needless_collect)]
         for name in self.cps_buffers.keys().cloned().collect::<Vec<_>>() {
             self.ensure_color(&name);
         }
+        #[allow(clippy::needless_collect)]
         for name in self.dr_buffers.keys().cloned().collect::<Vec<_>>() {
             self.ensure_color(&name);
         }
@@ -231,17 +234,16 @@ fn draw_strip_plot(
         );
 
         // Mean line (dashed, same color) when enabled.
-        if show_mean_lines {
-            if let Some(mean) = nanmean(&clipped) {
-                if mean.is_finite() {
-                    let mut m = Marker::hline(mean)
-                        .with_line_style(LineStyle::Dashed)
-                        .with_line_width(1.0)
-                        .with_draggable(false);
-                    m.color = color;
-                    plot.add_marker_data(&m);
-                }
-            }
+        if show_mean_lines
+            && let Some(mean) = nanmean(&clipped)
+            && mean.is_finite()
+        {
+            let mut m = Marker::hline(mean)
+                .with_line_style(LineStyle::Dashed)
+                .with_line_width(1.0)
+                .with_draggable(false);
+            m.color = color;
+            plot.add_marker_data(&m);
         }
     }
 

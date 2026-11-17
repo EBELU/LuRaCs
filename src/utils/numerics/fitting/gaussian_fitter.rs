@@ -8,12 +8,12 @@ use ndarray::{Array1, ArrayView1};
 use rsplot::{DEFAULT_DELTACHI, leastsq};
 use thiserror::Error;
 
-use crate::containers::Fit;
-use crate::containers::{BkgType, FitType};
 use super::gaussian::{multi_gaussian, multi_gaussian_jacobian};
 use super::optimizer::pseudo_inverse;
 use super::polyfit::{PolyfitError, polyfit_weighted};
 use super::weights::poisson_weights;
+use crate::containers::Fit;
+use crate::containers::{BkgType, FitType};
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -112,7 +112,7 @@ pub fn fit_gaussians(
     let i_region_hi = searchsorted_left(x_axis, region_max);
     let x_region: Vec<f64> = x_axis[i_region_lo..i_region_hi].to_vec();
     let mut y_region: Vec<f64> = y_axis[i_region_lo..i_region_hi].to_vec();
-    let x_region_view: ArrayView1<f64> = ArrayView1::from(x_region.as_slice());
+    let x_region_view: ArrayView1<'_, f64> = ArrayView1::from(x_region.as_slice());
 
     // ---- 3. Initial parameter guesses -----------------------------------
     // NOTE: The Python code builds `p0` by looping over ALL bounds but
@@ -248,10 +248,8 @@ pub fn fit_gaussians(
         |i, j| fit_result.covariance[i][j],
     );
 
-    if weigh_cov_chi2 {
-        if let Some(rchi2) = fit_result.reduced_chisq {
-            cov *= rchi2;
-        }
+    if weigh_cov_chi2 && let Some(rchi2) = fit_result.reduced_chisq {
+        cov *= rchi2;
     }
 
     for i in 0..cov.nrows() {
@@ -331,10 +329,9 @@ pub fn fit_gaussians(
         // G, B, N — raw-data sums over the peak window.
         let g_total: f64 = y_peak.iter().sum();
         // BUG FIX vs Python: `polyval(bkg_fit, …)` on `None` would TypeError.
-        let b_total: f64 = match &bkg_coeffs {
-            Some(bc) => x_peak.iter().map(|&xv| polyval(bc, xv)).sum(),
-            None => 0.0,
-        };
+        let b_total: f64 = bkg_coeffs
+            .as_ref()
+            .map_or(0.0, |bc| x_peak.iter().map(|&xv| polyval(bc, xv)).sum());
         let n_net = g_total - b_total;
 
         // Statistical variance of counts (same integral for G and N; kept
@@ -401,8 +398,8 @@ pub fn fit_gaussians(
 
 /// Adapter matching `WeightFn` for the Poisson weighting scheme.
 fn poisson_weights_3arg(
-    _r: ArrayView1<f64>,
-    yfit: ArrayView1<f64>,
+    _r: ArrayView1<'_, f64>,
+    yfit: ArrayView1<'_, f64>,
     _params: &[f64],
 ) -> Array1<f64> {
     poisson_weights(yfit, 1e-10)
@@ -423,5 +420,5 @@ fn searchsorted_left(arr: &[f64], v: f64) -> usize {
 }
 
 fn polyval(coeffs: &[f64], x: f64) -> f64 {
-    coeffs.iter().fold(0.0, |acc, &c| acc * x + c)
+    coeffs.iter().fold(0.0, |acc, &c| f64::mul_add(acc, x, c))
 }

@@ -281,10 +281,10 @@ impl IsotopicsTab {
         ui: &mut egui::Ui,
     ) {
         // Resolve default spectrum for peak search.
-        if let Some(name) = &self.search_spectrum {
-            if spectrum_manager.get_spectrum(name).is_none() {
-                self.search_spectrum = None;
-            }
+        if let Some(name) = &self.search_spectrum
+            && spectrum_manager.get_spectrum(name).is_none()
+        {
+            self.search_spectrum = None;
         }
         if self.search_spectrum.is_none() {
             self.search_spectrum = spectrum_manager.spectrum_registry.keys().next().cloned();
@@ -514,11 +514,9 @@ impl IsotopicsTab {
                 let mut checked = is_checked;
                 let changed = ui
                     .horizontal(|ui| {
-                        let c = ui
-                            .checkbox(&mut checked, format!("🔗 {chain_name}"))
+                        ui.checkbox(&mut checked, format!("🔗 {chain_name}"))
                             .on_hover_text("Toggle all members of this decay chain")
-                            .changed();
-                        c
+                            .changed()
                     })
                     .inner;
 

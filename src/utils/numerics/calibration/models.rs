@@ -78,7 +78,7 @@ pub mod efficiency {
         let ln_e = e.ln();
         let ln_e2 = ln_e * ln_e;
         let ln_e3 = ln_e2 * ln_e;
-        Ok((a + b * ln_e + c * ln_e2 + d * ln_e3).exp())
+        Ok(f64::mul_add(d, ln_e3, f64::mul_add(c, ln_e2, f64::mul_add(b, ln_e, a))).exp())
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -89,14 +89,14 @@ pub mod efficiency {
 
     impl EfficiencySignature {
         /// The string form used in XML serialization.
-        pub fn as_str(self) -> &'static str {
+        pub const fn as_str(self) -> &'static str {
             match self {
                 Self::ExpAtten => "{}*EXP(-{}*E)",
                 Self::ExpPoly => "EXP({}+{}*LOG(E)+{}*LOG(E)^2+{}*LOG(E)^3)",
             }
         }
 
-        pub fn expected_params(self) -> usize {
+        pub const fn expected_params(self) -> usize {
             match self {
                 Self::ExpAtten => 2,
                 Self::ExpPoly => 4,
@@ -164,21 +164,19 @@ pub mod resolution {
         Ok(value(e, params[0]))
     }
 
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize,
-    )]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
     pub enum ResolutionSignature {
         KOverSqrtE,
     }
 
     impl ResolutionSignature {
-        pub fn as_str(self) -> &'static str {
+        pub const fn as_str(self) -> &'static str {
             match self {
                 Self::KOverSqrtE => "{}/SQRT(E)",
             }
         }
 
-        pub fn expected_params(self) -> usize {
+        pub const fn expected_params(self) -> usize {
             match self {
                 Self::KOverSqrtE => 1,
             }

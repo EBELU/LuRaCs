@@ -15,7 +15,7 @@ use ndarray::{Array1, ArrayView1};
 /// input, including `r == 0` (weight `1`) and `r == ±delta` (weight `1`).
 /// For `r = NaN`, `NaN < delta` is false so the formula evaluates to
 /// `delta / NaN = NaN` — identical to the Python.
-pub fn huber_weights(r: ArrayView1<f64>, delta: f64) -> Array1<f64> {
+pub fn huber_weights(r: ArrayView1<'_, f64>, delta: f64) -> Array1<f64> {
     r.mapv(|ri| {
         let abs_r = ri.abs();
         if abs_r < delta { 1.0 } else { delta / abs_r }
@@ -31,7 +31,7 @@ pub fn huber_weights(r: ArrayView1<f64>, delta: f64) -> Array1<f64> {
 /// Mimics `np.maximum(yfit, eps)`, which propagates `NaN` (unlike Rust's
 /// `f64::max`, which would substitute `eps`). Matches the Python exactly on
 /// all inputs, including `NaN` and `±∞`.
-pub fn poisson_weights(yfit: ArrayView1<f64>, eps: f64) -> Array1<f64> {
+pub fn poisson_weights(yfit: ArrayView1<'_, f64>, eps: f64) -> Array1<f64> {
     yfit.mapv(|y| {
         let clamped = if y.is_nan() {
             f64::NAN
@@ -58,8 +58,8 @@ pub fn poisson_weights(yfit: ArrayView1<f64>, eps: f64) -> Array1<f64> {
 pub trait WeightProvider {
     fn weights(
         &self,
-        residuals: ArrayView1<f64>,
-        yfit: ArrayView1<f64>,
+        residuals: ArrayView1<'_, f64>,
+        yfit: ArrayView1<'_, f64>,
         params: &[f64],
     ) -> Array1<f64>;
 }
@@ -77,8 +77,8 @@ impl Default for Huber {
 impl WeightProvider for Huber {
     fn weights(
         &self,
-        residuals: ArrayView1<f64>,
-        _yfit: ArrayView1<f64>,
+        residuals: ArrayView1<'_, f64>,
+        _yfit: ArrayView1<'_, f64>,
         _params: &[f64],
     ) -> Array1<f64> {
         huber_weights(residuals, self.delta)
@@ -98,8 +98,8 @@ impl Default for Poisson {
 impl WeightProvider for Poisson {
     fn weights(
         &self,
-        _residuals: ArrayView1<f64>,
-        yfit: ArrayView1<f64>,
+        _residuals: ArrayView1<'_, f64>,
+        yfit: ArrayView1<'_, f64>,
         _params: &[f64],
     ) -> Array1<f64> {
         poisson_weights(yfit, self.eps)

@@ -83,7 +83,7 @@ pub type Result<T> = std::result::Result<T, IoManagerError>;
 // ---------------------------------------------------------------------------
 
 pub enum IndexedFile {
-    Xml(XmlParser),
+    Xml(Box<XmlParser>),
     Db(DbParser),
 }
 
@@ -102,7 +102,7 @@ impl IndexedFile {
             None
         }
     }
-    pub fn as_db(&self) -> Option<&DbParser> {
+    pub const fn as_db(&self) -> Option<&DbParser> {
         if let Self::Db(p) = self {
             Some(p)
         } else {
@@ -143,6 +143,10 @@ impl IndexedFile {
 
 /// What the caller can ask an `Indexer` to persist. The app injects a save
 /// function per index that knows how to write each of these to the library.
+// `Rois` intentionally carries two borrowed dynamically sized values. Keep
+// this public shape for callers instead of boxing the input and suppress the
+// resulting enum-layout warning.
+#[allow(variant_size_differences)]
 pub enum SaveInput<'a> {
     Spectrum(&'a Spectrum),
     Rois { rois: &'a [Roi], name: &'a str },
@@ -242,14 +246,16 @@ impl Indexer {
 
     fn load(&self, path: &Path) -> Result<IndexedFile> {
         Ok(match &self.parser_kind {
-            ParserKind::Xml { meta_only } => IndexedFile::Xml(XmlParser::open(path, *meta_only)?),
+            ParserKind::Xml { meta_only } => {
+                IndexedFile::Xml(Box::new(XmlParser::open(path, *meta_only)?))
+            }
             ParserKind::Db => IndexedFile::Db(DbParser::open(path)?),
         })
     }
 
     /// Persist a new or updated item. Updates the registry, then re-runs the
     /// index. Returns the new path.
-    pub fn save_file(&mut self, input: SaveInput) -> Result<PathBuf> {
+    pub fn save_file(&mut self, input: SaveInput<'_>) -> Result<PathBuf> {
         let save_fn = self.save_fn.as_ref().ok_or(IoManagerError::NoSaveFn)?;
         let new_path = save_fn(input).map_err(IoManagerError::Save)?;
         // Remove any stale registry entry for the destination so a rewrite
@@ -280,7 +286,7 @@ impl Indexer {
     /// BUG FIX vs Python: the original deleted the registry key but never
     /// the file, so `run_index` immediately re-added it. We now remove the
     /// stale file when the new path differs.
-    pub fn update_file(&mut self, old_key: &Path, input: SaveInput) -> Result<PathBuf> {
+    pub fn update_file(&mut self, old_key: &Path, input: SaveInput<'_>) -> Result<PathBuf> {
         self.registry.remove(old_key);
         let new_path = self.save_file(input)?;
         if new_path != old_key && old_key.exists() {
@@ -394,7 +400,7 @@ impl FileIndex {
         }
     }
 
-    pub fn indexer(&self, kind: IndexKind) -> &Indexer {
+    pub const fn indexer(&self, kind: IndexKind) -> &Indexer {
         match kind {
             IndexKind::Spectrum => &self.spectrum,
             IndexKind::Spectrogram => &self.spectrogram,
@@ -404,7 +410,7 @@ impl FileIndex {
         }
     }
 
-    pub fn indexer_mut(&mut self, kind: IndexKind) -> &mut Indexer {
+    pub const fn indexer_mut(&mut self, kind: IndexKind) -> &mut Indexer {
         match kind {
             IndexKind::Spectrum => &mut self.spectrum,
             IndexKind::Spectrogram => &mut self.spectrogram,
@@ -462,7 +468,7 @@ pub enum ImportFilter {
 }
 
 impl ImportFilter {
-    fn rfd_name(self) -> &'static str {
+    const fn rfd_name(self) -> &'static str {
         match self {
             Self::All => "All supported files",
             Self::Spectrum => "Spectrum files",
@@ -471,7 +477,7 @@ impl ImportFilter {
             Self::Instrument => "LuRaCs instrument file",
         }
     }
-    fn extensions(self) -> &'static [&'static str] {
+    const fn extensions(self) -> &'static [&'static str] {
         match self {
             Self::All => &["xml", "n42", "TKA", "Spe", "spe", "db"],
             Self::Spectrum => &["xml", "n42", "TKA", "Spe", "spe"],
@@ -507,7 +513,7 @@ pub struct Importer {
 }
 
 impl Importer {
-    pub fn new(last_opened_dir: PathBuf, tabbed_spectrum_view: bool) -> Self {
+    pub const fn new(last_opened_dir: PathBuf, tabbed_spectrum_view: bool) -> Self {
         Self {
             last_opened_dir,
             tabbed_spectrum_view,
@@ -534,7 +540,10 @@ impl Importer {
         if paths.is_empty() {
             return None;
         }
-        self.last_opened_dir = paths[0].parent().unwrap_or(Path::new("/")).to_path_buf();
+        self.last_opened_dir = paths[0]
+            .parent()
+            .unwrap_or_else(|| Path::new("/"))
+            .to_path_buf();
         Some((paths, filter))
     }
 
@@ -543,14 +552,17 @@ impl Importer {
             .set_directory(&self.last_opened_dir)
             .add_filter(filter.rfd_name(), filter.extensions());
         let path = dlg.pick_file()?;
-        self.last_opened_dir = path.parent().unwrap_or(Path::new("/")).to_path_buf();
+        self.last_opened_dir = path
+            .parent()
+            .unwrap_or_else(|| Path::new("/"))
+            .to_path_buf();
         Some((path, filter))
     }
 
     /// Dispatch a set of already-picked paths into `ImportOutcome`s.
     /// The app drains the returned list and calls `SpectrumManager` etc.
     pub fn import_paths(
-        &mut self,
+        &self,
         paths: &[PathBuf],
         filter: ImportFilter,
         appdata_spectrogram_library: &Path,
@@ -620,7 +632,7 @@ impl Importer {
         Some(dest.file_stem()?.to_string_lossy().into_owned())
     }
 
-    fn import_rois(&mut self, path: &Path) -> Option<Vec<Roi>> {
+    fn import_rois(&self, path: &Path) -> Option<Vec<Roi>> {
         let parser = XmlParser::open(path, false).ok()?;
         let name = parser.get_header().name;
         let mut out = Vec::new();
@@ -650,7 +662,7 @@ impl Importer {
         self.import_paths(&paths, filter, appdata_spectrogram_library)
     }
 
-    pub fn import_library(&mut self, appdata: &Path) -> Result<()> {
+    pub fn import_library(&self, appdata: &Path) -> Result<()> {
         let Some(zip_path) = FileDialog::new()
             .set_title("Import zipped data library")
             .add_filter("Zip file", &["zip"])
@@ -676,7 +688,7 @@ pub enum ExportFilter {
 }
 
 impl ExportFilter {
-    fn rfd_name(self) -> &'static str {
+    const fn rfd_name(self) -> &'static str {
         match self {
             Self::Spectrum => "XML / CSV / Excel",
             Self::Spectrogram => "Spectrogram DB / Excel",
@@ -684,7 +696,7 @@ impl ExportFilter {
             Self::Instrument => "XML",
         }
     }
-    fn extensions(self) -> &'static [&'static str] {
+    const fn extensions(self) -> &'static [&'static str] {
         match self {
             Self::Spectrum => &["xml", "csv", "xlsx"],
             Self::Spectrogram => &["db", "xlsx"],
@@ -728,7 +740,7 @@ pub struct Exporter {
 }
 
 impl Exporter {
-    pub fn new(last_opened_dir: PathBuf) -> Self {
+    pub const fn new(last_opened_dir: PathBuf) -> Self {
         Self { last_opened_dir }
     }
 
@@ -740,7 +752,10 @@ impl Exporter {
             .add_filter("CSV", &["csv"])
             .add_filter("Excel", &["xlsx"])
             .save_file()?;
-        self.last_opened_dir = path.parent().unwrap_or(Path::new("/")).to_path_buf();
+        self.last_opened_dir = path
+            .parent()
+            .unwrap_or_else(|| Path::new("/"))
+            .to_path_buf();
         let format = match path.extension().and_then(|s| s.to_str()) {
             Some("csv") => ExportFormat::Csv,
             Some("xlsx") => ExportFormat::Xlsx,
@@ -770,7 +785,7 @@ impl Exporter {
                     .set_title("Select spectrogram database")
                     .add_filter("Spectrogram DB", &["db"])
                     .pick_file()?;
-                self.last_opened_dir = p.parent().unwrap_or(Path::new("/")).to_path_buf();
+                self.last_opened_dir = p.parent().unwrap_or_else(|| Path::new("/")).to_path_buf();
                 p
             }
         };
@@ -802,7 +817,10 @@ impl Exporter {
             .set_title("Export ROIs")
             .add_filter("CSV", &["csv"])
             .save_file()?;
-        self.last_opened_dir = path.parent().unwrap_or(Path::new("/")).to_path_buf();
+        self.last_opened_dir = path
+            .parent()
+            .unwrap_or_else(|| Path::new("/"))
+            .to_path_buf();
         Some(ExportOutcome::Rois {
             rois,
             path: path.with_extension("csv"),
@@ -815,7 +833,10 @@ impl Exporter {
             .set_title("Export zipped data library")
             .add_filter("Zip file", &["zip"])
             .save_file()?;
-        self.last_opened_dir = path.parent().unwrap_or(Path::new("/")).to_path_buf();
+        self.last_opened_dir = path
+            .parent()
+            .unwrap_or_else(|| Path::new("/"))
+            .to_path_buf();
         Some(ExportOutcome::Library(path))
     }
 

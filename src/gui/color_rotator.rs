@@ -54,7 +54,7 @@ pub enum ColorScheme {
 }
 
 impl ColorScheme {
-    pub fn as_str(self) -> &'static str {
+    pub const fn as_str(self) -> &'static str {
         match self {
             Self::Mpl => "mpl",
             Self::LibreOffice => "lo",
@@ -62,7 +62,7 @@ impl ColorScheme {
         }
     }
 
-    pub fn palette(self) -> &'static [Color32] {
+    pub const fn palette(self) -> &'static [Color32] {
         match self {
             Self::Mpl => &MPL,
             Self::LibreOffice => &LIBREOFFICE,
@@ -147,7 +147,7 @@ pub struct ColorRotator {
 impl ColorRotator {
     /// Construct a rotator from a named scheme. `width` is the default
     /// stroke width used by `next_stroke(None)`.
-    pub fn new(scheme: ColorScheme) -> Self {
+    pub const fn new(scheme: ColorScheme) -> Self {
         Self {
             palette: scheme.palette(),
             width: 2.0,
@@ -157,7 +157,7 @@ impl ColorRotator {
 
     /// Construct from a custom palette. Useful for tests or user-supplied
     /// colour lists; the built-in schemes go through `new`.
-    pub fn from_palette(palette: &'static [Color32], width: f32) -> Self {
+    pub const fn from_palette(palette: &'static [Color32], width: f32) -> Self {
         Self {
             palette,
             width,
@@ -165,13 +165,13 @@ impl ColorRotator {
         }
     }
 
-    pub fn with_width(mut self, width: f32) -> Self {
+    pub const fn with_width(mut self, width: f32) -> Self {
         self.width = width;
         self
     }
 
     /// Advance and return the next colour.
-    pub fn next_color(&mut self) -> Color32 {
+    pub const fn next_color(&mut self) -> Color32 {
         let c = self.palette[self.index % self.palette.len()];
         self.index += 1;
         c
@@ -198,17 +198,17 @@ impl ColorRotator {
     }
 
     /// Return to the start of the palette.
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         self.index = 0;
     }
 
     // ---- Diagnostics ---------------------------------------------------
 
-    pub fn index(&self) -> usize {
+    pub const fn index(&self) -> usize {
         self.index
     }
 
-    pub fn palette_len(&self) -> usize {
+    pub const fn palette_len(&self) -> usize {
         self.palette.len()
     }
 }

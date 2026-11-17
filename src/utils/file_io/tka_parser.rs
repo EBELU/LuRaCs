@@ -127,7 +127,7 @@ impl TkaParser {
             instrument: None,
             remark: Some(spec.remark.clone()),
             instrument_model: spec.instrument_model.clone(),
-            instrument_id: spec.instrument_id.clone(),
+            instrument_id: spec.instrument_id,
             peak_data: Vec::new(),
             instrument_class_code: None,
         }

@@ -62,7 +62,7 @@ impl LogBuffer {
         self.messages.lock().unwrap().clear();
     }
 
-    pub fn capacity(&self) -> usize {
+    pub const fn capacity(&self) -> usize {
         self.capacity
     }
 
@@ -83,7 +83,7 @@ struct MsgVisitor {
 }
 
 impl MsgVisitor {
-    fn new() -> Self {
+    const fn new() -> Self {
         Self {
             text: String::new(),
             fields: Vec::new(),

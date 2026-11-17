@@ -174,7 +174,7 @@ fn polyfit(x: &[f64], y: &[f64], degree: usize) -> CalibrationnResult<Vec<f64>> 
 
 /// Horner evaluation; coefficients highest degree first (matches `np.polyval`).
 fn polyval(coeffs: &[f64], x: f64) -> f64 {
-    coeffs.iter().fold(0.0, |acc, &c| acc * x + c)
+    coeffs.iter().fold(0.0, |acc, &c| f64::mul_add(acc, x, c))
 }
 
 fn is_monotonic_increasing(xp: &[f64]) -> bool {
@@ -196,7 +196,7 @@ fn interp(x: f64, xp: &[f64], fp: &[f64]) -> f64 {
     for i in 0..xp.len() - 1 {
         if x >= xp[i] && x <= xp[i + 1] {
             let t = (x - xp[i]) / (xp[i + 1] - xp[i]);
-            return fp[i] + t * (fp[i + 1] - fp[i]);
+            return t.mul_add(fp[i + 1] - fp[i], fp[i]);
         }
     }
     f64::NAN

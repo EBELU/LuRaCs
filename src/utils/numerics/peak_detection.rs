@@ -38,14 +38,14 @@ pub fn local_mad_threshold(x: &[f64], window_length: usize, sigma: f64) -> PeakR
     let radius = window_length / 2;
     let n = x.len();
     let mut threshold = vec![0.0; n];
-    for i in 0..n {
+    for (i, threshold_i) in threshold.iter_mut().enumerate() {
         let low = i.saturating_sub(radius);
         let high = (i + radius + 1).min(n);
         let local = &x[low..high];
         let med = median(local);
         let abs_dev: Vec<f64> = local.iter().map(|v| (v - med).abs()).collect();
         let mad = median(&abs_dev);
-        threshold[i] = sigma * (mad / 0.6745);
+        *threshold_i = sigma * (mad / 0.6745);
     }
     Ok(threshold)
 }
@@ -60,10 +60,12 @@ pub fn local_minima(x: &[f64], threshold: Option<f64>) -> Vec<usize> {
     let mut out = Vec::new();
     for i in 1..x.len().saturating_sub(1) {
         if x[i] < x[i - 1] && x[i] < x[i + 1] {
-            if let Some(t) = threshold {
-                if !(-x[i] > t) {
-                    continue;
-                }
+            if let Some(t) = threshold
+                && !(-x[i])
+                    .partial_cmp(&t)
+                    .is_some_and(std::cmp::Ordering::is_gt)
+            {
+                continue;
             }
             out.push(i);
         }
@@ -76,10 +78,10 @@ pub fn local_maxima(x: &[f64], threshold: Option<f64>) -> Vec<usize> {
     let mut out = Vec::new();
     for i in 1..x.len().saturating_sub(1) {
         if x[i] > x[i - 1] && x[i] > x[i + 1] {
-            if let Some(t) = threshold {
-                if !(x[i] > t) {
-                    continue;
-                }
+            if let Some(t) = threshold
+                && !x[i].partial_cmp(&t).is_some_and(std::cmp::Ordering::is_gt)
+            {
+                continue;
             }
             out.push(i);
         }
@@ -112,10 +114,10 @@ pub fn median_filter(x: &[f64], window_length: usize) -> PeakResult<Vec<f64>> {
     let radius = window_length / 2;
     let n = x.len();
     let mut out = vec![0.0; n];
-    for i in 0..n {
+    for (i, out_i) in out.iter_mut().enumerate() {
         let low = i.saturating_sub(radius);
         let high = (i + radius + 1).min(n);
-        out[i] = median(&x[low..high]);
+        *out_i = median(&x[low..high]);
     }
     Ok(out)
 }
@@ -305,7 +307,7 @@ pub fn peak_discriminator(
         let atol = 5.0;
         let mut is_dup = false;
         for &m in mus.iter() {
-            if (m - mu).abs() <= atol + rtol * mu.abs() {
+            if (m - mu).abs() <= f64::mul_add(rtol, mu.abs(), atol) {
                 is_dup = true;
                 break;
             }

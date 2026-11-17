@@ -38,7 +38,7 @@ enum DrawMode {
 }
 
 impl DrawMode {
-    fn from_flags(pen: bool, brush: bool) -> Self {
+    const fn from_flags(pen: bool, brush: bool) -> Self {
         match (pen, brush) {
             (true, false) => Self::Pen,
             (false, true) => Self::Brush,
@@ -46,7 +46,7 @@ impl DrawMode {
         }
     }
 
-    fn to_flags(self) -> (bool, bool) {
+    const fn to_flags(self) -> (bool, bool) {
         match self {
             Self::Pen => (true, false),
             Self::Brush => (false, true),
@@ -62,7 +62,7 @@ impl DrawMode {
 // The exact variant names come from `crate::gui::ColorScheme`. Assumed here
 // to match the Python `ColorSchemes` values: LibreOffice / Matplotlib /
 // Catppuccin. Adjust if your enum differs.
-fn color_scheme_choices() -> [(ColorScheme, &'static str); 3] {
+const fn color_scheme_choices() -> [(ColorScheme, &'static str); 3] {
     [
         (ColorScheme::LibreOffice, "LibreOffice"),
         (ColorScheme::Mpl, "Matplotlib"),
@@ -224,7 +224,7 @@ impl SettingsDialog {
     /// Render the window. No-ops when `open` is `false`. Mirrors the
     /// `DeconvolutionWindow::render(&mut self, app, ui)` shape, so call it
     /// from `LuRaCsApp::render_windows` using the swap-out pattern.
-    pub fn render(&mut self, app: &mut LuRaCsApp, ui: &mut egui::Ui) {
+    pub fn render(&mut self, app: &mut LuRaCsApp, ui: &egui::Ui) {
         if !self.open {
             return;
         }
@@ -247,7 +247,7 @@ impl SettingsDialog {
         self.open = window_open && !close_requested;
     }
 
-    fn render_sections(&mut self, app: &mut LuRaCsApp, ui: &mut egui::Ui) {
+    fn render_sections(&mut self, app: &LuRaCsApp, ui: &mut egui::Ui) {
         // ---- Theme ----
         section(ui, "Theme", |ui| {
             self.render_theme(app, ui);
@@ -491,7 +491,7 @@ impl SettingsDialog {
         close_requested
     }
 
-    fn request_cancel(&mut self, app: &mut LuRaCsApp) -> bool {
+    fn request_cancel(&self, app: &mut LuRaCsApp) -> bool {
         let settings_guard = app.settings.read_settings();
         let dirty = self.draft.has_changes(&settings_guard);
         drop(settings_guard);
@@ -516,7 +516,7 @@ impl SettingsDialog {
     /// Commit every changed draft field through `Settings::update` and
     /// trigger the side-effects the old Python `edit_settings` /
     /// `edit_advanced_settings` performed on each change.
-    fn apply(&mut self, app: &mut LuRaCsApp, ui: &mut egui::Ui) {
+    fn apply(&mut self, app: &mut LuRaCsApp, ui: &egui::Ui) {
         // ---- 1. Theme (outside settings lock: ThemeManager::apply emits
         //         ThemeChanged, and the app's event loop persists it) ----
         let current_theme_name = app.settings.read_settings().theme.name.clone();
@@ -527,11 +527,12 @@ impl SettingsDialog {
             // Belt-and-braces: also persist here so `settings.theme.name`
             // is correct on this frame even before the event queue drains.
             let mut s = app.settings.write_settings();
-            let _ = s.update(
+            drop(s.update(
                 Category::Theme,
                 "name",
                 Value::String(self.draft.theme_name.clone()),
-            );
+            ));
+            drop(s);
         }
 
         // ---- 2. Everything else, under a single write lock ----
@@ -548,7 +549,7 @@ impl SettingsDialog {
 
             macro_rules! put {
                 ($cat:expr, $field:literal, $val:expr) => {
-                    let _ = s.update($cat, $field, serde_json::to_value($val).unwrap());
+                    drop(s.update($cat, $field, serde_json::to_value($val).unwrap()));
                 };
             }
 
@@ -759,6 +760,8 @@ impl SettingsDialog {
                 );
                 logging_console_changed = Some(self.draft.logging_write_to_console);
             }
+
+            drop(s);
         } // write lock released
 
         // ---- 3. Side effects ----

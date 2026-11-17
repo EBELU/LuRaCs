@@ -136,8 +136,8 @@ fn interpolate_point(
     let denom = e_i_regions[k] - e_i_regions[k - 1];
     let t = (j_k - e_i_regions[k - 1]) / denom;
 
-    let e1_jk = t * (e_1_regions[k] - e_1_regions[k - 1]) + e_1_regions[k - 1];
-    let e2_jk = t * (e_2_regions[k] - e_2_regions[k - 1]) + e_2_regions[k - 1];
+    let e1_jk = t.mul_add(e_1_regions[k] - e_1_regions[k - 1], e_1_regions[k - 1]);
+    let e2_jk = t.mul_add(e_2_regions[k] - e_2_regions[k - 1], e_2_regions[k - 1]);
 
     let y1_jk = interpolate_point_on_axis(e1_jk, ref_e_axis, y_1);
     let y2_jk = interpolate_point_on_axis(e2_jk, ref_e_axis, y_2);
@@ -172,7 +172,7 @@ fn interpolate_response_row(
     let mut e_i_regions = Vec::with_capacity(n_regions);
     let t = (e_p - low_e) / (high_e - low_e);
     for k in 0..n_regions {
-        e_i_regions.push(t * (high_regions[k] - low_regions[k]) + low_regions[k]);
+        e_i_regions.push(t.mul_add(high_regions[k] - low_regions[k], low_regions[k]));
     }
 
     for i in 0..req_e_axis.len() {

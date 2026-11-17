@@ -49,12 +49,12 @@ pub struct Modal {
 }
 
 impl Modal {
-    pub fn new(target: ViewportId, kind: ModalKind) -> Self {
+    pub const fn new(target: ViewportId, kind: ModalKind) -> Self {
         Self { target, kind }
     }
 
     /// Convenience for the main window.
-    pub fn root(kind: ModalKind) -> Self {
+    pub const fn root(kind: ModalKind) -> Self {
         Self {
             target: ViewportId::ROOT,
             kind,
@@ -137,15 +137,15 @@ enum ModalOutcome {
 }
 
 impl ModalKind {
-    fn render(&mut self, app: &mut LuRaCsApp, ui: &mut egui::Ui) -> ModalOutcome {
+    fn render(&mut self, app: &mut LuRaCsApp, ui: &egui::Ui) -> ModalOutcome {
         match self {
-            ModalKind::Confirm(c) => render_confirm(c, app, ui),
-            ModalKind::Info(i) => render_info(i, ui),
+            Self::Confirm(c) => render_confirm(c, app, ui),
+            Self::Info(i) => render_info(i, ui),
         }
     }
 }
 
-fn render_confirm(c: &mut ConfirmModal, app: &mut LuRaCsApp, ui: &mut egui::Ui) -> ModalOutcome {
+fn render_confirm(c: &mut ConfirmModal, app: &mut LuRaCsApp, ui: &egui::Ui) -> ModalOutcome {
     let mut decision: Option<bool> = None;
 
     egui::Window::new(&c.title)
@@ -177,7 +177,7 @@ fn render_confirm(c: &mut ConfirmModal, app: &mut LuRaCsApp, ui: &mut egui::Ui) 
     }
 }
 
-fn render_info(i: &InfoModal, ui: &mut egui::Ui) -> ModalOutcome {
+fn render_info(i: &InfoModal, ui: &egui::Ui) -> ModalOutcome {
     let mut accepted = false;
     egui::Window::new(&i.title)
         .collapsible(false)
@@ -218,7 +218,7 @@ fn dispatch_action(app: &mut LuRaCsApp, action: ConfirmAction) {
 /// Render any modals targeted at `viewport`. Call this at the end of the
 /// `ui` closure for each window/viewport. Only the topmost modal for this
 /// viewport is shown; the rest wait in the stack.
-pub fn render_modals_for(app: &mut LuRaCsApp, viewport: ViewportId, ui: &mut egui::Ui) {
+pub fn render_modals_for(app: &mut LuRaCsApp, viewport: ViewportId, ui: &egui::Ui) {
     // Topmost modal for this viewport
     let Some(idx) = app.modal_stack.iter().rposition(|m| m.target == viewport) else {
         return;

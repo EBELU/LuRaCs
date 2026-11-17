@@ -1,4 +1,4 @@
-use super::edge::{edge_buffers, for_each_window, full_padded_buffer, EdgeMode};
+use super::edge::{EdgeMode, edge_buffers, for_each_window, full_padded_buffer};
 
 /// Re-anchor sliding sum periodically to eliminate floating-point drift and NaN/Inf lockup.
 const DRIFT_RESET_INTERVAL: usize = 1024;

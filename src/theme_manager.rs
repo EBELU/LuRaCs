@@ -54,80 +54,10 @@ pub enum ThemeError {
     #[error("unknown theme: {0:?}")]
     UnknownTheme(String),
     #[error("{path}: {error}")]
-    Load {
-        path: PathBuf,
-        error: Box<ThemeError>,
-    },
+    Load { path: PathBuf, error: Box<Self> },
 }
 
 pub type ThemeResult<T> = std::result::Result<T, ThemeError>;
-
-// ===========================================================================
-// Colour
-// ===========================================================================
-
-/// A theme colour. Serialises as `"#rrggbb"` (or `"#rrggbbaa"` when the
-/// alpha channel is not 255). Deserialises from that, or from `[r,g,b]` /
-/// `[r,g,b,a]` arrays in JSON/TOML.
-///
-/// Stored as `Color32` (sRGB, non-premultiplied on the wire).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Color(pub Color32);
-
-impl Color {
-    pub const fn rgb(r: u8, g: u8, b: u8) -> Self {
-        Self(Color32::from_rgb(r, g, b))
-    }
-    pub fn rgba(r: u8, g: u8, b: u8, a: u8) -> Self {
-        Self(Color32::from_rgba_unmultiplied(r, g, b, a))
-    }
-}
-
-impl From<Color> for Color32 {
-    fn from(c: Color) -> Self {
-        c.0
-    }
-}
-
-impl From<Color32> for Color {
-    fn from(c: Color32) -> Self {
-        Self(c)
-    }
-}
-
-impl Serialize for Color {
-    fn serialize<S: serde::Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
-        let [r, g, b, a] = self.0.to_srgba_unmultiplied();
-        if a == 255 {
-            s.serialize_str(&format!("#{r:02x}{g:02x}{b:02x}"))
-        } else {
-            s.serialize_str(&format!("#{r:02x}{g:02x}{b:02x}{a:02x}"))
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for Color {
-    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> std::result::Result<Self, D::Error> {
-        #[derive(Deserialize)]
-        #[serde(untagged)]
-        enum Raw {
-            Hex(String),
-            Array(Vec<u8>),
-        }
-        match Raw::deserialize(d)? {
-            Raw::Hex(s) => parse_hex(&s)
-                .map(Color)
-                .ok_or_else(|| serde::de::Error::custom(format!("invalid hex colour: {s:?}"))),
-            Raw::Array(v) => match v.as_slice() {
-                [r, g, b] => Ok(Color::rgb(*r, *g, *b)),
-                [r, g, b, a] => Ok(Color::rgba(*r, *g, *b, *a)),
-                other => Err(serde::de::Error::custom(format!(
-                    "colour array must be [r,g,b] or [r,g,b,a]; got {other:?}"
-                ))),
-            },
-        }
-    }
-}
 
 fn parse_hex(s: &str) -> Option<Color32> {
     let s = s.strip_prefix('#').unwrap_or(s);
@@ -182,37 +112,52 @@ impl ThemeMeta {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThemeColors {
     /// Main window / panel background.
-    pub background: Color,
-    /// Secondary surfaces: inputs, inactive widgets.
-    pub surface: Color,
+    #[serde(with = "crate::utils::serde_color::c")]
+    pub background: Color32,
+    /// Secondary surfaces: inputs, inactive widgets
+    #[serde(with = "crate::utils::serde_color::c")]
+    pub surface: Color32,
     /// Elevated / hovered surfaces.
-    pub surface_raised: Color,
+    #[serde(with = "crate::utils::serde_color::c")]
+    pub surface_raised: Color32,
     /// Primary text.
-    pub text: Color,
+    #[serde(with = "crate::utils::serde_color::c")]
+    pub text: Color32,
     /// Secondary text, hints, disabled.
-    pub text_muted: Color,
+    #[serde(with = "crate::utils::serde_color::c")]
+    pub text_muted: Color32,
     /// Primary action / focus colour.
-    pub accent: Color,
+    #[serde(with = "crate::utils::serde_color::c")]
+    pub accent: Color32,
     /// Accent hover state.
-    pub accent_hover: Color,
+    #[serde(with = "crate::utils::serde_color::c")]
+    pub accent_hover: Color32,
     /// Dividers, outlines.
-    pub border: Color,
-    pub error: Color,
-    pub warning: Color,
-    pub success: Color,
+    #[serde(with = "crate::utils::serde_color::c")]
+    pub border: Color32,
+    #[serde(with = "crate::utils::serde_color::c")]
+    pub error: Color32,
+    #[serde(with = "crate::utils::serde_color::c")]
+    pub warning: Color32,
+    #[serde(with = "crate::utils::serde_color::c")]
+    pub success: Color32,
 }
 
 /// rsplot colours. Every field is optional — the applier falls back to
 /// [`ThemeColors`] when omitted.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PlotColors {
-    pub background: Option<Color>,
-    pub grid: Option<Color>,
-    pub axis: Option<Color>,
+    #[serde(with = "crate::utils::serde_color::opt")]
+    pub background: Option<Color32>,
+    #[serde(with = "crate::utils::serde_color::opt")]
+    pub grid: Option<Color32>,
+    #[serde(with = "crate::utils::serde_color::opt")]
+    pub axis: Option<Color32>,
     /// Colour-rotator sequence. Defaults to a rotation over
     /// `accent`/`success`/`warning`/`error`/`text` when empty.
     #[serde(default)]
-    pub series: Vec<Color>,
+    #[serde(with = "crate::utils::serde_color::vec")]
+    pub series: Vec<Color32>,
 }
 
 /// A complete theme. This is what users author in JSON/TOML/XML.
@@ -230,13 +175,13 @@ impl ThemeDefinition {
     pub fn resolved_plot(&self) -> ResolvedPlotColors {
         let c = &self.colors;
         ResolvedPlotColors {
-            background: self.plot.background.unwrap_or(c.background).0,
-            grid: self.plot.grid.unwrap_or(c.surface_raised).0,
-            axis: self.plot.axis.unwrap_or(c.text_muted).0,
+            background: self.plot.background.unwrap_or(c.background),
+            grid: self.plot.grid.unwrap_or(c.surface_raised),
+            axis: self.plot.axis.unwrap_or(c.text_muted),
             series: if self.plot.series.is_empty() {
-                vec![c.accent.0, c.success.0, c.warning.0, c.error.0, c.text.0]
+                vec![c.accent, c.success, c.warning, c.error, c.text]
             } else {
-                self.plot.series.iter().map(|c| c.0).collect()
+                self.plot.series.to_vec()
             },
         }
     }
@@ -274,17 +219,17 @@ pub fn catppuccin_latte() -> ThemeDefinition {
             variant: Variant::Light,
         },
         colors: ThemeColors {
-            background: Color::rgb(0xef, 0xf1, 0xf5),     // base
-            surface: Color::rgb(0xcc, 0xd0, 0xda),        // surface0
-            surface_raised: Color::rgb(0xbc, 0xc0, 0xcc), // surface1
-            text: Color::rgb(0x4c, 0x4f, 0x69),
-            text_muted: Color::rgb(0x6c, 0x6f, 0x85), // subtext0
-            accent: Color::rgb(0x88, 0x39, 0xef),     // mauve
-            accent_hover: Color::rgb(0x72, 0x87, 0xfd), // lavender
-            border: Color::rgb(0xac, 0xb0, 0xbe),     // surface2
-            error: Color::rgb(0xd2, 0x0f, 0x39),
-            warning: Color::rgb(0xdf, 0x8e, 0x1d),
-            success: Color::rgb(0x40, 0xa0, 0x2b),
+            background: Color32::from_rgba_unmultiplied(0xef, 0xf1, 0xf5, 255), // base
+            surface: Color32::from_rgba_unmultiplied(0xcc, 0xd0, 0xda, 255),    // surface0
+            surface_raised: Color32::from_rgba_unmultiplied(0xbc, 0xc0, 0xcc, 255), // surface1
+            text: Color32::from_rgba_unmultiplied(0x4c, 0x4f, 0x69, 255),
+            text_muted: Color32::from_rgba_unmultiplied(0x6c, 0x6f, 0x85, 255), // subtext0
+            accent: Color32::from_rgba_unmultiplied(0x88, 0x39, 0xef, 255),     // mauve
+            accent_hover: Color32::from_rgba_unmultiplied(0x72, 0x87, 0xfd, 255), // lavender
+            border: Color32::from_rgba_unmultiplied(0xac, 0xb0, 0xbe, 255),     // surface2
+            error: Color32::from_rgba_unmultiplied(0xd2, 0x0f, 0x39, 255),
+            warning: Color32::from_rgba_unmultiplied(0xdf, 0x8e, 0x1d, 255),
+            success: Color32::from_rgba_unmultiplied(0x40, 0xa0, 0x2b, 255),
         },
         plot: PlotColors::default(),
     }
@@ -298,17 +243,17 @@ pub fn catppuccin_frappe() -> ThemeDefinition {
             variant: Variant::Dark,
         },
         colors: ThemeColors {
-            background: Color::rgb(0x30, 0x34, 0x46),     // base
-            surface: Color::rgb(0x41, 0x45, 0x59),        // surface0
-            surface_raised: Color::rgb(0x51, 0x56, 0x70), // surface1
-            text: Color::rgb(0xc6, 0xd0, 0xf5),
-            text_muted: Color::rgb(0xa5, 0xad, 0xce), // subtext0
-            accent: Color::rgb(0xca, 0x9e, 0xe6),     // mauve
-            accent_hover: Color::rgb(0xba, 0xbb, 0xf5), // lavender
-            border: Color::rgb(0x62, 0x68, 0x7e),     // surface2
-            error: Color::rgb(0xe7, 0x82, 0x84),
-            warning: Color::rgb(0xe5, 0xc8, 0x90),
-            success: Color::rgb(0xa6, 0xd1, 0x89),
+            background: Color32::from_rgba_unmultiplied(0x30, 0x34, 0x46, 255), // base
+            surface: Color32::from_rgba_unmultiplied(0x41, 0x45, 0x59, 255),    // surface0
+            surface_raised: Color32::from_rgba_unmultiplied(0x51, 0x56, 0x70, 255), // surface1
+            text: Color32::from_rgba_unmultiplied(0xc6, 0xd0, 0xf5, 255),
+            text_muted: Color32::from_rgba_unmultiplied(0xa5, 0xad, 0xce, 255), // subtext0
+            accent: Color32::from_rgba_unmultiplied(0xca, 0x9e, 0xe6, 255),     // mauve
+            accent_hover: Color32::from_rgba_unmultiplied(0xba, 0xbb, 0xf5, 255), // lavender
+            border: Color32::from_rgba_unmultiplied(0x62, 0x68, 0x7e, 255),     // surface2
+            error: Color32::from_rgba_unmultiplied(0xe7, 0x82, 0x84, 255),
+            warning: Color32::from_rgba_unmultiplied(0xe5, 0xc8, 0x90, 255),
+            success: Color32::from_rgba_unmultiplied(0xa6, 0xd1, 0x89, 255),
         },
         plot: PlotColors::default(),
     }
@@ -322,17 +267,17 @@ pub fn catppuccin_macchiato() -> ThemeDefinition {
             variant: Variant::Dark,
         },
         colors: ThemeColors {
-            background: Color::rgb(0x24, 0x27, 0x3a),
-            surface: Color::rgb(0x36, 0x3a, 0x4f),
-            surface_raised: Color::rgb(0x49, 0x4d, 0x64),
-            text: Color::rgb(0xca, 0xd3, 0xf5),
-            text_muted: Color::rgb(0xa5, 0xad, 0xcb),
-            accent: Color::rgb(0xc6, 0xa0, 0xf6),
-            accent_hover: Color::rgb(0xb7, 0xbd, 0xf8),
-            border: Color::rgb(0x5b, 0x60, 0x78),
-            error: Color::rgb(0xed, 0x87, 0x96),
-            warning: Color::rgb(0xee, 0xd4, 0x9f),
-            success: Color::rgb(0xa6, 0xda, 0x95),
+            background: Color32::from_rgba_unmultiplied(0x24, 0x27, 0x3a, 255), // base
+            surface: Color32::from_rgba_unmultiplied(0x36, 0x3a, 0x4f, 255),
+            surface_raised: Color32::from_rgba_unmultiplied(0x49, 0x4d, 0x64, 255),
+            text: Color32::from_rgba_unmultiplied(0xca, 0xd3, 0xf5, 255),
+            text_muted: Color32::from_rgba_unmultiplied(0xa5, 0xad, 0xcb, 255),
+            accent: Color32::from_rgba_unmultiplied(0xc6, 0xa0, 0xf6, 255),
+            accent_hover: Color32::from_rgba_unmultiplied(0xb7, 0xbd, 0xf8, 255),
+            border: Color32::from_rgba_unmultiplied(0x5b, 0x60, 0x78, 255),
+            error: Color32::from_rgba_unmultiplied(0xed, 0x87, 0x96, 255),
+            warning: Color32::from_rgba_unmultiplied(0xee, 0xd4, 0x9f, 255),
+            success: Color32::from_rgba_unmultiplied(0xa6, 0xda, 0x95, 255),
         },
         plot: PlotColors::default(),
     }
@@ -346,17 +291,17 @@ pub fn catppuccin_mocha() -> ThemeDefinition {
             variant: Variant::Dark,
         },
         colors: ThemeColors {
-            background: Color::rgb(0x1e, 0x1e, 0x2e),
-            surface: Color::rgb(0x31, 0x32, 0x44),
-            surface_raised: Color::rgb(0x45, 0x47, 0x5a),
-            text: Color::rgb(0xcd, 0xd6, 0xf4),
-            text_muted: Color::rgb(0xa6, 0xad, 0xc8),
-            accent: Color::rgb(0xcb, 0xa6, 0xf7),
-            accent_hover: Color::rgb(0xb4, 0xbe, 0xfe),
-            border: Color::rgb(0x58, 0x5b, 0x70),
-            error: Color::rgb(0xf3, 0x8b, 0xa8),
-            warning: Color::rgb(0xf9, 0xe2, 0xaf),
-            success: Color::rgb(0xa6, 0xe3, 0xa1),
+            background: Color32::from_rgba_unmultiplied(0x1e, 0x1e, 0x2e, 255),
+            surface: Color32::from_rgba_unmultiplied(0x31, 0x32, 0x44, 255),
+            surface_raised: Color32::from_rgba_unmultiplied(0x45, 0x47, 0x5a, 255),
+            text: Color32::from_rgba_unmultiplied(0xcd, 0xd6, 0xf4, 255),
+            text_muted: Color32::from_rgba_unmultiplied(0xa6, 0xad, 0xc8, 255),
+            accent: Color32::from_rgba_unmultiplied(0xcb, 0xa6, 0xf7, 255),
+            accent_hover: Color32::from_rgba_unmultiplied(0xb4, 0xbe, 0xfe, 255),
+            border: Color32::from_rgba_unmultiplied(0x58, 0x5b, 0x70, 255),
+            error: Color32::from_rgba_unmultiplied(0xf3, 0x8b, 0xa8, 255),
+            warning: Color32::from_rgba_unmultiplied(0xf9, 0xe2, 0xaf, 255),
+            success: Color32::from_rgba_unmultiplied(0xa6, 0xe3, 0xa1, 255),
         },
         plot: PlotColors::default(),
     }
@@ -370,17 +315,17 @@ pub fn light() -> ThemeDefinition {
             variant: Variant::Light,
         },
         colors: ThemeColors {
-            background: Color::rgb(0xff, 0xff, 0xff),
-            surface: Color::rgb(0xf2, 0xf2, 0xf2),
-            surface_raised: Color::rgb(0xe6, 0xe6, 0xe6),
-            text: Color::rgb(0x1a, 0x1a, 0x1a),
-            text_muted: Color::rgb(0x66, 0x66, 0x66),
-            accent: Color::rgb(0x1e, 0x66, 0xf5),
-            accent_hover: Color::rgb(0x00, 0x4f, 0xd4),
-            border: Color::rgb(0xcc, 0xcc, 0xcc),
-            error: Color::rgb(0xc6, 0x28, 0x28),
-            warning: Color::rgb(0xb2, 0x6a, 0x00),
-            success: Color::rgb(0x2e, 0x7d, 0x32),
+            background: Color32::from_rgba_unmultiplied(0xff, 0xff, 0xff, 255),
+            surface: Color32::from_rgba_unmultiplied(0xf2, 0xf2, 0xf2, 255),
+            surface_raised: Color32::from_rgba_unmultiplied(0xe6, 0xe6, 0xe6, 255),
+            text: Color32::from_rgba_unmultiplied(0x1a, 0x1a, 0x1a, 255),
+            text_muted: Color32::from_rgba_unmultiplied(0x66, 0x66, 0x66, 255),
+            accent: Color32::from_rgba_unmultiplied(0x1e, 0x66, 0xf5, 255),
+            accent_hover: Color32::from_rgba_unmultiplied(0x00, 0x4f, 0xd4, 255),
+            border: Color32::from_rgba_unmultiplied(0xcc, 0xcc, 0xcc, 255),
+            error: Color32::from_rgba_unmultiplied(0xc6, 0x28, 0x28, 255),
+            warning: Color32::from_rgba_unmultiplied(0xb2, 0x6a, 0x00, 255),
+            success: Color32::from_rgba_unmultiplied(0x2e, 0x7d, 0x32, 255),
         },
         plot: PlotColors::default(),
     }
@@ -394,17 +339,17 @@ pub fn dark() -> ThemeDefinition {
             variant: Variant::Dark,
         },
         colors: ThemeColors {
-            background: Color::rgb(0x12, 0x12, 0x12),
-            surface: Color::rgb(0x1e, 0x1e, 0x1e),
-            surface_raised: Color::rgb(0x2a, 0x2a, 0x2a),
-            text: Color::rgb(0xe8, 0xe8, 0xe8),
-            text_muted: Color::rgb(0x99, 0x99, 0x99),
-            accent: Color::rgb(0x64, 0xb5, 0xf6),
-            accent_hover: Color::rgb(0x9a, 0xd2, 0xff),
-            border: Color::rgb(0x3a, 0x3a, 0x3a),
-            error: Color::rgb(0xef, 0x53, 0x50),
-            warning: Color::rgb(0xff, 0xb7, 0x4d),
-            success: Color::rgb(0x81, 0xc7, 0x84),
+            background: Color32::from_rgba_unmultiplied(0x12, 0x12, 0x12, 255),
+            surface: Color32::from_rgba_unmultiplied(0x1e, 0x1e, 0x1e, 255),
+            surface_raised: Color32::from_rgba_unmultiplied(0x2a, 0x2a, 0x2a, 255),
+            text: Color32::from_rgba_unmultiplied(0xe8, 0xe8, 0xe8, 255),
+            text_muted: Color32::from_rgba_unmultiplied(0x99, 0x99, 0x99, 255),
+            accent: Color32::from_rgba_unmultiplied(0x64, 0xb5, 0xf6, 255),
+            accent_hover: Color32::from_rgba_unmultiplied(0x9a, 0xd2, 0xff, 255),
+            border: Color32::from_rgba_unmultiplied(0x3a, 0x3a, 0x3a, 255),
+            error: Color32::from_rgba_unmultiplied(0xef, 0x53, 0x50, 255),
+            warning: Color32::from_rgba_unmultiplied(0xff, 0xb7, 0x4d, 255),
+            success: Color32::from_rgba_unmultiplied(0x81, 0xc7, 0x84, 255),
         },
         plot: PlotColors::default(),
     }
@@ -613,7 +558,7 @@ impl ThemeManager {
 
     // ---- Accessors ------------------------------------------------------
 
-    pub fn current(&self) -> &ThemeDefinition {
+    pub const fn current(&self) -> &ThemeDefinition {
         &self.current
     }
 
@@ -624,11 +569,11 @@ impl ThemeManager {
     /// Monotonic counter, bumped on every successful [`Self::apply`].
     /// Retained widgets (rsplot `Plot1D`, custom caches) compare a local
     /// copy against this to know when to re-theme.
-    pub fn version(&self) -> u64 {
+    pub const fn version(&self) -> u64 {
         self.version
     }
 
-    pub fn registry(&self) -> &ThemeRegistry {
+    pub const fn registry(&self) -> &ThemeRegistry {
         &self.registry
     }
 
@@ -650,7 +595,7 @@ impl ThemeManager {
 
     /// Switch to `name`, apply it to `ctx`, bump the version, and emit a
     /// [`ThemeManagerEvent::ThemeChanged`]. Errors if the name is unknown.
-    pub fn apply(&mut self, ui: &mut egui::Ui, name: &str) -> ThemeResult<()> {
+    pub fn apply(&mut self, ui: &egui::Ui, name: &str) -> ThemeResult<()> {
         let theme = self
             .registry
             .get(name)
@@ -740,49 +685,49 @@ pub fn build_visuals(theme: &ThemeDefinition) -> egui::Visuals {
     let mut v = base;
 
     // Panel / window chrome
-    v.panel_fill = c.background.0;
-    v.window_fill = c.background.0;
-    v.faint_bg_color = c.surface.0;
-    v.extreme_bg_color = c.surface.0;
-    v.window_stroke = Stroke::new(1.0, c.border.0);
+    v.panel_fill = c.background;
+    v.window_fill = c.background;
+    v.faint_bg_color = c.surface;
+    v.extreme_bg_color = c.surface;
+    v.window_stroke = Stroke::new(1.0, c.border);
     v.window_shadow = egui::epaint::Shadow::NONE;
 
     // Text
-    v.override_text_color = Some(c.text.0);
+    v.override_text_color = Some(c.text);
 
     // Widgets
-    v.widgets.noninteractive.bg_fill = c.background.0;
-    v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, c.border.0);
-    v.widgets.noninteractive.fg_stroke = Stroke::new(1.0, c.text.0);
+    v.widgets.noninteractive.bg_fill = c.background;
+    v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, c.border);
+    v.widgets.noninteractive.fg_stroke = Stroke::new(1.0, c.text);
 
-    v.widgets.inactive.bg_fill = c.surface.0;
-    v.widgets.inactive.weak_bg_fill = c.surface.0;
-    v.widgets.inactive.bg_stroke = Stroke::new(1.0, c.border.0);
-    v.widgets.inactive.fg_stroke = Stroke::new(1.0, c.text.0);
+    v.widgets.inactive.bg_fill = c.surface;
+    v.widgets.inactive.weak_bg_fill = c.surface;
+    v.widgets.inactive.bg_stroke = Stroke::new(1.0, c.border);
+    v.widgets.inactive.fg_stroke = Stroke::new(1.0, c.text);
 
-    v.widgets.hovered.bg_fill = c.surface_raised.0;
-    v.widgets.hovered.weak_bg_fill = c.surface_raised.0;
-    v.widgets.hovered.bg_stroke = Stroke::new(1.0, c.accent.0);
-    v.widgets.hovered.fg_stroke = Stroke::new(1.0, c.text.0);
+    v.widgets.hovered.bg_fill = c.surface_raised;
+    v.widgets.hovered.weak_bg_fill = c.surface_raised;
+    v.widgets.hovered.bg_stroke = Stroke::new(1.0, c.accent);
+    v.widgets.hovered.fg_stroke = Stroke::new(1.0, c.text);
 
-    v.widgets.active.bg_fill = c.accent.0;
-    v.widgets.active.weak_bg_fill = c.accent.0;
-    v.widgets.active.bg_stroke = Stroke::new(1.0, c.accent_hover.0);
-    v.widgets.active.fg_stroke = Stroke::new(1.0, c.background.0);
+    v.widgets.active.bg_fill = c.accent;
+    v.widgets.active.weak_bg_fill = c.accent;
+    v.widgets.active.bg_stroke = Stroke::new(1.0, c.accent_hover);
+    v.widgets.active.fg_stroke = Stroke::new(1.0, c.background);
 
-    v.widgets.open.bg_fill = c.surface_raised.0;
-    v.widgets.open.weak_bg_fill = c.surface_raised.0;
+    v.widgets.open.bg_fill = c.surface_raised;
+    v.widgets.open.weak_bg_fill = c.surface_raised;
 
     // Selection (text edit, listbox highlight)
-    v.selection.bg_fill = c.accent.0.linear_multiply(0.35);
-    v.selection.stroke = Stroke::new(1.0, c.accent.0);
+    v.selection.bg_fill = c.accent.linear_multiply(0.35);
+    v.selection.stroke = Stroke::new(1.0, c.accent);
 
     // Hyperlinks
-    v.hyperlink_color = c.accent.0;
+    v.hyperlink_color = c.accent;
 
     // Warnings / errors
-    v.warn_fg_color = c.warning.0;
-    v.error_fg_color = c.error.0;
+    v.warn_fg_color = c.warning;
+    v.error_fg_color = c.error;
 
     v
 }

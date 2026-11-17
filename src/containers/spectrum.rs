@@ -112,10 +112,10 @@ impl Spectrum {
 
         // Python's intent (buggy as written): if the incoming data has no
         // instrument, adopt the spectrum's instrument. We do that here.
-        if spectrum.instrument.is_none() {
-            if let Some(inst) = &self.instrument {
-                spectrum.instrument = Some(Arc::clone(inst));
-            }
+        if spectrum.instrument.is_none()
+            && let Some(inst) = &self.instrument
+        {
+            spectrum.instrument = Some(Arc::clone(inst));
         }
 
         // Python assigned `color_background` here; that is a bug — it should
@@ -217,9 +217,7 @@ impl Spectrum {
     /// compatibility; if you'd rather have the log applied uniformly, replace
     /// the early return with `.map(|a| log_if(a, log))`.
     pub fn get_bkg_sub(&self, log: bool) -> Option<Array1<f64>> {
-        if self.foreground.is_none() {
-            return None;
-        }
+        self.foreground.as_ref()?;
 
         if self.background.is_none() {
             return self.get_foreground(false, true);
@@ -257,7 +255,7 @@ impl Spectrum {
         self.instrument = Some(Arc::new(instrument));
     }
 
-    pub fn get_instrument(&self) -> Option<&Arc<UniqueInstrument>> {
+    pub const fn get_instrument(&self) -> Option<&Arc<UniqueInstrument>> {
         self.instrument.as_ref()
     }
 
@@ -291,7 +289,7 @@ impl Spectrum {
 
 /// Horner evaluation of `[a_n, a_{n-1}, …, a_0]` at `x`.
 fn polyval(coeffs: &[f64], x: f64) -> f64 {
-    coeffs.iter().fold(0.0, |acc, &c| acc * x + c)
+    coeffs.iter().fold(0.0, |acc, &c| f64::mul_add(acc, x, c))
 }
 
 /// Linear interpolation, matching `np.interp`. Assumes `xp` is increasing.
@@ -308,7 +306,7 @@ fn interp(x: f64, xp: &[f64], fp: &[f64]) -> f64 {
     for i in 0..xp.len() - 1 {
         if x >= xp[i] && x <= xp[i + 1] {
             let t = (x - xp[i]) / (xp[i + 1] - xp[i]);
-            return fp[i] + t * (fp[i + 1] - fp[i]);
+            return t.mul_add(fp[i + 1] - fp[i], fp[i]);
         }
     }
     f64::NAN
