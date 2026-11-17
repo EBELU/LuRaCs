@@ -149,7 +149,7 @@ impl<T> BoundedDeque<T> {
         self.inner.push_back(value);
     }
 
-    pub const fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.inner.len()
     }
 
@@ -157,7 +157,7 @@ impl<T> BoundedDeque<T> {
         self.capacity
     }
 
-    pub const fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }
 

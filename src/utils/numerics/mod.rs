@@ -70,17 +70,28 @@ mod tests {
     }
 
     #[test]
+#[test]
     fn test_deconvolution() {
-        let dense = ndarray::Array2::<f64>::eye(4);
+        use ndarray::{Array1, Array2};
+        use super::ml_em::{MlEmOptions, ml_em};
+
+        let dense = Array2::<f64>::eye(4);
         let csr = CsrMatrix::from_dense(&dense);
+
         assert_eq!(csr.nrows(), 4);
         assert_eq!(csr.ncols(), 4);
         assert_eq!(csr.nnz(), 4);
 
-        let x = nalgebra::DVector::from_vec(vec![1.0, 2.0, 3.0, 4.0]);
-        let mut y = nalgebra::DVector::zeros(4);
-        csr.forward(&x, &mut y);
-        assert_eq!(x, y);
+        let x = Array1::from_vec(vec![1.0, 2.0, 3.0, 4.0]);
+
+        let sensitivity = Array1::ones(4);
+        let opts = MlEmOptions { iterations: 1 };
+
+        let result = ml_em(&x, &csr, &sensitivity, &opts);
+
+        for (actual, expected) in result.iter().zip(x.iter()) {
+            assert!((actual - expected).abs() < 1e-10);
+        }
     }
 
     #[test]

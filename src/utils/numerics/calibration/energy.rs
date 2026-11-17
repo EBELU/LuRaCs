@@ -78,12 +78,12 @@ pub struct CalibrationResult {
 /// Calibrate an energy axis from reference peaks.
 ///
 /// # Arguments
-/// * `ref_channel_points` — measured centroids (channels, or energies if
+/// * `ref_channel_points` - measured centroids (channels, or energies if
 ///   `current_x_axis` is `Some`).
-/// * `ref_energy_points` — reference emission energies, in keV.
-/// * `polynomial_degree` — degree of the fitted polynomial.
-/// * `axis_len` — number of channels in the returned axis.
-/// * `current_x_axis` — if the `ref_channel_points` were measured on an
+/// * `ref_energy_points` - reference emission energies, in keV.
+/// * `polynomial_degree` - degree of the fitted polynomial.
+/// * `axis_len` - number of channels in the returned axis.
+/// * `current_x_axis` - if the `ref_channel_points` were measured on an
 ///   already-calibrated axis, pass that axis so they can be mapped back to
 ///   channel indices. `None` if the points are already in channel space.
 pub fn calibrate_x_axis(

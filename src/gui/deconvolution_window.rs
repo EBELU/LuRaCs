@@ -26,7 +26,6 @@ use std::sync::mpsc::{Receiver, Sender};
 
 use eframe::egui;
 use eframe::egui::{Align2, Color32, Id, Vec2};
-use nalgebra::DVector;
 use ndarray::{Array1, Array2};
 use ndarray_npy::NpzReader;
 
@@ -41,7 +40,7 @@ use crate::utils::{MlEmOptions, ml_em, process_matrix, richardson_lucy};
 #[derive(Debug)]
 enum Event {
     Progress { percent: u8, message: String },
-    Done(DVector<f64>),
+    Done(Array1<f64>),
     Error(String),
 }
 
@@ -271,7 +270,7 @@ impl DeconvolutionWindow {
     // Result handling
     // -----------------------------------------------------------------------
 
-    fn catch_result(&mut self, app: &mut LuRaCsApp, source_key: &str, data: DVector<f64>) {
+    fn catch_result(&mut self, app: &mut LuRaCsApp, source_key: &str, data: Array1<f64>) {
         use crate::containers::SpectrumData;
         use crate::core::ForegroundInput;
 
@@ -733,7 +732,7 @@ impl DeconvolutionWindow {
 // y-axis helper (free function so the worker thread can use it too)
 // ===========================================================================
 
-fn effective_y_axis(spec: &crate::containers::Spectrum, subtract_background: bool) -> DVector<f64> {
+fn effective_y_axis(spec: &crate::containers::Spectrum, subtract_background: bool) -> Array1<f64> {
     let arr = if subtract_background {
         // Falls back to foreground CPS when background is absent.
         spec.get_bkg_sub(false)
@@ -742,11 +741,12 @@ fn effective_y_axis(spec: &crate::containers::Spectrum, subtract_background: boo
         spec.get_foreground(false, false)
             .unwrap_or_else(|| Array1::zeros(spec.channels))
     };
-    DVector::from_iterator(arr.len(), arr.iter().copied())
+
+    Array1::from_iter(arr.iter().copied())
 }
 
-fn dvector_from_array1(a: &Array1<f64>) -> DVector<f64> {
-    DVector::from_iterator(a.len(), a.iter().copied())
+fn dvector_from_array1(a: &Array1<f64>) -> Array1<f64> {
+    Array1::from_iter(a.iter().copied())
 }
 
 // ===========================================================================
@@ -784,8 +784,8 @@ fn load_response_npz(path: &str) -> Result<ResponseData, String> {
 /// RL worker: build a Gaussian PSF and run ML-EM iterations.
 fn run_rl_worker(
     tx: Sender<Event>,
-    x_axis: DVector<f64>,
-    y_axis: DVector<f64>,
+    x_axis: Array1<f64>,
+    y_axis: Array1<f64>,
     k: f64,
     iterations: usize,
 ) {
@@ -795,7 +795,7 @@ fn run_rl_worker(
     }));
 
     let n = y_axis.len();
-    let sensitivity = DVector::from_element(n, 1.0);
+    let sensitivity = Array1::ones(n);
     let opts = MlEmOptions {
         iterations,
         ..Default::default()
@@ -820,11 +820,11 @@ fn run_rl_worker(
 /// MLEM worker: process the response matrix, then run `ml_em`.
 fn run_mlem_worker(
     tx: Sender<Event>,
-    y_axis: DVector<f64>,
+    y_axis: Array1<f64>,
     response_matrix: Array2<f64>,
     indices: Array1<f64>,
     bin_centres: Array1<f64>,
-    x_axis: DVector<f64>,
+    x_axis: Array1<f64>,
     iterations: usize,
 ) {
     drop(tx.send(Event::Progress {
@@ -834,7 +834,7 @@ fn run_mlem_worker(
 
     let idx_slice = indices.as_slice().unwrap_or(&[]);
     let bin_slice = bin_centres.as_slice().unwrap_or(&[]);
-    let x_slice = x_axis.as_slice();
+    let x_slice = x_axis.as_slice().unwrap_or(&[]);
 
     let csr = process_matrix(&response_matrix, idx_slice, bin_slice, x_slice, x_slice);
 
@@ -844,7 +844,7 @@ fn run_mlem_worker(
     }));
 
     let n = y_axis.len();
-    let sensitivity = DVector::from_element(n, 1.0);
+    let sensitivity = Array1::ones(n);
     let opts = MlEmOptions {
         iterations,
         ..Default::default()

@@ -1,7 +1,7 @@
 pub mod efficiency;
 pub mod energy;
-pub mod models;
+pub mod physics_models;
 
 pub use efficiency::*;
 pub use energy::*;
-pub use models::*;
+pub use physics_models::*;
