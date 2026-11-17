@@ -47,7 +47,7 @@ use crate::containers::Roi;
 use crate::core::SpectrumManager;
 use crate::gui::spectrum_plot::{self, FeatureLine, SpectrumPlotState};
 use crate::settings::Settings;
-use crate::theme_manager::Palette;
+use crate::theme_manager;
 
 // ===========================================================================
 // Mode
@@ -298,7 +298,7 @@ impl SpectrumScreen {
             }
         }
 
-        let use_chi2 = settings.advanced.optimizer_use_chi2_weight;
+        let use_chi2 = settings.optimizer.use_chi2_weight;
         spectrum_manager.roi_manager.on_roi_change(
             &mut spectrum_manager.spectrum_registry,
             tag,
@@ -329,7 +329,7 @@ impl SpectrumScreen {
         &mut self,
         spectrum_manager: &mut SpectrumManager,
         settings: &Settings,
-        palette: &Palette,
+        theme_def: &theme_manager::ThemeDefinition,
         render_state: &RenderState,
         ui: &mut egui::Ui,
     ) {
@@ -337,7 +337,13 @@ impl SpectrumScreen {
 
         match self.mode {
             PlotMode::Combined => {
-                spectrum_plot::render(&mut self.combined, spectrum_manager, settings, palette, ui);
+                spectrum_plot::render(
+                    &mut self.combined,
+                    spectrum_manager,
+                    settings,
+                    theme_def,
+                    ui,
+                );
             }
             PlotMode::Tabbed => {
                 self.render_tab_strip(ui);
@@ -346,7 +352,7 @@ impl SpectrumScreen {
                 match self.current_tab.clone() {
                     Some(current) => {
                         if let Some(state) = self.tabs.get_mut(&current) {
-                            spectrum_plot::render(state, spectrum_manager, settings, palette, ui);
+                            spectrum_plot::render(state, spectrum_manager, settings, theme_def, ui);
                         } else {
                             ui.label("Selected tab is stale — please reload");
                         }

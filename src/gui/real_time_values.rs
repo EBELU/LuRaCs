@@ -93,8 +93,8 @@ impl RealTimeValuesTab {
     // -----------------------------------------------------------------------
 
     pub fn render(&mut self, show_mean_lines: bool, settings: &Settings, ui: &mut egui::Ui) {
-        let queue_len = settings.advanced.real_time_values_deque_length;
-        let dt = settings.advanced.update_loop_delay;
+        let queue_len = settings.real_time.values_buffer_length;
+        let dt = settings.scanning.update_loop_delay_s;
         let x_max = queue_len as f64 * dt;
 
         // X axis: time-ago, i.e. [(n-1)*dt, ..., dt, 0]. Oldest value at

@@ -20,7 +20,7 @@ nalgebra = { version = "0.35.0", features = ["serde"] }
 ndarray = { version = "0.17.2", features = ["rayon", "serde"] }
 nucleide-nuclei = "0.17.0"
 physure = "0.3.0"
-quick-xml = { version = "0.42.0", features = ["serde"] }
+quick-xml = { version = "0.42.0", features = ["serde", "serialize"] }
 rfd = "0.18.0"
 roxmltree = "0.21.2"
 rusb = { version = "0.9.4", features = ["serde", "vendored"] }
@@ -49,3 +49,4 @@ rayon = "1.12.0"
 ndarray-npy = "0.10.0"
 chemometrics = "0.2.1"
 sci-find-peaks = "0.1.0"
+toml = "1.2.1"

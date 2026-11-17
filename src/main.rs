@@ -51,7 +51,7 @@ use crate::core::{ForegroundInput, SpectrumManager, SpectrumManagerError};
 use crate::core::{RunManager, RunManagerEvent};
 use crate::gui::{ColorScheme, SpectrumScreen};
 use crate::logging::LogBuffer;
-use crate::settings::{Settings, SharedSettings};
+use crate::settings::{Settings, SharedSettings, SharedSettingsExt};
 use crate::theme_manager::ThemeManager;
 use crate::utils::{
     InstrumentRef, save_instrument_to_library, save_rois_to_library, save_spectrum_to_library,
@@ -198,10 +198,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // --- 4. Managers ---
     let poll_cfg = poll_config_from(&shared_settings.read().unwrap());
     let queue_len = shared_settings
-        .read()
-        .unwrap()
-        .advanced
-        .real_time_values_deque_length;
+        .read_settings()
+        .real_time
+        .values_buffer_length;
 
     let mut run_manager = RunManager::new(queue_len, poll_cfg)?;
     let mut spectrum_manager = build_spectrum_manager(&shared_settings)?;
@@ -219,9 +218,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &mut spectrum_manager,
     )?;
 
-    // --- 7. Theme manager ---
-    let theme_manager = ThemeManager::new(shared_settings.read().unwrap().paths.themes.clone());
-
     // --- 8. GUI or headless ---
     if cli.headless {
         run_headless(run_manager, spectrum_manager, io_manager, shared_settings)?;
@@ -231,7 +227,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             run_manager,
             spectrum_manager,
             io_manager,
-            theme_manager,
             log_buffer,
         )?;
     }
@@ -248,7 +243,6 @@ fn run_gui(
     run_manager: RunManager,
     spectrum_manager: SpectrumManager,
     io_manager: IoManager,
-    theme_manager: ThemeManager,
     log_buffer: Arc<LogBuffer>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let title = app_title();
@@ -275,7 +269,6 @@ fn run_gui(
                 run_manager,
                 spectrum_manager,
                 io_manager,
-                theme_manager,
                 log_buffer,
             );
             Ok(Box::new(app))
@@ -343,11 +336,7 @@ fn handle_headless_event(
             channels,
             connection,
         } => {
-            let load_cal = shared_settings
-                .read()
-                .unwrap()
-                .appearance
-                .load_calibration_from_instrument;
+            let load_cal = shared_settings.read_settings().importing.load_calibration;
             if let Err(e) = spectrum_manager.create_spectrum(
                 &device_name,
                 channels,
@@ -418,16 +407,16 @@ fn load_settings(headless: bool) -> Result<SharedSettings, Box<dyn std::error::E
 
 fn poll_config_from(s: &Settings) -> PollConfig {
     PollConfig {
-        update_loop_delay: s.advanced.update_loop_delay,
-        spectrum_update_delay: s.advanced.spectrum_update_delay,
+        update_loop_delay: s.scanning.update_loop_delay_s,
+        spectrum_update_delay: s.scanning.spectrum_update_delay_s,
     }
 }
 
 fn build_spectrum_manager(
     settings: &SharedSettings,
 ) -> Result<SpectrumManager, Box<dyn std::error::Error>> {
-    let s = settings.read().unwrap();
-    let scheme: ColorScheme = s.appearance.color_rotator_scheme;
+    let s = settings.read_settings();
+    let scheme: ColorScheme = s.theme.color_rotator_scheme;
     Ok(SpectrumManager::new(
         scheme,
         s.paths.unique_instrument_library.clone(),
@@ -480,7 +469,7 @@ fn build_io_manager(settings: &SharedSettings) -> Result<IoManager, Box<dyn std:
     Ok(IoManager::new(
         &s.paths.appdata,
         s.paths.last_opened_dir.clone(),
-        s.appearance.tabbed_spectrum_view,
+        s.plotting.tabbed_spectrum_view,
         spectrum_save,
         roi_save,
         unique_save,

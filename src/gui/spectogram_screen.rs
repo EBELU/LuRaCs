@@ -43,7 +43,7 @@ use crate::core::{SpectrogramManager, SpectrogramRoi};
 use crate::settings::Settings;
 use crate::spectogram::SpectrogramState;
 use crate::spectogram::WrappedSpectrogramData;
-use crate::theme_manager::Palette;
+use crate::theme_manager::{self, ThemeDefinition};
 
 // ===========================================================================
 // Events
@@ -195,7 +195,7 @@ impl SpectrogramScreen {
         spectrogram_manager: &SpectrogramManager,
         spectrogram_data: &HashMap<String, Arc<WrappedSpectrogramData>>,
         settings: &Settings,
-        palette: &Palette,
+        theme_def: &ThemeDefinition,
         ui: &mut egui::Ui,
         devices: &[String], // ← was `run_manager: &mut RunManager`
     ) -> Vec<SpectrogramScreenEvent> {
@@ -237,7 +237,7 @@ impl SpectrogramScreen {
                 egui::vec2(ui.available_width(), bar_h),
                 egui::Layout::top_down(egui::Align::Min),
                 |ui| {
-                    self.draw_bar_plot(spectrogram_data, palette, ui);
+                    self.draw_bar_plot(spectrogram_data, theme_def, ui);
                 },
             );
 
@@ -251,7 +251,7 @@ impl SpectrogramScreen {
                     self.draw_waterfall_plot(
                         spectrogram_manager,
                         spectrogram_data,
-                        palette,
+                        theme_def,
                         settings,
                         ui,
                     );
@@ -495,7 +495,7 @@ impl SpectrogramScreen {
     fn draw_bar_plot(
         &mut self,
         spectrogram_data: &HashMap<String, Arc<WrappedSpectrogramData>>,
-        palette: &Palette,
+        theme_def: &theme_manager::ThemeDefinition,
         ui: &mut egui::Ui,
     ) {
         self.bar_plot.clear();
@@ -540,7 +540,7 @@ impl SpectrogramScreen {
         self.bar_plot.add_curve_with_interpolation(
             &x,
             &heights,
-            palette.text,
+            theme_def.colors.text.into(),
             CurveInterpolation::StepPost,
         );
 
@@ -564,7 +564,7 @@ impl SpectrogramScreen {
         &mut self,
         spectrogram_manager: &SpectrogramManager,
         spectrogram_data: &HashMap<String, Arc<WrappedSpectrogramData>>,
-        palette: &Palette,
+        theme_def: &ThemeDefinition,
         _settings: &Settings,
         ui: &mut egui::Ui,
     ) {
@@ -596,7 +596,7 @@ impl SpectrogramScreen {
                 self.waterfall_plot.add_curve_with_interpolation(
                     &x,
                     &y,
-                    palette.text.gamma_multiply(0.8),
+                    theme_def.colors.text.0.gamma_multiply(0.8),
                     CurveInterpolation::Linear,
                 );
             }

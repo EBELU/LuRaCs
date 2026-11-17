@@ -32,6 +32,7 @@ use crate::core::Instrument;
 use crate::core::{ExportOutcome, ImportFilter, ImportOutcome};
 use crate::gui::modals::{ConfirmAction, ConfirmModal, InfoModal, Modal, ModalKind};
 use crate::gui::plot_screen::PlotMode;
+use crate::settings::SharedSettingsExt;
 use crate::utils::InstrumentData;
 
 // ===========================================================================
@@ -290,10 +291,9 @@ fn detector_menu(app: &mut LuRaCsApp, ui: &mut egui::Ui) {
         // --- Retry Last Connection (dynamic) ---
         let connections: Vec<String> = app
             .settings
-            .read()
-            .unwrap()
-            .state
-            .last_connections
+            .read_settings()
+            .connections
+            .recent
             .iter()
             .cloned()
             .collect();
@@ -395,13 +395,7 @@ fn tools_menu(app: &mut LuRaCsApp, ui: &mut egui::Ui) {
 fn options_menu(app: &mut LuRaCsApp, ui: &mut egui::Ui) {
     ui.menu_button("Options", |ui| {
         if ui.button("Settings").clicked() {
-            app.settings_dialog.open();
-        }
-        if ui.button("Advanced Settings").clicked() {
-            // TODO: the Python has two separate dialogs
-            // (`edit_settings` / `edit_advanced_settings`). Route to the
-            // advanced variant once both are ported.
-            app.settings_dialog.open();
+            app.settings_dialog.open_with(&app.settings.read_settings());
         }
 
         ui.separator();
@@ -434,17 +428,14 @@ fn options_menu(app: &mut LuRaCsApp, ui: &mut egui::Ui) {
         ui.separator();
 
         // --- Spectrum view mode (exclusive radio) ---
-        let tabbed = app.settings.read().unwrap().appearance.tabbed_spectrum_view;
+
+        let tabbed = app.settings.read_settings().plotting.tabbed_spectrum_view;
         let mut new_tabbed = tabbed;
         ui.radio_value(&mut new_tabbed, false, "Combined Spectrum View");
         ui.radio_value(&mut new_tabbed, true, "Tabbed Spectrum View");
 
         if new_tabbed != tabbed {
-            app.settings
-                .write()
-                .unwrap()
-                .appearance
-                .tabbed_spectrum_view = new_tabbed;
+            app.settings.write_settings().plotting.tabbed_spectrum_view = new_tabbed;
 
             let mode = if new_tabbed {
                 PlotMode::Tabbed

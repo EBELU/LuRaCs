@@ -41,11 +41,11 @@ use crate::core::IoManager;
 use crate::core::{ForegroundInput, SpectrumManager};
 use crate::core::{RunManager, RunManagerEvent};
 use crate::gui::{
-    DeconvolutionWindow, IsotopicsTab, Modal, RealTimeValuesTab, SpectrogramScreen, SpectrumScreen,
-    Stub, StubWindow, menu_bar, render_modals_for,
+    DeconvolutionWindow, IsotopicsTab, Modal, RealTimeValuesTab, SettingsDialog, SpectrogramScreen,
+    SpectrumScreen, Stub, StubWindow, menu_bar, render_modals_for,
 };
 use crate::logging::LogBuffer;
-use crate::settings::SharedSettings;
+use crate::settings::{Category, SharedSettings, SharedSettingsExt};
 use crate::spectogram::{Spectrogram, SpectrogramConfig, SpectrogramMode, WrappedSpectrogramData};
 use crate::theme_manager::{ThemeManager, ThemeManagerEvent};
 
@@ -96,6 +96,10 @@ pub struct LuRaCsApp {
     pub si_mode: bool,
     pub closing: bool,
 
+    /// Last theme version applied. Retained widgets (rsplot `Plot1D`) are
+    /// re-themed whenever `theme_manager.version()` changes.
+    pub last_theme_version: u64,
+
     // --- Top-area screens ---
     pub spectrum_screen: SpectrumScreen,
     pub spectrogram_screen: SpectrogramScreen,
@@ -115,7 +119,7 @@ pub struct LuRaCsApp {
     // --- Windows ---
     pub data_library: StubWindow,
     pub driver_dialog: StubWindow,
-    pub settings_dialog: StubWindow,
+    pub settings_dialog: SettingsDialog,
     pub bluetooth_window: StubWindow,
     pub usb_window: StubWindow,
     pub network_window: StubWindow,
@@ -141,7 +145,6 @@ impl LuRaCsApp {
         run_manager: RunManager,
         spectrum_manager: SpectrumManager,
         io_manager: IoManager,
-        mut theme_manager: ThemeManager,
         log_buffer: Arc<LogBuffer>,
     ) -> Self {
         // --- wgpu render state (required by rsplot) ---
@@ -151,21 +154,37 @@ impl LuRaCsApp {
             .expect("wgpu render state must be present (renderer = Wgpu in main.rs)")
             .clone();
 
-        // --- Apply the initial theme once so egui has correct visuals ---
-        {
-            let theme_str = settings.read().unwrap().appearance.theme.clone();
-            if let Err(e) = theme_manager.apply_by_name(&cc.egui_ctx, &theme_str) {
-                tracing::warn!("Could not apply theme {theme_str:?}: {e}");
-            }
-            // The startup apply is not a user change — discard its event so
-            // we don't persist a no-op write.
-            let _ = theme_manager.drain_events();
+        // --- Construct the theme manager from settings paths ---
+        let (builtin_theme_dir, user_theme_dir, preferred_theme) = {
+            let s = settings.read_settings();
+            (
+                s.paths.themes.clone(),
+                s.paths.config.join("themes"),
+                s.theme.name.clone(),
+            )
+        };
+
+        let settings_dialog = SettingsDialog::new();
+
+        let mut theme_manager =
+            ThemeManager::new(builtin_theme_dir, user_theme_dir, Some(&preferred_theme));
+
+        // Apply the initial theme once so egui has correct visuals.
+        if let Err(e) = theme_manager.apply_current(&cc.egui_ctx) {
+            tracing::warn!(
+                theme = %preferred_theme,
+                "could not apply initial theme: {e}"
+            );
         }
+        // The startup apply is not a user change — discard its event so we
+        // don't persist a no-op write.
+        let _ = theme_manager.drain_events();
+        let initial_theme_version = theme_manager.version();
 
         let spectrum_screen = SpectrumScreen::new(&render_state);
         let spectrogram_screen = SpectrogramScreen::new(&render_state);
 
-        let real_time_scheme = settings.read().unwrap().appearance.color_rotator_scheme;
+        let real_time_scheme = settings.read_settings().theme.color_rotator_scheme;
         let real_time_values_tab = RealTimeValuesTab::new(&render_state, real_time_scheme);
         let isotopics_tab = IsotopicsTab::new(&render_state);
 
@@ -186,6 +205,7 @@ impl LuRaCsApp {
             bottom_tab: BottomTab::SpectrumInfo,
             si_mode: false,
             closing: false,
+            last_theme_version: initial_theme_version,
 
             spectrum_screen,
             spectrogram_screen,
@@ -203,7 +223,7 @@ impl LuRaCsApp {
 
             data_library: StubWindow::new("Data Library"),
             driver_dialog: StubWindow::new("Drivers"),
-            settings_dialog: StubWindow::new("Settings"),
+            settings_dialog,
             bluetooth_window: StubWindow::new("Bluetooth"),
             usb_window: StubWindow::new("USB"),
             network_window: StubWindow::new("Network"),
@@ -256,12 +276,7 @@ impl LuRaCsApp {
                 channels,
                 connection,
             } => {
-                let load_cal = self
-                    .settings
-                    .read()
-                    .unwrap()
-                    .appearance
-                    .load_calibration_from_instrument;
+                let load_cal = self.settings.read_settings().importing.load_calibration;
                 if let Err(e) = self.spectrum_manager.create_spectrum(
                     &device_name,
                     channels,
@@ -283,12 +298,7 @@ impl LuRaCsApp {
                     tracing::warn!(device = %name, "set_foreground_spectrum failed: {e}");
                 }
 
-                let chi2 = self
-                    .settings
-                    .read()
-                    .unwrap()
-                    .advanced
-                    .optimizer_use_chi2_weight;
+                let chi2 = self.settings.read_settings().optimizer.use_chi2_weight;
 
                 // `get_spectra_dict_mut` borrows the whole manager, so obtain the
                 // dictionary pointer before borrowing the disjoint ROI manager.
@@ -340,7 +350,7 @@ impl LuRaCsApp {
         let roi_events = self.spectrum_manager.roi_manager.drain_events();
         for ev in roi_events {
             if let RoiManagerEvent::Created { tag } = ev {
-                let settings_guard = self.settings.read().unwrap();
+                let settings_guard = self.settings.read_settings();
                 self.spectrum_screen.on_roi_created(
                     &tag,
                     &mut self.spectrum_manager,
@@ -352,19 +362,35 @@ impl LuRaCsApp {
         // --- Theme manager → persist to settings ---
         for ev in self.theme_manager.drain_events() {
             match ev {
-                ThemeManagerEvent::UpdateSettingsTheme {
-                    group,
-                    variable,
-                    value,
-                } => {
-                    let mut s = self.settings.write().unwrap();
+                ThemeManagerEvent::ThemeChanged { name } => {
+                    let mut s = self.settings.write_settings();
                     if let Err(e) =
-                        s.update_setting(&group, &variable, serde_json::Value::String(value))
+                        s.update(Category::Theme, "name", serde_json::Value::String(name))
                     {
-                        tracing::warn!("Could not persist theme choice: {e}");
+                        tracing::warn!("could not persist theme choice: {e}");
                     }
                 }
             }
+        }
+
+        // --- Theme version bump → retained widgets need re-theming ---
+        //
+        // rsplot's `Plot1D` is a retained widget: it does not pick up
+        // `ctx.set_style` automatically. Whenever the theme version changes,
+        // re-apply the plot palette to every retained plot.
+        //
+        // TODO: implement `retheme(&ResolvedPlotColors)` on `SpectrumScreen`
+        // and `SpectrogramScreen` and uncomment:
+        //
+        // if self.last_theme_version != self.theme_manager.version() {
+        //     self.last_theme_version = self.theme_manager.version();
+        //     let colors = self.theme_manager.current().resolved_plot();
+        //     self.spectrum_screen.retheme(&colors);
+        //     self.spectrogram_screen.retheme(&colors);
+        // }
+        if self.last_theme_version != self.theme_manager.version() {
+            self.last_theme_version = self.theme_manager.version();
+            tracing::debug!(version = self.last_theme_version, "theme version bumped");
         }
 
         // Periodic redraw for live plots and device status.
@@ -388,25 +414,32 @@ impl LuRaCsApp {
 
         match self.top_tab {
             TopTab::Spectrum => {
-                let palette = self.theme_manager.palette();
-                let settings_guard = self.settings.read().unwrap();
+                // TODO: `SpectrumScreen::render` was `&Palette`; it now takes
+                // `&ThemeDefinition`. Update the signature and replace
+                // `palette.base` / `palette.text` / `palette.surface0` /
+                // `palette.dark` with `theme.colors.background` /
+                // `theme.colors.text` / `theme.colors.surface` /
+                // `matches!(theme.meta.variant, Variant::Dark)`.
+                let theme = self.theme_manager.current();
+                let settings_guard = self.settings.read_settings();
                 self.spectrum_screen.render(
                     &mut self.spectrum_manager,
                     &settings_guard,
-                    &palette,
+                    theme,
                     &self.render_state,
                     ui,
                 );
             }
             TopTab::Spectrogram => {
                 let devices = self.run_manager.list_devices();
-                let palette = self.theme_manager.palette();
-                let settings_guard = self.settings.read().unwrap();
+                // TODO: same signature change as above for `SpectrogramScreen`.
+                let theme = self.theme_manager.current();
+                let settings_guard = self.settings.read_settings();
                 let events = self.spectrogram_screen.render(
                     self.run_manager.spectrogram_manager(),
                     &self.spectrogram_data,
                     &settings_guard,
-                    &palette,
+                    theme,
                     ui,
                     &devices,
                 );
@@ -447,14 +480,14 @@ impl LuRaCsApp {
                             // Snapshot the settings we need, then release the lock so the rest of
                             // the handler (which mutates run_manager) isn't contending for it.
                             let (config, library_dir) = {
-                                let s = self.settings.read().unwrap();
+                                let s = self.settings.read_settings();
                                 (
                                     SpectrogramConfig {
-                                        deque_length: s.advanced.spectrogram_deque_length,
-                                        map_save_extra_gps_data: s.advanced.map_save_extra_gps_data,
+                                        deque_length: s.spectrogram.history_length,
+                                        map_save_extra_gps_data: s.gps.save_extra_gps_data,
                                         map_save_extra_measurement_time_data: s
-                                            .advanced
-                                            .map_save_extra_measurement_time_data,
+                                            .gps
+                                            .save_extra_measurement_time_data,
                                     },
                                     s.paths.spectrogram_library.clone(),
                                 )
@@ -588,13 +621,13 @@ impl LuRaCsApp {
             BottomTab::SpectrogramRois => self.spectrogram_roi_tab.render(ui),
             BottomTab::RealTimeValues => {
                 let show_means = self.view_realtime_avg_line;
-                let settings_guard = self.settings.read().unwrap();
+                let settings_guard = self.settings.read_settings();
                 self.real_time_values_tab
                     .render(show_means, &settings_guard, ui);
             }
             BottomTab::Detectors => self.devices_tab.render(ui),
             BottomTab::Isotopics => {
-                let settings_guard = self.settings.read().unwrap();
+                let settings_guard = self.settings.read_settings();
                 self.isotopics_tab
                     .render(&mut self.spectrum_manager, &settings_guard, ui)
             }
@@ -608,7 +641,10 @@ impl LuRaCsApp {
         // the same contract: `render` checks its own `open` flag.
         self.data_library.render(ui);
         self.driver_dialog.render(ui);
-        self.settings_dialog.render(ui);
+        let mut settings_dialog =
+            std::mem::replace(&mut self.settings_dialog, SettingsDialog::new());
+        settings_dialog.render(self, ui);
+        self.settings_dialog = settings_dialog;
         self.bluetooth_window.render(ui);
         self.usb_window.render(ui);
         self.network_window.render(ui);
@@ -662,12 +698,7 @@ impl eframe::App for LuRaCsApp {
         if self.isotopics_tab.auto_set_emissions_requested {
             self.isotopics_tab.auto_set_emissions_requested = false;
 
-            let use_chi2 = self
-                .settings
-                .read()
-                .unwrap()
-                .advanced
-                .optimizer_use_chi2_weight;
+            let use_chi2 = self.settings.read_settings().optimizer.use_chi2_weight;
             let matches = self.spectrum_screen.match_nuclide_to_rois(
                 &mut self.spectrum_manager,
                 75.0,
@@ -697,7 +728,7 @@ impl eframe::App for LuRaCsApp {
 // ===========================================================================
 
 fn apply_font_size(ctx: &egui::Context, settings: &SharedSettings) {
-    let size = settings.read().unwrap().appearance.font_size as f32;
+    let size = settings.read_settings().theme.font_size as f32;
 
     ctx.all_styles_mut(move |style| {
         style.text_styles = [

@@ -55,7 +55,7 @@ use crate::containers::{BkgType, Roi};
 use crate::core::NewRoi;
 use crate::core::SpectrumManager;
 use crate::settings::Settings;
-use crate::theme_manager::Palette;
+use crate::theme_manager::ThemeDefinition;
 use crate::utils::multi_gaussian;
 
 // ===========================================================================
@@ -192,7 +192,7 @@ impl SpectrumPlotState {
     }
 
     fn sync_settings(&mut self, settings: &Settings) {
-        self.x_max = settings.appearance.spectrum_plot_e_max;
+        self.x_max = settings.plotting.energy_max;
     }
 
     pub fn request_reset(&mut self) {
@@ -268,7 +268,7 @@ fn handle_roi_drag(
     // --- Drag stop: commit + refit ---
     if response.response.drag_stopped() {
         if let Some(drag) = state.dragging.take() {
-            let use_chi2 = settings.advanced.optimizer_use_chi2_weight;
+            let use_chi2 = settings.optimizer.use_chi2_weight;
             spectrum_manager.roi_manager.on_roi_change(
                 &mut spectrum_manager.spectrum_registry,
                 &drag.tag,
@@ -322,7 +322,7 @@ pub fn render(
     state: &mut SpectrumPlotState,
     spectrum_manager: &mut SpectrumManager,
     settings: &Settings,
-    palette: &Palette,
+    theme_def: &ThemeDefinition,
     ui: &mut egui::Ui,
 ) {
     state.sync_settings(settings);
@@ -357,7 +357,7 @@ pub fn render(
     for curve in collect_primary_curves(state, spectrum_manager, settings) {
         add_solid_curve(&mut state.plot, curve, CurveInterpolation::StepPost);
     }
-    for group in collect_roi_curves(state, spectrum_manager, palette) {
+    for group in collect_roi_curves(state, spectrum_manager, theme_def) {
         add_solid_curve(&mut state.plot, group.gaussian, CurveInterpolation::Linear);
         if let Some(lin) = group.linear {
             add_dashed_curve(&mut state.plot, lin);
@@ -582,7 +582,7 @@ fn collect_primary_curves(
         if state.bkg_mode == BkgDisplayMode::Subtract && spectrum.background.is_none() {
             continue;
         }
-        if !settings.appearance.pen {
+        if !settings.plotting.pen {
             continue;
         }
 
@@ -611,7 +611,7 @@ fn collect_background_curves(
     spectrum_manager: &SpectrumManager,
     settings: &Settings,
 ) -> Vec<CurveData> {
-    if state.bkg_mode != BkgDisplayMode::Overlay || !settings.appearance.pen {
+    if state.bkg_mode != BkgDisplayMode::Overlay || !settings.plotting.pen {
         return Vec::new();
     }
     let mut out = Vec::new();
@@ -654,7 +654,7 @@ struct RoiCurveGroup {
 fn collect_roi_curves(
     state: &SpectrumPlotState,
     spectrum_manager: &SpectrumManager,
-    palette: &Palette,
+    theme_def: &ThemeDefinition,
 ) -> Vec<RoiCurveGroup> {
     let mut out = Vec::new();
 
@@ -728,7 +728,7 @@ fn collect_roi_curves(
                 gaussian: CurveData {
                     x: x_slice.clone(),
                     y: gauss_y,
-                    color: palette.text,
+                    color: theme_def.colors.text.into(),
                     width: 2.0,
                     legend: None,
                 },
@@ -736,7 +736,7 @@ fn collect_roi_curves(
                     Some(CurveData {
                         x: x_slice,
                         y: lin_y,
-                        color: palette.text,
+                        color: theme_def.colors.text.into(),
                         width: 1.0,
                         legend: None,
                     })

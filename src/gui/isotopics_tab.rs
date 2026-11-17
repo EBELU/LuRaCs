@@ -569,7 +569,7 @@ impl IsotopicsTab {
 
         match find_peaks(&y_axis, &x_axis, self.search_window_length) {
             Ok(result) => {
-                if settings.appearance.verbose_calculation_logging {
+                if settings.logging.verbose_calculations {
                     tracing::info!("{}", result.log_info);
                 }
 

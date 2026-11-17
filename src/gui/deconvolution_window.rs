@@ -31,6 +31,7 @@ use ndarray::{Array1, Array2};
 use ndarray_npy::NpzReader;
 
 use crate::app::LuRaCsApp;
+use crate::settings::SharedSettingsExt;
 use crate::utils::{MlEmOptions, ml_em, process_matrix, richardson_lucy};
 
 // ===========================================================================
@@ -143,8 +144,8 @@ impl DeconvolutionWindow {
     /// Pre-fill the last-used response-matrix path from persisted settings.
     /// Call once after `Settings::load`.
     pub fn apply_settings(&mut self, app: &LuRaCsApp) {
-        let settings = app.settings.read().unwrap();
-        self.mlem_response_path = settings.state.deconv_last_response_file.clone();
+        let settings = app.settings.read_settings();
+        self.mlem_response_path = settings.session.last_deconv_response_file.clone();
     }
 
     // -----------------------------------------------------------------------
@@ -271,7 +272,7 @@ impl DeconvolutionWindow {
     // -----------------------------------------------------------------------
 
     fn catch_result(&mut self, app: &mut LuRaCsApp, source_key: &str, data: DVector<f64>) {
-        use crate::containers::{Spectrum, SpectrumData};
+        use crate::containers::SpectrumData;
         use crate::core::ForegroundInput;
 
         let deconv_name = format!("{source_key}_deconvolved");
@@ -479,8 +480,8 @@ impl DeconvolutionWindow {
 
         // Persist the last-used path.
         {
-            let mut settings = app.settings.write().unwrap();
-            settings.state.deconv_last_response_file = path;
+            let mut settings = app.settings.write_settings();
+            settings.session.last_deconv_response_file = path;
             let _ = settings.save();
         }
 
