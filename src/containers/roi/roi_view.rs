@@ -36,7 +36,7 @@ pub fn draw_rois(
 
     // --- 1. Active drag update & completion (independent of hover_pos) ---
     if editable && view.interaction.is_active() {
-        if plot_response.dragged()
+        if plot_response.dragged_by(egui::PointerButton::Primary)
             && let Some(pointer) = plot_response.interact_pointer_pos()
         {
             let data_x = px_to_x(pointer.x);
@@ -90,7 +90,7 @@ pub fn draw_rois(
             }
 
             // Start a new drag (only if `roi.movable` is true)
-            if plot_response.drag_started()
+            if plot_response.drag_started_by(egui::PointerButton::Primary)
                 && !view.interaction.is_active()
                 && let Some(interact_pos) = plot_response.interact_pointer_pos()
             {
@@ -122,7 +122,9 @@ pub fn draw_rois(
             }
 
             // Click (without drag) selects or clears selection
-            if plot_response.clicked() {
+            if plot_response.clicked_by(egui::PointerButton::Primary)
+                && !view.interaction.is_active()
+            {
                 match &hit {
                     Some((tag, _, _)) => {
                         roi_manager.select_roi(tag);
