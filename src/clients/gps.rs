@@ -287,6 +287,7 @@ impl GpsState {
 
 pub struct Gps {
     port: Option<Box<dyn SerialPort>>,
+    mock: Option<super::mock_gps::MockGps>,
     buffer: Vec<u8>,
     state: GpsState,
 }
@@ -301,14 +302,28 @@ impl Gps {
     pub fn new() -> Self {
         Self {
             port: None,
+            mock: None,
             buffer: Vec::new(),
             state: GpsState::default(),
         }
     }
 
-    /// Open the serial port. A short timeout lets each `poll()` return
-    /// promptly even if no data arrives.
+    /// Open a mock GPS simulation.
+    pub fn new_mock() -> Self {
+        let mut gps = Self::new();
+        gps.open_mock();
+        gps
+    }
+
+    /// Open the serial port (or a simulated GPS if `port_name` is `"Mock"`).
+    /// A short timeout lets each `poll()` return promptly even if no data arrives.
     pub fn open(&mut self, port_name: &str, baud_rate: u32) -> Result<()> {
+        if port_name.eq_ignore_ascii_case("mock") {
+            self.open_mock();
+            return Ok(());
+        }
+
+        self.mock = None;
         let port = serialport::new(port_name, baud_rate)
             .timeout(Duration::from_millis(2))
             .open()?;
@@ -319,29 +334,53 @@ impl Gps {
         Ok(())
     }
 
+    /// Open a simulated GPS client directly.
+    pub fn open_mock(&mut self) {
+        let mut mock = super::mock_gps::MockGps::new();
+        mock.open();
+        self.mock = Some(mock);
+        self.port = None;
+        self.buffer.clear();
+    }
+
     pub fn close(&mut self) {
         self.port = None; // Drop closes the underlying handle.
+        if let Some(m) = self.mock.as_mut() {
+            m.close();
+        }
+        self.mock = None;
         self.buffer.clear();
     }
 
     pub fn is_open(&self) -> bool {
-        self.port.is_some()
+        self.port.is_some() || self.mock.as_ref().is_some_and(super::mock_gps::MockGps::is_open)
     }
 
-    pub const fn data(&self) -> &GpsData {
-        &self.state.data
+    pub const fn is_mock(&self) -> bool {
+        self.mock.is_some()
     }
 
-    pub const fn packets_received(&self) -> u64 {
-        self.state.packets_received
+    pub fn data(&self) -> &GpsData {
+        self.mock
+            .as_ref()
+            .map_or(&self.state.data, super::mock_gps::MockGps::data)
+    }
+
+    pub fn packets_received(&self) -> u64 {
+        self.mock
+            .as_ref()
+            .map_or(self.state.packets_received, super::mock_gps::MockGps::packets_received)
     }
 
     /// Drain available bytes from the port, parse complete lines, and merge
-    /// them into the current state.
+    /// them into the current state (or advance the mock GPS simulation).
     ///
-    /// Returns `true` if at least one sentence was parsed. Callers can use
-    /// this to gate UI updates, or ignore it and always render `data()`.
+    /// Returns `true` if at least one sentence was parsed or a new mock fix was generated.
     pub fn poll(&mut self) -> bool {
+        if let Some(mock) = self.mock.as_mut() {
+            return mock.poll();
+        }
+
         let Some(port) = self.port.as_mut() else {
             return false;
         };
@@ -410,4 +449,32 @@ pub fn format_gps(data: &GpsData) -> String {
         fmt_opt(Some(data.update_rate), 3, 1),
         if data.valid { "YES" } else { "NO " },
     )
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_gps_mock_integration() {
+        let mut gps = Gps::new();
+        assert!(!gps.is_open());
+        assert!(!gps.is_mock());
+
+        assert!(gps.open("Mock", 9600).is_ok());
+        assert!(gps.is_open());
+        assert!(gps.is_mock());
+
+        let data = gps.data();
+        assert_eq!(data.source, "Mock GPS");
+        assert!(data.valid);
+
+        gps.close();
+        assert!(!gps.is_open());
+        assert!(!gps.is_mock());
+    }
 }
