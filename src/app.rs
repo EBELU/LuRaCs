@@ -42,9 +42,9 @@ use crate::core::{EventDispatcher, ForegroundInput, SpectrumManager};
 use crate::core::{RunManager, RunManagerEvent};
 use crate::gui::{
     BleDeviceKind, BluetoothWindow, ConnectionRequest, DataLibraryWindow, DeconvolutionWindow,
-    IsotopicsTab, Modal, NetworkDeviceKind, NetworkWindow, RealTimeValuesTab, SerialGpsWindow,
-    SettingsDialog, SpectrogramScreen, SpectrumScreen, Stub, StubWindow, UsbDeviceKind, UsbWindow,
-    menu_bar, render_modals_for,
+    InfoModal, IsotopicsTab, MeasureScreen, Modal, ModalKind, NetworkDeviceKind, NetworkWindow,
+    RealTimeValuesTab, SerialGpsWindow, SettingsDialog, SpectrogramScreen, SpectrumScreen, Stub,
+    StubWindow, UsbDeviceKind, UsbWindow, menu_bar, render_modals_for,
 };
 use crate::logging::LogBuffer;
 use crate::settings::{Category, SharedSettings, SharedSettingsExt};
@@ -107,7 +107,7 @@ pub struct LuRaCsApp {
     pub spectrum_screen: SpectrumScreen,
     pub spectrogram_screen: SpectrogramScreen,
     pub map_screen: Stub,
-    pub measure_screen: Stub,
+    pub measure_screen: MeasureScreen,
 
     // --- Bottom tabs ---
     pub spectrum_info_tab: Stub,
@@ -189,6 +189,7 @@ impl LuRaCsApp {
 
         let real_time_scheme = settings.read_settings().theme.color_rotator_scheme;
         let real_time_values_tab = RealTimeValuesTab::new(&render_state, real_time_scheme);
+        let measure_screen = MeasureScreen::new(&render_state, real_time_scheme);
         let isotopics_tab = IsotopicsTab::new(&render_state);
 
         // --- Font size from settings ---
@@ -214,7 +215,7 @@ impl LuRaCsApp {
             spectrum_screen,
             spectrogram_screen,
             map_screen: Stub::new("Map"),
-            measure_screen: Stub::new("Measure"),
+            measure_screen,
 
             spectrum_info_tab: Stub::new("Spectrum Info"),
             spectrum_roi_tab: Stub::new("Spectrum ROIs"),
@@ -305,9 +306,29 @@ impl LuRaCsApp {
                 }
                 AppEvent::Run(RunManagerEvent::DeviceConnected { name }) => {
                     self.real_time_values_tab.device_connected(name);
+                    self.measure_screen.on_device_connected(name);
                 }
                 AppEvent::Run(RunManagerEvent::DeviceRemoved { name }) => {
                     self.real_time_values_tab.device_removed(name);
+                    self.measure_screen.on_device_removed(name);
+                }
+                AppEvent::Run(RunManagerEvent::StatusUpdated { name, data }) => {
+                    self.measure_screen.on_status_updated(name, data);
+                }
+                AppEvent::Run(RunManagerEvent::CurrentUpdated { name, data }) => {
+                    self.measure_screen.on_realtime_updated(name, data);
+                }
+                AppEvent::Run(RunManagerEvent::SpectrumUpdated { name, data }) => {
+                    let delay = self.settings.read_settings().scanning.spectrum_update_delay_s;
+                    if let Some((title, message)) = self.measure_screen.on_spectrum_updated(
+                        name,
+                        data,
+                        &self.spectrum_manager,
+                        delay,
+                    ) {
+                        self.modal_stack
+                            .push(Modal::root(ModalKind::Info(InfoModal::new(title, message))));
+                    }
                 }
                 AppEvent::Run(RunManagerEvent::RealTimeBuffersUpdated { name, cps, dr }) => {
                     self.real_time_values_tab.update_buffers(name, cps.clone(), dr.clone());
@@ -517,7 +538,7 @@ impl LuRaCsApp {
                 }
             }
             TopTab::Map => self.map_screen.render(ui),
-            TopTab::Measure => self.measure_screen.render(ui),
+            TopTab::Measure => MeasureScreen::render(self, ui),
         }
     }
 
