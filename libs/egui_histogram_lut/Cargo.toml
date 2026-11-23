@@ -1,0 +1,18 @@
+[package]
+name = "egui_histogram_lut"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "PyQtGraph-faithful HistogramLUTWidget and GradientEditorItem for egui"
+
+[workspace]
+members = ["."]
+resolver = "3"
+
+[dependencies]
+colorous = "1"
+egui = "0.37"
+
+[lints.clippy]
+all = "warn"
+pedantic = "warn"
