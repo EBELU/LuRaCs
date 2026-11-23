@@ -49,8 +49,7 @@ impl StubWindow {
         let viewport_id = egui::ViewportId::from_hash_of(self.label);
         let builder = egui::ViewportBuilder::default()
             .with_title(self.label)
-            .with_inner_size([400.0, 300.0])
-            .with_min_inner_size([250.0, 150.0])
+            .with_inner_size([400.0, 200.0])
             .with_resizable(false);
 
         ui.ctx()

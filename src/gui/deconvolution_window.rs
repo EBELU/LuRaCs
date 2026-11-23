@@ -175,8 +175,7 @@ impl DeconvolutionWindow {
         let viewport_id = egui::ViewportId::from_hash_of(VIEWPORT_ID);
         let builder = egui::ViewportBuilder::default()
             .with_title("Deconvolution")
-            .with_inner_size([540.0, 360.0])
-            .with_min_inner_size([400.0, 250.0])
+            .with_inner_size([650.0, 380.0])
             .with_resizable(false);
 
         ui.ctx()
@@ -534,6 +533,7 @@ impl DeconvolutionWindow {
                 };
                 egui::ComboBox::from_id_salt("deconv_algorithm_combo")
                     .selected_text(current)
+                    .width(280.0)
                     .show_ui(ui, |ui| {
                         if ui
                             .selectable_label(
@@ -641,7 +641,9 @@ impl DeconvolutionWindow {
             ui.label("Response Matrix");
             ui.horizontal(|ui| {
                 ui.add(
-                    egui::TextEdit::singleline(&mut self.mlem_response_path).desired_width(300.0),
+                    egui::TextEdit::singleline(&mut self.mlem_response_path)
+                        .desired_width(280.0)
+                        .hint_text("Path to .npz response matrix"),
                 );
                 if ui.button("Browse…").clicked()
                     && let Some(path) = rfd::FileDialog::new()
@@ -664,6 +666,7 @@ impl DeconvolutionWindow {
             .unwrap_or_else(|| "—".into());
         egui::ComboBox::from_id_salt("deconv_instrument_combo")
             .selected_text(current)
+            .width(280.0)
             .show_ui(ui, |ui| {
                 for (key, display) in self.instruments.clone() {
                     let selected = self.selected_instrument.as_deref() == Some(&key);
@@ -683,6 +686,7 @@ impl DeconvolutionWindow {
             .unwrap_or_else(|| "—".into());
         egui::ComboBox::from_id_salt("deconv_spectrum_combo")
             .selected_text(current)
+            .width(280.0)
             .show_ui(ui, |ui| {
                 for (key, display) in self.spectra.clone() {
                     let selected = self.selected_spectrum.as_deref() == Some(&key);

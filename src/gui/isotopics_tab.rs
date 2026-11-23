@@ -409,7 +409,6 @@ impl IsotopicsTab {
             let builder = egui::ViewportBuilder::default()
                 .with_title("Spectrum Derivatives")
                 .with_inner_size([900.0, 700.0])
-                .with_min_inner_size([400.0, 300.0])
                 .with_resizable(false);
 
             ui.ctx()

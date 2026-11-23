@@ -245,7 +245,6 @@ impl SettingsDialog {
         let builder = egui::ViewportBuilder::default()
             .with_title("Settings")
             .with_inner_size([460.0, 620.0])
-            .with_min_inner_size([360.0, 400.0])
             .with_resizable(false);
 
         let mut close_from_buttons = false;
