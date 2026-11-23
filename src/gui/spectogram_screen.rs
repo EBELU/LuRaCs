@@ -37,6 +37,7 @@ use std::sync::Arc;
 use chrono::{DateTime, Local, TimeZone};
 use eframe::egui::{self, Color32};
 use eframe::egui_wgpu::RenderState;
+use egui_histogram_lut::{GradientPreset, HistogramLutState, HistogramLutWidget, Orientation};
 use ndarray::Array1;
 use rsplot::core::items::CurveInterpolation;
 use rsplot::{Colormap, ImageGeometry, LineStyle, Marker, Plot1D, YAxis};
@@ -156,6 +157,9 @@ pub struct SpectrogramScreen {
     // Waterfall image cache (kept so the texture upload only fires when
     // the packet actually changes; uses Arc pointer identity).
     last_image_key: Option<usize>,
+    lut_state: HistogramLutState,
+    lut_auto: bool,
+    lut_dirty: bool,
 }
 
 impl SpectrogramScreen {
@@ -188,6 +192,9 @@ impl SpectrogramScreen {
             bar_plot,
             waterfall_plot,
             last_image_key: None,
+            lut_state: HistogramLutState::new(GradientPreset::Viridis),
+            lut_auto: true,
+            lut_dirty: false,
         }
     }
 
@@ -229,6 +236,30 @@ impl SpectrogramScreen {
                 self.render_controls(spectrogram_manager, &mut events, devices, ui);
                 ui.separator();
                 self.render_info_pane(spectrogram_data, ui);
+            });
+
+        // ---- Right LUT sidebar ----
+        egui::Panel::right("spectrogram_lut_panel")
+            .exact_size(142.0)
+            .resizable(false)
+            .show(ui, |ui| {
+                let h = ui.available_height();
+                let resp = HistogramLutWidget::new("spectrogram_lut_widget")
+                    .orientation(Orientation::Vertical)
+                    .size(egui::vec2(128.0, (h - 36.0).max(120.0)))
+                    .show(ui, &mut self.lut_state);
+                if resp.levels_changed {
+                    self.lut_auto = false;
+                    self.lut_dirty = true;
+                }
+                if resp.gradient_changed {
+                    self.lut_dirty = true;
+                }
+                if ui.checkbox(&mut self.lut_auto, "Auto").changed() && self.lut_auto {
+                    self.lut_state.auto_level();
+                    self.lut_state.auto_range();
+                    self.lut_dirty = true;
+                }
             });
 
         // ---- Central column: bar plot + waterfall ----
@@ -604,7 +635,8 @@ impl SpectrogramScreen {
         // Row 0 is the newest spectrum (top of the waterfall, adjacent to the bar plot).
         // Row n_rows - 1 is the oldest spectrum (bottom of the waterfall).
         let current_key = Arc::as_ptr(p) as usize;
-        if !self.pause_visual && self.last_image_key != Some(current_key) {
+        let data_changed = self.last_image_key != Some(current_key);
+        if !self.pause_visual && (data_changed || self.lut_dirty) {
             self.waterfall_plot.clear_images();
 
             let mut data = vec![0.0f32; n_rows * channels];
@@ -623,8 +655,27 @@ impl SpectrogramScreen {
                 }
             }
 
-            let vmax = f64::from(max_val).max(5.0);
-            let colormap = Colormap::viridis(0.0, vmax);
+            if data_changed {
+                let stride = (data.len() / 8192).max(1);
+                let samples: Vec<f64> = data.iter().step_by(stride).map(|&v| f64::from(v)).collect();
+                self.lut_state.set_data(&samples, 48, false);
+                if self.lut_auto {
+                    let vmax = f64::from(max_val).max(5.0);
+                    self.lut_state.set_levels(0.0, vmax);
+                    self.lut_state.auto_range();
+                }
+            }
+
+            let lut_rgba: Vec<[u8; 4]> = self
+                .lut_state
+                .get_lookup_table(256)
+                .into_iter()
+                .map(|c| c.to_array())
+                .collect();
+            let vmin = self.lut_state.levels.0;
+            let vmax = self.lut_state.levels.1.max(vmin + 1e-6);
+            let colormap = Colormap::from_colors(&lut_rgba, vmin, vmax)
+                .unwrap_or_else(|| Colormap::viridis(vmin, vmax));
             let geometry = ImageGeometry {
                 origin: (0.0, 0.0),
                 scale: (1.0, 1.0),
@@ -642,6 +693,7 @@ impl SpectrogramScreen {
             }
 
             self.last_image_key = Some(current_key);
+            self.lut_dirty = false;
         }
 
         // Clear and rebuild dynamic markers (break lines, time selector, ROI bands).

@@ -15,6 +15,7 @@ dependencies = [
  "ctrlc",
  "directories",
  "eframe",
+ "egui_histogram_lut",
  "flate2",
  "futures-util",
  "glob",
@@ -1772,6 +1773,14 @@ dependencies = [
  "log",
  "profiling",
  "winit",
+]
+
+[[package]]
+name = "egui_histogram_lut"
+version = "0.1.0"
+dependencies = [
+ "colorous",
+ "egui",
 ]
 
 [[package]]

@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 rsplot = { path = "./libs/rsplot" }
+egui_histogram_lut = { path = "./libs/egui_histogram_lut" }
 async-trait = "0.1.92"
 base64 = "0.23.1"
 chrono = { version = "=0.4.39", features = ["serde"] }

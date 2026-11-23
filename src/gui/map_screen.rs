@@ -5,12 +5,11 @@
 
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::OnceLock;
 use std::time::Instant;
 
 use chrono::{DateTime, Local, Utc};
 use eframe::egui::{self, Color32, Pos2, Rect};
-use rsplot::{Colormap, ColormapName};
+use egui_histogram_lut::{GradientPreset, HistogramLutState, HistogramLutWidget, Orientation};
 use serde_json::{json, Value};
 use walkers::sources::{Attribution, TileSource};
 use walkers::{lat_lon, HttpTiles, Map, MapMemory, Plugin, PmTiles, Position, Projector, TileId, Tiles};
@@ -20,184 +19,6 @@ use crate::clients::{format_gps, GpsData};
 use crate::core::{MappingBuffer, SpectrogramRoi};
 use crate::gui::{ConfirmAction, ConfirmModal, InfoModal, Modal, ModalKind};
 use crate::settings::SharedSettingsExt;
-
-// ---------------------------------------------------------------------------
-// Colormaps
-// ---------------------------------------------------------------------------
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum ColormapPreset {
-    #[default]
-    Thermal,
-    Flame,
-    Yellowy,
-    Bipolar,
-    Spectrum,
-    Viridis,
-    Plasma,
-    Inferno,
-    Magma,
-    Cividis,
-    Turbo,
-    Grayscale,
-}
-
-impl ColormapPreset {
-    pub const ALL: [Self; 12] = [
-        Self::Thermal,
-        Self::Flame,
-        Self::Yellowy,
-        Self::Bipolar,
-        Self::Spectrum,
-        Self::Viridis,
-        Self::Plasma,
-        Self::Inferno,
-        Self::Magma,
-        Self::Cividis,
-        Self::Turbo,
-        Self::Grayscale,
-    ];
-
-    #[must_use]
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Thermal => "Thermal",
-            Self::Flame => "Flame",
-            Self::Yellowy => "Yellowy",
-            Self::Bipolar => "Bipolar",
-            Self::Spectrum => "Spectrum",
-            Self::Viridis => "Viridis",
-            Self::Plasma => "Plasma",
-            Self::Inferno => "Inferno",
-            Self::Magma => "Magma",
-            Self::Cividis => "Cividis",
-            Self::Turbo => "Turbo",
-            Self::Grayscale => "Grayscale",
-        }
-    }
-
-    #[must_use]
-    pub fn sample(self, t: f64) -> [u8; 3] {
-        let t = t.clamp(0.0, 1.0);
-        match self {
-            // Exact PyQtGraph GradientPresets stop definitions
-            Self::Thermal => sample_stops(
-                &[
-                    (0.0, [0.0, 0.0, 0.0]),
-                    (0.3333, [185.0, 0.0, 0.0]),
-                    (0.6666, [255.0, 220.0, 0.0]),
-                    (1.0, [255.0, 255.0, 255.0]),
-                ],
-                t,
-            ),
-            Self::Flame => sample_stops(
-                &[
-                    (0.0, [0.0, 0.0, 0.0]),
-                    (0.2, [7.0, 0.0, 220.0]),
-                    (0.5, [236.0, 0.0, 134.0]),
-                    (0.8, [246.0, 246.0, 0.0]),
-                    (1.0, [255.0, 255.0, 255.0]),
-                ],
-                t,
-            ),
-            Self::Yellowy => sample_stops(
-                &[
-                    (0.0, [0.0, 0.0, 0.0]),
-                    (0.2329, [32.0, 0.0, 129.0]),
-                    (0.5258, [115.0, 15.0, 255.0]),
-                    (0.8363, [255.0, 255.0, 0.0]),
-                    (1.0, [255.0, 255.0, 255.0]),
-                ],
-                t,
-            ),
-            Self::Bipolar => sample_stops(
-                &[
-                    (0.0, [0.0, 255.0, 255.0]),
-                    (0.25, [0.0, 0.0, 255.0]),
-                    (0.5, [0.0, 0.0, 0.0]),
-                    (0.75, [255.0, 0.0, 0.0]),
-                    (1.0, [255.0, 255.0, 0.0]),
-                ],
-                t,
-            ),
-            Self::Spectrum => hsv_to_rgb(t * 300.0, 1.0, 1.0),
-            Self::Viridis => {
-                static LUT: OnceLock<[[u8; 4]; 256]> = OnceLock::new();
-                sample_lut(LUT.get_or_init(|| Colormap::new(ColormapName::Viridis, 0.0, 1.0).lut), t)
-            }
-            Self::Plasma => {
-                static LUT: OnceLock<[[u8; 4]; 256]> = OnceLock::new();
-                sample_lut(LUT.get_or_init(|| Colormap::new(ColormapName::Plasma, 0.0, 1.0).lut), t)
-            }
-            Self::Inferno => {
-                static LUT: OnceLock<[[u8; 4]; 256]> = OnceLock::new();
-                sample_lut(LUT.get_or_init(|| Colormap::new(ColormapName::Inferno, 0.0, 1.0).lut), t)
-            }
-            Self::Magma => {
-                static LUT: OnceLock<[[u8; 4]; 256]> = OnceLock::new();
-                sample_lut(LUT.get_or_init(|| Colormap::new(ColormapName::Magma, 0.0, 1.0).lut), t)
-            }
-            Self::Cividis => {
-                static LUT: OnceLock<[[u8; 4]; 256]> = OnceLock::new();
-                sample_lut(LUT.get_or_init(|| Colormap::new(ColormapName::Cividis, 0.0, 1.0).lut), t)
-            }
-            Self::Turbo => {
-                static LUT: OnceLock<[[u8; 4]; 256]> = OnceLock::new();
-                sample_lut(LUT.get_or_init(|| Colormap::new(ColormapName::Turbo, 0.0, 1.0).lut), t)
-            }
-            Self::Grayscale => sample_stops(&[(0.0, [0.0, 0.0, 0.0]), (1.0, [255.0, 255.0, 255.0])], t),
-        }
-    }
-}
-
-fn sample_lut(lut: &[[u8; 4]; 256], t: f64) -> [u8; 3] {
-    let idx = (t * 255.0).round().clamp(0.0, 255.0) as usize;
-    let [r, g, b, _] = lut[idx];
-    [r, g, b]
-}
-
-fn sample_stops(stops: &[(f64, [f64; 3])], t: f64) -> [u8; 3] {
-    for win in stops.windows(2) {
-        let (p0, c0) = win[0];
-        let (p1, c1) = win[1];
-        if t <= p1 {
-            let span = (p1 - p0).max(f64::EPSILON);
-            let frac = ((t - p0) / span).clamp(0.0, 1.0);
-            return [
-                (c1[0] - c0[0]).mul_add(frac, c0[0]).round() as u8,
-                (c1[1] - c0[1]).mul_add(frac, c0[1]).round() as u8,
-                (c1[2] - c0[2]).mul_add(frac, c0[2]).round() as u8,
-            ];
-        }
-    }
-    let last = stops[stops.len() - 1].1;
-    [last[0] as u8, last[1] as u8, last[2] as u8]
-}
-
-fn hsv_to_rgb(h_deg: f64, s: f64, v: f64) -> [u8; 3] {
-    let c = v * s;
-    let h = h_deg / 60.0;
-    let x = c * (1.0 - ((h % 2.0) - 1.0).abs());
-    let (r1, g1, b1) = if h < 1.0 {
-        (c, x, 0.0)
-    } else if h < 2.0 {
-        (x, c, 0.0)
-    } else if h < 3.0 {
-        (0.0, c, x)
-    } else if h < 4.0 {
-        (0.0, x, c)
-    } else if h < 5.0 {
-        (x, 0.0, c)
-    } else {
-        (c, 0.0, x)
-    };
-    let m = v - c;
-    [
-        ((r1 + m) * 255.0).round() as u8,
-        ((g1 + m) * 255.0).round() as u8,
-        ((b1 + m) * 255.0).round() as u8,
-    ]
-}
 
 // ---------------------------------------------------------------------------
 // Walkers Custom TileSource (supports any online raster or vector {z}/{x}/{y} URL)
@@ -536,9 +357,7 @@ impl LoadOnlineMapDialog {
 struct TrackOverlayPlugin<'a> {
     track: Option<&'a MapTrack>,
     data_key: &'a str,
-    colormap: ColormapPreset,
-    level_min: f64,
-    level_max: f64,
+    lut_state: &'a HistogramLutState,
     alpha: u8,
     gps_pos: Option<Position>,
     hover_out: &'a mut Option<(f64, f64)>,
@@ -566,7 +385,6 @@ impl Plugin for TrackOverlayPlugin<'_> {
         if let Some(track) = self.track
             && let Some(values) = track.values_for(self.data_key)
         {
-            let span = (self.level_max - self.level_min).max(1e-4);
             for (i, &val) in values.iter().enumerate() {
                 if !val.is_finite() {
                     continue;
@@ -583,9 +401,8 @@ impl Plugin for TrackOverlayPlugin<'_> {
                     continue;
                 }
 
-                let t = ((val - self.level_min) / span).clamp(0.0, 1.0);
-                let [r, g, b] = self.colormap.sample(t);
-                let color = Color32::from_rgba_unmultiplied(r, g, b, self.alpha);
+                let base = self.lut_state.map_value(val);
+                let color = Color32::from_rgba_unmultiplied(base.r(), base.g(), base.b(), self.alpha);
                 painter.circle_filled(screen_pos, 5.0, color);
 
                 if let Some(hp) = response.hover_pos() {
@@ -659,9 +476,7 @@ pub struct MapScreen {
     data_kinds: Vec<(String, String)>,
     selected_data_key: String,
 
-    colormap: ColormapPreset,
-    level_min: f64,
-    level_max: f64,
+    lut_state: HistogramLutState,
     auto_levels: bool,
 
     gps_connected: bool,
@@ -698,9 +513,12 @@ impl MapScreen {
                 ("Dose Rate [µSv/h]".into(), "dose_rate".into()),
             ],
             selected_data_key: "count_rate".into(),
-            colormap: ColormapPreset::default(),
-            level_min: 0.0,
-            level_max: 0.2,
+            lut_state: {
+                let mut s = HistogramLutState::new(GradientPreset::Thermal);
+                s.set_levels(0.0, 0.2);
+                s.view_range = (0.0, 0.2);
+                s
+            },
             auto_levels: true,
             gps_connected: false,
             latest_gps: None,
@@ -752,7 +570,7 @@ impl MapScreen {
         self.on_spectrogram_added(logger_name);
         let track = MapTrack::from_mapping_buffer(buffer);
         self.tracks.insert(logger_name.to_string(), track);
-        if self.auto_levels && logger_name == self.selected_track {
+        if logger_name == self.selected_track {
             self.recompute_auto_levels();
         }
     }
@@ -821,30 +639,6 @@ impl MapScreen {
     // Map loading & LUT helpers
     // -----------------------------------------------------------------------
 
-    fn data_range(&self) -> (f64, f64) {
-        let mut dmin = f64::INFINITY;
-        let mut dmax = f64::NEG_INFINITY;
-        if let Some(vals) = self
-            .tracks
-            .get(&self.selected_track)
-            .and_then(|t| t.values_for(&self.selected_data_key))
-        {
-            for &v in vals {
-                if v.is_finite() {
-                    dmin = dmin.min(v);
-                    dmax = dmax.max(v);
-                }
-            }
-        }
-        if !dmin.is_finite() || !dmax.is_finite() {
-            dmin = self.level_min.min(0.0);
-            dmax = self.level_max.max(1.0);
-        }
-        let lo = dmin.min(self.level_min);
-        let hi = dmax.max(self.level_max).max(lo + 1e-4);
-        (lo, hi)
-    }
-
     fn recompute_auto_levels(&mut self) {
         let Some(track) = self.tracks.get(&self.selected_track) else {
             return;
@@ -852,6 +646,10 @@ impl MapScreen {
         let Some(vals) = track.values_for(&self.selected_data_key) else {
             return;
         };
+        self.lut_state.set_data(vals, 48, false);
+        if !self.auto_levels {
+            return;
+        }
         let mut valid: Vec<f64> = vals.iter().copied().filter(|v| v.is_finite()).collect();
         if valid.is_empty() {
             return;
@@ -859,8 +657,10 @@ impl MapScreen {
         valid.sort_by(f64::total_cmp);
         let lo_idx = ((valid.len() - 1) as f64 * 0.01).round() as usize;
         let hi_idx = ((valid.len() - 1) as f64 * 0.99).round() as usize;
-        self.level_min = valid[lo_idx];
-        self.level_max = valid[hi_idx].max(self.level_min + 0.01);
+        let lo = valid[lo_idx];
+        let hi = valid[hi_idx].max(lo + 0.01);
+        self.lut_state.set_levels(lo, hi);
+        self.lut_state.auto_range();
     }
 
     fn set_online_source(&mut self, url: &str, is_vector: bool, ctx: &egui::Context) {
@@ -949,7 +749,7 @@ impl MapScreen {
                             );
                         }
                     });
-                if app.map_screen.selected_data_key != prev_key && app.map_screen.auto_levels {
+                if app.map_screen.selected_data_key != prev_key {
                     app.map_screen.recompute_auto_levels();
                 }
 
@@ -970,7 +770,7 @@ impl MapScreen {
                             );
                         }
                     });
-                if app.map_screen.selected_track != prev_track && app.map_screen.auto_levels {
+                if app.map_screen.selected_track != prev_track {
                     app.map_screen.recompute_auto_levels();
                 }
             });
@@ -990,7 +790,7 @@ impl MapScreen {
 
         let ms = &mut app.map_screen;
         egui::Panel::right("map_lut_bar")
-            .exact_size(115.0)
+            .exact_size(142.0)
             .resizable(false)
             .show(ui, |ui| {
                 let h = ui.available_height();
@@ -1013,9 +813,7 @@ impl MapScreen {
             let plugin = TrackOverlayPlugin {
                 track: active_track,
                 data_key: &ms.selected_data_key,
-                colormap: ms.colormap,
-                level_min: ms.level_min,
-                level_max: ms.level_max,
+                lut_state: &ms.lut_state,
                 alpha: point_alpha,
                 gps_pos,
                 hover_out: &mut ms.hover_lat_lon,
@@ -1138,224 +936,60 @@ impl MapScreen {
 }
 
 fn draw_lut_sidebar(screen: &mut MapScreen, height: f32, ui: &mut egui::Ui) {
+    let selected_label = screen
+        .lut_state
+        .gradient
+        .preset
+        .map_or("custom", GradientPreset::label);
     egui::ComboBox::from_id_salt("map_colormap_preset")
-        .width(98.0)
-        .selected_text(screen.colormap.label())
+        .width(124.0)
+        .selected_text(selected_label)
         .show_ui(ui, |ui| {
-            for preset in ColormapPreset::ALL {
-                ui.selectable_value(&mut screen.colormap, preset, preset.label());
+            for preset in GradientPreset::ALL {
+                if ui
+                    .selectable_label(screen.lut_state.gradient.preset == Some(preset), preset.label())
+                    .clicked()
+                {
+                    screen.lut_state.gradient.load_preset(preset);
+                }
             }
         });
 
-    ui.add_space(4.0);
-    ui.label("Max:");
-    if ui
-        .add(
-            egui::DragValue::new(&mut screen.level_max)
-                .speed(0.1)
-                .range(screen.level_min + 0.001..=1e6),
-        )
-        .changed()
-    {
+    let lut_h = (height - 110.0).max(120.0);
+    let resp = HistogramLutWidget::new("map_lut_widget")
+        .orientation(Orientation::Vertical)
+        .size(egui::vec2(128.0, lut_h))
+        .show(ui, &mut screen.lut_state);
+    if resp.levels_changed {
         screen.auto_levels = false;
     }
 
-    let (axis_min, axis_max) = screen.data_range();
-    let axis_span = (axis_max - axis_min).max(1e-4);
-    let min_span = (axis_span * 0.005).max(1e-4);
-
-    let bar_h = (height - 150.0).max(80.0);
-    let total_w = 88.0;
-    let (widget_rect, _) =
-        ui.allocate_exact_size(egui::vec2(total_w, bar_h), egui::Sense::hover());
-    let bar_rect = Rect::from_min_size(widget_rect.min, egui::vec2(24.0, bar_h));
-    let hist_rect = Rect::from_min_max(
-        Pos2::new(bar_rect.right() + 4.0, widget_rect.top()),
-        widget_rect.max,
-    );
-
-    let y_of = |v: f64| -> f32 {
-        let norm = ((v - axis_min) / axis_span).clamp(0.0, 1.0) as f32;
-        norm.mul_add(-bar_rect.height(), bar_rect.bottom())
-    };
-    let val_of = |y: f32| -> f64 {
-        let norm = ((bar_rect.bottom() - y) / bar_rect.height()).clamp(0.0, 1.0) as f64;
-        norm.mul_add(axis_span, axis_min)
-    };
-
-    let painter = ui.painter_at(widget_rect);
-    let level_span = (screen.level_max - screen.level_min).max(1e-4);
-
-    // 1. Colorbar gradient (clamped outside [level_min, level_max], matching PyQtGraph)
-    let steps = 64usize;
-    let step_h = bar_rect.height() / (steps as f32);
-    for i in 0..steps {
-        let y_mid = (i as f32 + 0.5).mul_add(step_h, bar_rect.top());
-        let v = val_of(y_mid);
-        let t = ((v - screen.level_min) / level_span).clamp(0.0, 1.0);
-        let [r, g, b] = screen.colormap.sample(t);
-        let y0 = (i as f32).mul_add(step_h, bar_rect.top());
-        let strip = Rect::from_min_size(
-            Pos2::new(bar_rect.left(), y0),
-            egui::vec2(bar_rect.width(), step_h + 0.5),
-        );
-        painter.rect_filled(strip, 0.0, Color32::from_rgb(r, g, b));
-    }
-    painter.rect_stroke(
-        bar_rect,
-        0.0,
-        egui::Stroke::new(1.0, ui.visuals().widgets.noninteractive.fg_stroke.color),
-        egui::StrokeKind::Outside,
-    );
-
-    // 2. Mini-histogram alongside the colorbar
-    const BINS: usize = 32;
-    let mut counts = [0usize; BINS];
-    if let Some(vals) = screen
-        .tracks
-        .get(&screen.selected_track)
-        .and_then(|t| t.values_for(&screen.selected_data_key))
-    {
-        for &v in vals {
-            if v.is_finite() {
-                let norm = ((v - axis_min) / axis_span).clamp(0.0, 0.999_999);
-                let bin = (norm * (BINS as f64)) as usize;
-                counts[bin] += 1;
-            }
+    ui.horizontal(|ui| {
+        ui.label("Max:");
+        if ui
+            .add(
+                egui::DragValue::new(&mut screen.lut_state.levels.1)
+                    .speed(0.1)
+                    .range((screen.lut_state.levels.0 + 0.001)..=1e6),
+            )
+            .changed()
+        {
+            screen.auto_levels = false;
         }
-    }
-    let max_count = counts.iter().copied().max().unwrap_or(0).max(1) as f32;
-    let bin_h = hist_rect.height() / (BINS as f32);
-    let hist_color = Color32::from_rgba_unmultiplied(180, 180, 195, 130);
-    for (bin, &cnt) in counts.iter().enumerate() {
-        if cnt == 0 {
-            continue;
+    });
+    ui.horizontal(|ui| {
+        ui.label("Min:");
+        if ui
+            .add(
+                egui::DragValue::new(&mut screen.lut_state.levels.0)
+                    .speed(0.1)
+                    .range(0.0..=(screen.lut_state.levels.1 - 0.001).max(0.0)),
+            )
+            .changed()
+        {
+            screen.auto_levels = false;
         }
-        let w = (cnt as f32 / max_count) * hist_rect.width();
-        let y_bot = (bin as f32).mul_add(-bin_h, hist_rect.bottom());
-        let r = Rect::from_min_size(
-            Pos2::new(hist_rect.left(), y_bot - bin_h),
-            egui::vec2(w, bin_h),
-        );
-        painter.rect_filled(r, 0.0, hist_color);
-    }
-
-    // 3. LinearRegionItem-style shaded window + draggable handles
-    let y_max = y_of(screen.level_max);
-    let y_min = y_of(screen.level_min);
-    let region_rect = Rect::from_min_max(
-        Pos2::new(hist_rect.left(), y_max),
-        Pos2::new(hist_rect.right(), y_min),
-    );
-    painter.rect_filled(
-        region_rect,
-        0.0,
-        Color32::from_rgba_unmultiplied(80, 150, 255, 45),
-    );
-
-    // Middle region drag (moves both min & max together)
-    let inner_top = (y_max + 6.0).min(y_min);
-    let inner_bot = (y_min - 6.0).max(y_max);
-    if inner_bot - inner_top > 4.0 {
-        let inner_rect = Rect::from_min_max(
-            Pos2::new(hist_rect.left(), inner_top),
-            Pos2::new(hist_rect.right(), inner_bot),
-        );
-        let region_resp = ui.interact(
-            inner_rect,
-            ui.make_persistent_id("lut_region_drag"),
-            egui::Sense::click_and_drag(),
-        );
-        if region_resp.dragged() {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
-            let dy = region_resp.drag_delta().y;
-            if dy.abs() > f32::EPSILON {
-                let dv = -(dy as f64) / (bar_rect.height() as f64) * axis_span;
-                let width = screen.level_max - screen.level_min;
-                let new_min = (screen.level_min + dv).clamp(axis_min, axis_max - width);
-                screen.level_min = new_min;
-                screen.level_max = new_min + width;
-                screen.auto_levels = false;
-            }
-        } else if region_resp.hovered() {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
-        }
-    }
-
-    // Top (Max) and Bottom (Min) handle interactions
-    let max_handle_rect = Rect::from_center_size(
-        Pos2::new(widget_rect.center().x, y_max),
-        egui::vec2(total_w, 12.0),
-    );
-    let max_resp = ui.interact(
-        max_handle_rect,
-        ui.make_persistent_id("lut_handle_max"),
-        egui::Sense::click_and_drag(),
-    );
-    if max_resp.dragged()
-        && let Some(pos) = max_resp.interact_pointer_pos()
-    {
-        screen.level_max = val_of(pos.y).max(screen.level_min + min_span);
-        screen.auto_levels = false;
-    }
-
-    let min_handle_rect = Rect::from_center_size(
-        Pos2::new(widget_rect.center().x, y_min),
-        egui::vec2(total_w, 12.0),
-    );
-    let min_resp = ui.interact(
-        min_handle_rect,
-        ui.make_persistent_id("lut_handle_min"),
-        egui::Sense::click_and_drag(),
-    );
-    if min_resp.dragged()
-        && let Some(pos) = min_resp.interact_pointer_pos()
-    {
-        screen.level_min = val_of(pos.y).min(screen.level_max - min_span);
-        screen.auto_levels = false;
-    }
-
-    if max_resp.hovered() || max_resp.dragged() || min_resp.hovered() || min_resp.dragged() {
-        ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
-    }
-
-    // Draw handle lines + triangular grip markers
-    let draw_handle = |y: f32, active: bool| {
-        let color = if active {
-            Color32::from_rgb(255, 220, 90)
-        } else {
-            Color32::from_rgb(120, 185, 255)
-        };
-        painter.line_segment(
-            [
-                Pos2::new(bar_rect.left(), y),
-                Pos2::new(hist_rect.right(), y),
-            ],
-            egui::Stroke::new(2.0, color),
-        );
-        let tip = Pos2::new(bar_rect.right() - 1.0, y);
-        let tri = vec![
-            tip,
-            Pos2::new(bar_rect.right() + 7.0, y - 5.0),
-            Pos2::new(bar_rect.right() + 7.0, y + 5.0),
-        ];
-        painter.add(egui::Shape::convex_polygon(tri, color, egui::Stroke::NONE));
-    };
-    draw_handle(y_of(screen.level_max), max_resp.hovered() || max_resp.dragged());
-    draw_handle(y_of(screen.level_min), min_resp.hovered() || min_resp.dragged());
-
-    ui.add_space(4.0);
-    ui.label("Min:");
-    if ui
-        .add(
-            egui::DragValue::new(&mut screen.level_min)
-                .speed(0.1)
-                .range(0.0..=(screen.level_max - 0.001).max(0.0)),
-        )
-        .changed()
-    {
-        screen.auto_levels = false;
-    }
+    });
 
     if ui.checkbox(&mut screen.auto_levels, "Auto").changed() && screen.auto_levels {
         screen.recompute_auto_levels();
