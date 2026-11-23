@@ -1,4 +1,5 @@
 mod color_rotator;
+mod data_library;
 mod deconvolution_window;
 mod isotopics_tab;
 pub mod menu_bar;
@@ -11,6 +12,7 @@ mod spectrum_plot;
 mod stubs;
 
 pub use color_rotator::*;
+pub use data_library::*;
 pub use deconvolution_window::DeconvolutionWindow;
 pub use isotopics_tab::*;
 pub use modals::*;

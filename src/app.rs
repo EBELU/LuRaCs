@@ -41,8 +41,8 @@ use crate::core::IoManager;
 use crate::core::{EventDispatcher, ForegroundInput, SpectrumManager};
 use crate::core::{RunManager, RunManagerEvent};
 use crate::gui::{
-    DeconvolutionWindow, IsotopicsTab, Modal, RealTimeValuesTab, SettingsDialog, SpectrogramScreen,
-    SpectrumScreen, Stub, StubWindow, menu_bar, render_modals_for,
+    DataLibraryWindow, DeconvolutionWindow, IsotopicsTab, Modal, RealTimeValuesTab, SettingsDialog,
+    SpectrogramScreen, SpectrumScreen, Stub, StubWindow, menu_bar, render_modals_for,
 };
 use crate::logging::LogBuffer;
 use crate::settings::{Category, SharedSettings, SharedSettingsExt};
@@ -118,7 +118,7 @@ pub struct LuRaCsApp {
     pub log_tab: Stub,
 
     // --- Windows ---
-    pub data_library: StubWindow,
+    pub data_library: DataLibraryWindow,
     pub driver_dialog: StubWindow,
     pub settings_dialog: SettingsDialog,
     pub bluetooth_window: StubWindow,
@@ -223,7 +223,7 @@ impl LuRaCsApp {
             console_tab: Stub::new("Console"),
             log_tab: Stub::new("System Log"),
 
-            data_library: StubWindow::new("Data Library"),
+            data_library: DataLibraryWindow::new(),
             driver_dialog: StubWindow::new("Drivers"),
             settings_dialog,
             bluetooth_window: StubWindow::new("Bluetooth"),
@@ -495,8 +495,7 @@ impl LuRaCsApp {
                             );
                         }
                         crate::gui::SpectrogramScreenEvent::RequestShowDataStore { tab } => {
-                            self.data_library.open();
-                            // pass `tab` to the data library if it uses a tab index
+                            self.data_library.open_tab(tab);
                         }
                         crate::gui::SpectrogramScreenEvent::RequestClearRois => {
                             self.run_manager.spectrogram_manager_mut().clear_rois();
@@ -573,7 +572,9 @@ impl LuRaCsApp {
     fn render_windows(&mut self, ui: &egui::Ui) {
         // Each StubWindow no-ops when `.open == false`. Real windows keep
         // the same contract: `render` checks its own `open` flag.
-        self.data_library.render(ui);
+        let mut data_library = std::mem::take(&mut self.data_library);
+        data_library.render(self, ui);
+        self.data_library = data_library;
         self.driver_dialog.render(ui);
         let mut settings_dialog = std::mem::take(&mut self.settings_dialog);
         self.settings_dialog.open = true;
