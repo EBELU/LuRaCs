@@ -2,7 +2,7 @@ use super::edge::EdgeMode;
 use super::simple::correlate1d;
 
 pub fn gaussian_kernel(window_size: usize, sigma: f64) -> Option<Vec<f64>> {
-    if window_size == 0 || window_size % 2 == 0 || sigma <= 0.0 || !sigma.is_finite() {
+    if window_size == 0 || window_size.is_multiple_of(2) || sigma <= 0.0 || !sigma.is_finite() {
         return None;
     }
 

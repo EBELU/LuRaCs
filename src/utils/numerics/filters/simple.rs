@@ -4,7 +4,7 @@ use super::edge::{EdgeMode, edge_buffers, for_each_window, full_padded_buffer};
 const DRIFT_RESET_INTERVAL: usize = 1024;
 
 pub fn mean_filter(signal: &[f64], window_size: usize, edge_mode: EdgeMode) -> Vec<f64> {
-    if signal.is_empty() || window_size == 0 || window_size % 2 == 0 {
+    if signal.is_empty() || window_size == 0 || window_size.is_multiple_of(2) {
         return Vec::new();
     }
 
@@ -46,7 +46,7 @@ pub fn mean_filter(signal: &[f64], window_size: usize, edge_mode: EdgeMode) -> V
 }
 
 pub fn median_filter(signal: &[f64], window_size: usize, edge_mode: EdgeMode) -> Vec<f64> {
-    if signal.is_empty() || window_size == 0 || window_size % 2 == 0 {
+    if signal.is_empty() || window_size == 0 || window_size.is_multiple_of(2) {
         return Vec::new();
     }
 
@@ -65,7 +65,7 @@ pub fn median_filter(signal: &[f64], window_size: usize, edge_mode: EdgeMode) ->
 
 /// Cross-correlation without reversing `kernel` (used directly by symmetric kernels).
 pub fn correlate1d(signal: &[f64], kernel: &[f64], edge_mode: EdgeMode) -> Vec<f64> {
-    if signal.is_empty() || kernel.is_empty() || kernel.len() % 2 == 0 {
+    if signal.is_empty() || kernel.is_empty() || kernel.len().is_multiple_of(2) {
         return Vec::new();
     }
 
@@ -78,7 +78,7 @@ pub fn correlate1d(signal: &[f64], kernel: &[f64], edge_mode: EdgeMode) -> Vec<f
 }
 
 pub fn convolve1d(signal: &[f64], kernel: &[f64], edge_mode: EdgeMode) -> Vec<f64> {
-    if signal.is_empty() || kernel.is_empty() || kernel.len() % 2 == 0 {
+    if signal.is_empty() || kernel.is_empty() || kernel.len().is_multiple_of(2) {
         return Vec::new();
     }
 

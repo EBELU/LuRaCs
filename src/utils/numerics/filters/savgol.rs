@@ -36,7 +36,7 @@ pub fn savgol_coeffs(
     polyorder: usize,
     deriv: usize,
 ) -> SavgolResult<Vec<f64>> {
-    if window_length == 0 || window_length % 2 == 0 {
+    if window_length == 0 || window_length.is_multiple_of(2) {
         return Err(SavgolError::EvenWindow(window_length));
     }
     if polyorder >= window_length {
@@ -108,7 +108,7 @@ pub fn savgol_filter(
 /// correlated zero-copy directly from `y`.
 pub fn savgol_filter_with_coeffs(y: &[f64], coeffs: &[f64]) -> SavgolResult<Vec<f64>> {
     let window_length = coeffs.len();
-    if window_length == 0 || window_length % 2 == 0 {
+    if window_length == 0 || window_length.is_multiple_of(2) {
         return Err(SavgolError::EvenWindow(window_length));
     }
 

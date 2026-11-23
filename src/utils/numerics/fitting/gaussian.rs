@@ -88,7 +88,7 @@ pub fn try_multi_gaussian(
     x: ArrayView1<'_, f64>,
     params: &[f64],
 ) -> Result<Array1<f64>, ParamLenError> {
-    if params.len() % 3 != 0 {
+    if !params.len().is_multiple_of(3) {
         return Err(ParamLenError { len: params.len() });
     }
     Ok(multi_gaussian(x, params))
@@ -98,7 +98,7 @@ pub fn try_multi_gaussian_jacobian(
     x: ArrayView1<'_, f64>,
     params: &[f64],
 ) -> Result<Array2<f64>, ParamLenError> {
-    if params.len() % 3 != 0 {
+    if !params.len().is_multiple_of(3) {
         return Err(ParamLenError { len: params.len() });
     }
     Ok(multi_gaussian_jacobian(x, params))

@@ -32,7 +32,7 @@ pub fn mad_threshold(x: &[f64], sigma: f64) -> f64 {
 
 /// Rolling MAD-based threshold, one value per sample.
 pub fn local_mad_threshold(x: &[f64], window_length: usize, sigma: f64) -> PeakResult<Vec<f64>> {
-    if window_length % 2 == 0 {
+    if window_length.is_multiple_of(2) {
         return Err(SavgolError::EvenWindow(window_length));
     }
     let radius = window_length / 2;
@@ -108,7 +108,7 @@ pub fn enforce_min_separation(peaks: &[usize], min_sep: usize) -> Vec<usize> {
 // ---------------------------------------------------------------------------
 
 pub fn median_filter(x: &[f64], window_length: usize) -> PeakResult<Vec<f64>> {
-    if window_length % 2 == 0 {
+    if window_length.is_multiple_of(2) {
         return Err(SavgolError::EvenWindow(window_length));
     }
     let radius = window_length / 2;
@@ -177,7 +177,7 @@ pub fn find_peaks(
     spectrum_x: &[f64],
     window_length: usize,
 ) -> PeakResult<PeakFinderResult> {
-    if window_length % 2 == 0 {
+    if window_length.is_multiple_of(2) {
         return Err(SavgolError::EvenWindow(window_length));
     }
 

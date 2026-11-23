@@ -1,4 +1,3 @@
-use nalgebra::DVector;
 use ndarray::Array2;
 use rayon::prelude::*;
 
@@ -13,9 +12,9 @@ pub const PARALLEL_ROW_THRESHOLD: usize = 512;
 
 #[derive(Clone, Debug)]
 pub struct CsrMatrix {
-    pub(crate) offsets: Vec<usize>,
-    pub(crate) indices: Vec<usize>,
-    pub(crate) values: Vec<f64>,
+    pub offsets: Vec<usize>,
+    pub indices: Vec<usize>,
+    pub values: Vec<f64>,
     nrows: usize,
     ncols: usize,
 }
@@ -28,12 +27,14 @@ impl CsrMatrix {
         values: Vec<f64>,
         ncols: usize,
     ) -> Self {
-        assert!(offsets.len() >= 2, "CSR offsets must contain at least two entries");
+        assert!(
+            offsets.len() >= 2,
+            "CSR offsets must contain at least two entries"
+        );
 
         let nrows = offsets.len() - 1;
 
-        Self::new(offsets, indices, values, nrows, ncols)
-            .expect("invalid CSR matrix")
+        Self::new(offsets, indices, values, nrows, ncols).expect("invalid CSR matrix")
     }
 
     /// Construct a CSR matrix with validation.
@@ -84,7 +85,7 @@ impl CsrMatrix {
     }
 
     #[inline]
-    pub fn nnz(&self) -> usize {
+    pub const fn nnz(&self) -> usize {
         self.values.len()
     }
 
@@ -126,6 +127,4 @@ impl CsrMatrix {
             ncols,
         }
     }
-
 }
-

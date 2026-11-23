@@ -298,7 +298,6 @@ pub enum DeviceEvent {
 // ---------------------------------------------------------------------------
 
 #[async_trait]
-#[allow(multiple_supertrait_upcastable)]
 pub trait DeviceWrapper: Send + Sync + 'static {
     /// Stable key used for registry lookup (was `type` on the Python class).
     fn type_key(&self) -> &'static str;

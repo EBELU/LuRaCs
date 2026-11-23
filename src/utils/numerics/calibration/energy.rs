@@ -169,7 +169,7 @@ fn polyfit(x: &[f64], y: &[f64], degree: usize) -> CalibrationnResult<Vec<f64>> 
         .solve(&b, 1e-10)
         .map_err(|_| CalibrationError::FitFailed)?;
 
-    Ok(coeffs.iter().copied().collect())
+    Ok(coeffs.as_slice().to_vec())
 }
 
 /// Horner evaluation; coefficients highest degree first (matches `np.polyval`).

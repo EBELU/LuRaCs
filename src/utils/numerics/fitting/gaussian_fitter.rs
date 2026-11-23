@@ -156,55 +156,55 @@ pub fn fit_gaussians(
     // locally where needed.
     let (bkg_coeffs, poly_cov, poly_order): (Option<Vec<f64>>, Option<DMatrix<f64>>, usize) =
         if bkg_type != BkgType::None {
-            let order = match bkg_type {
-                BkgType::Linear => 1,
-                BkgType::Quadratic => 2,
-                BkgType::None => unreachable!(),
-            };
-
-            let i_low = searchsorted_left(x_axis, region_min);
-            let i_high = searchsorted_left(x_axis, region_max);
-
-            // Lower flank: channels [i_low, i_low + bkg_est_channels).
-            let ext_low = (i_low + bkg_est_channels).min(x_axis.len());
-            // Upper flank: channels [i_high - bkg_est_channels, i_high).
-            // When i_high < bkg_est_channels, Python's slice uses a negative
-            // index (start > end) and yields an empty slice. We reproduce
-            // that: `ext_high = i_high` → empty slice [i_high..i_high].
-            let ext_high = if i_high >= bkg_est_channels {
-                i_high - bkg_est_channels
-            } else {
-                i_high
-            }
-            .min(x_axis.len().saturating_sub(1));
-
-            let n_flank = (ext_low - i_low) + (i_high - ext_high);
-            let mut xs = Vec::with_capacity(n_flank);
-            let mut ys = Vec::with_capacity(n_flank);
-            let mut ws = Vec::with_capacity(n_flank);
-
-            for i in i_low..ext_low {
-                xs.push(x_axis[i]);
-                ys.push(y_axis[i]);
-                ws.push(1.0 / y_axis_uncert[i].max(1.0));
-            }
-            for i in ext_high..i_high {
-                xs.push(x_axis[i]);
-                ys.push(y_axis[i]);
-                ws.push(1.0 / y_axis_uncert[i].max(1.0));
-            }
-
-            let pf = polyfit_weighted(&xs, &ys, Some(&ws), order, false)?;
-
-            // Subtract fitted background from the data being peak-fitted.
-            for (i, xv) in x_region.iter().enumerate() {
-                y_region[i] -= polyval(&pf.coefficients, *xv);
-            }
-
-            (Some(pf.coefficients), Some(pf.covariance), order)
-        } else {
-            (None, None, 0)
+        let order = match bkg_type {
+            BkgType::Linear => 1,
+            BkgType::Quadratic => 2,
+            BkgType::None => unreachable!(),
         };
+
+        let i_low = searchsorted_left(x_axis, region_min);
+        let i_high = searchsorted_left(x_axis, region_max);
+
+        // Lower flank: channels [i_low, i_low + bkg_est_channels).
+        let ext_low = (i_low + bkg_est_channels).min(x_axis.len());
+        // Upper flank: channels [i_high - bkg_est_channels, i_high).
+        // When i_high < bkg_est_channels, Python's slice uses a negative
+        // index (start > end) and yields an empty slice. We reproduce
+        // that: `ext_high = i_high` → empty slice [i_high..i_high].
+        let ext_high = if i_high >= bkg_est_channels {
+            i_high - bkg_est_channels
+        } else {
+            i_high
+        }
+        .min(x_axis.len().saturating_sub(1));
+
+        let n_flank = (ext_low - i_low) + (i_high - ext_high);
+        let mut xs = Vec::with_capacity(n_flank);
+        let mut ys = Vec::with_capacity(n_flank);
+        let mut ws = Vec::with_capacity(n_flank);
+
+        for i in i_low..ext_low {
+            xs.push(x_axis[i]);
+            ys.push(y_axis[i]);
+            ws.push(1.0 / y_axis_uncert[i].max(1.0));
+        }
+        for i in ext_high..i_high {
+            xs.push(x_axis[i]);
+            ys.push(y_axis[i]);
+            ws.push(1.0 / y_axis_uncert[i].max(1.0));
+        }
+
+        let pf = polyfit_weighted(&xs, &ys, Some(&ws), order, false)?;
+
+        // Subtract fitted background from the data being peak-fitted.
+        for (i, xv) in x_region.iter().enumerate() {
+            y_region[i] -= polyval(&pf.coefficients, *xv);
+        }
+
+        (Some(pf.coefficients), Some(pf.covariance), order)
+    } else {
+        (None, None, 0)
+    };
 
     // ---- 5. Gaussian fit ------------------------------------------------
 

@@ -563,7 +563,6 @@ impl Spectrogram {
 
     fn load_from_db(&mut self) -> Result<()> {
         // Header
-        #[allow(non_exhaustive_omitted_patterns)]
         let (created, device_id, channels, calibration, concat, save_interval, _meta): (
             f64,
             String,

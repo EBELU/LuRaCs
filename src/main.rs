@@ -1,12 +1,9 @@
+#![allow(
+    unknown_lints,
+    reason = "allow lint names unavailable on older toolchains"
+)]
 #![allow(clippy::cargo_common_metadata)]
 #![allow(clippy::multiple_crate_versions)]
-// #![feature(default_field_values)]
-// #![feature(strict_provenance_lints)]
-// #![feature(multiple_supertrait_upcastable)]
-// #![feature(must_not_suspend)]
-// #![feature(non_exhaustive_omitted_patterns_lint)]
-// #![feature(unqualified_local_imports)]
-#![allow(unqualified_local_imports)]
 #![allow(unfulfilled_lint_expectations, reason = "I know what I want")]
 // === Style and Philosophy ===
 // #![warn(clippy::arithmetic_side_effects)]

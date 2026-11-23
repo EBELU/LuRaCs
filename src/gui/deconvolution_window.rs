@@ -428,7 +428,7 @@ impl DeconvolutionWindow {
         let (y_axis, x_axis) = match app.spectrum_manager.spectrum_registry.get(&source_key) {
             Some(spec) => (
                 effective_y_axis(spec, self.subtract_background),
-                dvector_from_array1(&spec.x_axis),
+                spec.x_axis.clone(),
             ),
             None => return,
         };
@@ -464,7 +464,7 @@ impl DeconvolutionWindow {
         let (y_axis, x_axis) = match app.spectrum_manager.spectrum_registry.get(&source_key) {
             Some(spec) => (
                 effective_y_axis(spec, self.subtract_background),
-                dvector_from_array1(&spec.x_axis),
+                spec.x_axis.clone(),
             ),
             None => return,
         };
@@ -745,10 +745,6 @@ fn effective_y_axis(spec: &crate::containers::Spectrum, subtract_background: boo
     Array1::from_iter(arr.iter().copied())
 }
 
-fn dvector_from_array1(a: &Array1<f64>) -> Array1<f64> {
-    Array1::from_iter(a.iter().copied())
-}
-
 // ===========================================================================
 // Worker functions (run on background threads)
 // ===========================================================================
@@ -796,10 +792,7 @@ fn run_rl_worker(
 
     let n = y_axis.len();
     let sensitivity = Array1::ones(n);
-    let opts = MlEmOptions {
-        iterations,
-        ..Default::default()
-    };
+    let opts = MlEmOptions { iterations };
 
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         richardson_lucy(&x_axis, &y_axis, k, &sensitivity, &opts)
@@ -845,10 +838,7 @@ fn run_mlem_worker(
 
     let n = y_axis.len();
     let sensitivity = Array1::ones(n);
-    let opts = MlEmOptions {
-        iterations,
-        ..Default::default()
-    };
+    let opts = MlEmOptions { iterations };
 
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         ml_em(&y_axis, &csr, &sensitivity, &opts)

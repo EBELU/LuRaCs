@@ -86,7 +86,7 @@ pub fn polyfit_weighted(
     };
 
     Ok(PolyfitResult {
-        coefficients: coeffs.iter().copied().collect(),
+        coefficients: coeffs.as_slice().to_vec(),
         covariance: cov,
     })
 }

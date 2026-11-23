@@ -16,15 +16,15 @@ eframe = { version = "0.37.0", features = ["persistence", "serde"] }
 flate2 = "1.1.11"
 glob = "0.3.4"
 mendeleev = { version = "0.8.4", features = ["serde"] }
-nalgebra = { version = "0.35.0", features = ["serde"] }
-ndarray = { version = "0.17.2", features = ["rayon", "serde"] }
-nucleide-nuclei = "0.17.0"
-physure = "0.3.0"
+nalgebra = { version = "0.35.0", features = ["serde", "serde-serialize"] }
+# ndarray = { version = "0.17.2", features = ["rayon", "serde"] }
+nucleide-nuclei = "0.19.0"
+physure = "0.4.0"
 quick-xml = { version = "0.42.0", features = ["serde", "serialize"] }
 rfd = "0.18.0"
 roxmltree = "0.21.2"
 rusb = { version = "0.9.4", features = ["serde", "vendored"] }
-rusqlite = { version = "0.41.1", features = ["bundled"] }
+rusqlite = { version = "0.43.0", features = ["bundled"] }
 rust_xlsxwriter = { version = "0.102.0", features = ["serde"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
@@ -35,21 +35,20 @@ tokio = { version = "1.54.1", features = ["full"] }
 tokio-util = "0.7.20"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
-uuid = { version = "1.29.2", features = ["v4", "serde"] }
+uuid = { version = "1.29.3", features = ["v4", "serde"] }
 walkdir = "2.5.0"
-zip = { version = "9.5.1", default-features = false, features = [
+zip = { version = "9.6.1", default-features = false, features = [
     "deflate",
     "rayon",
 ] }
-rand = "0.10.3"
+rand = "0.10.4"
 rand_distr = "0.6.0"
-walkers = { version = "^0.65.0", features = ["mvt", "pmtiles", "serde", "vector"] }
-pmtiles = "=0.24.0"
 rayon = "1.12.0"
-ndarray-npy = "0.10.0"
-chemometrics = "0.2.1"
-sci-find-peaks = "0.1.0"
+# ndarray-npy = "0.11.0"
 toml = "1.2.1"
+ndarray-npy = "0.11.0"
+ndarray = { version = "0.17.2", features = ["serde", "rayon"] }
+# ndarray-linalg = { version = "0.18.1", features = ["openblas-system"] }
 
 [lints.clippy]
 cargo = "warn"
@@ -60,7 +59,6 @@ perf = "deny"
 # restriction = "deny"
 style = "deny"
 suspicious = "deny"
-pub-with-shorthand = { level = "allow", priority = 1 }
 use_debug = { level = "allow", priority = 1 }
 undocumented_unsafe_blocks = { level = "allow", priority = 1 }
 single_call_fn = { level = "allow", priority = 1 }
@@ -69,23 +67,17 @@ fn_to_numeric_cast_any = { level = "allow", priority = 1 }
 multiple_unsafe_ops_per_block = { level = "allow", priority = 1 }
 
 [lints.rust]
-ambiguous-negative-literals = "warn"
 closure_returning_async_block = "warn"
 elided_lifetimes_in_paths = "warn"
 explicit_outlives_requirements = "warn"
-fuzzy_provenance_casts = "warn"
 if_let_rescope = "warn"
 impl_trait_redundant_captures = "warn"
 let_underscore_drop = "warn"
-lossy_provenance_casts = "warn"
 macro_use_extern_crate = "warn"
 meta_variable_misuse = "deny"
 missing_debug_implementations = "deny"
 # missing_docs = "warn"
 missing_unsafe_on_extern = "deny"
-multiple_supertrait_upcastable = "warn"
-must_not_suspend = "warn"
-non_exhaustive_omitted_patterns = "warn"
 redundant_imports = "deny"
 redundant_lifetimes = "deny"
 single_use_lifetimes = "deny"
@@ -93,7 +85,6 @@ trivial_casts = "deny"
 trivial_numeric_casts = "deny"
 unit_bindings = "warn"
 unnameable_types = "deny"
-unqualified_local_imports = "warn"
 unsafe_attr_outside_unsafe = "warn"
 unsafe_op_in_unsafe_fn = "warn"
 variant_size_differences = "warn"
