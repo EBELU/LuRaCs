@@ -272,6 +272,7 @@ fn dispatch_cli_args(
 // ---------------------------------------------------------------------------
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    drop(rustls::crypto::ring::default_provider().install_default());
     let cli = Cli::parse();
 
     // --- 1. Logging ---

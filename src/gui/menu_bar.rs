@@ -237,24 +237,18 @@ fn view_menu(app: &mut LuRaCsApp, ui: &mut egui::Ui) {
     ui.menu_button("View", |ui| {
         {
             ui.menu_button("Map", |ui| {
-                // TODO(map): once MapScreen is ported, wire these to its
-                // `track_current_location`, `move_to_current`,
-                // `move_to_start`, `move_to_end` methods.
-                let mut track_current = false;
-                if ui
-                    .checkbox(&mut track_current, "Track Current Location")
-                    .changed()
-                {
-                    tracing::info!("Map track-current-location not yet implemented");
-                }
+                ui.checkbox(
+                    &mut app.map_screen.track_current_location,
+                    "Track Current Location",
+                );
                 if ui.button("Move to Current Location").clicked() {
-                    tracing::info!("Map move-to-current not yet implemented");
+                    app.map_screen.move_to_current();
                 }
                 if ui.button("Move to Track Start").clicked() {
-                    tracing::info!("Map move-to-start not yet implemented");
+                    app.map_screen.move_to_start();
                 }
                 if ui.button("Move to Track End").clicked() {
-                    tracing::info!("Map move-to-end not yet implemented");
+                    app.map_screen.move_to_end();
                 }
             });
         }

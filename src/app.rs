@@ -42,7 +42,7 @@ use crate::core::{EventDispatcher, ForegroundInput, SpectrumManager};
 use crate::core::{RunManager, RunManagerEvent};
 use crate::gui::{
     BleDeviceKind, BluetoothWindow, ConnectionRequest, DataLibraryWindow, DeconvolutionWindow,
-    InfoModal, IsotopicsTab, MeasureScreen, Modal, ModalKind, NetworkDeviceKind, NetworkWindow,
+    InfoModal, IsotopicsTab, MapScreen, MeasureScreen, Modal, ModalKind, NetworkDeviceKind, NetworkWindow,
     RealTimeValuesTab, SerialGpsWindow, SettingsDialog, SpectrogramScreen, SpectrumScreen, Stub,
     StubWindow, UsbDeviceKind, UsbWindow, menu_bar, render_modals_for,
 };
@@ -106,7 +106,7 @@ pub struct LuRaCsApp {
     // --- Top-area screens ---
     pub spectrum_screen: SpectrumScreen,
     pub spectrogram_screen: SpectrogramScreen,
-    pub map_screen: Stub,
+    pub map_screen: MapScreen,
     pub measure_screen: MeasureScreen,
 
     // --- Bottom tabs ---
@@ -214,7 +214,7 @@ impl LuRaCsApp {
 
             spectrum_screen,
             spectrogram_screen,
-            map_screen: Stub::new("Map"),
+            map_screen: MapScreen::new(),
             measure_screen,
 
             spectrum_info_tab: Stub::new("Spectrum Info"),
@@ -300,6 +300,28 @@ impl LuRaCsApp {
                         &mut self.spectrum_manager,
                         &settings_guard,
                     );
+                }
+                AppEvent::Run(RunManagerEvent::SpectrogramStarted { name }) => {
+                    self.map_screen.on_spectrogram_added(name);
+                }
+                AppEvent::Run(RunManagerEvent::SpectrogramClosed { name }) => {
+                    self.map_screen.on_spectrogram_closed(name);
+                }
+                AppEvent::Run(RunManagerEvent::SpectrogramRoiAdded { roi }) => {
+                    self.map_screen.on_roi_added(roi);
+                }
+                AppEvent::Run(RunManagerEvent::SpectrogramRoiRemoved { roi }) => {
+                    self.map_screen.on_roi_removed(&roi.tag);
+                }
+                AppEvent::Run(RunManagerEvent::SpectrogramMapBufferUpdated { name, buffer }) => {
+                    self.map_screen.on_map_buffer_updated(name, buffer);
+                }
+                AppEvent::Run(RunManagerEvent::GpsConnection(connected)) => {
+                    self.map_screen.on_gps_connection(*connected);
+                }
+                AppEvent::Run(RunManagerEvent::GpsUpdated(data)) => {
+                    let max_rate = self.settings.read_settings().gps.move_to_current_max_rate_s;
+                    self.map_screen.on_gps_updated(data, max_rate);
                 }
                 AppEvent::Run(RunManagerEvent::SpectrogramDataUpdated { name, data }) => {
                     self.spectrogram_data.insert(name.clone(), data.clone());
@@ -537,7 +559,7 @@ impl LuRaCsApp {
                     }
                 }
             }
-            TopTab::Map => self.map_screen.render(ui),
+            TopTab::Map => MapScreen::render(self, ui),
             TopTab::Measure => MeasureScreen::render(self, ui),
         }
     }

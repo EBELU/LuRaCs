@@ -663,6 +663,7 @@ impl Spectrogram {
                 (Some(la), Some(lo)) => Some(GpsData {
                     latitude: Some(la),
                     longitude: Some(lo),
+                    valid: la.is_finite() && lo.is_finite(),
                     ..GpsData::default()
                 }),
                 _ => None,

@@ -3,6 +3,7 @@ pub mod connection_windows;
 mod data_library;
 mod deconvolution_window;
 mod isotopics_tab;
+mod map_screen;
 mod measure_screen;
 pub mod menu_bar;
 mod modals;
@@ -21,6 +22,7 @@ pub use connection_windows::{
 pub use data_library::*;
 pub use deconvolution_window::DeconvolutionWindow;
 pub use isotopics_tab::*;
+pub use map_screen::MapScreen;
 pub use measure_screen::MeasureScreen;
 pub use modals::*;
 pub use plot_screen::*;

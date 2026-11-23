@@ -29,6 +29,8 @@ btleplug = "0.13.5"
 futures-util = "0.3.34"
 jiff = "0.2.38"
 reqwest = { version = "0.12.28", default-features = false, features = ["json"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+walkers = { version = "0.65.0", default-features = false, features = ["mvt", "pmtiles"] }
 rusqlite = { version = "0.43.0", features = ["bundled"] }
 rust_xlsxwriter = { version = "0.102.0", features = ["serde"] }
 serde = { version = "1.0.229", features = ["derive"] }
