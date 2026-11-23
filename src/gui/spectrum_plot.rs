@@ -53,7 +53,7 @@ use crate::core::NewRoi;
 use crate::core::SpectrumManager;
 use crate::settings::Settings;
 use crate::theme_manager::ThemeDefinition;
-use crate::utils::multi_gaussian;
+use crate::utils::{multi_gaussian, polyval};
 
 // ===========================================================================
 // Mode
@@ -1050,8 +1050,4 @@ fn roi_bounds_from_view(state: &SpectrumPlotState) -> (f64, f64) {
         f64::mul_add(diff, 0.15, x_min),
         f64::mul_add(diff, 0.45, x_min),
     )
-}
-
-fn polyval(coeffs: &[f64], x: f64) -> f64 {
-    coeffs.iter().fold(0.0, |acc, &c| f64::mul_add(acc, x, c))
 }

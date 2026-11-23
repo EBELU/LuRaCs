@@ -7,6 +7,7 @@ use ndarray::Array1;
 
 use super::instrument::UniqueInstrument;
 use super::roi::Roi;
+use crate::utils::numerics::{interp, polyval};
 
 // ---------------------------------------------------------------------------
 // SpectrumData
@@ -283,31 +284,4 @@ impl Spectrum {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Numeric helpers (NumPy equivalents)
-// ---------------------------------------------------------------------------
 
-/// Horner evaluation of `[a_n, a_{n-1}, …, a_0]` at `x`.
-fn polyval(coeffs: &[f64], x: f64) -> f64 {
-    coeffs.iter().fold(0.0, |acc, &c| f64::mul_add(acc, x, c))
-}
-
-/// Linear interpolation, matching `np.interp`. Assumes `xp` is increasing.
-fn interp(x: f64, xp: &[f64], fp: &[f64]) -> f64 {
-    if xp.is_empty() {
-        return f64::NAN;
-    }
-    if x <= xp[0] {
-        return fp[0];
-    }
-    if x >= xp[xp.len() - 1] {
-        return fp[fp.len() - 1];
-    }
-    for i in 0..xp.len() - 1 {
-        if x >= xp[i] && x <= xp[i + 1] {
-            let t = (x - xp[i]) / (xp[i + 1] - xp[i]);
-            return t.mul_add(fp[i + 1] - fp[i], fp[i]);
-        }
-    }
-    f64::NAN
-}

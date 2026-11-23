@@ -14,6 +14,7 @@ use super::polyfit::{PolyfitError, polyfit_weighted};
 use super::weights::poisson_weights;
 use crate::containers::Fit;
 use crate::containers::{BkgType, FitType};
+use crate::utils::numerics::{polyval, searchsorted_left};
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -403,22 +404,4 @@ fn poisson_weights_3arg(
     _params: &[f64],
 ) -> Array1<f64> {
     poisson_weights(yfit, 1e-10)
-}
-
-fn searchsorted_left(arr: &[f64], v: f64) -> usize {
-    let mut lo = 0usize;
-    let mut hi = arr.len();
-    while lo < hi {
-        let mid = (lo + hi) / 2;
-        if arr[mid] < v {
-            lo = mid + 1;
-        } else {
-            hi = mid;
-        }
-    }
-    lo
-}
-
-fn polyval(coeffs: &[f64], x: f64) -> f64 {
-    coeffs.iter().fold(0.0, |acc, &c| f64::mul_add(acc, x, c))
 }

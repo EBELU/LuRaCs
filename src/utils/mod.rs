@@ -1,5 +1,5 @@
 mod file_io;
-mod numerics;
+pub mod numerics;
 mod save_to_internal;
 pub mod serde_color;
 

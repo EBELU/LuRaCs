@@ -3,12 +3,14 @@ pub mod compression;
 pub mod deconvolution;
 pub mod filters;
 pub mod fitting;
+pub mod helpers;
 pub mod peak_detection;
 
 // Backward-compatible module aliases:
 pub use filters::savgol;
 pub use fitting::optimizer;
 pub use fitting::polyfit;
+pub use helpers::*;
 
 // Top-level re-exports for convenience and backward compatibility
 pub use calibration::*;

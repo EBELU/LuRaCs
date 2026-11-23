@@ -44,6 +44,7 @@ use crate::settings::Settings;
 use crate::spectogram::SpectrogramState;
 use crate::spectogram::WrappedSpectrogramData;
 use crate::theme_manager::{self, ThemeDefinition};
+use crate::utils::numerics::{polyval, searchsorted_left_arr};
 
 // ===========================================================================
 // Events
@@ -639,8 +640,8 @@ impl SpectrogramScreen {
         if let Some(x_axis) = energy_axis(p) {
             for roi in spectrogram_manager.roi_registry.values() {
                 let _ = roi;
-                let lo = searchsorted_left(&x_axis, roi.e_region.0);
-                let hi = searchsorted_left(&x_axis, roi.e_region.1);
+                let lo = searchsorted_left_arr(&x_axis, roi.e_region.0);
+                let hi = searchsorted_left_arr(&x_axis, roi.e_region.1);
                 let color = Color32::from_rgb(255, 200, 0);
                 for idx in [lo, hi] {
                     let mut m = Marker::vline(idx as f64)
@@ -921,24 +922,6 @@ fn energy_axis(p: &WrappedSpectrogramData) -> Option<Array1<f64>> {
     Some(Array1::from_iter(
         (0..channels).map(|i| polyval(coeffs, i as f64 * concat)),
     ))
-}
-
-fn searchsorted_left(arr: &Array1<f64>, v: f64) -> usize {
-    let mut lo = 0usize;
-    let mut hi = arr.len();
-    while lo < hi {
-        let mid = (lo + hi) / 2;
-        if arr[mid] < v {
-            lo = mid + 1;
-        } else {
-            hi = mid;
-        }
-    }
-    lo
-}
-
-fn polyval(coeffs: &[f64], x: f64) -> f64 {
-    coeffs.iter().fold(0.0, |acc, &c| f64::mul_add(acc, x, c))
 }
 
 fn epoch_to_local_string(ts: f64) -> String {

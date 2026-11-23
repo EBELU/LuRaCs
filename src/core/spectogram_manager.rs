@@ -28,6 +28,7 @@ use crate::clients::GpsData;
 use crate::containers::Emission;
 use crate::containers::Roi;
 use crate::spectogram::{Spectrogram, WrappedSpectrogramData};
+use crate::utils::numerics::{polyval, searchsorted_left_arr};
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -308,8 +309,8 @@ impl SpectrogramManager {
 
             for roi in self.roi_registry.values() {
                 let (emin, emax) = roi.e_region;
-                let i0 = searchsorted_left(&eaxis, emin);
-                let i1 = searchsorted_left(&eaxis, emax);
+                let i0 = searchsorted_left_arr(&eaxis, emin);
+                let i1 = searchsorted_left_arr(&eaxis, emax);
 
                 let mut series = Vec::with_capacity(n_rows);
                 if i0 >= i1 {
@@ -351,26 +352,6 @@ impl SpectrogramManager {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/// Left-biased binary search: the first index where `arr[idx] >= v`.
-/// Matches `numpy.searchsorted(arr, v)` (default `side='left'`).
-fn searchsorted_left(arr: &Array1<f64>, v: f64) -> usize {
-    let mut lo = 0usize;
-    let mut hi = arr.len();
-    while lo < hi {
-        let mid = (lo + hi) / 2;
-        if arr[mid] < v {
-            lo = mid + 1;
-        } else {
-            hi = mid;
-        }
-    }
-    lo
-}
-
-// ---------------------------------------------------------------------------
 // Convenience: build an energy axis from a Spectrogram's calibration
 // ---------------------------------------------------------------------------
 
@@ -383,11 +364,7 @@ pub fn energy_axis_from_calibration(coeffs: &[f64], channels: usize) -> Array1<f
     if coeffs.is_empty() {
         return Array1::from_iter((0..channels).map(|i| i as f64));
     }
-    Array1::from_iter((0..channels).map(|i| {
-        coeffs
-            .iter()
-            .fold(0.0, |acc, &c| f64::mul_add(acc, i as f64, c))
-    }))
+    Array1::from_iter((0..channels).map(|i| polyval(coeffs, i as f64)))
 }
 
 /// Convenience: derive the axis directly from a spectrogram's header.

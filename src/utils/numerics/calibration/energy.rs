@@ -18,6 +18,8 @@ use nalgebra::{DMatrix, DVector};
 use ndarray::Array1;
 use thiserror::Error;
 
+use crate::utils::numerics::{interp, is_monotonic_increasing, polyval};
+
 // ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------
@@ -170,34 +172,4 @@ fn polyfit(x: &[f64], y: &[f64], degree: usize) -> CalibrationnResult<Vec<f64>> 
         .map_err(|_| CalibrationError::FitFailed)?;
 
     Ok(coeffs.as_slice().to_vec())
-}
-
-/// Horner evaluation; coefficients highest degree first (matches `np.polyval`).
-fn polyval(coeffs: &[f64], x: f64) -> f64 {
-    coeffs.iter().fold(0.0, |acc, &c| f64::mul_add(acc, x, c))
-}
-
-fn is_monotonic_increasing(xp: &[f64]) -> bool {
-    xp.windows(2).all(|w| w[0] <= w[1])
-}
-
-/// Linear interpolation matching `np.interp` default behaviour: values
-/// outside `xp` are clamped to the endpoints.
-fn interp(x: f64, xp: &[f64], fp: &[f64]) -> f64 {
-    if xp.is_empty() {
-        return f64::NAN;
-    }
-    if x <= xp[0] {
-        return fp[0];
-    }
-    if x >= xp[xp.len() - 1] {
-        return fp[fp.len() - 1];
-    }
-    for i in 0..xp.len() - 1 {
-        if x >= xp[i] && x <= xp[i + 1] {
-            let t = (x - xp[i]) / (xp[i + 1] - xp[i]);
-            return t.mul_add(fp[i + 1] - fp[i], fp[i]);
-        }
-    }
-    f64::NAN
 }

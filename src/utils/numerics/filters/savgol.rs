@@ -9,7 +9,10 @@
 //! `out[i] = Σⱼ ypad[i + j] · coeffs[j]`.
 
 use nalgebra::DMatrix;
+use ndarray::ArrayView1;
 use thiserror::Error;
+
+pub use crate::utils::numerics::helpers::median;
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum SavgolError {
@@ -119,6 +122,7 @@ pub fn savgol_filter_with_coeffs(y: &[f64], coeffs: &[f64]) -> SavgolResult<Vec<
     }
 
     let mut out = Vec::with_capacity(n);
+    let coeffs_view = ArrayView1::from(coeffs);
 
     // Handle short signals where left and right reflection zones overlap
     // (half < n < window_length).
@@ -132,7 +136,7 @@ pub fn savgol_filter_with_coeffs(y: &[f64], coeffs: &[f64]) -> SavgolResult<Vec<
             ypad.push(y[n - 2 - k]);
         }
         for window in ypad.windows(window_length).take(n) {
-            out.push(dot_product(window, coeffs));
+            out.push(ArrayView1::from(window).dot(&coeffs_view));
         }
         return Ok(out);
     }
@@ -144,12 +148,12 @@ pub fn savgol_filter_with_coeffs(y: &[f64], coeffs: &[f64]) -> SavgolResult<Vec<
     }
     left_buf.extend_from_slice(&y[..2 * half]);
     for window in left_buf.windows(window_length).take(half) {
-        out.push(dot_product(window, coeffs));
+        out.push(ArrayView1::from(window).dot(&coeffs_view));
     }
 
     // 2. Interior (`n - 2 * half` output samples): zero-copy directly on `y`.
     for window in y.windows(window_length) {
-        out.push(dot_product(window, coeffs));
+        out.push(ArrayView1::from(window).dot(&coeffs_view));
     }
 
     // 3. Right boundary (`half` output samples): requires `3 * half` samples.
@@ -159,36 +163,8 @@ pub fn savgol_filter_with_coeffs(y: &[f64], coeffs: &[f64]) -> SavgolResult<Vec<
         right_buf.push(y[n - 2 - k]);
     }
     for window in right_buf.windows(window_length).take(half) {
-        out.push(dot_product(window, coeffs));
+        out.push(ArrayView1::from(window).dot(&coeffs_view));
     }
 
     Ok(out)
-}
-
-#[inline]
-fn dot_product(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b.iter()).map(|(&x, &w)| x * w).sum()
-}
-
-/// Median of a slice (mean of two middle elements for even length, `NaN` if empty).
-pub fn median(x: &[f64]) -> f64 {
-    if x.is_empty() {
-        return f64::NAN;
-    }
-    let mut sorted = x.to_vec();
-    let mid = sorted.len() / 2;
-    let (_, upper_mid, _) = sorted.select_nth_unstable_by(mid, f64::total_cmp);
-    let upper_val = *upper_mid;
-
-    if sorted.len() % 2 == 1 {
-        upper_val
-    } else {
-        // Maximum of the lower partition `sorted[..mid]` is the lower middle element.
-        let lower_val = sorted[..mid]
-            .iter()
-            .copied()
-            .max_by(f64::total_cmp)
-            .unwrap_or(upper_val);
-        (lower_val + upper_val) * 0.5
-    }
 }
