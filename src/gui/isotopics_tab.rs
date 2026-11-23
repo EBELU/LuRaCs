@@ -404,14 +404,22 @@ impl IsotopicsTab {
 
         // Debug window (independent of tab lifetime: closing it drops the flag).
         if self.debug_open {
-            let mut open = true;
-            egui::Window::new("Spectrum Derivatives")
-                .open(&mut open)
-                .default_size([900.0, 700.0])
-                .show(ui.ctx(), |ui| {
-                    self.debug.render(ui);
+            let viewport_id = egui::ViewportId::from_hash_of("spectrum_derivatives_debug");
+            let builder = egui::ViewportBuilder::default()
+                .with_title("Spectrum Derivatives")
+                .with_inner_size([900.0, 700.0])
+                .with_min_inner_size([400.0, 300.0])
+                .with_resizable(false);
+
+            ui.ctx()
+                .show_viewport_immediate(viewport_id, builder, |ui, _class| {
+                    if ui.input(|i| i.viewport().close_requested()) {
+                        self.debug_open = false;
+                    }
+                    egui::CentralPanel::default().show(ui, |ui| {
+                        self.debug.render(ui);
+                    });
                 });
-            self.debug_open = open;
         }
     }
 

@@ -382,7 +382,7 @@ fn app_title() -> String {
 fn run_headless(
     mut run_manager: RunManager,
     mut spectrum_manager: SpectrumManager,
-    _io_manager: IoManager,
+    mut io_manager: IoManager,
     shared_settings: SharedSettings,
 ) -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("Headless mode active — Ctrl+C to exit");
@@ -392,16 +392,16 @@ fn run_headless(
         let _ = stop_tx.send(());
     })?;
 
-    loop {
-        // Drain run-manager events and forward them to the spectrum manager.
-        let events = run_manager.poll();
-        for ev in events {
-            handle_headless_event(ev, &mut spectrum_manager, &shared_settings);
-        }
+    let mut dispatcher = crate::core::EventDispatcher::new();
 
-        // Drain spectrum-manager events (no consumer, but keeps the queue
-        // small — cheap enough not to matter).
-        drop(spectrum_manager.drain_events());
+    loop {
+        dispatcher.dispatch(
+            &mut spectrum_manager,
+            &mut run_manager,
+            &mut io_manager,
+            None,
+            &shared_settings,
+        );
 
         if stop_rx.recv_timeout(Duration::from_millis(50)).is_ok() {
             break;
@@ -411,43 +411,6 @@ fn run_headless(
     tracing::info!("Headless mode stopping");
     shutdown_all(&mut run_manager, &shared_settings);
     Ok(())
-}
-
-fn handle_headless_event(
-    ev: RunManagerEvent,
-    spectrum_manager: &mut SpectrumManager,
-    shared_settings: &SharedSettings,
-) {
-    match ev {
-        RunManagerEvent::CreateDeviceSpectrum {
-            device_name,
-            channels,
-            connection,
-        } => {
-            let load_cal = shared_settings.read_settings().importing.load_calibration;
-            if let Err(e) = spectrum_manager.create_spectrum(
-                &device_name,
-                channels,
-                Some(&connection),
-                load_cal,
-            ) {
-                tracing::warn!(device = %device_name, "create_spectrum failed: {e}");
-            }
-        }
-        RunManagerEvent::RemoveDeviceSpectrum { name } => {
-            spectrum_manager.remove_spectrum(&name);
-        }
-        RunManagerEvent::SpectrumUpdated { name, data } => {
-            let sd = spectrum_data_from_wrapped(&data, Some(name.clone()));
-            if let Err(e) =
-                spectrum_manager.set_foreground_spectrum(&name, ForegroundInput::Raw(sd))
-            {
-                tracing::warn!(device = %name, "set_foreground_spectrum failed: {e}");
-            }
-        }
-        // All other events are GUI-only concerns (status, GPS, spectrograms).
-        _ => {}
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -608,39 +571,5 @@ fn dispatch_file_index_events(io: &mut IoManager, spectrum_manager: &mut Spectru
             },
             FileIndexEvent::IndexUpdated { .. } => {}
         }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Wrapped → SpectrumData conversion
-// ---------------------------------------------------------------------------
-//
-// Used by headless mode here and by `LuRaCsApp::ui` in the GUI path. Kept as
-// a free function for now; will move to a shared module once the App-side
-// implementation settles. If app.rs needs it, duplicate-and-note or import
-// from this module.
-
-fn spectrum_data_from_wrapped(
-    spectrum: &WrappedSpectrumPackage,
-    spectrum_name: Option<String>,
-) -> SpectrumData {
-    let total: f64 = spectrum.y_axis.iter().sum();
-    let channels = spectrum.y_axis.len();
-    let live_time = spectrum.live_time;
-    let end = chrono::Utc::now();
-    let start = end
-        - chrono::Duration::milliseconds((spectrum.real_time.unwrap_or(live_time) * 1000.0) as i64);
-    SpectrumData {
-        y_axis: spectrum.y_axis.clone(),
-        channels,
-        total_counts: total.max(0.0) as u64,
-        live_time,
-        real_time: spectrum.real_time,
-        avg_dose_rate: None,
-        avg_cps: Some(total / live_time.max(1.0)),
-        start_date: Some(start),
-        end_date: Some(end),
-        spectrum_name,
-        instrument: None,
     }
 }

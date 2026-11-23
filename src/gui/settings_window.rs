@@ -183,12 +183,15 @@ impl SettingsDraft {
 // Dialog
 // ===========================================================================
 
+pub const VIEWPORT_ID: &str = "settings_window";
+
 pub struct SettingsDialog {
     /// Whether the window should be shown. The window's X button and the
     /// Cancel button both flip this to `false`; the `open_with` constructor
     /// flips it back to `true` after refreshing the draft.
     pub open: bool,
     draft: SettingsDraft,
+    close_after_modal: bool,
 }
 
 impl SettingsDialog {
@@ -207,6 +210,7 @@ impl SettingsDialog {
                 // Keeping the panic-free default avoids unwraps in `new`.
                 crate::settings::Paths::new().expect("paths must resolve"),
             )),
+            close_after_modal: false,
         }
     }
 
@@ -215,6 +219,7 @@ impl SettingsDialog {
     pub fn open_with(&mut self, settings: &Settings) {
         self.draft = SettingsDraft::from_settings(settings);
         self.open = true;
+        self.close_after_modal = false;
     }
 
     // -----------------------------------------------------------------------
@@ -229,22 +234,55 @@ impl SettingsDialog {
             return;
         }
 
-        let mut window_open = self.open;
-        let mut close_requested = false;
-        egui::Window::new("Settings")
-            .open(&mut window_open)
-            .resizable(true)
-            .default_width(360.0)
-            .show(ui.ctx(), |ui| {
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    self.render_sections(app, ui);
+        let viewport_id = egui::ViewportId::from_hash_of(VIEWPORT_ID);
+
+        if self.close_after_modal && !crate::gui::modals::has_modal_for(app, viewport_id) {
+            self.open = false;
+            self.close_after_modal = false;
+            return;
+        }
+
+        let builder = egui::ViewportBuilder::default()
+            .with_title("Settings")
+            .with_inner_size([460.0, 620.0])
+            .with_min_inner_size([360.0, 400.0])
+            .with_resizable(false);
+
+        let mut close_from_buttons = false;
+        ui.ctx().show_viewport_immediate(viewport_id, builder, |ui, _class| {
+            if ui.input(|i| i.viewport().close_requested()) {
+                if self.request_cancel(app) {
+                    self.open = false;
+                } else {
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                }
+            }
+
+            let modal_open = crate::gui::modals::has_modal_for(app, viewport_id);
+
+            egui::Panel::bottom("settings_buttons").show(ui, |ui| {
+                ui.add_enabled_ui(!modal_open, |ui| {
+                    close_from_buttons = self.render_buttons(app, ui);
                 });
-                ui.separator();
-                close_requested = self.render_buttons(app, ui);
             });
-        // `close_requested` overrides a click on Cancel-while-clean; the
-        // window's X button still comes through `window_open`.
-        self.open = window_open && !close_requested;
+
+            egui::CentralPanel::default().show(ui, |ui| {
+                ui.add_enabled_ui(!modal_open, |ui| {
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        self.render_sections(app, ui);
+                    });
+                });
+            });
+
+            crate::gui::modals::render_modals_for(app, viewport_id, ui);
+            if !app.settings_dialog.open {
+                self.open = false;
+            }
+        });
+
+        if close_from_buttons {
+            self.open = false;
+        }
     }
 
     fn render_sections(&mut self, app: &LuRaCsApp, ui: &mut egui::Ui) {
@@ -482,7 +520,6 @@ impl SettingsDialog {
         ui.horizontal(|ui| {
             if ui.button("Apply").clicked() {
                 self.apply(app, ui);
-                close_requested = true;
             }
             if ui.button("Cancel").clicked() {
                 close_requested = self.request_cancel(app);
@@ -500,12 +537,16 @@ impl SettingsDialog {
             return true; // clean → close immediately
         }
 
+        let viewport_id = egui::ViewportId::from_hash_of(VIEWPORT_ID);
         app.modal_stack
-            .push(Modal::root(ModalKind::Confirm(ConfirmModal::new(
-                "Discard changes?",
-                "You have unapplied changes. Discard them and close the settings window?",
-                ConfirmAction::DiscardSettingsChanges,
-            ))));
+            .push(Modal::new(
+                viewport_id,
+                ModalKind::Confirm(ConfirmModal::new(
+                    "Discard changes?",
+                    "You have unapplied changes. Discard them and close the settings window?",
+                    ConfirmAction::DiscardSettingsChanges,
+                )),
+            ));
         false // keep dialog open until the modal decides
     }
 
@@ -802,15 +843,20 @@ impl SettingsDialog {
                  take effect:\n{}",
                 restart_fields.join("\n")
             );
+            let viewport_id = egui::ViewportId::from_hash_of(VIEWPORT_ID);
             app.modal_stack
-                .push(Modal::root(ModalKind::Info(InfoModal::new(
-                    "Restart required",
-                    message,
-                ))));
+                .push(Modal::new(
+                    viewport_id,
+                    ModalKind::Info(InfoModal::new(
+                        "Restart required",
+                        message,
+                    )),
+                ));
+            self.close_after_modal = true;
+        } else {
+            // Close on successful apply.
+            self.open = false;
         }
-
-        // Close on successful apply.
-        self.open = false;
     }
 }
 

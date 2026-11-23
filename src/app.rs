@@ -38,7 +38,7 @@ use eframe::egui;
 use eframe::egui_wgpu::RenderState;
 
 use crate::core::IoManager;
-use crate::core::{ForegroundInput, SpectrumManager};
+use crate::core::{EventDispatcher, ForegroundInput, SpectrumManager};
 use crate::core::{RunManager, RunManagerEvent};
 use crate::gui::{
     DeconvolutionWindow, IsotopicsTab, Modal, RealTimeValuesTab, SettingsDialog, SpectrogramScreen,
@@ -84,6 +84,7 @@ pub struct LuRaCsApp {
     pub spectrum_manager: SpectrumManager,
     pub io_manager: IoManager,
     pub theme_manager: ThemeManager,
+    pub dispatcher: EventDispatcher,
     pub log_buffer: Arc<LogBuffer>,
     pub render_state: RenderState,
 
@@ -197,6 +198,7 @@ impl LuRaCsApp {
             spectrum_manager,
             io_manager,
             theme_manager,
+            dispatcher: EventDispatcher::new(),
             log_buffer,
             render_state,
             modal_stack: Vec::new(),
@@ -269,107 +271,46 @@ impl LuRaCsApp {
         crate::shutdown_all(&mut self.run_manager, &self.settings);
     }
 
-    fn handle_run_manager_event(&mut self, ev: RunManagerEvent) {
-        match ev {
-            RunManagerEvent::CreateDeviceSpectrum {
-                device_name,
-                channels,
-                connection,
-            } => {
-                let load_cal = self.settings.read_settings().importing.load_calibration;
-                if let Err(e) = self.spectrum_manager.create_spectrum(
-                    &device_name,
-                    channels,
-                    Some(&connection),
-                    load_cal,
-                ) {
-                    tracing::warn!(device = %device_name, "create_spectrum failed: {e}");
-                }
-            }
-            RunManagerEvent::RemoveDeviceSpectrum { name } => {
-                self.spectrum_manager.remove_spectrum(&name);
-            }
-            RunManagerEvent::SpectrumUpdated { name, data } => {
-                let sd = crate::spectrum_data_from_wrapped(&data, Some(name.clone()));
-                if let Err(e) = self
-                    .spectrum_manager
-                    .set_foreground_spectrum(&name, ForegroundInput::Raw(sd))
-                {
-                    tracing::warn!(device = %name, "set_foreground_spectrum failed: {e}");
-                }
-
-                let chi2 = self.settings.read_settings().optimizer.use_chi2_weight;
-
-                // `get_spectra_dict_mut` borrows the whole manager, so obtain the
-                // dictionary pointer before borrowing the disjoint ROI manager.
-                // The two fields are independent and are not accessed through
-                // overlapping references during this call.
-                let spectra: *mut _ = self.spectrum_manager.get_spectra_dict_mut();
-                let roi_manager = &mut self.spectrum_manager.roi_manager;
-                // SAFETY: `spectra` points to the spectrum dictionary owned by
-                // `spectrum_manager`; `roi_manager` is a separate field.
-                unsafe {
-                    roi_manager.refit_roi(&mut *spectra, None, None, chi2);
-                }
-            }
-            RunManagerEvent::SpectrogramDataUpdated { name, data } => {
-                self.spectrogram_data.insert(name, data);
-            }
-            RunManagerEvent::DeviceConnected { name } => {
-                self.real_time_values_tab.device_connected(&name);
-            }
-            RunManagerEvent::DeviceRemoved { name } => {
-                self.real_time_values_tab.device_removed(&name);
-            }
-            RunManagerEvent::RealTimeBuffersUpdated { name, cps, dr } => {
-                self.real_time_values_tab.update_buffers(&name, cps, dr);
-            }
-            // Other variants are consumed by screens that are still stubs
-            // (Spectrogram, Measure, Detectors tab). Dropped for now.
-            _ => {}
-        }
-    }
-
     // -----------------------------------------------------------------------
     // Event dispatch
     // -----------------------------------------------------------------------
 
     fn dispatch_all_events(&mut self, ctx: &egui::Context) {
-        use crate::core::RoiManagerEvent;
+        use crate::core::{AppEvent, RoiManagerEvent};
 
-        // --- Run manager → spectrum manager + App ---
-        let rm_events = self.run_manager.poll();
-        for ev in rm_events {
-            self.handle_run_manager_event(ev);
-        }
+        // Run the central event dispatch cycle across all managers
+        self.dispatcher.dispatch(
+            &mut self.spectrum_manager,
+            &mut self.run_manager,
+            &mut self.io_manager,
+            Some(&mut self.theme_manager),
+            &self.settings,
+        );
 
-        // --- Spectrum manager events (passive) ---
-        drop(self.spectrum_manager.drain_events());
-
-        // --- ROI manager: `Created` triggers owner adoption + fit ---
-        let roi_events = self.spectrum_manager.roi_manager.drain_events();
-        for ev in roi_events {
-            if let RoiManagerEvent::Created { tag } = ev {
-                let settings_guard = self.settings.read_settings();
-                self.spectrum_screen.on_roi_created(
-                    &tag,
-                    &mut self.spectrum_manager,
-                    &settings_guard,
-                );
-            }
-        }
-
-        // --- Theme manager → persist to settings ---
-        for ev in self.theme_manager.drain_events() {
+        // React to events emitted during this frame to update UI views
+        for ev in self.dispatcher.frame_events() {
             match ev {
-                ThemeManagerEvent::ThemeChanged { name } => {
-                    let mut s = self.settings.write_settings();
-                    if let Err(e) =
-                        s.update(Category::Theme, "name", serde_json::Value::String(name))
-                    {
-                        tracing::warn!("could not persist theme choice: {e}");
-                    }
+                AppEvent::Roi(RoiManagerEvent::Created { tag }) => {
+                    let settings_guard = self.settings.read_settings();
+                    self.spectrum_screen.on_roi_created(
+                        tag,
+                        &mut self.spectrum_manager,
+                        &settings_guard,
+                    );
                 }
+                AppEvent::Run(RunManagerEvent::SpectrogramDataUpdated { name, data }) => {
+                    self.spectrogram_data.insert(name.clone(), data.clone());
+                }
+                AppEvent::Run(RunManagerEvent::DeviceConnected { name }) => {
+                    self.real_time_values_tab.device_connected(name);
+                }
+                AppEvent::Run(RunManagerEvent::DeviceRemoved { name }) => {
+                    self.real_time_values_tab.device_removed(name);
+                }
+                AppEvent::Run(RunManagerEvent::RealTimeBuffersUpdated { name, cps, dr }) => {
+                    self.real_time_values_tab.update_buffers(name, cps.clone(), dr.clone());
+                }
+                _ => {}
             }
         }
 
@@ -635,7 +576,11 @@ impl LuRaCsApp {
         self.data_library.render(ui);
         self.driver_dialog.render(ui);
         let mut settings_dialog = std::mem::take(&mut self.settings_dialog);
+        self.settings_dialog.open = true;
         settings_dialog.render(self, ui);
+        if !self.settings_dialog.open {
+            settings_dialog.open = false;
+        }
         self.settings_dialog = settings_dialog;
         self.bluetooth_window.render(ui);
         self.usb_window.render(ui);
@@ -649,8 +594,7 @@ impl LuRaCsApp {
         self.resolution_window.render(ui);
         // DeconvolutionWindow needs `&mut self` (the app) while rendering, so
         // we briefly swap it out to avoid the double-borrow.
-        let mut deconv =
-            std::mem::replace(&mut self.deconvolution_window, DeconvolutionWindow::new());
+        let mut deconv = std::mem::take(&mut self.deconvolution_window);
         deconv.render(self, ui);
         self.deconvolution_window = deconv;
         self.peak_features_window.render(ui);

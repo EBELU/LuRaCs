@@ -215,6 +215,11 @@ fn dispatch_action(app: &mut LuRaCsApp, action: ConfirmAction) {
 // Per-viewport rendering
 // ===========================================================================
 
+/// Whether there are any modals currently queued targeting `viewport`.
+pub fn has_modal_for(app: &LuRaCsApp, viewport: ViewportId) -> bool {
+    app.modal_stack.iter().any(|m| m.target == viewport)
+}
+
 /// Render any modals targeted at `viewport`. Call this at the end of the
 /// `ui` closure for each window/viewport. Only the topmost modal for this
 /// viewport is shown; the rest wait in the stack.
@@ -238,5 +243,36 @@ pub fn render_modals_for(app: &mut LuRaCsApp, viewport: ViewportId, ui: &egui::U
         ModalOutcome::Accepted | ModalOutcome::Cancelled => {
             // Modal consumed; dropped.
         }
+    }
+}
+
+// ===========================================================================
+// Tests
+// ===========================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_modal_viewport_targeting() {
+        let root_modal = Modal::root(ModalKind::Info(InfoModal::new("Root", "Msg")));
+        assert_eq!(root_modal.target, ViewportId::ROOT);
+
+        let settings_id = ViewportId::from_hash_of(crate::gui::settings_window::VIEWPORT_ID);
+        let settings_modal = Modal::new(
+            settings_id,
+            ModalKind::Info(InfoModal::new("Settings", "Msg")),
+        );
+        assert_eq!(settings_modal.target, settings_id);
+        assert_ne!(settings_modal.target, ViewportId::ROOT);
+
+        let deconv_id = ViewportId::from_hash_of(crate::gui::deconvolution_window::VIEWPORT_ID);
+        let deconv_modal = Modal::new(
+            deconv_id,
+            ModalKind::Info(InfoModal::new("Deconv", "Msg")),
+        );
+        assert_eq!(deconv_modal.target, deconv_id);
+        assert_ne!(deconv_modal.target, settings_id);
     }
 }

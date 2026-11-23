@@ -67,6 +67,8 @@ struct PendingConfirmation {
 // DeconvolutionWindow
 // ===========================================================================
 
+pub const VIEWPORT_ID: &str = "deconvolution_window";
+
 pub struct DeconvolutionWindow {
     pub open: bool,
 
@@ -110,6 +112,12 @@ pub struct DeconvolutionWindow {
     // tightly coupled to the in-progress calculation state)
     pending_confirmation: Option<PendingConfirmation>,
     error_message: Option<String>,
+}
+
+impl Default for DeconvolutionWindow {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl DeconvolutionWindow {
@@ -164,33 +172,44 @@ impl DeconvolutionWindow {
 
         self.poll_events(app);
 
-        // Act on the Calculate button click (deferred from the previous frame's
-        // draw because egui's Grid closure captures `&mut self` exclusively).
-        if self.calculate_requested {
-            self.calculate_requested = false;
-            self.on_calculate(app, ui.ctx());
-        }
+        let viewport_id = egui::ViewportId::from_hash_of(VIEWPORT_ID);
+        let builder = egui::ViewportBuilder::default()
+            .with_title("Deconvolution")
+            .with_inner_size([540.0, 360.0])
+            .with_min_inner_size([400.0, 250.0])
+            .with_resizable(false);
 
-        // Act on a confirmed large-spectrum calculation.
-        if let Some(algo) = self.confirmed_algorithm.take() {
-            self.dispatch_calculation(app, ui.ctx(), algo);
-        }
+        ui.ctx()
+            .show_viewport_immediate(viewport_id, builder, |ui, _class| {
+                if ui.input(|i| i.viewport().close_requested()) {
+                    self.open = false;
+                }
 
-        let modal_open = self.pending_confirmation.is_some() || self.error_message.is_some();
+                // Act on the Calculate button click (deferred from the previous frame's
+                // draw because egui's Grid closure captures `&mut self` exclusively).
+                if self.calculate_requested {
+                    self.calculate_requested = false;
+                    self.on_calculate(app, ui.ctx());
+                }
 
-        let mut open = self.open;
-        egui::Window::new("Deconvolution")
-            .open(&mut open)
-            .default_size([520.0, 320.0])
-            .resizable(true)
-            .collapsible(false)
-            .show(ui.ctx(), |ui| {
-                ui.add_enabled_ui(!modal_open, |ui| {
-                    self.draw_main_ui(ui);
+                // Act on a confirmed large-spectrum calculation.
+                if let Some(algo) = self.confirmed_algorithm.take() {
+                    self.dispatch_calculation(app, ui.ctx(), algo);
+                }
+
+                let modal_open = self.pending_confirmation.is_some()
+                    || self.error_message.is_some()
+                    || crate::gui::modals::has_modal_for(app, viewport_id);
+
+                egui::CentralPanel::default().show(ui, |ui| {
+                    ui.add_enabled_ui(!modal_open, |ui| {
+                        self.draw_main_ui(ui);
+                    });
+                    self.draw_modal(ui.ctx());
                 });
-                self.draw_modal(ui.ctx());
+
+                crate::gui::modals::render_modals_for(app, viewport_id, ui);
             });
-        self.open = open;
 
         if self.is_calculating {
             ui.ctx().request_repaint();

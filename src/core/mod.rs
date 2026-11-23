@@ -1,3 +1,4 @@
+mod events;
 mod instrument_library;
 mod io_manager;
 mod nuclide_library;
@@ -6,6 +7,7 @@ mod run_manager;
 mod spectogram_manager;
 mod spectrum_manager;
 
+pub use events::*;
 pub use instrument_library::*;
 pub use io_manager::*;
 pub use nuclide_library::*;

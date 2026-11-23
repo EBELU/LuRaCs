@@ -46,12 +46,22 @@ impl StubWindow {
         if !self.open {
             return;
         }
-        egui::Window::new(self.label)
-            .open(&mut self.open)
-            .default_size([400.0, 300.0])
-            .show(ui.ctx(), |ui| {
-                ui.centered_and_justified(|ui| {
-                    ui.label(format!("{} — not yet ported", self.label));
+        let viewport_id = egui::ViewportId::from_hash_of(self.label);
+        let builder = egui::ViewportBuilder::default()
+            .with_title(self.label)
+            .with_inner_size([400.0, 300.0])
+            .with_min_inner_size([250.0, 150.0])
+            .with_resizable(false);
+
+        ui.ctx()
+            .show_viewport_immediate(viewport_id, builder, |ui, _class| {
+                if ui.input(|i| i.viewport().close_requested()) {
+                    self.open = false;
+                }
+                egui::CentralPanel::default().show(ui, |ui| {
+                    ui.centered_and_justified(|ui| {
+                        ui.label(format!("{} — not yet ported", self.label));
+                    });
                 });
             });
     }

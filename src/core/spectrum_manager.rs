@@ -28,10 +28,13 @@ use eframe::egui::Color32;
 use ndarray::Array1;
 use thiserror::Error;
 
+use crate::clients::WrappedSpectrumPackage;
 use crate::containers::UniqueInstrument;
 use crate::containers::{BkgType, FitType, Roi};
 use crate::containers::{Spectrum, SpectrumData};
+use crate::core::events::{AppCommand, AppEvent};
 use crate::core::roi_manager::{NewRoi, RoiManager};
+use crate::core::run_manager::RunManagerEvent;
 use crate::core::{
     Instrument, InstrumentLibrary, InstrumentLibraryError, LibraryKind, NuclideLibrary,
     NuclideLibraryError,
@@ -91,14 +94,30 @@ pub enum SpectrumManagerEvent {
 // Wrapped spectrum (device output)
 // ---------------------------------------------------------------------------
 
-/// Device-side spectrum payload. Corresponds to the Python
-/// `WrappedSpectrumPackage`.
-#[derive(Debug, Clone)]
-pub struct WrappedSpectrumPackage {
-    pub y_axis: Array1<f64>,
-    pub live_time: f64,
-    pub real_time: Option<f64>,
-    pub calib_coeff: Option<Vec<f64>>,
+/// Convert a device-level `WrappedSpectrumPackage` into a `SpectrumData` record.
+pub fn spectrum_data_from_wrapped(
+    spectrum: &WrappedSpectrumPackage,
+    spectrum_name: Option<String>,
+) -> SpectrumData {
+    let total: f64 = spectrum.y_axis.iter().sum();
+    let channels = spectrum.y_axis.len();
+    let live_time = spectrum.live_time;
+    let end = Utc::now();
+    let start = end
+        - Duration::milliseconds((spectrum.real_time.unwrap_or(live_time) * 1000.0) as i64);
+    SpectrumData {
+        y_axis: spectrum.y_axis.clone(),
+        channels,
+        total_counts: total.max(0.0) as u64,
+        live_time,
+        real_time: spectrum.real_time,
+        avg_dose_rate: None,
+        avg_cps: Some(total / live_time.max(1.0)),
+        start_date: Some(start),
+        end_date: Some(end),
+        spectrum_name,
+        instrument: None,
+    }
 }
 
 /// What `set_foreground_spectrum` accepts.
@@ -191,6 +210,104 @@ impl SpectrumManager {
         self.events.push_back(ev);
     }
 
+    /// Refit ROIs across registered spectra. Safely accesses internal disjoint fields.
+    pub fn refit_rois(
+        &mut self,
+        spectrum_name: Option<&str>,
+        roi_tag: Option<&str>,
+        use_chi2: bool,
+    ) {
+        self.roi_manager
+            .refit_roi(&mut self.spectrum_registry, spectrum_name, roi_tag, use_chi2);
+    }
+
+    /// Ingest an incoming application event or command.
+    pub fn handle_event(&mut self, event: &AppEvent, use_chi2: bool, load_calibration: bool) {
+        match event {
+            AppEvent::Run(RunManagerEvent::CreateDeviceSpectrum {
+                device_name,
+                channels,
+                connection,
+            }) => {
+                if let Err(e) = self.create_spectrum(
+                    device_name,
+                    *channels,
+                    Some(connection),
+                    load_calibration,
+                ) {
+                    tracing::warn!(device = %device_name, "create_spectrum failed: {e}");
+                }
+            }
+            AppEvent::Run(RunManagerEvent::RemoveDeviceSpectrum { name }) => {
+                self.remove_spectrum(name);
+            }
+            AppEvent::Run(RunManagerEvent::SpectrumUpdated { name, data }) => {
+                if let Err(e) =
+                    self.set_foreground_spectrum(name, ForegroundInput::Wrapped(data.clone()))
+                {
+                    tracing::warn!(device = %name, "set_foreground_spectrum failed: {e}");
+                }
+                self.refit_rois(Some(name), None, use_chi2);
+            }
+            AppEvent::Command(AppCommand::CreateSpectrum {
+                name,
+                channels,
+                connection,
+                load_calibration,
+            }) => {
+                if let Err(e) = self.create_spectrum(
+                    name,
+                    *channels,
+                    connection.as_deref(),
+                    *load_calibration,
+                ) {
+                    tracing::warn!(spectrum = %name, "create_spectrum failed: {e}");
+                }
+            }
+            AppEvent::Command(AppCommand::RemoveSpectrum { name }) => {
+                self.remove_spectrum(name);
+            }
+            AppEvent::Command(AppCommand::UpdateForeground { name, package }) => {
+                if let Err(e) =
+                    self.set_foreground_spectrum(name, ForegroundInput::Wrapped(package.clone()))
+                {
+                    tracing::warn!(spectrum = %name, "set_foreground_spectrum failed: {e}");
+                }
+                self.refit_rois(Some(name), None, use_chi2);
+            }
+            AppEvent::Command(AppCommand::RefitRois {
+                spectrum_name,
+                roi_tag,
+                use_chi2,
+            }) => {
+                self.refit_rois(
+                    spectrum_name.as_deref(),
+                    roi_tag.as_deref(),
+                    *use_chi2,
+                );
+            }
+            AppEvent::Command(AppCommand::AddRoi(roi)) => {
+                self.roi_manager.add_roi(*roi.clone());
+            }
+            AppEvent::Command(AppCommand::RemoveRoi { tag }) => {
+                self.roi_manager.remove_roi(&mut self.spectrum_registry, tag, true, use_chi2);
+            }
+            AppEvent::Command(AppCommand::CalibrateSpectrum { name, coefficients }) => {
+                if let Err(e) = self.calibrate_spectrum(name, coefficients.clone()) {
+                    tracing::warn!(spectrum = %name, "calibrate_spectrum failed: {e}");
+                }
+            }
+            AppEvent::Command(AppCommand::ImportSpectrumBundle(bundle)) => {
+                if let Err(e) =
+                    self.import_spectrum(bundle.as_ref().clone(), ImportOptions::default())
+                {
+                    tracing::warn!("import_spectrum failed: {e}");
+                }
+            }
+            _ => {}
+        }
+    }
+
     // ---- Spectrum creation / replacement -------------------------------
 
     /// Create a new spectrum under `name`. Returns `true` on success,
@@ -271,6 +388,7 @@ impl SpectrumManager {
                 live_time,
                 real_time,
                 calib_coeff,
+                ..
             }) => {
                 let duration = real_time.unwrap_or(live_time);
                 let end = Utc::now();
