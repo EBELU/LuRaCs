@@ -233,16 +233,33 @@ fn render_one_plot(
 // Tab state
 // ===========================================================================
 
-enum RowKind {
-    Nuclide(NuclideId),
-    Chain(String),
+#[derive(Clone, Debug)]
+enum RowItem {
+    Nuclide {
+        id: NuclideId,
+        display: String,
+        display_lower: String,
+        emissions_count: usize,
+    },
+    Chain {
+        name: String,
+        name_lower: String,
+        label: String,
+    },
 }
 
 pub struct IsotopicsTab {
     /// Search filter (case-insensitive substring of the display name).
     pub filter: String,
+    last_filter: String,
+    all_rows: Vec<RowItem>,
+    filtered_rows: Vec<usize>,
+
     /// Nuclide whose details are shown in the info pane.
     pub selected_info: Option<NuclideId>,
+    cached_info_id: Option<NuclideId>,
+    cached_info_text: String,
+
     /// Per-nuclide line color, persists across frames and survives
     /// deselect/reselect.
     pub nuclide_colors: HashMap<NuclideId, Color32>,
@@ -263,7 +280,12 @@ impl IsotopicsTab {
     pub fn new(render_state: &RenderState) -> Self {
         Self {
             filter: String::new(),
+            last_filter: String::new(),
+            all_rows: Vec::new(),
+            filtered_rows: Vec::new(),
             selected_info: None,
+            cached_info_id: None,
+            cached_info_text: String::new(),
             nuclide_colors: HashMap::new(),
             chain_checked: HashMap::new(),
             search_spectrum: None,
@@ -280,6 +302,9 @@ impl IsotopicsTab {
         settings: &Settings,
         ui: &mut egui::Ui,
     ) {
+        // Ensure the nuclide/decay-chain row list is cached and filtered.
+        self.ensure_rows(spectrum_manager);
+
         // Resolve default spectrum for peak search.
         if let Some(name) = &self.search_spectrum
             && spectrum_manager.get_spectrum(name).is_none()
@@ -300,19 +325,29 @@ impl IsotopicsTab {
                 egui::vec2(total_w * 0.30, total_h),
                 egui::Layout::top_down(egui::Align::Min),
                 |ui| {
-                    ui.add_sized(
+                    let filter_response = ui.add_sized(
                         [ui.available_width(), ROW_HEIGHT],
                         egui::TextEdit::singleline(&mut self.filter).hint_text("Search nuclide..."),
                     );
+                    if filter_response.changed() || self.filter != self.last_filter {
+                        self.update_filter();
+                    }
+
                     egui::ScrollArea::vertical()
                         .id_salt("isotopics_nuclide_list")
                         .auto_shrink([false, false])
-                        .show(ui, |ui| {
-                            let rows = self.build_rows(spectrum_manager);
-                            for row in rows {
-                                self.render_row(row, spectrum_manager, ui);
-                            }
-                        });
+                        .show_rows(
+                            ui,
+                            ROW_HEIGHT,
+                            self.filtered_rows.len(),
+                            |ui, row_range| {
+                                for idx in row_range {
+                                    let row_idx = self.filtered_rows[idx];
+                                    let row = self.all_rows[row_idx].clone();
+                                    self.render_row(&row, spectrum_manager, ui);
+                                }
+                            },
+                        );
                 },
             );
 
@@ -323,19 +358,23 @@ impl IsotopicsTab {
                 egui::vec2(total_w * 0.45, total_h),
                 egui::Layout::top_down(egui::Align::Min),
                 |ui| {
-                    let text = match self.selected_info {
-                        Some(id) => spectrum_manager
-                            .nuclide_library
-                            .get_nuclide(id)
-                            .map(format_nuclide_info)
-                            .unwrap_or_else(|| "No nuclide selected.".into()),
-                        None => "Click a nuclide to see its details.".into(),
-                    };
+                    if self.cached_info_id != self.selected_info {
+                        self.cached_info_id = self.selected_info;
+                        self.cached_info_text = match self.selected_info {
+                            Some(id) => spectrum_manager
+                                .nuclide_library
+                                .get_nuclide(id)
+                                .map(format_nuclide_info)
+                                .unwrap_or_else(|| "No nuclide selected.".into()),
+                            None => "Click a nuclide to see its details.".into(),
+                        };
+                    }
+
                     egui::ScrollArea::vertical()
                         .id_salt("isotopics_info_pane")
                         .auto_shrink([false, false])
                         .show(ui, |ui| {
-                            let mut view = text.as_str();
+                            let mut view = self.cached_info_text.as_str();
                             ui.add(
                                 egui::TextEdit::multiline(&mut view)
                                     .desired_width(f32::INFINITY)
@@ -423,43 +462,84 @@ impl IsotopicsTab {
         }
     }
 
-    fn build_rows(&self, spectrum_manager: &SpectrumManager) -> Vec<RowKind> {
-        let mut rows: Vec<(u32, RowKind)> = Vec::new();
-        for id in spectrum_manager.nuclide_library.sorted_nuclide_ids(false) {
-            rows.push((id.a(), RowKind::Nuclide(id)));
+    fn ensure_rows(&mut self, spectrum_manager: &SpectrumManager) {
+        if self.all_rows.is_empty() {
+            let mut rows: Vec<(u32, RowItem)> = Vec::new();
+            for id in spectrum_manager.nuclide_library.sorted_nuclide_ids(false) {
+                if let Some(n) = spectrum_manager.nuclide_library.get_nuclide(id) {
+                    let display = nuclide_display_name(n);
+                    let display_lower = display.to_lowercase();
+                    rows.push((
+                        id.a(),
+                        RowItem::Nuclide {
+                            id,
+                            display,
+                            display_lower,
+                            emissions_count: n.emissions.len(),
+                        },
+                    ));
+                }
+            }
+            for (chain_name, _members) in spectrum_manager.nuclide_library.decay_chains() {
+                let mass = chain_name
+                    .split_once('-')
+                    .and_then(|(_, rest)| rest.split_whitespace().next())
+                    .and_then(|s| s.parse::<u32>().ok())
+                    .unwrap_or(0);
+                rows.push((
+                    mass,
+                    RowItem::Chain {
+                        name: (*chain_name).to_string(),
+                        name_lower: chain_name.to_lowercase(),
+                        label: format!("🔗 {chain_name}"),
+                    },
+                ));
+            }
+            rows.sort_by_key(|(m, _)| *m);
+            self.all_rows = rows.into_iter().map(|(_, r)| r).collect();
+            self.update_filter();
         }
-        for (chain_name, _members) in spectrum_manager.nuclide_library.decay_chains() {
-            let mass = chain_name
-                .split_once('-')
-                .and_then(|(_, rest)| rest.split_whitespace().next())
-                .and_then(|s| s.parse::<u32>().ok())
-                .unwrap_or(0);
-            rows.push((mass, RowKind::Chain(chain_name.to_string())));
+    }
+
+    fn update_filter(&mut self) {
+        self.last_filter = self.filter.clone();
+        let filter_lower = self.filter.to_lowercase();
+        if filter_lower.is_empty() {
+            self.filtered_rows = (0..self.all_rows.len()).collect();
+        } else {
+            self.filtered_rows = self
+                .all_rows
+                .iter()
+                .enumerate()
+                .filter_map(|(idx, row)| {
+                    let matches = match row {
+                        RowItem::Nuclide { display_lower, .. } => {
+                            display_lower.contains(&filter_lower)
+                        }
+                        RowItem::Chain { name_lower, .. } => {
+                            name_lower.contains(&filter_lower)
+                        }
+                    };
+                    if matches { Some(idx) } else { None }
+                })
+                .collect();
         }
-        rows.sort_by_key(|(m, _)| *m);
-        rows.into_iter().map(|(_, r)| r).collect()
     }
 
     fn render_row(
         &mut self,
-        row: RowKind,
+        row: &RowItem,
         spectrum_manager: &mut SpectrumManager,
         ui: &mut egui::Ui,
     ) {
-        let filter_lower = self.filter.to_lowercase();
-
         match row {
-            RowKind::Nuclide(id) => {
-                // Reads first, drop all borrows before any mutation.
-                let (display, emissions_count) = {
-                    let Some(n) = spectrum_manager.nuclide_library.get_nuclide(id) else {
-                        return;
-                    };
-                    (nuclide_display_name(n), n.emissions.len())
-                };
-                if !filter_lower.is_empty() && !display.to_lowercase().contains(&filter_lower) {
-                    return;
-                }
+            RowItem::Nuclide {
+                id,
+                display,
+                emissions_count,
+                ..
+            } => {
+                let id = *id;
                 let is_selected = spectrum_manager.nuclide_library.selected().contains(&id);
                 let stored_color = self
                     .nuclide_colors
@@ -476,7 +556,7 @@ impl IsotopicsTab {
                     let color_changed = ui.color_edit_button_srgba(&mut color).changed();
 
                     // Checkbox toggles line visibility.
-                    let check_changed = ui.checkbox(&mut checked, &display).changed();
+                    let check_changed = ui.checkbox(&mut checked, display).changed();
 
                     // Info button (ⓘ) selects the nuclide for the info pane.
                     if ui
@@ -487,7 +567,7 @@ impl IsotopicsTab {
                         self.selected_info = Some(id);
                     }
 
-                    if emissions_count == 0 {
+                    if *emissions_count == 0 {
                         ui.label(egui::RichText::new("(no emissions)").italics().weak());
                     }
 
@@ -509,30 +589,27 @@ impl IsotopicsTab {
                 });
             }
 
-            RowKind::Chain(chain_name) => {
-                if !filter_lower.is_empty() && !chain_name.to_lowercase().contains(&filter_lower) {
-                    return;
-                }
+            RowItem::Chain { name, label, .. } => {
                 let is_checked = self
                     .chain_checked
-                    .get(&chain_name)
+                    .get(name)
                     .copied()
                     .unwrap_or(false);
 
                 let mut checked = is_checked;
                 let changed = ui
                     .horizontal(|ui| {
-                        ui.checkbox(&mut checked, format!("🔗 {chain_name}"))
+                        ui.checkbox(&mut checked, label)
                             .on_hover_text("Toggle all members of this decay chain")
                             .changed()
                     })
                     .inner;
 
                 if changed {
-                    self.chain_checked.insert(chain_name.clone(), checked);
+                    self.chain_checked.insert(name.clone(), checked);
                     let members = spectrum_manager
                         .nuclide_library
-                        .decay_chain_ids(&chain_name);
+                        .decay_chain_ids(name);
                     if let Some(members) = members {
                         for id in members {
                             let color = self
@@ -595,5 +672,61 @@ impl IsotopicsTab {
                 tracing::warn!("Peak search failed: {e}");
             }
         }
+    }
+}
+
+// ===========================================================================
+// Tests
+// ===========================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_duration_ranges() {
+        assert_eq!(format_duration(0.0), "0 s");
+        assert_eq!(format_duration(0.000005), "5.00 µs");
+        assert_eq!(format_duration(0.025), "25.00 ms");
+        assert_eq!(format_duration(42.0), "42.00 s");
+        assert_eq!(format_duration(120.0), "2.00 min");
+        assert_eq!(format_duration(7200.0), "2.00 h");
+        assert_eq!(format_duration(86400.0 * 3.0), "3.00 days");
+        assert_eq!(format_duration(31557600.0 * 5.0), "5.00 yr");
+    }
+
+    #[test]
+    fn test_row_item_filter() {
+        let row1 = RowItem::Nuclide {
+            id: NuclideId::from_name("Am-241").unwrap(),
+            display: "Am-241".into(),
+            display_lower: "am-241".into(),
+            emissions_count: 5,
+        };
+        let row2 = RowItem::Chain {
+            name: "Th-232".into(),
+            name_lower: "th-232".into(),
+            label: "🔗 Th-232".into(),
+        };
+        let rows = vec![row1, row2];
+
+        // Empty filter matches all
+        let all: Vec<usize> = (0..rows.len()).collect();
+        assert_eq!(all.len(), 2);
+
+        // Filter for "am" matches only row1
+        let filter = "am";
+        let filtered: Vec<usize> = rows
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, row)| match row {
+                RowItem::Nuclide { display_lower, .. } if display_lower.contains(filter) => {
+                    Some(idx)
+                }
+                RowItem::Chain { name_lower, .. } if name_lower.contains(filter) => Some(idx),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(filtered, vec![0]);
     }
 }
