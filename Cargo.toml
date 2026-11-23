@@ -24,6 +24,11 @@ quick-xml = { version = "0.42.0", features = ["serde", "serialize"] }
 rfd = "0.18.0"
 roxmltree = "0.21.2"
 rusb = { version = "0.9.4", features = ["serde", "vendored"] }
+nusb = "0.2.9"
+btleplug = "0.13.5"
+futures-util = "0.3.34"
+jiff = "0.2.38"
+reqwest = { version = "0.12.28", default-features = false, features = ["json"] }
 rusqlite = { version = "0.43.0", features = ["bundled"] }
 rust_xlsxwriter = { version = "0.102.0", features = ["serde"] }
 serde = { version = "1.0.229", features = ["derive"] }

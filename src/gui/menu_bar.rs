@@ -318,7 +318,8 @@ fn detector_menu(app: &mut LuRaCsApp, ui: &mut egui::Ui) {
     ui.menu_button("Detector", |ui| {
         // --- Connections ---
         if ui.button("Connect Bluetooth").clicked() {
-            app.bluetooth_window.open();
+            app.bluetooth_window
+                .open_and_scan(app.run_manager.runtime_handle(), ui.ctx());
         }
 
         // --- Retry Last Connection (dynamic) ---
@@ -345,13 +346,15 @@ fn detector_menu(app: &mut LuRaCsApp, ui: &mut egui::Ui) {
         });
 
         if ui.button("Connect USB").clicked() {
-            app.usb_window.open();
+            app.usb_window
+                .open_and_scan(app.run_manager.runtime_handle(), ui.ctx());
         }
         if ui.button("Connect Network").clicked() {
-            app.network_window.open();
+            let last_ip = app.settings.read_settings().session.last_network_ip.clone();
+            app.network_window.open_with_last_ip(&last_ip);
         }
         if ui.button("Connect Serial GPS").clicked() {
-            app.serial_gps_window.open();
+            app.serial_gps_window.open_and_scan();
         }
 
         ui.separator();

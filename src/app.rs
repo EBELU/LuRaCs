@@ -41,8 +41,10 @@ use crate::core::IoManager;
 use crate::core::{EventDispatcher, ForegroundInput, SpectrumManager};
 use crate::core::{RunManager, RunManagerEvent};
 use crate::gui::{
-    DataLibraryWindow, DeconvolutionWindow, IsotopicsTab, Modal, RealTimeValuesTab, SettingsDialog,
-    SpectrogramScreen, SpectrumScreen, Stub, StubWindow, menu_bar, render_modals_for,
+    BleDeviceKind, BluetoothWindow, ConnectionRequest, DataLibraryWindow, DeconvolutionWindow,
+    IsotopicsTab, Modal, NetworkDeviceKind, NetworkWindow, RealTimeValuesTab, SerialGpsWindow,
+    SettingsDialog, SpectrogramScreen, SpectrumScreen, Stub, StubWindow, UsbDeviceKind, UsbWindow,
+    menu_bar, render_modals_for,
 };
 use crate::logging::LogBuffer;
 use crate::settings::{Category, SharedSettings, SharedSettingsExt};
@@ -121,10 +123,10 @@ pub struct LuRaCsApp {
     pub data_library: DataLibraryWindow,
     pub driver_dialog: StubWindow,
     pub settings_dialog: SettingsDialog,
-    pub bluetooth_window: StubWindow,
-    pub usb_window: StubWindow,
-    pub network_window: StubWindow,
-    pub serial_gps_window: StubWindow,
+    pub bluetooth_window: BluetoothWindow,
+    pub usb_window: UsbWindow,
+    pub network_window: NetworkWindow,
+    pub serial_gps_window: SerialGpsWindow,
     pub documentation_dialog: StubWindow,
     pub bibliography_dialog: StubWindow,
     pub activity_window: StubWindow,
@@ -226,10 +228,10 @@ impl LuRaCsApp {
             data_library: DataLibraryWindow::new(),
             driver_dialog: StubWindow::new("Drivers"),
             settings_dialog,
-            bluetooth_window: StubWindow::new("Bluetooth"),
-            usb_window: StubWindow::new("USB"),
-            network_window: StubWindow::new("Network"),
-            serial_gps_window: StubWindow::new("Serial GPS"),
+            bluetooth_window: BluetoothWindow::new(),
+            usb_window: UsbWindow::new(),
+            network_window: NetworkWindow::new(),
+            serial_gps_window: SerialGpsWindow::new(),
             documentation_dialog: StubWindow::new("Documentation"),
             bibliography_dialog: StubWindow::new("Bibliography"),
             activity_window: StubWindow::new("Activity"),
@@ -583,10 +585,19 @@ impl LuRaCsApp {
             settings_dialog.open = false;
         }
         self.settings_dialog = settings_dialog;
-        self.bluetooth_window.render(ui);
-        self.usb_window.render(ui);
-        self.network_window.render(ui);
-        self.serial_gps_window.render(ui);
+        let handle = self.run_manager.runtime_handle().clone();
+        if let Some(req) = self.bluetooth_window.render(ui, &handle) {
+            self.handle_connection_request(req);
+        }
+        if let Some(req) = self.usb_window.render(ui, &handle) {
+            self.handle_connection_request(req);
+        }
+        if let Some(req) = self.network_window.render(ui) {
+            self.handle_connection_request(req);
+        }
+        if let Some(req) = self.serial_gps_window.render(ui) {
+            self.handle_connection_request(req);
+        }
         self.documentation_dialog.render(ui);
         self.bibliography_dialog.render(ui);
         self.activity_window.render(ui);
@@ -599,6 +610,141 @@ impl LuRaCsApp {
         deconv.render(self, ui);
         self.deconvolution_window = deconv;
         self.peak_features_window.render(ui);
+    }
+
+    fn handle_connection_request(&mut self, req: ConnectionRequest) {
+        use crate::clients::{ConnectionType, DeviceAddress};
+
+        match req {
+            ConnectionRequest::Ble {
+                name,
+                address: _,
+                kind,
+            } => {
+                let Some(resolved) = kind.resolve(&name) else {
+                    self.modal_stack.push(Modal::root(crate::gui::ModalKind::Info(
+                        crate::gui::InfoModal {
+                            title: "Unknown Bluetooth Device".into(),
+                            message: format!(
+                                "Could not auto-detect driver for {name:?}. Please select a Device Type."
+                            ),
+                        },
+                    )));
+                    return;
+                };
+
+                let driver_name = match resolved {
+                    BleDeviceKind::Radiacode => "Radiacode",
+                    BleDeviceKind::Raysid => "Raysid",
+                    BleDeviceKind::Auto => return,
+                };
+
+                {
+                    let mut s = self.settings.write_settings();
+                    s.connections.push(name.clone());
+                }
+
+                drop(self.run_manager.add_device(
+                    DeviceAddress::Ble { name },
+                    driver_name.into(),
+                    ConnectionType::Ble,
+                ));
+            }
+            ConnectionRequest::Usb {
+                vendor_id,
+                product_id,
+                serial,
+                product,
+                kind,
+            } => {
+                let Some(resolved) = kind.resolve(vendor_id, product_id, &product) else {
+                    self.modal_stack.push(Modal::root(crate::gui::ModalKind::Info(
+                        crate::gui::InfoModal {
+                            title: "Unknown USB Device".into(),
+                            message: format!(
+                                "Could not auto-detect driver for {product:?} ({vendor_id:04x}:{product_id:04x})."
+                            ),
+                        },
+                    )));
+                    return;
+                };
+
+                let driver_name = match resolved {
+                    UsbDeviceKind::Radiacode => "Radiacode",
+                    UsbDeviceKind::DigiBase | UsbDeviceKind::DigiBaseRh => "digiBase",
+                    UsbDeviceKind::DigiDart => "digiDART",
+                    UsbDeviceKind::Auto => return,
+                };
+
+                drop(self.run_manager.add_device(
+                    DeviceAddress::Usb {
+                        vendor_id,
+                        product_id,
+                        serial,
+                    },
+                    driver_name.into(),
+                    ConnectionType::Usb,
+                ));
+            }
+            ConnectionRequest::Network {
+                address,
+                kind,
+                use_gps,
+            } => {
+                {
+                    let mut s = self.settings.write_settings();
+                    s.session.last_network_ip = address.clone();
+                }
+
+                let driver_name = match kind {
+                    NetworkDeviceKind::DetectiveX => "detective_x",
+                    NetworkDeviceKind::Identifinder400 => "identifinder_400",
+                };
+                if use_gps {
+                    tracing::info!(%address, "Network GPS requested for {driver_name}");
+                }
+
+                let stripped = address
+                    .trim()
+                    .strip_prefix("http://")
+                    .or_else(|| address.trim().strip_prefix("https://"))
+                    .unwrap_or_else(|| address.trim());
+                let authority = stripped.split('/').next().unwrap_or(stripped);
+                let (host, port) = if let Some((h, p)) = authority.rsplit_once(':')
+                    && let Ok(parsed) = p.parse::<u16>()
+                {
+                    (h.to_string(), parsed)
+                } else {
+                    (authority.to_string(), 80)
+                };
+
+                drop(self.run_manager.add_device(
+                    DeviceAddress::Network { host, port },
+                    driver_name.into(),
+                    ConnectionType::Network,
+                ));
+            }
+            ConnectionRequest::SerialGps { port, baud_rate } => {
+                if let Err(e) = self.run_manager.connect_serial_gps(&port, baud_rate) {
+                    self.modal_stack.push(Modal::root(crate::gui::ModalKind::Info(
+                        crate::gui::InfoModal {
+                            title: "Serial GPS Error".into(),
+                            message: format!("Failed to open {port} at {baud_rate} baud: {e}"),
+                        },
+                    )));
+                }
+            }
+            ConnectionRequest::MockGps => {
+                if let Err(e) = self.run_manager.connect_mock_gps() {
+                    self.modal_stack.push(Modal::root(crate::gui::ModalKind::Info(
+                        crate::gui::InfoModal {
+                            title: "Mock GPS Error".into(),
+                            message: format!("Failed to start Mock GPS: {e}"),
+                        },
+                    )));
+                }
+            }
+        }
     }
 }
 

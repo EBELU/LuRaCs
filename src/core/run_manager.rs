@@ -274,6 +274,10 @@ impl RunManager {
         &self.shared
     }
 
+    pub fn runtime_handle(&self) -> &tokio::runtime::Handle {
+        &self.shared.handle
+    }
+
     pub fn get_device(&self, name: &str) -> Option<Arc<dyn DeviceWrapper>> {
         self.shared.devices.read().unwrap().get(name).cloned()
     }

@@ -708,11 +708,10 @@ mod tests {
             name_lower: "th-232".into(),
             label: "🔗 Th-232".into(),
         };
-        let rows = vec![row1, row2];
+        let rows = [row1, row2];
 
         // Empty filter matches all
-        let all: Vec<usize> = (0..rows.len()).collect();
-        assert_eq!(all.len(), 2);
+        assert_eq!(rows.len(), 2);
 
         // Filter for "am" matches only row1
         let filter = "am";

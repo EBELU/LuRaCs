@@ -1,4 +1,5 @@
 mod color_rotator;
+pub mod connection_windows;
 mod data_library;
 mod deconvolution_window;
 mod isotopics_tab;
@@ -12,6 +13,10 @@ mod spectrum_plot;
 mod stubs;
 
 pub use color_rotator::*;
+pub use connection_windows::{
+    BleDeviceKind, BluetoothWindow, ConnectionRequest, NetworkDeviceKind, NetworkWindow,
+    SerialGpsWindow, UsbDeviceKind, UsbWindow,
+};
 pub use data_library::*;
 pub use deconvolution_window::DeconvolutionWindow;
 pub use isotopics_tab::*;
