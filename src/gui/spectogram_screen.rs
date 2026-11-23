@@ -18,12 +18,14 @@
 //! - The bar chart above the waterfall is a placeholder line plot; the
 //!   user's bar-chart fork replaces the `add_curve_with_interpolation`
 //!   call in `draw_bar_plot`.
-//! - The waterfall is a placeholder: rsplot's `Plot1D` image-item API
-//!   (`add_image` / `set_image`) isn't confirmed. `draw_waterfall_plot`
-//!   renders the newest row as a curve; swap in an image item once the
-//!   API is pinned.
-//! - Y-axis time labels are not rendered: rsplot's `Plot1D` supports a
-//!   `TickMode::TimeSeries` for the *X* axis only. Left as a TODO.
+//! - The waterfall plot renders the time-series of spectra as a 2D
+//!   colormapped (Viridis) image item with inverted Y (newest spectrum at
+//!   the top, older spectra below). Cached by Arc pointer identity to
+//!   avoid GPU texture re-uploads when data hasn't changed.
+//! - Y-axis time labels: rsplot's underlying silx model supports
+//!   `TickMode::TimeSeries` on the *X* axis only (`YAxis` does not support
+//!   time-series formatting in silx/rsplot), so the Y axis displays row
+//!   indices/steps.
 //! - The `set_time_selector(False)` Python reset uses `spectrogram[0]`
 //!   (the oldest row), which looks like a bug — `latest_spectrum` is more
 //!   sensible and matches the `receive_data` path. We use `latest_spectrum`
@@ -37,7 +39,7 @@ use eframe::egui::{self, Color32};
 use eframe::egui_wgpu::RenderState;
 use ndarray::Array1;
 use rsplot::core::items::CurveInterpolation;
-use rsplot::{LineStyle, Marker, Plot1D, YAxis};
+use rsplot::{Colormap, ImageGeometry, LineStyle, Marker, Plot1D, YAxis};
 
 use crate::core::{SpectrogramManager, SpectrogramRoi};
 use crate::settings::Settings;
@@ -169,6 +171,7 @@ impl SpectrogramScreen {
         waterfall_plot.set_graph_x_label("Energy [keV]");
         waterfall_plot.set_graph_y_label("Time", YAxis::Left);
         waterfall_plot.set_y_min_pos(Some(0.0));
+        waterfall_plot.set_y_inverted(true);
 
         Self {
             selected_spectrogram: None,
@@ -566,19 +569,21 @@ impl SpectrogramScreen {
         &mut self,
         spectrogram_manager: &SpectrogramManager,
         spectrogram_data: &HashMap<String, Arc<WrappedSpectrogramData>>,
-        theme_def: &ThemeDefinition,
+        _theme_def: &ThemeDefinition,
         _settings: &Settings,
         ui: &mut egui::Ui,
     ) {
-        self.waterfall_plot.clear();
-
         let Some(name) = &self.selected_spectrogram else {
+            self.waterfall_plot.clear();
+            self.last_image_key = None;
             ui.centered_and_justified(|ui| {
                 ui.label("Waterfall");
             });
             return;
         };
         let Some(p) = spectrogram_data.get(name) else {
+            self.waterfall_plot.clear();
+            self.last_image_key = None;
             ui.centered_and_justified(|ui| {
                 ui.label("Waiting for data…");
             });
@@ -588,21 +593,59 @@ impl SpectrogramScreen {
         let n_rows = p.spectrogram.len();
         let channels = p.spect_channels;
 
-        // TODO(rsplot-image): upload the spectrogram as an image item once
-        // `Plot1D::add_image` / `set_image` is confirmed. For now, render
-        // only the newest row so there's visible activity.
-        if n_rows > 0
-            && let Some(last) = p.spectrogram.last()
-        {
-            let x: Vec<f64> = (0..channels).map(|i| i as f64).collect();
-            let y: Vec<f64> = last.iter().copied().collect();
-            self.waterfall_plot.add_curve_with_interpolation(
-                &x,
-                &y,
-                theme_def.colors.text.gamma_multiply(0.8),
-                CurveInterpolation::Linear,
-            );
+        if n_rows == 0 || channels == 0 {
+            self.waterfall_plot.clear();
+            self.last_image_key = None;
+            self.waterfall_plot.show(ui);
+            return;
         }
+
+        // Upload the spectrogram 2D colormapped image when the data changes.
+        // Row 0 is the newest spectrum (top of the waterfall, adjacent to the bar plot).
+        // Row n_rows - 1 is the oldest spectrum (bottom of the waterfall).
+        let current_key = Arc::as_ptr(p) as usize;
+        if !self.pause_visual && self.last_image_key != Some(current_key) {
+            self.waterfall_plot.clear_images();
+
+            let mut data = vec![0.0f32; n_rows * channels];
+            let mut max_val = 0.0f32;
+
+            for r in 0..n_rows {
+                let spec = &p.spectrogram[n_rows - 1 - r];
+                let count = spec.len().min(channels);
+                let row_offset = r * channels;
+                for c in 0..count {
+                    let v = spec[c] as f32;
+                    data[row_offset + c] = v;
+                    if v.is_finite() && v > max_val {
+                        max_val = v;
+                    }
+                }
+            }
+
+            let vmax = f64::from(max_val).max(5.0);
+            let colormap = Colormap::viridis(0.0, vmax);
+            let geometry = ImageGeometry {
+                origin: (0.0, 0.0),
+                scale: (1.0, 1.0),
+                alpha: 1.0,
+            };
+
+            if let Err(e) = self.waterfall_plot.add_image_with_geometry(
+                channels as u32,
+                n_rows as u32,
+                &data,
+                colormap,
+                geometry,
+            ) {
+                tracing::warn!("Failed to add waterfall image: {e}");
+            }
+
+            self.last_image_key = Some(current_key);
+        }
+
+        // Clear and rebuild dynamic markers (break lines, time selector, ROI bands).
+        self.waterfall_plot.clear_markers();
 
         // Break lines (reversed-row indices where a time gap appears).
         if self.show_break_lines && n_rows > 1 {
@@ -634,9 +677,24 @@ impl SpectrogramScreen {
             }
         }
 
-        // ROI bands: vertical lines at each ROI's channel bounds on the
-        // energy axis. These are what the Python `SpectrogramROI` items
-        // render — a pair of vlines per ROI.
+        // Time selector horizontal lines on the waterfall plot
+        if self.time_selector_enabled {
+            let mut m1 = Marker::hline(self.selector_range.0)
+                .with_line_style(LineStyle::Solid)
+                .with_line_width(2.0)
+                .with_draggable(false);
+            m1.color = Color32::from_rgb(80, 200, 255);
+            self.waterfall_plot.add_marker_data(&m1);
+
+            let mut m2 = Marker::hline(self.selector_range.1)
+                .with_line_style(LineStyle::Solid)
+                .with_line_width(2.0)
+                .with_draggable(false);
+            m2.color = Color32::from_rgb(80, 200, 255);
+            self.waterfall_plot.add_marker_data(&m2);
+        }
+
+        // ROI bands: vertical lines at each ROI's channel bounds on the energy axis.
         if let Some(x_axis) = energy_axis(p) {
             for roi in spectrogram_manager.roi_registry.values() {
                 let _ = roi;
@@ -654,10 +712,9 @@ impl SpectrogramScreen {
             }
         }
 
-        // Enforce the aspect-lock flag (rsplot: `keep_aspect` on the Plot).
-        // There's no `Plot1D::set_keep_aspect`, but `Plot::keep_aspect` is
-        // the field; access via `plot_mut()`.
-        self.waterfall_plot.plot_mut().keep_aspect = self.keep_aspect;
+        // Enforce aspect-lock and inverted Y (newest row at the top).
+        self.waterfall_plot.set_y_inverted(true);
+        self.waterfall_plot.set_keep_data_aspect_ratio(self.keep_aspect);
 
         self.waterfall_plot.set_auto_reset_zoom(n_rows > 0);
         self.waterfall_plot.show(ui);
