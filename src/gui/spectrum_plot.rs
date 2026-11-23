@@ -341,7 +341,7 @@ fn render_toolbar(
     settings: &Settings,
     ui: &mut egui::Ui,
 ) {
-    ui.horizontal(|ui| {
+    ui.horizontal_wrapped(|ui| {
         if ui.button("Reset Zoom").clicked() {
             state.request_reset();
         }

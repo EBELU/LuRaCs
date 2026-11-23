@@ -291,7 +291,8 @@ impl IsotopicsTab {
         }
 
         ui.horizontal_top(|ui| {
-            let total_w = ui.available_width();
+            let spacing = ui.spacing().item_spacing.x + ui.spacing().item_spacing.x + 16.0;
+            let total_w = (ui.available_width() - spacing).max(100.0);
             let total_h = ui.available_height();
 
             // --- Left: search + list (30 %) ---
