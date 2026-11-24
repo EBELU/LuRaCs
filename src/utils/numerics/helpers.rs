@@ -85,3 +85,19 @@ pub fn median(x: &[f64]) -> f64 {
         0.5 * (lower_val + upper_val)
     }
 }
+
+pub fn nanmean(v: &[f64]) -> Option<f64> {
+    let mut sum = 0.0_f64;
+    let mut count = 0usize;
+    for &x in v {
+        if x.is_finite() {
+            sum += x;
+            count += 1;
+        }
+    }
+    if count == 0 {
+        None
+    } else {
+        Some(sum / count as f64)
+    }
+}

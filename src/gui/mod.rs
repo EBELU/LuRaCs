@@ -13,6 +13,7 @@ mod settings_window;
 mod spectogram_screen;
 mod spectrum_plot;
 mod stubs;
+mod spectrum_info_tab;
 
 pub use color_rotator::*;
 pub use connection_windows::{
@@ -31,3 +32,4 @@ pub use settings_window::*;
 pub use spectogram_screen::*;
 pub use spectrum_plot::*;
 pub use stubs::*;
+pub use spectrum_info_tab::SpectrumInfoTab;

@@ -44,7 +44,7 @@ use crate::gui::{
     BleDeviceKind, BluetoothWindow, ConnectionRequest, DataLibraryWindow, DeconvolutionWindow,
     InfoModal, IsotopicsTab, MapScreen, MeasureScreen, Modal, ModalKind, NetworkDeviceKind, NetworkWindow,
     RealTimeValuesTab, SerialGpsWindow, SettingsDialog, SpectrogramScreen, SpectrumScreen, Stub,
-    StubWindow, UsbDeviceKind, UsbWindow, menu_bar, render_modals_for,
+    StubWindow, UsbDeviceKind, UsbWindow, menu_bar, render_modals_for, SpectrumInfoTab
 };
 use crate::logging::LogBuffer;
 use crate::settings::{Category, SharedSettings, SharedSettingsExt};
@@ -110,7 +110,7 @@ pub struct LuRaCsApp {
     pub measure_screen: MeasureScreen,
 
     // --- Bottom tabs ---
-    pub spectrum_info_tab: Stub,
+    pub spectrum_info_tab: SpectrumInfoTab,
     pub spectrum_roi_tab: Stub,
     pub spectrogram_roi_tab: Stub,
     pub real_time_values_tab: RealTimeValuesTab,
@@ -191,6 +191,7 @@ impl LuRaCsApp {
         let real_time_values_tab = RealTimeValuesTab::new(&render_state, real_time_scheme);
         let measure_screen = MeasureScreen::new(&render_state, real_time_scheme);
         let isotopics_tab = IsotopicsTab::new(&render_state);
+        let spectrum_info_tab = SpectrumInfoTab::new(&render_state);
 
         // --- Font size from settings ---
         apply_font_size(&cc.egui_ctx, &settings);
@@ -217,7 +218,7 @@ impl LuRaCsApp {
             map_screen: MapScreen::new(),
             measure_screen,
 
-            spectrum_info_tab: Stub::new("Spectrum Info"),
+            spectrum_info_tab,
             spectrum_roi_tab: Stub::new("Spectrum ROIs"),
             spectrogram_roi_tab: Stub::new("Spectrogram ROIs"),
             real_time_values_tab,
@@ -594,7 +595,7 @@ impl LuRaCsApp {
         ui.separator();
 
         match self.bottom_tab {
-            BottomTab::SpectrumInfo => self.spectrum_info_tab.render(ui),
+            BottomTab::SpectrumInfo => self.spectrum_info_tab.render(ui, &mut self.spectrum_manager),
             BottomTab::SpectrumRois => self.spectrum_roi_tab.render(ui),
             BottomTab::SpectrogramRois => self.spectrogram_roi_tab.render(ui),
             BottomTab::RealTimeValues => {

@@ -17,6 +17,7 @@ use rsplot::{LineStyle, Marker, Plot1D, YAxis};
 
 use crate::gui::color_rotator::{ColorRotator, ColorScheme};
 use crate::settings::Settings;
+use crate::utils::numerics::nanmean;
 
 pub struct RealTimeValuesTab {
     cps_plot: Plot1D,
@@ -302,18 +303,4 @@ fn format_cell(v: f64, decimals: usize) -> String {
     }
 }
 
-fn nanmean(v: &[f64]) -> Option<f64> {
-    let mut sum = 0.0_f64;
-    let mut count = 0usize;
-    for &x in v {
-        if x.is_finite() {
-            sum += x;
-            count += 1;
-        }
-    }
-    if count == 0 {
-        None
-    } else {
-        Some(sum / count as f64)
-    }
-}
+
