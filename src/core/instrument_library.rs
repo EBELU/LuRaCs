@@ -485,6 +485,58 @@ impl InstrumentLibrary {
         });
         Ok(())
     }
+
+    /// Assign energy-resolution curve `k / sqrt(E)` and measured FWHM points to `key`.
+    pub fn set_resolution(
+        &mut self,
+        key: &str,
+        params: &[f64],
+        e_points: &[f64],
+        fwhm_points: &[(f64, f64)],
+    ) -> InstrumentLibraryResult<()> {
+        use crate::containers::dimensionless;
+        use crate::utils::ResolutionSignature;
+        use chrono::Utc;
+        use physure_core::quantity::Quantity;
+
+        let q_fwhm: Vec<Quantity> = fwhm_points
+            .iter()
+            .map(|(v, u)| Quantity::new_scalar(*v, *u, dimensionless(), None, None))
+            .collect();
+        let now = Utc::now();
+
+        let instrument_clone: Instrument = {
+            let instrument = self
+                .registry
+                .get_mut(key)
+                .ok_or_else(|| InstrumentLibraryError::NotFound(key.to_string()))?;
+
+            match instrument {
+                Instrument::Unique(u) => {
+                    u.generic.resolution_fn = Some(ResolutionSignature::KOverSqrtE);
+                    u.generic.resolution_params = Some(params.to_vec());
+                    u.generic.resolution_e_points = Some(e_points.to_vec());
+                    u.generic.resolution_fwhm_points = Some(q_fwhm);
+                    u.generic.resolution_created = Some(now);
+                }
+                Instrument::Generic(g) => {
+                    g.resolution_fn = Some(ResolutionSignature::KOverSqrtE);
+                    g.resolution_params = Some(params.to_vec());
+                    g.resolution_e_points = Some(e_points.to_vec());
+                    g.resolution_fwhm_points = Some(q_fwhm);
+                    g.resolution_created = Some(now);
+                }
+            }
+            instrument.clone()
+        };
+
+        self.emit(InstrumentLibraryEvent::InstrumentUpdated {
+            key: key.to_string(),
+            instrument: instrument_clone,
+            changes: vec!["resolution_fn=KOverSqrtE".to_string()],
+        });
+        Ok(())
+    }
 }
 
 // ---------------------------------------------------------------------------

@@ -713,7 +713,7 @@ pub fn build_visuals(theme: &ThemeDefinition) -> egui::Visuals {
     v.widgets.active.bg_fill = c.accent;
     v.widgets.active.weak_bg_fill = c.accent;
     v.widgets.active.bg_stroke = Stroke::new(1.0, c.accent_hover);
-    v.widgets.active.fg_stroke = Stroke::new(1.0, c.background);
+    v.widgets.active.fg_stroke = Stroke::new(1.0, c.text);
 
     v.widgets.open.bg_fill = c.surface_raised;
     v.widgets.open.weak_bg_fill = c.surface_raised;
