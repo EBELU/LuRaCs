@@ -103,7 +103,7 @@ impl Default for Gradient {
 }
 
 impl Gradient {
-    /// Construct a gradient from one of the built-in presets.
+    /// Construct a gradient from one of the built-in presets with its default stop count.
     #[must_use]
     pub fn from_preset(preset: GradientPreset) -> Self {
         let mut g = Self {
@@ -113,6 +113,20 @@ impl Gradient {
             preset: Some(preset),
         };
         g.load_preset(preset);
+        g
+    }
+
+    /// Construct a gradient from one of the built-in presets resampled to `num_stops`
+    /// color knobs (clamped to at least 2).
+    #[must_use]
+    pub fn from_preset_with_stops(preset: GradientPreset, num_stops: usize) -> Self {
+        let mut g = Self {
+            mode: ColorMode::Rgb,
+            ticks: Vec::new(),
+            allow_add: true,
+            preset: Some(preset),
+        };
+        g.load_preset_with_stops(preset, num_stops);
         g
     }
 
@@ -203,22 +217,48 @@ impl Gradient {
                     GradientTick::new(1.0, Color32::from_rgb(255, 255, 255)),
                 ];
             }
-            GradientPreset::Viridis => self.load_colorous(colorous::VIRIDIS),
-            GradientPreset::Plasma => self.load_colorous(colorous::PLASMA),
-            GradientPreset::Inferno => self.load_colorous(colorous::INFERNO),
-            GradientPreset::Magma => self.load_colorous(colorous::MAGMA),
-            GradientPreset::Cividis => self.load_colorous(colorous::CIVIDIS),
-            GradientPreset::Turbo => self.load_colorous(colorous::TURBO),
+            GradientPreset::Viridis => self.load_colorous(colorous::VIRIDIS, 16),
+            GradientPreset::Plasma => self.load_colorous(colorous::PLASMA, 16),
+            GradientPreset::Inferno => self.load_colorous(colorous::INFERNO, 16),
+            GradientPreset::Magma => self.load_colorous(colorous::MAGMA, 16),
+            GradientPreset::Cividis => self.load_colorous(colorous::CIVIDIS, 16),
+            GradientPreset::Turbo => self.load_colorous(colorous::TURBO, 16),
         }
     }
 
-    fn load_colorous(&mut self, grad: colorous::Gradient) {
-        const STOPS: usize = 16;
+    /// Replace the current ticks and mode with `preset` resampled to `num_stops`
+    /// color knobs (clamped to at least 2).
+    pub fn load_preset_with_stops(&mut self, preset: GradientPreset, num_stops: usize) {
+        let stops = num_stops.max(2);
+        match preset {
+            GradientPreset::Viridis => self.load_colorous(colorous::VIRIDIS, stops),
+            GradientPreset::Plasma => self.load_colorous(colorous::PLASMA, stops),
+            GradientPreset::Inferno => self.load_colorous(colorous::INFERNO, stops),
+            GradientPreset::Magma => self.load_colorous(colorous::MAGMA, stops),
+            GradientPreset::Cividis => self.load_colorous(colorous::CIVIDIS, stops),
+            GradientPreset::Turbo => self.load_colorous(colorous::TURBO, stops),
+            _ => {
+                self.load_preset(preset);
+                let resampled = (0..stops)
+                    .map(|i| {
+                        #[expect(clippy::cast_precision_loss)]
+                        let pos = (i as f32) / ((stops - 1) as f32);
+                        GradientTick::new(pos, self.get_color(pos))
+                    })
+                    .collect();
+                self.ticks = resampled;
+            }
+        }
+        self.preset = Some(preset);
+    }
+
+    fn load_colorous(&mut self, grad: colorous::Gradient, num_stops: usize) {
+        let stops = num_stops.max(2);
         self.mode = ColorMode::Rgb;
-        self.ticks = (0..STOPS)
+        self.ticks = (0..stops)
             .map(|i| {
                 #[expect(clippy::cast_precision_loss)]
-                let pos = (i as f32) / ((STOPS - 1) as f32);
+                let pos = (i as f32) / ((stops - 1) as f32);
                 let c = grad.eval_continuous(f64::from(pos));
                 GradientTick::new(pos, Color32::from_rgb(c.r, c.g, c.b))
             })

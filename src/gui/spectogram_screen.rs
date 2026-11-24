@@ -192,7 +192,7 @@ impl SpectrogramScreen {
             bar_plot,
             waterfall_plot,
             last_image_key: None,
-            lut_state: HistogramLutState::new(GradientPreset::Viridis),
+            lut_state: HistogramLutState::new_with_stops(GradientPreset::Viridis, 4),
             lut_auto: true,
             lut_dirty: false,
         }
