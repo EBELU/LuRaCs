@@ -214,8 +214,7 @@ fn dispatch_cli_args(
     }
 
     if let Some(names) = &cli.bluetooth {
-        // TODO: RunManager::connect_bluetooth_list(names)
-        tracing::info!(?names, "--bluetooth: BLE scan not yet implemented");
+        run_manager.connect_bluetooth_list(names, Duration::from_secs(5))?;
     }
 
     if let Some(usb_targets) = &cli.usb {

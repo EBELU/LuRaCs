@@ -20,8 +20,6 @@
 //!
 //! ## Not ported
 //!
-//! - Bluetooth scanning: `btleplug` dependency is stubbed. `find_bluetooth`
-//!   and `scan_bluetooth` return `NotImplemented`.
 //! - USB device scanning: `rusb`-based `scan_all_usb` returns only vendor/
 //!   product IDs; product-name lookup requires opening each device.
 //! - `device.use_gps` toggle when connecting a serial GPS: skipped since
@@ -31,8 +29,11 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
+use btleplug::api::{Central, Manager as _, Peripheral as _, ScanFilter};
+use btleplug::platform::Manager as BleManager;
 use thiserror::Error;
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 
 use crate::clients::{
     ConnectionType, DeviceAddress, DeviceError, DeviceEvent, DeviceHandle, DeviceState,
@@ -641,16 +642,57 @@ impl RunManager {
 
     // ---- Bluetooth ------------------------------------------------------
 
-    pub fn find_bluetooth(&self, _timeout: Duration) -> Result<()> {
-        // Stub: wire up btleplug in a follow-up.
-        drop(
-            self.shared
-                .gui_event_tx
-                .send(RunManagerEvent::BluetoothError(
-                    "bluetooth scanning not yet implemented".into(),
-                )),
-        );
-        Err(RunManagerError::BluetoothNotImplemented)
+    pub fn find_bluetooth(&self, timeout: Duration) -> Result<()> {
+        let shared = Arc::clone(&self.shared);
+        self.shared.handle.spawn(async move {
+            match scan_ble_peripherals(timeout, CancellationToken::new()).await {
+                Ok(devices) => shared.emit(RunManagerEvent::BluetoothFound(devices)),
+                Err(err) => shared.emit(RunManagerEvent::BluetoothError(err)),
+            }
+        });
+        Ok(())
+    }
+
+    pub fn connect_bluetooth_list(&self, targets: &[String], timeout: Duration) -> Result<()> {
+        let shared = Arc::clone(&self.shared);
+        let targets = targets.to_vec();
+        self.shared.handle.spawn(async move {
+            match scan_ble_peripherals(timeout, CancellationToken::new()).await {
+                Ok(devices) => {
+                    for target in targets {
+                        let lower_target = target.to_ascii_lowercase();
+                        let matched = devices.iter().find(|d| {
+                            d.address.eq_ignore_ascii_case(&target)
+                                || d.name
+                                    .as_deref()
+                                    .is_some_and(|n| n.to_ascii_lowercase().contains(&lower_target))
+                        });
+                        let Some(dev) = matched else {
+                            shared.emit(RunManagerEvent::BluetoothError(format!(
+                                "Bluetooth device {target:?} not found"
+                            )));
+                            continue;
+                        };
+                        let dev_name = dev.name.as_deref().unwrap_or(&dev.address);
+                        let lower = dev_name.to_ascii_lowercase();
+                        let kind = if lower.contains("raysid") {
+                            "raysid"
+                        } else {
+                            "radiacode"
+                        };
+                        add_device_async(
+                            Arc::clone(&shared),
+                            DeviceAddress::Other(dev.address.clone()),
+                            kind.to_string(),
+                            ConnectionType::Ble,
+                        )
+                        .await;
+                    }
+                }
+                Err(err) => shared.emit(RunManagerEvent::BluetoothError(err)),
+            }
+        });
+        Ok(())
     }
 
     // ---- USB scanning ---------------------------------------------------
@@ -722,6 +764,58 @@ impl RunManager {
 // ---------------------------------------------------------------------------
 // Async device helpers
 // ---------------------------------------------------------------------------
+
+/// Scan for nearby BLE peripherals using `btleplug` for up to `duration` (or until `cancel`).
+pub async fn scan_ble_peripherals(
+    duration: Duration,
+    cancel: CancellationToken,
+) -> std::result::Result<Vec<BleDeviceInfo>, String> {
+    let manager = BleManager::new()
+        .await
+        .map_err(|e| format!("BLE manager init failed: {e}"))?;
+    let adapters = manager
+        .adapters()
+        .await
+        .map_err(|e| format!("Failed to list BLE adapters: {e}"))?;
+    let adapter = adapters
+        .into_iter()
+        .next()
+        .ok_or_else(|| "No Bluetooth adapter found".to_string())?;
+
+    adapter
+        .start_scan(ScanFilter::default())
+        .await
+        .map_err(|e| format!("BLE scan start failed: {e}"))?;
+
+    tokio::select! {
+        () = tokio::time::sleep(duration) => {}
+        () = cancel.cancelled() => {
+            drop(adapter.stop_scan().await);
+            return Ok(Vec::new());
+        }
+    }
+
+    drop(adapter.stop_scan().await);
+
+    let peripherals = adapter
+        .peripherals()
+        .await
+        .map_err(|e| format!("Failed to fetch BLE peripherals: {e}"))?;
+
+    let mut out = Vec::with_capacity(peripherals.len());
+    for p in peripherals {
+        let Ok(Some(props)) = p.properties().await else {
+            continue;
+        };
+        out.push(BleDeviceInfo {
+            name: props.local_name,
+            address: props.address.to_string(),
+            rssi: props.rssi,
+        });
+    }
+
+    Ok(out)
+}
 
 async fn add_device_async(
     shared: Arc<RunManagerShared>,
