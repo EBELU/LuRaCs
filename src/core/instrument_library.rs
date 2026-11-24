@@ -83,6 +83,13 @@ impl Instrument {
             _ => None,
         }
     }
+
+    pub fn model(&self) -> &str {
+        match self {
+            Self::Unique(u) => &u.generic.model,
+            Self::Generic(g) => &g.model,
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -380,6 +387,153 @@ impl InstrumentLibrary {
             key: key.to_string(),
             instrument: instrument_clone,
             changes,
+        });
+        Ok(())
+    }
+
+    /// Assign an exponential-polynomial intrinsic efficiency curve and measured
+    /// points to `key`, emitting `InstrumentUpdated`.
+    pub fn set_efficiency(
+        &mut self,
+        key: &str,
+        params: &[(f64, f64)],
+        e_points: &[f64],
+        eff_points: &[(f64, f64)],
+    ) -> InstrumentLibraryResult<()> {
+        use crate::containers::dimensionless;
+        use crate::utils::EfficiencySignature;
+        use chrono::Utc;
+        use physure_core::quantity::Quantity;
+
+        let to_qty = |(v, u): &(f64, f64)| Quantity::new_scalar(*v, *u, dimensionless(), None, None);
+        let q_params: Vec<Quantity> = params.iter().map(to_qty).collect();
+        let q_eff: Vec<Quantity> = eff_points.iter().map(to_qty).collect();
+        let now = Utc::now();
+
+        let instrument_clone: Instrument = {
+            let instrument = self
+                .registry
+                .get_mut(key)
+                .ok_or_else(|| InstrumentLibraryError::NotFound(key.to_string()))?;
+
+            match instrument {
+                Instrument::Unique(u) => {
+                    u.generic.int_efficiency_fn = Some(EfficiencySignature::ExpPoly);
+                    u.generic.int_efficiency_params = Some(q_params);
+                    u.generic.int_efficiency_e_points = Some(e_points.to_vec());
+                    u.generic.int_efficiency_eff_points = Some(q_eff);
+                    u.generic.int_efficiency_created = Some(now);
+                }
+                Instrument::Generic(g) => {
+                    g.int_efficiency_fn = Some(EfficiencySignature::ExpPoly);
+                    g.int_efficiency_params = Some(q_params);
+                    g.int_efficiency_e_points = Some(e_points.to_vec());
+                    g.int_efficiency_eff_points = Some(q_eff);
+                    g.int_efficiency_created = Some(now);
+                }
+            }
+            instrument.clone()
+        };
+
+        self.emit(InstrumentLibraryEvent::InstrumentUpdated {
+            key: key.to_string(),
+            instrument: instrument_clone,
+            changes: vec!["int_efficiency_fn=ExpPoly".to_string()],
+        });
+        Ok(())
+    }
+
+    /// Assign polynomial energy calibration to a unique instrument, emitting `InstrumentUpdated`.
+    pub fn set_calibration(
+        &mut self,
+        key: &str,
+        poly_order: u32,
+        coeffs: &[f64],
+        ch_points: &[f64],
+        e_points: &[f64],
+    ) -> InstrumentLibraryResult<()> {
+        use chrono::Utc;
+
+        let instrument_clone: Instrument = {
+            let instrument = self
+                .registry
+                .get_mut(key)
+                .ok_or_else(|| InstrumentLibraryError::NotFound(key.to_string()))?;
+
+            match instrument {
+                Instrument::Unique(u) => {
+                    u.calibration_poly_order = Some(poly_order);
+                    u.calibration_coefficients = Some(coeffs.to_vec());
+                    u.calibration_channel_points = Some(ch_points.to_vec());
+                    u.calibration_energy_points = Some(e_points.to_vec());
+                    u.calibration_date = Some(Utc::now());
+                }
+                Instrument::Generic(_) => {
+                    return Err(InstrumentLibraryError::WrongKind {
+                        expected: LibraryKind::Unique,
+                        got: LibraryKind::Generic,
+                    });
+                }
+            }
+            instrument.clone()
+        };
+
+        self.emit(InstrumentLibraryEvent::InstrumentUpdated {
+            key: key.to_string(),
+            instrument: instrument_clone,
+            changes: vec![format!("calibration_poly_order={poly_order}")],
+        });
+        Ok(())
+    }
+
+    /// Assign energy-resolution curve `k / sqrt(E)` and measured FWHM points to `key`.
+    pub fn set_resolution(
+        &mut self,
+        key: &str,
+        params: &[f64],
+        e_points: &[f64],
+        fwhm_points: &[(f64, f64)],
+    ) -> InstrumentLibraryResult<()> {
+        use crate::containers::dimensionless;
+        use crate::utils::ResolutionSignature;
+        use chrono::Utc;
+        use physure_core::quantity::Quantity;
+
+        let q_fwhm: Vec<Quantity> = fwhm_points
+            .iter()
+            .map(|(v, u)| Quantity::new_scalar(*v, *u, dimensionless(), None, None))
+            .collect();
+        let now = Utc::now();
+
+        let instrument_clone: Instrument = {
+            let instrument = self
+                .registry
+                .get_mut(key)
+                .ok_or_else(|| InstrumentLibraryError::NotFound(key.to_string()))?;
+
+            match instrument {
+                Instrument::Unique(u) => {
+                    u.generic.resolution_fn = Some(ResolutionSignature::KOverSqrtE);
+                    u.generic.resolution_params = Some(params.to_vec());
+                    u.generic.resolution_e_points = Some(e_points.to_vec());
+                    u.generic.resolution_fwhm_points = Some(q_fwhm);
+                    u.generic.resolution_created = Some(now);
+                }
+                Instrument::Generic(g) => {
+                    g.resolution_fn = Some(ResolutionSignature::KOverSqrtE);
+                    g.resolution_params = Some(params.to_vec());
+                    g.resolution_e_points = Some(e_points.to_vec());
+                    g.resolution_fwhm_points = Some(q_fwhm);
+                    g.resolution_created = Some(now);
+                }
+            }
+            instrument.clone()
+        };
+
+        self.emit(InstrumentLibraryEvent::InstrumentUpdated {
+            key: key.to_string(),
+            instrument: instrument_clone,
+            changes: vec!["resolution_fn=KOverSqrtE".to_string()],
         });
         Ok(())
     }

@@ -41,10 +41,11 @@ use crate::core::IoManager;
 use crate::core::{EventDispatcher, ForegroundInput, SpectrumManager};
 use crate::core::{RunManager, RunManagerEvent};
 use crate::gui::{
-    BleDeviceKind, BluetoothWindow, ConnectionRequest, DataLibraryWindow, DeconvolutionWindow,
-    InfoModal, IsotopicsTab, MapScreen, MeasureScreen, Modal, ModalKind, NetworkDeviceKind, NetworkWindow,
-    RealTimeValuesTab, SerialGpsWindow, SettingsDialog, SpectrogramScreen, SpectrumScreen, Stub,
-    StubWindow, UsbDeviceKind, UsbWindow, menu_bar, render_modals_for, SpectrumInfoTab
+    BleDeviceKind, BluetoothWindow, CalibrationWindow, ConnectionRequest, DataLibraryWindow,
+    DeconvolutionWindow, EfficiencyWindow, InfoModal, IsotopicsTab, MapScreen, MeasureScreen,
+    Modal, ModalKind, NetworkDeviceKind, NetworkWindow, PeakFeaturesWindow, RealTimeValuesTab,
+    ResolutionWindow, SerialGpsWindow, SettingsDialog, SpectrogramScreen, SpectrumScreen, Stub,
+    StubWindow, UsbDeviceKind, UsbWindow, menu_bar, render_modals_for,  SpectrumInfoTab,
 };
 use crate::logging::LogBuffer;
 use crate::settings::{Category, SharedSettings, SharedSettingsExt};
@@ -130,11 +131,11 @@ pub struct LuRaCsApp {
     pub documentation_dialog: StubWindow,
     pub bibliography_dialog: StubWindow,
     pub activity_window: StubWindow,
-    pub efficiency_window: StubWindow,
-    pub calibration_window: StubWindow,
-    pub resolution_window: StubWindow,
+    pub efficiency_window: EfficiencyWindow,
+    pub calibration_window: CalibrationWindow,
+    pub resolution_window: ResolutionWindow,
     pub deconvolution_window: DeconvolutionWindow,
-    pub peak_features_window: StubWindow,
+    pub peak_features_window: PeakFeaturesWindow,
 
     pub view_realtime_avg_line: bool,
     pub view_spectrogram_rois_compact: bool,
@@ -196,6 +197,9 @@ impl LuRaCsApp {
         // --- Font size from settings ---
         apply_font_size(&cc.egui_ctx, &settings);
 
+        let efficiency_window = EfficiencyWindow::new(&render_state);
+        let calibration_window = CalibrationWindow::new(&render_state);
+        let resolution_window = ResolutionWindow::new(&render_state);
         Self {
             settings,
             run_manager,
@@ -237,11 +241,11 @@ impl LuRaCsApp {
             documentation_dialog: StubWindow::new("Documentation"),
             bibliography_dialog: StubWindow::new("Bibliography"),
             activity_window: StubWindow::new("Activity"),
-            efficiency_window: StubWindow::new("Efficiency"),
-            calibration_window: StubWindow::new("Calibration"),
-            resolution_window: StubWindow::new("Resolution"),
+            efficiency_window,
+            calibration_window,
+            resolution_window,
             deconvolution_window: DeconvolutionWindow::new(),
-            peak_features_window: StubWindow::new("Peak Features"),
+            peak_features_window: PeakFeaturesWindow::new(),
 
             view_realtime_avg_line: false,
             view_spectrogram_rois_compact: false,
@@ -645,15 +649,19 @@ impl LuRaCsApp {
         self.documentation_dialog.render(ui);
         self.bibliography_dialog.render(ui);
         self.activity_window.render(ui);
-        self.efficiency_window.render(ui);
-        self.calibration_window.render(ui);
-        self.resolution_window.render(ui);
+        self.efficiency_window
+            .render(ui, &mut self.spectrum_manager);
+        self.calibration_window
+            .render(ui, &mut self.spectrum_manager);
+        self.resolution_window
+            .render(ui, &mut self.spectrum_manager);
         // DeconvolutionWindow needs `&mut self` (the app) while rendering, so
         // we briefly swap it out to avoid the double-borrow.
         let mut deconv = std::mem::take(&mut self.deconvolution_window);
         deconv.render(self, ui);
         self.deconvolution_window = deconv;
-        self.peak_features_window.render(ui);
+        self.peak_features_window
+            .render(ui, &mut self.spectrum_screen);
     }
 
     fn handle_connection_request(&mut self, req: ConnectionRequest) {

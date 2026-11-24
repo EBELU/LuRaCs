@@ -18,6 +18,15 @@ fn test_presets_and_lookup_table() {
     let thermal = Gradient::from_preset(GradientPreset::Thermal);
     assert_eq!(thermal.get_color(0.0), Color32::BLACK);
     assert_eq!(thermal.get_color(1.0), Color32::WHITE);
+
+    let v5 = Gradient::from_preset_with_stops(GradientPreset::Viridis, 5);
+    assert_eq!(v5.ticks().len(), 5);
+    assert_eq!(v5.preset, Some(GradientPreset::Viridis));
+
+    let t8 = HistogramLutState::new_with_stops(GradientPreset::Thermal, 8);
+    assert_eq!(t8.gradient.ticks().len(), 8);
+    assert_eq!(t8.gradient.get_color(0.0), Color32::BLACK);
+    assert_eq!(t8.gradient.get_color(1.0), Color32::WHITE);
 }
 
 #[test]

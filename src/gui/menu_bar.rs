@@ -330,10 +330,13 @@ fn detector_menu(app: &mut LuRaCsApp, ui: &mut egui::Ui) {
                 ui.label("(no previous connections)");
             } else {
                 for name in &connections {
-                    if ui.button(name).clicked() {
-                        // TODO: `RunManager::connect_bluetooth_list([name])`
-                        // once the btleplug integration is wired.
-                        tracing::info!(name, "Bluetooth reconnect not yet implemented");
+                    if ui.button(name).clicked()
+                        && let Err(e) = app.run_manager.connect_bluetooth_list(
+                            std::slice::from_ref(name),
+                            std::time::Duration::from_secs(5),
+                        )
+                    {
+                        tracing::warn!(name, error = %e, "Bluetooth reconnect failed");
                     }
                 }
             }

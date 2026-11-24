@@ -9,8 +9,6 @@
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
-use btleplug::api::{Central, Manager as _, Peripheral as _, ScanFilter};
-use btleplug::platform::Manager;
 use eframe::egui;
 use nusb::MaybeFuture;
 use tokio::runtime::Handle;
@@ -426,56 +424,21 @@ async fn scan_ble_devices(
     duration: Duration,
     cancel: CancellationToken,
 ) -> Result<Vec<BleScannedDevice>, String> {
-    let manager = Manager::new()
-        .await
-        .map_err(|e| format!("BLE manager init failed: {e}"))?;
-    let adapters = manager
-        .adapters()
-        .await
-        .map_err(|e| format!("Failed to list BLE adapters: {e}"))?;
-    let adapter = adapters
+    let peripherals = crate::core::scan_ble_peripherals(duration, cancel).await?;
+    Ok(peripherals
         .into_iter()
-        .next()
-        .ok_or_else(|| "No Bluetooth adapter found".to_string())?;
-
-    adapter
-        .start_scan(ScanFilter::default())
-        .await
-        .map_err(|e| format!("BLE scan start failed: {e}"))?;
-
-    tokio::select! {
-        () = tokio::time::sleep(duration) => {}
-        () = cancel.cancelled() => {
-            drop(adapter.stop_scan().await);
-            return Ok(Vec::new());
-        }
-    }
-
-    drop(adapter.stop_scan().await);
-
-    let peripherals = adapter
-        .peripherals()
-        .await
-        .map_err(|e| format!("Failed to fetch BLE peripherals: {e}"))?;
-
-    let mut out = Vec::new();
-    for p in peripherals {
-        let Ok(Some(props)) = p.properties().await else {
-            continue;
-        };
-        let address = props.address.to_string();
-        let name = props.local_name.unwrap_or_else(|| address.clone());
-        let lower = name.to_ascii_lowercase();
-        let is_priority = lower.contains("radiacode") || lower.contains("raysid");
-        out.push(BleScannedDevice {
-            name,
-            address,
-            rssi: props.rssi,
-            is_priority,
-        });
-    }
-
-    Ok(out)
+        .map(|dev| {
+            let name = dev.name.unwrap_or_else(|| dev.address.clone());
+            let lower = name.to_ascii_lowercase();
+            let is_priority = lower.contains("radiacode") || lower.contains("raysid");
+            BleScannedDevice {
+                name,
+                address: dev.address,
+                rssi: dev.rssi,
+                is_priority,
+            }
+        })
+        .collect())
 }
 
 // ---------------------------------------------------------------------------

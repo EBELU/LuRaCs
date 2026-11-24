@@ -39,8 +39,9 @@ use eframe::egui::{self, Color32};
 use eframe::egui_wgpu::RenderState;
 use egui_histogram_lut::{GradientPreset, HistogramLutState, HistogramLutWidget, Orientation};
 use ndarray::Array1;
+use rsplot::PlotInteractionMode;
 use rsplot::core::items::CurveInterpolation;
-use rsplot::{Colormap, ImageGeometry, LineStyle, Marker, Plot1D, YAxis};
+use rsplot::{Colormap, ImageGeometry, ItemHandle, LineStyle, Marker, Plot1D, YAxis};
 
 use crate::core::{SpectrogramManager, SpectrogramRoi};
 use crate::settings::Settings;
@@ -154,9 +155,13 @@ pub struct SpectrogramScreen {
     bar_plot: Plot1D,
     waterfall_plot: Plot1D,
 
-    // Waterfall image cache (kept so the texture upload only fires when
-    // the packet actually changes; uses Arc pointer identity).
+    // Waterfall image & marker cache (kept so texture/marker rebuilds only fire
+    // when data, LUT, or marker toggles change).
     last_image_key: Option<usize>,
+    last_bar_zoom_key: Option<(String, usize)>,
+    last_zoom_spectrogram: Option<String>,
+    last_markers_key: Option<(usize, bool, bool, usize)>,
+    selector_handles: Option<(ItemHandle, ItemHandle)>,
     lut_state: HistogramLutState,
     lut_auto: bool,
     lut_dirty: bool,
@@ -177,6 +182,9 @@ impl SpectrogramScreen {
         waterfall_plot.set_y_min_pos(Some(0.0));
         waterfall_plot.set_y_inverted(true);
 
+        bar_plot.set_interaction_mode(PlotInteractionMode::Select);
+        waterfall_plot.set_interaction_mode(PlotInteractionMode::Select);
+
         Self {
             selected_spectrogram: None,
             pause_visual: false,
@@ -192,7 +200,11 @@ impl SpectrogramScreen {
             bar_plot,
             waterfall_plot,
             last_image_key: None,
-            lut_state: HistogramLutState::new(GradientPreset::Viridis),
+            last_bar_zoom_key: None,
+            last_zoom_spectrogram: None,
+            last_markers_key: None,
+            selector_handles: None,
+            lut_state: HistogramLutState::new_with_stops(GradientPreset::Viridis, 4),
             lut_auto: true,
             lut_dirty: false,
         }
@@ -569,9 +581,6 @@ impl SpectrogramScreen {
                 .unwrap_or_else(|| vec![0.0; p.spect_channels])
         };
 
-        // TODO(bar-fork): replace this step-interpolated line with the
-        // user's bar chart item. The `heights` vector is what the fork's
-        // `BarChart` would consume.
         let x: Vec<f64> = (0..heights.len()).map(|i| i as f64).collect();
         self.bar_plot.add_curve_with_interpolation(
             &x,
@@ -580,15 +589,12 @@ impl SpectrogramScreen {
             CurveInterpolation::StepPost,
         );
 
-        // ROI bands on the bar plot (energy-space vertical lines).
-        if let Some(x_axis) = energy_axis(p) {
-            // `spectrogram_manager` is not available here; ROIs are drawn
-            // below in `draw_waterfall_plot` where we have the manager.
-            drop(x_axis);
+        let bar_zoom_key = (name.clone(), heights.len());
+        let reset_bar_zoom = self.last_bar_zoom_key.as_ref() != Some(&bar_zoom_key);
+        if reset_bar_zoom {
+            self.last_bar_zoom_key = Some(bar_zoom_key);
         }
-
-        // Include the bar y-max in the autoscale, floor at 0.
-        self.bar_plot.set_auto_reset_zoom(true);
+        self.bar_plot.set_auto_reset_zoom(reset_bar_zoom);
         self.bar_plot.show(ui);
     }
 
@@ -631,11 +637,14 @@ impl SpectrogramScreen {
             return;
         }
 
-        // Upload the spectrogram 2D colormapped image when the data changes.
+        let x_cal = energy_axis(p);
+
+        // Upload the spectrogram 2D colormapped image when the data or LUT changes.
         // Row 0 is the newest spectrum (top of the waterfall, adjacent to the bar plot).
         // Row n_rows - 1 is the oldest spectrum (bottom of the waterfall).
         let current_key = Arc::as_ptr(p) as usize;
         let data_changed = self.last_image_key != Some(current_key);
+        let is_new_spec = self.last_zoom_spectrogram.as_deref() != Some(name.as_str());
         if !self.pause_visual && (data_changed || self.lut_dirty) {
             self.waterfall_plot.clear_images();
 
@@ -657,12 +666,15 @@ impl SpectrogramScreen {
 
             if data_changed {
                 let stride = (data.len() / 8192).max(1);
-                let samples: Vec<f64> = data.iter().step_by(stride).map(|&v| f64::from(v)).collect();
+                let samples: Vec<f64> =
+                    data.iter().step_by(stride).map(|&v| f64::from(v)).collect();
                 self.lut_state.set_data(&samples, 48, false);
                 if self.lut_auto {
                     let vmax = f64::from(max_val).max(5.0);
                     self.lut_state.set_levels(0.0, vmax);
-                    self.lut_state.auto_range();
+                    if is_new_spec {
+                        self.lut_state.auto_range();
+                    }
                 }
             }
 
@@ -696,79 +708,123 @@ impl SpectrogramScreen {
             self.lut_dirty = false;
         }
 
-        // Clear and rebuild dynamic markers (break lines, time selector, ROI bands).
-        self.waterfall_plot.clear_markers();
-
-        // Break lines (reversed-row indices where a time gap appears).
-        if self.show_break_lines && n_rows > 1 {
-            let expected_dt = p.save_interval.max(1e-6);
-            let mut break_rows: Vec<f64> = Vec::new();
-            let mut prev: Option<f64> = None;
-            let mut prev_idx: i64 = -1;
-            for (i, &t) in p.timestamp_deque.iter().enumerate() {
-                if t <= 0.0 {
-                    continue;
-                }
-                if let Some(pt) = prev
-                    && (t - pt).abs() > f64::mul_add(expected_dt, 1.5, 1.0)
-                {
-                    // Reversed-row index of the older side.
-                    let row = (n_rows - 1) as f64 - prev_idx as f64;
-                    break_rows.push(row.max(0.0));
-                }
-                prev = Some(t);
-                prev_idx = i as i64;
+        // Sync draggable time-selector markers before checking whether markers need rebuild.
+        let max_row = (n_rows - 1) as f64;
+        if self.time_selector_enabled
+            && let Some((h1, h2)) = self.selector_handles
+        {
+            if let Some((_, y1)) = self.waterfall_plot.marker_position(h1) {
+                self.selector_range.0 = y1.clamp(0.0, max_row);
             }
-            for row in break_rows {
-                self.waterfall_plot.add_marker_data(
-                    &Marker::hline(row)
-                        .with_line_style(LineStyle::Dashed)
-                        .with_line_width(1.5)
-                        .with_draggable(false),
-                );
+            if let Some((_, y2)) = self.waterfall_plot.marker_position(h2) {
+                self.selector_range.1 = y2.clamp(0.0, max_row);
             }
         }
 
-        // Time selector horizontal lines on the waterfall plot
-        if self.time_selector_enabled {
-            let mut m1 = Marker::hline(self.selector_range.0)
-                .with_line_style(LineStyle::Solid)
-                .with_line_width(2.0)
-                .with_draggable(false);
-            m1.color = Color32::from_rgb(80, 200, 255);
-            self.waterfall_plot.add_marker_data(&m1);
+        // Rebuild markers only when data/toggles/ROIs change so active marker drags persist.
+        let markers_key = (
+            current_key,
+            self.show_break_lines,
+            self.time_selector_enabled,
+            spectrogram_manager.roi_registry.len(),
+        );
+        if self.last_markers_key != Some(markers_key) {
+            self.waterfall_plot.clear_markers();
+            self.selector_handles = None;
 
-            let mut m2 = Marker::hline(self.selector_range.1)
-                .with_line_style(LineStyle::Solid)
-                .with_line_width(2.0)
-                .with_draggable(false);
-            m2.color = Color32::from_rgb(80, 200, 255);
-            self.waterfall_plot.add_marker_data(&m2);
-        }
+            // Break lines (reversed-row indices where a time gap appears).
+            if self.show_break_lines && n_rows > 1 {
+                let expected_dt = p.save_interval.max(1e-6);
+                let mut break_rows: Vec<f64> = Vec::new();
+                let mut prev: Option<f64> = None;
+                let mut prev_idx: i64 = -1;
+                for (i, &t) in p.timestamp_deque.iter().enumerate() {
+                    if t <= 0.0 {
+                        continue;
+                    }
+                    if let Some(pt) = prev
+                        && (t - pt).abs() > f64::mul_add(expected_dt, 1.5, 1.0)
+                    {
+                        let row = (n_rows - 1) as f64 - prev_idx as f64;
+                        break_rows.push(row.max(0.0));
+                    }
+                    prev = Some(t);
+                    prev_idx = i as i64;
+                }
+                for row in break_rows {
+                    self.waterfall_plot.add_marker_data(
+                        &Marker::hline(row)
+                            .with_line_style(LineStyle::Dashed)
+                            .with_line_width(1.5)
+                            .with_draggable(false),
+                    );
+                }
+            }
 
-        // ROI bands: vertical lines at each ROI's channel bounds on the energy axis.
-        if let Some(x_axis) = energy_axis(p) {
-            for roi in spectrogram_manager.roi_registry.values() {
-                let _ = roi;
-                let lo = searchsorted_left_arr(&x_axis, roi.e_region.0);
-                let hi = searchsorted_left_arr(&x_axis, roi.e_region.1);
+            // Draggable time selector horizontal lines on the waterfall plot.
+            if self.time_selector_enabled {
+                let mut m1 = Marker::hline(self.selector_range.0.clamp(0.0, max_row))
+                    .with_line_style(LineStyle::Solid)
+                    .with_line_width(2.0)
+                    .with_draggable(true);
+                m1.color = Color32::from_rgb(80, 200, 255);
+                let h1 = self.waterfall_plot.add_marker_data(&m1);
+
+                let mut m2 = Marker::hline(self.selector_range.1.clamp(0.0, max_row))
+                    .with_line_style(LineStyle::Solid)
+                    .with_line_width(2.0)
+                    .with_draggable(true);
+                m2.color = Color32::from_rgb(80, 200, 255);
+                let h2 = self.waterfall_plot.add_marker_data(&m2);
+                self.selector_handles = Some((h1, h2));
+            }
+
+            // ROI bands: vertical lines at each ROI's channel bounds on the energy axis.
+            if let Some(x_axis) = &x_cal {
                 let color = Color32::from_rgb(255, 200, 0);
-                for idx in [lo, hi] {
-                    let mut m = Marker::vline(idx as f64)
-                        .with_line_style(LineStyle::Dashed)
-                        .with_line_width(1.5)
-                        .with_draggable(false);
-                    m.color = color;
-                    self.waterfall_plot.add_marker_data(&m);
+                for roi in spectrogram_manager.roi_registry.values() {
+                    let lo = searchsorted_left_arr(x_axis, roi.e_region.0);
+                    let hi = searchsorted_left_arr(x_axis, roi.e_region.1);
+                    for idx in [lo, hi] {
+                        let mut m = Marker::vline(idx as f64)
+                            .with_line_style(LineStyle::Dashed)
+                            .with_line_width(1.5)
+                            .with_draggable(false);
+                        m.color = color;
+                        self.waterfall_plot.add_marker_data(&m);
+                    }
                 }
             }
+
+            self.last_markers_key = Some(markers_key);
+        } else if self.time_selector_enabled
+            && let Some((h1, h2)) = self.selector_handles
+        {
+            self.waterfall_plot.set_marker_position(
+                h1,
+                0.0,
+                self.selector_range.0.clamp(0.0, max_row),
+            );
+            self.waterfall_plot.set_marker_position(
+                h2,
+                0.0,
+                self.selector_range.1.clamp(0.0, max_row),
+            );
         }
 
-        // Enforce aspect-lock and inverted Y (newest row at the top).
+        // Enforce aspect-lock, bounds, and inverted Y (newest row at the top).
+        self.waterfall_plot.set_x_min_pos(Some(0.0));
+        self.waterfall_plot.set_x_max_pos(Some(channels as f64));
+        self.waterfall_plot.set_y_min_pos(Some(0.0));
+        self.waterfall_plot.set_y_max_pos(Some(n_rows as f64));
         self.waterfall_plot.set_y_inverted(true);
-        self.waterfall_plot.set_keep_data_aspect_ratio(self.keep_aspect);
+        self.waterfall_plot
+            .set_keep_data_aspect_ratio(self.keep_aspect);
 
-        self.waterfall_plot.set_auto_reset_zoom(n_rows > 0);
+        self.waterfall_plot.set_auto_reset_zoom(is_new_spec);
+        if is_new_spec {
+            self.last_zoom_spectrogram = Some(name.clone());
+        }
         self.waterfall_plot.show(ui);
     }
 

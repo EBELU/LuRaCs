@@ -514,7 +514,7 @@ impl MapScreen {
             ],
             selected_data_key: "count_rate".into(),
             lut_state: {
-                let mut s = HistogramLutState::new(GradientPreset::Thermal);
+                let mut s = HistogramLutState::new_with_stops(GradientPreset::Thermal, 4);
                 s.set_levels(0.0, 0.2);
                 s.view_range = (0.0, 0.2);
                 s
@@ -950,7 +950,7 @@ fn draw_lut_sidebar(screen: &mut MapScreen, height: f32, ui: &mut egui::Ui) {
                     .selectable_label(screen.lut_state.gradient.preset == Some(preset), preset.label())
                     .clicked()
                 {
-                    screen.lut_state.gradient.load_preset(preset);
+                    screen.lut_state.gradient.load_preset_with_stops(preset, 4);
                 }
             }
         });

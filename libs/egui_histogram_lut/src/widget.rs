@@ -82,6 +82,7 @@ pub struct HistogramLutState {
     pub log_histogram: bool,
     pub selected_tick: Option<usize>,
     pub editing_tick_color: Option<usize>,
+    pub preset_stops: Option<usize>,
 }
 
 impl Default for HistogramLutState {
@@ -95,6 +96,7 @@ impl Default for HistogramLutState {
             log_histogram: false,
             selected_tick: None,
             editing_tick_color: None,
+            preset_stops: None,
         }
     }
 }
@@ -104,6 +106,15 @@ impl HistogramLutState {
     pub fn new(preset: GradientPreset) -> Self {
         Self {
             gradient: Gradient::from_preset(preset),
+            ..Self::default()
+        }
+    }
+
+    #[must_use]
+    pub fn new_with_stops(preset: GradientPreset, num_stops: usize) -> Self {
+        Self {
+            gradient: Gradient::from_preset_with_stops(preset, num_stops),
+            preset_stops: Some(num_stops.max(2)),
             ..Self::default()
         }
     }
@@ -533,9 +544,8 @@ impl HistogramLutWidget {
         if bg_resp.double_clicked() {
             state.auto_range();
         }
-        if bg_resp.dragged_by(egui::PointerButton::Secondary)
-            || bg_resp.dragged_by(egui::PointerButton::Middle)
-        {
+        if bg_resp.dragged_by(egui::PointerButton::Primary) {
+            ui.ctx().set_cursor_icon(CursorIcon::Grabbing);
             let delta = bg_resp.drag_delta();
             let vspan = state.view_range.1 - state.view_range.0;
             let dv = match self.orientation {
@@ -545,7 +555,7 @@ impl HistogramLutWidget {
             state.view_range.0 += dv;
             state.view_range.1 += dv;
         }
-        if bg_resp.hovered() {
+        if ui.rect_contains_pointer(hist_rect) {
             let scroll = ui.input(|i| i.smooth_scroll_delta.y);
             if scroll.abs() > 0.1 {
                 let factor = f64::from((-scroll * 0.0025).exp());
@@ -587,40 +597,6 @@ impl HistogramLutWidget {
             ),
         };
         painter.rect_filled(region_rect, 0.0, self.region_fill);
-
-        let inner_rect = match self.orientation {
-            Orientation::Vertical => Rect::from_min_max(
-                Pos2::new(hist_rect.left(), (p_hi + 5.0).min(p_lo)),
-                Pos2::new(hist_rect.right(), (p_lo - 5.0).max(p_hi)),
-            ),
-            Orientation::Horizontal => Rect::from_min_max(
-                Pos2::new((p_lo + 5.0).min(p_hi), hist_rect.top()),
-                Pos2::new((p_hi - 5.0).max(p_lo), hist_rect.bottom()),
-            ),
-        };
-        if inner_rect.width() > 2.0 && inner_rect.height() > 2.0 {
-            let reg_resp = ui.interact(
-                inner_rect,
-                base_id.with("region_drag"),
-                Sense::click_and_drag(),
-            );
-            if reg_resp.dragged_by(egui::PointerButton::Primary) {
-                ui.ctx().set_cursor_icon(CursorIcon::Grabbing);
-                let delta = reg_resp.drag_delta();
-                let vspan = state.view_range.1 - state.view_range.0;
-                let dv = match self.orientation {
-                    Orientation::Vertical => -f64::from(delta.y / hist_rect.height()) * vspan,
-                    Orientation::Horizontal => f64::from(delta.x / hist_rect.width()) * vspan,
-                };
-                if dv.abs() > 0.0 {
-                    state.levels.0 += dv;
-                    state.levels.1 += dv;
-                    levels_changed = true;
-                }
-            } else if reg_resp.hovered() {
-                ui.ctx().set_cursor_icon(CursorIcon::Grab);
-            }
-        }
 
         let hi_handle_rect = boundary_handle_rect(self.orientation, hist_rect, p_hi);
         let lo_handle_rect = boundary_handle_rect(self.orientation, hist_rect, p_lo);
@@ -733,7 +709,11 @@ impl HistogramLutWidget {
             for preset in GradientPreset::ALL {
                 let selected = state.gradient.preset == Some(preset);
                 if ui.selectable_label(selected, preset.label()).clicked() {
-                    state.gradient.load_preset(preset);
+                    if let Some(stops) = state.preset_stops {
+                        state.gradient.load_preset_with_stops(preset, stops);
+                    } else {
+                        state.gradient.load_preset(preset);
+                    }
                     gradient_changed = true;
                     ui.close();
                 }
