@@ -42,10 +42,10 @@ use crate::core::{EventDispatcher, ForegroundInput, SpectrumManager};
 use crate::core::{RunManager, RunManagerEvent};
 use crate::gui::{
     BleDeviceKind, BluetoothWindow, ConnectionRequest, DataLibraryWindow, DeconvolutionWindow,
-    InfoModal, IsotopicsTab, MapScreen, MeasureScreen, Modal, ModalKind, NetworkDeviceKind,
-    NetworkWindow, PeakFeaturesWindow, RealTimeValuesTab, SerialGpsWindow, SettingsDialog,
-    SpectrogramScreen, SpectrumScreen, Stub, StubWindow, UsbDeviceKind, UsbWindow, menu_bar,
-    render_modals_for,
+    EfficiencyWindow, InfoModal, IsotopicsTab, MapScreen, MeasureScreen, Modal, ModalKind,
+    NetworkDeviceKind, NetworkWindow, PeakFeaturesWindow, RealTimeValuesTab, SerialGpsWindow,
+    SettingsDialog, SpectrogramScreen, SpectrumScreen, Stub, StubWindow, UsbDeviceKind, UsbWindow,
+    menu_bar, render_modals_for,
 };
 use crate::logging::LogBuffer;
 use crate::settings::{Category, SharedSettings, SharedSettingsExt};
@@ -131,7 +131,7 @@ pub struct LuRaCsApp {
     pub documentation_dialog: StubWindow,
     pub bibliography_dialog: StubWindow,
     pub activity_window: StubWindow,
-    pub efficiency_window: StubWindow,
+    pub efficiency_window: EfficiencyWindow,
     pub calibration_window: StubWindow,
     pub resolution_window: StubWindow,
     pub deconvolution_window: DeconvolutionWindow,
@@ -196,6 +196,7 @@ impl LuRaCsApp {
         // --- Font size from settings ---
         apply_font_size(&cc.egui_ctx, &settings);
 
+        let efficiency_window = EfficiencyWindow::new(&render_state);
         Self {
             settings,
             run_manager,
@@ -237,7 +238,7 @@ impl LuRaCsApp {
             documentation_dialog: StubWindow::new("Documentation"),
             bibliography_dialog: StubWindow::new("Bibliography"),
             activity_window: StubWindow::new("Activity"),
-            efficiency_window: StubWindow::new("Efficiency"),
+            efficiency_window,
             calibration_window: StubWindow::new("Calibration"),
             resolution_window: StubWindow::new("Resolution"),
             deconvolution_window: DeconvolutionWindow::new(),
@@ -645,7 +646,8 @@ impl LuRaCsApp {
         self.documentation_dialog.render(ui);
         self.bibliography_dialog.render(ui);
         self.activity_window.render(ui);
-        self.efficiency_window.render(ui);
+        self.efficiency_window
+            .render(ui, &mut self.spectrum_manager);
         self.calibration_window.render(ui);
         self.resolution_window.render(ui);
         // DeconvolutionWindow needs `&mut self` (the app) while rendering, so

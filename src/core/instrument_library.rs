@@ -83,6 +83,13 @@ impl Instrument {
             _ => None,
         }
     }
+
+    pub fn model(&self) -> &str {
+        match self {
+            Self::Unique(u) => &u.generic.model,
+            Self::Generic(g) => &g.model,
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -380,6 +387,58 @@ impl InstrumentLibrary {
             key: key.to_string(),
             instrument: instrument_clone,
             changes,
+        });
+        Ok(())
+    }
+
+    /// Assign an exponential-polynomial intrinsic efficiency curve and measured
+    /// points to `key`, emitting `InstrumentUpdated`.
+    pub fn set_efficiency(
+        &mut self,
+        key: &str,
+        params: &[(f64, f64)],
+        e_points: &[f64],
+        eff_points: &[(f64, f64)],
+    ) -> InstrumentLibraryResult<()> {
+        use crate::containers::dimensionless;
+        use crate::utils::EfficiencySignature;
+        use chrono::Utc;
+        use physure_core::quantity::Quantity;
+
+        let to_qty = |(v, u): &(f64, f64)| Quantity::new_scalar(*v, *u, dimensionless(), None, None);
+        let q_params: Vec<Quantity> = params.iter().map(to_qty).collect();
+        let q_eff: Vec<Quantity> = eff_points.iter().map(to_qty).collect();
+        let now = Utc::now();
+
+        let instrument_clone: Instrument = {
+            let instrument = self
+                .registry
+                .get_mut(key)
+                .ok_or_else(|| InstrumentLibraryError::NotFound(key.to_string()))?;
+
+            match instrument {
+                Instrument::Unique(u) => {
+                    u.generic.int_efficiency_fn = Some(EfficiencySignature::ExpPoly);
+                    u.generic.int_efficiency_params = Some(q_params);
+                    u.generic.int_efficiency_e_points = Some(e_points.to_vec());
+                    u.generic.int_efficiency_eff_points = Some(q_eff);
+                    u.generic.int_efficiency_created = Some(now);
+                }
+                Instrument::Generic(g) => {
+                    g.int_efficiency_fn = Some(EfficiencySignature::ExpPoly);
+                    g.int_efficiency_params = Some(q_params);
+                    g.int_efficiency_e_points = Some(e_points.to_vec());
+                    g.int_efficiency_eff_points = Some(q_eff);
+                    g.int_efficiency_created = Some(now);
+                }
+            }
+            instrument.clone()
+        };
+
+        self.emit(InstrumentLibraryEvent::InstrumentUpdated {
+            key: key.to_string(),
+            instrument: instrument_clone,
+            changes: vec!["int_efficiency_fn=ExpPoly".to_string()],
         });
         Ok(())
     }
