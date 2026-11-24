@@ -1,3 +1,4 @@
+mod calibration_window;
 mod color_rotator;
 pub mod connection_windows;
 mod data_library;
@@ -16,6 +17,7 @@ mod spectogram_screen;
 mod spectrum_plot;
 mod stubs;
 
+pub use calibration_window::CalibrationWindow;
 pub use color_rotator::*;
 pub use connection_windows::{
     BleDeviceKind, BluetoothWindow, ConnectionRequest, NetworkDeviceKind, NetworkWindow,

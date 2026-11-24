@@ -442,6 +442,49 @@ impl InstrumentLibrary {
         });
         Ok(())
     }
+
+    /// Assign polynomial energy calibration to a unique instrument, emitting `InstrumentUpdated`.
+    pub fn set_calibration(
+        &mut self,
+        key: &str,
+        poly_order: u32,
+        coeffs: &[f64],
+        ch_points: &[f64],
+        e_points: &[f64],
+    ) -> InstrumentLibraryResult<()> {
+        use chrono::Utc;
+
+        let instrument_clone: Instrument = {
+            let instrument = self
+                .registry
+                .get_mut(key)
+                .ok_or_else(|| InstrumentLibraryError::NotFound(key.to_string()))?;
+
+            match instrument {
+                Instrument::Unique(u) => {
+                    u.calibration_poly_order = Some(poly_order);
+                    u.calibration_coefficients = Some(coeffs.to_vec());
+                    u.calibration_channel_points = Some(ch_points.to_vec());
+                    u.calibration_energy_points = Some(e_points.to_vec());
+                    u.calibration_date = Some(Utc::now());
+                }
+                Instrument::Generic(_) => {
+                    return Err(InstrumentLibraryError::WrongKind {
+                        expected: LibraryKind::Unique,
+                        got: LibraryKind::Generic,
+                    });
+                }
+            }
+            instrument.clone()
+        };
+
+        self.emit(InstrumentLibraryEvent::InstrumentUpdated {
+            key: key.to_string(),
+            instrument: instrument_clone,
+            changes: vec![format!("calibration_poly_order={poly_order}")],
+        });
+        Ok(())
+    }
 }
 
 // ---------------------------------------------------------------------------
