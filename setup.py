@@ -22,7 +22,18 @@ extensions = [
         "-O3",
         ],
     ) for cy_f in cython_files
-]
+] + [
+    Extension(
+            name="luracs.resources.mapping_resources.pmtiles.sedir",
+            sources=["luracs/resources/mapping_resources/pmtiles/sedir.pyx"],
+            include_dirs=[
+                np.get_include(),
+            ],
+            extra_compile_args=[
+            "-O3",
+            ],
+        )
+    ]
 
 setup(
     name="luracs",

@@ -22,3 +22,5 @@ luracs/utils/numerics/cython/*.so
 luracs/utils/numerics/cython/*.c
 
 luracs/clients/RadiacodeClient/.*
+
+luracs/resources/mapping_resources/pmtiles/sedir.c*

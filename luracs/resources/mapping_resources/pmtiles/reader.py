@@ -2,16 +2,15 @@ import gzip
 import json
 import mmap
 
+from .sedir import deserialize_directory
 from .tile import (
     Compression,
-    deserialize_directory,
     deserialize_header,
     find_tile,
     tileid_to_zxy,
     zxy_to_tileid,
 )
 
-import time
 
 def MmapSource(f):
     mapping = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
