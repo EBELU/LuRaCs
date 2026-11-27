@@ -652,4 +652,134 @@ mod tests {
         harness.run();
         assert_eq!(harness.state().cmds.last(), Some(&MenuBarCommand::ShowAbout));
     }
+
+    #[test]
+    fn test_dispatch_command_and_import_outcomes_with_headless_app() {
+        use crate::app::tests::make_headless_app;
+        use crate::containers::{GenericInstrument, Spectrum, UniqueInstrument};
+
+        let dir = std::env::temp_dir().join("luracs_menu_bar_dispatch_test");
+        drop(std::fs::remove_dir_all(&dir));
+        let mut app = make_headless_app(&dir);
+
+        let mut app_harness = Harness::builder()
+            .with_accessibility_check(false)
+            .build_ui_state(
+                |ui, app: &mut LuRaCsApp| {
+                    dispatch_command(app, ui, MenuBarCommand::OpenDataLibrary);
+                    assert!(app.data_library.open);
+
+                    dispatch_command(app, ui, MenuBarCommand::ShowFileLocation);
+                    dispatch_command(app, ui, MenuBarCommand::OpenDrivers);
+                    assert!(app.driver_dialog.open);
+
+                    dispatch_command(app, ui, MenuBarCommand::MapMoveToCurrent);
+                    dispatch_command(app, ui, MenuBarCommand::MapMoveToStart);
+                    dispatch_command(app, ui, MenuBarCommand::MapMoveToEnd);
+                    dispatch_command(app, ui, MenuBarCommand::StartAcquisition);
+                    dispatch_command(app, ui, MenuBarCommand::StopAcquisition);
+                    dispatch_command(app, ui, MenuBarCommand::ResetAllSpectra);
+                    dispatch_command(app, ui, MenuBarCommand::DisconnectAll);
+                    dispatch_command(app, ui, MenuBarCommand::ConnectNetwork);
+                    assert!(app.network_window.open);
+
+                    dispatch_command(app, ui, MenuBarCommand::OpenCalibration);
+                    assert!(app.calibration_window.open);
+                    dispatch_command(app, ui, MenuBarCommand::OpenDeconvolution);
+                    assert!(app.deconvolution_window.open);
+                    dispatch_command(app, ui, MenuBarCommand::OpenEfficiency);
+                    assert!(app.efficiency_window.open);
+                    dispatch_command(app, ui, MenuBarCommand::OpenPeakFeatures);
+                    assert!(app.peak_features_window.open);
+                    dispatch_command(app, ui, MenuBarCommand::OpenResolution);
+                    assert!(app.resolution_window.open);
+                    dispatch_command(app, ui, MenuBarCommand::AddCalcRoi);
+                    assert_eq!(app.bottom_tab, crate::app::BottomTab::SpectrogramRois);
+                    dispatch_command(app, ui, MenuBarCommand::OpenSettings);
+                    assert!(app.settings_dialog.open);
+                    dispatch_command(app, ui, MenuBarCommand::ToggleSiMode(true));
+                    dispatch_command(app, ui, MenuBarCommand::SetSpectrumTabbed(true));
+                    assert!(app.settings.read_settings().plotting.tabbed_spectrum_view);
+                    dispatch_command(app, ui, MenuBarCommand::OpenDocumentation);
+                    assert!(app.documentation_dialog.open);
+                    dispatch_command(app, ui, MenuBarCommand::OpenBibliography);
+                    assert!(app.bibliography_dialog.open);
+                    dispatch_command(app, ui, MenuBarCommand::ShowAbout);
+                },
+                app,
+            );
+        app_harness.run();
+        let mut app = std::mem::replace(
+            app_harness.state_mut(),
+            make_headless_app(&dir.join("dummy")),
+        );
+        drop(app_harness);
+        assert!(!app.modal_stack.is_empty());
+        app.modal_stack.clear();
+
+        // Dispatch import outcomes: Spectrum (via N42Writer + import_paths), Rois, UniqueInstrument, missing Spectrogram error
+        let spec_path = dir.join("imported_spec.xml");
+        let mut spec = Spectrum::new(32, "ImportedSpec");
+        spec.set_foreground(
+            crate::containers::SpectrumData {
+                y_axis: ndarray::Array1::from_vec(vec![1.0; 32]),
+                channels: 32,
+                total_counts: 32,
+                live_time: 10.0,
+                real_time: Some(10.0),
+                avg_dose_rate: None,
+                avg_cps: None,
+                start_date: None,
+                end_date: None,
+                spectrum_name: Some("ImportedSpec".into()),
+                instrument: None,
+            },
+            None,
+        );
+        crate::utils::N42Writer::new(&spec, &spec_path, crate::utils::WriteOptions::default())
+            .unwrap()
+            .write_out()
+            .unwrap();
+        let spec_lib = app.settings.read_settings().paths.spectrogram_library.clone();
+        let mut outcomes =
+            app.io_manager
+                .importer
+                .import_paths(&[spec_path], ImportFilter::All, &spec_lib);
+
+        let roi = crate::containers::Roi {
+            tag: "roi_imp".into(),
+            alias: "ROI Imp".into(),
+            spectrum: String::new(),
+            roi_bound: (0.0, 10.0),
+            region_bound: (0.0, 10.0),
+            fit_type: crate::containers::FitType::Gaussian,
+            bkg_type: crate::containers::BkgType::Linear,
+            bkg_est_channels: 3,
+            fit: None,
+            roi_counts: 0.0,
+            live_time: 1.0,
+            emission: None,
+            meta: serde_json::Map::new(),
+            merge: false,
+            movable: true,
+            poisson_weights: true,
+            owner_spectrum: None,
+        };
+        let tmpl = GenericInstrument {
+            model: "M".into(),
+            manufacturer: "Mfr".into(),
+            ..Default::default()
+        };
+        let unique = UniqueInstrument::from_template("ImpDet", &tmpl);
+
+        outcomes.push(ImportOutcome::Rois(vec![roi]));
+        outcomes.push(ImportOutcome::Instrument(InstrumentData::Unique(unique)));
+        outcomes.push(ImportOutcome::Spectrogram("does_not_exist".into()));
+        dispatch_import_outcomes(&mut app, outcomes);
+        assert!(!app.spectrum_manager.spectrum_registry.is_empty());
+        assert!(app.spectrum_manager.roi_manager.get_roi("roi_imp").is_some());
+        assert_eq!(app.modal_stack.len(), 1);
+
+        drop(std::fs::remove_dir_all(&dir));
+    }
 }

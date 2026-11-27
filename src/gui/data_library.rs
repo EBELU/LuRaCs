@@ -1983,5 +1983,93 @@ mod tests {
 
         drop(std::fs::remove_dir_all(&dir));
     }
+
+    #[test]
+    fn test_data_library_app_handlers_load_edit_delete() {
+        use egui_kittest::Harness;
+        use egui_kittest::kittest::Queryable;
+
+        use crate::app::tests::make_headless_app;
+        use crate::containers::{Spectrum, SpectrumData};
+        use crate::utils::{N42Writer, WriteOptions};
+
+        let dir = std::env::temp_dir().join("luracs_data_lib_app_handlers_test");
+        drop(std::fs::remove_dir_all(&dir));
+        let mut app = make_headless_app(&dir);
+
+        // Save a valid N42 XML spectrum into spectrum_library and index it.
+        let spec_dir = app.settings.read_settings().paths.spectrum_library.clone();
+        std::fs::create_dir_all(&spec_dir).unwrap();
+        let spec_path = spec_dir.join("SpecOne.xml");
+        let mut spec = Spectrum::new(32, "SpecOne");
+        spec.set_foreground(
+            SpectrumData {
+                y_axis: ndarray::Array1::from_vec(vec![2.0; 32]),
+                channels: 32,
+                total_counts: 64,
+                live_time: 10.0,
+                real_time: Some(10.0),
+                avg_dose_rate: None,
+                avg_cps: None,
+                start_date: None,
+                end_date: None,
+                spectrum_name: Some("SpecOne".into()),
+                instrument: None,
+            },
+            None,
+        );
+        N42Writer::new(&spec, &spec_path, WriteOptions::default())
+            .unwrap()
+            .write_out()
+            .unwrap();
+        app.io_manager.file_index.run_index_all();
+
+        // Test load_spectrums
+        let mut win = DataLibraryWindow::new();
+        win.open();
+        win.selected_spectrums.insert(spec_path.clone());
+        win.load_spectrums(&mut app, std::slice::from_ref(&spec_path));
+        assert!(!app.spectrum_manager.spectrum_registry.is_empty());
+
+        // Test render_bottom_bar across tabs + modal rendering via Harness
+        struct AppState {
+            win: DataLibraryWindow,
+            app: LuRaCsApp,
+        }
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(820.0, 200.0))
+            .with_accessibility_check(false)
+            .build_ui_state(
+                |ui, st: &mut AppState| {
+                    st.win.render_bottom_bar(&mut st.app, ui);
+                    st.win.render_modals(&mut st.app, ui.ctx());
+                },
+                AppState { win, app },
+            );
+        harness.run();
+
+        // Edit selected spectrum -> opens Edit Spectrum modal -> Cancel
+        harness.get_by_label("Edit").click();
+        harness.run();
+        assert!(harness.state().win.has_open_modal());
+        harness.get_by_label("Cancel").click();
+        harness.run();
+        assert!(!harness.state().win.has_open_modal());
+
+        // Delete -> Confirm Yes -> removes file
+        harness.get_by_label("Delete").click();
+        harness.run();
+        assert!(harness.state().win.has_open_modal());
+        harness.get_by_label("Yes").click();
+        harness.run();
+        assert!(!spec_path.exists());
+
+        // Close button sets open = false
+        harness.get_by_label("Close").click();
+        harness.run();
+        assert!(!harness.state().win.open);
+
+        drop(std::fs::remove_dir_all(&dir));
+    }
 }
 
