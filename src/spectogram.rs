@@ -975,3 +975,207 @@ fn zlib_decompress(data: &[u8]) -> std::io::Result<Vec<u8>> {
     dec.read_to_end(&mut out)?;
     Ok(out)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_bounded_deque_and_spectrogram_lifecycle() {
+        let mut dq = BoundedDeque::new(2);
+        assert!(dq.is_empty());
+        assert_eq!(dq.capacity(), 2);
+        dq.push(1);
+        dq.push(2);
+        dq.push(3);
+        assert_eq!(dq.len(), 2);
+        assert_eq!(dq.last(), Some(&3));
+        assert_eq!(dq.iter().copied().collect::<Vec<_>>(), vec![2, 3]);
+        assert_eq!(dq.to_vec(), vec![2, 3]);
+        dq.resize(1);
+        assert_eq!(dq.to_vec(), vec![3]);
+        let nan_dq = BoundedDeque::filled_nan(2);
+        assert_eq!(nan_dq.len(), 2);
+
+        let dir = std::env::temp_dir().join("luracs_test_spectogram");
+        drop(std::fs::remove_dir_all(&dir));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let cfg = SpectrogramConfig {
+            deque_length: 8,
+            ..Default::default()
+        };
+
+        // Invalid concat_factor
+        assert!(matches!(
+            Spectrogram::open(
+                "bad",
+                &dir,
+                cfg.clone(),
+                SpectrogramMode::New {
+                    save_interval: 1.0,
+                    spect_channels: 4,
+                    device_id: "dev0".into(),
+                    calibration_coeff: vec![1.0, 0.0],
+                    concat_factor: 3,
+                    header_meta: Value::Null,
+                }
+            ),
+            Err(SpectrogramError::InvalidConcatFactor(3))
+        ));
+
+        let mut sp = Spectrogram::open(
+            "sg_test",
+            &dir,
+            cfg.clone(),
+            SpectrogramMode::New {
+                save_interval: 1.0,
+                spect_channels: 4,
+                device_id: "dev0".into(),
+                calibration_coeff: vec![1.0, 0.0],
+                concat_factor: 1,
+                header_meta: json!({"note": "test"}),
+            },
+        )
+        .unwrap();
+        assert_eq!(sp.device_id(), "dev0");
+        assert_eq!(sp.spect_channels(), 4);
+        assert_eq!(sp.concat_factor(), 1);
+        assert!((sp.save_interval() - 1.0).abs() < 1e-12);
+        assert_eq!(sp.calibration_coeff(), &[1.0, 0.0]);
+        let _ = sp.start_date();
+
+        sp.receive_current(
+            "dev0",
+            &WrappedRealTimePackage {
+                cps: 12.0,
+                dr: 0.5,
+                timestamp: 100.0,
+                ..Default::default()
+            },
+        );
+        sp.receive_status(
+            "dev0",
+            &WrappedStatusPackage {
+                temperature: 25.0,
+                timestamp: 100.0,
+                ..Default::default()
+            },
+        );
+        sp.receive_gps(&GpsData {
+            valid: true,
+            latitude: Some(48.0),
+            longitude: Some(11.0),
+            ..Default::default()
+        });
+
+        // First & second spectrum (diff >= 0, triggers DB save)
+        sp.receive_spectrum(
+            "dev0",
+            &WrappedSpectrumPackage {
+                y_axis: vec![1.0, 2.0, 3.0, 4.0].into(),
+                live_time: 1.0,
+                real_time: Some(1.0),
+                calib_coeff: None,
+                timestamp: 100.0,
+            },
+        )
+        .unwrap();
+        sp.receive_spectrum(
+            "dev0",
+            &WrappedSpectrumPackage {
+                y_axis: vec![2.0, 4.0, 6.0, 8.0].into(),
+                live_time: 2.0,
+                real_time: Some(2.0),
+                calib_coeff: None,
+                timestamp: 102.0,
+            },
+        )
+        .unwrap();
+
+        // Channel mismatch error (after baseline is established)
+        assert!(matches!(
+            sp.receive_spectrum(
+                "dev0",
+                &WrappedSpectrumPackage {
+                    y_axis: vec![1.0, 2.0].into(),
+                    live_time: 1.0,
+                    real_time: Some(1.0),
+                    calib_coeff: None,
+                    timestamp: 103.0,
+                }
+            ),
+            Err(SpectrogramError::ChannelMismatch { .. })
+        ));
+
+        // Negative diff error
+        assert!(matches!(
+            sp.receive_spectrum(
+                "dev0",
+                &WrappedSpectrumPackage {
+                    y_axis: vec![0.0, 4.0, 6.0, 8.0].into(),
+                    live_time: 3.0,
+                    real_time: Some(3.0),
+                    calib_coeff: None,
+                    timestamp: 104.0,
+                }
+            ),
+            Err(SpectrogramError::NegativeDiff { .. })
+        ));
+
+        sp.set_paused(true);
+        sp.set_paused(false);
+        sp.request_data();
+        sp.resize_deque(4);
+        assert!(!sp.drain_events().is_empty());
+        sp.close();
+
+        // Concat factor 2 + overwrite existing DB (clean_db)
+        let mut sp2 = Spectrogram::open(
+            "sg_test",
+            &dir,
+            cfg.clone(),
+            SpectrogramMode::New {
+                save_interval: 1.0,
+                spect_channels: 4,
+                device_id: "dev0".into(),
+                calibration_coeff: vec![1.0, 0.0],
+                concat_factor: 2,
+                header_meta: Value::Null,
+            },
+        )
+        .unwrap();
+        assert_eq!(sp2.spect_channels(), 2);
+        sp2.receive_spectrum(
+            "dev0",
+            &WrappedSpectrumPackage {
+                y_axis: vec![1.0, 2.0, 3.0, 4.0].into(),
+                live_time: 1.0,
+                real_time: Some(1.0),
+                calib_coeff: None,
+                timestamp: 100.0,
+            },
+        )
+        .unwrap();
+        sp2.receive_spectrum(
+            "dev0",
+            &WrappedSpectrumPackage {
+                y_axis: vec![2.0, 4.0, 6.0, 8.0].into(),
+                live_time: 2.0,
+                real_time: Some(2.0),
+                calib_coeff: None,
+                timestamp: 102.0,
+            },
+        )
+        .unwrap();
+        sp2.close();
+
+        // Resume from DB
+        let mut resumed =
+            Spectrogram::open("sg_test", &dir, cfg, SpectrogramMode::Resume).unwrap();
+        assert!(!resumed.drain_events().is_empty());
+        resumed.close();
+
+        drop(std::fs::remove_dir_all(&dir));
+    }
+}

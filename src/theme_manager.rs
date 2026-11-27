@@ -748,3 +748,111 @@ pub fn build_visuals(theme: &ThemeDefinition) -> egui::Visuals {
 
     v
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_builtins_registry_file_loading_and_manager() {
+        let builtins = [
+            catppuccin_latte(),
+            catppuccin_frappe(),
+            catppuccin_macchiato(),
+            catppuccin_mocha(),
+            light(),
+            dark(),
+        ];
+        for t in &builtins {
+            assert!(!t.meta.label().is_empty());
+            drop(t.resolved_plot());
+            let visuals = build_visuals(t);
+            assert_eq!(visuals.dark_mode, matches!(t.meta.variant, Variant::Dark));
+        }
+
+        let default_name = catppuccin_mocha().meta.name;
+        let light_name = catppuccin_latte().meta.name;
+        let reg = ThemeRegistry::with_builtins();
+        assert!(!reg.is_empty());
+        assert_eq!(reg.len(), 6);
+        assert!(reg.contains(&default_name));
+        assert_eq!(reg.iter().count(), 6);
+        assert_eq!(reg.names().count(), 6);
+
+        let dir = std::env::temp_dir().join("luracs_test_themes");
+        drop(std::fs::remove_dir_all(&dir));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // Serialize a built-in theme to JSON and TOML, plus a bad file & unsupported ext
+        let mut custom = catppuccin_mocha();
+        custom.meta.name = "custom-json".into();
+        custom.meta.display_name = Some("Custom JSON".into());
+        let json_path = dir.join("custom.json");
+        std::fs::write(&json_path, serde_json::to_string_pretty(&custom).unwrap()).unwrap();
+        let loaded_json = load_theme_file(&json_path).unwrap();
+        assert_eq!(loaded_json.meta.label(), "Custom JSON");
+
+        let toml_path = dir.join("custom.toml");
+        std::fs::write(&toml_path, toml::to_string(&custom).unwrap()).unwrap();
+        drop(load_theme_file(&toml_path));
+
+        let bad_ext = dir.join("ignored.txt");
+        std::fs::write(&bad_ext, "hi").unwrap();
+        assert!(matches!(
+            load_theme_file(&bad_ext),
+            Err(ThemeError::UnsupportedFormat(_))
+        ));
+
+        let bad_json = dir.join("broken.json");
+        std::fs::write(&bad_json, "{not-json").unwrap();
+        assert!(matches!(load_theme_file(&bad_json), Err(ThemeError::Load { .. })));
+
+        let bad_toml = dir.join("broken.toml");
+        std::fs::write(&bad_toml, "not = [toml").unwrap();
+        assert!(matches!(load_theme_file(&bad_toml), Err(ThemeError::Load { .. })));
+
+        let bad_xml = dir.join("broken.xml");
+        std::fs::write(&bad_xml, "<bad").unwrap();
+        assert!(matches!(load_theme_file(&bad_xml), Err(ThemeError::Load { .. })));
+
+        assert!(matches!(
+            load_theme_file(&dir.join("missing.json")),
+            Err(ThemeError::Io(_))
+        ));
+
+        // Bad hex color via JSON
+        assert!(parse_hex("#112233").is_some());
+        assert!(parse_hex("#11223344").is_some());
+        assert!(parse_hex("zzzz").is_none());
+
+        // ThemeManager lifecycle
+        let mut mgr = ThemeManager::new(&dir, &dir, Some("custom-json"));
+        assert_eq!(mgr.current_name(), "custom-json");
+        assert_eq!(mgr.version(), 0);
+        assert_eq!(mgr.builtin_dir(), dir.as_path());
+        assert_eq!(mgr.user_dir(), dir.as_path());
+        assert!(mgr.registry().contains("custom-json"));
+
+        let ctx = egui::Context::default();
+        mgr.apply_current(&ctx).unwrap();
+        assert_eq!(mgr.version(), 1);
+
+        let mut out = ctx.run_ui(Default::default(), |ui| {
+            mgr.apply(ui, &light_name).unwrap();
+            assert!(matches!(
+                mgr.apply(ui, "no-such-theme"),
+                Err(ThemeError::UnknownTheme(_))
+            ));
+        });
+        out.textures_delta.clear();
+
+        assert_eq!(mgr.current().meta.name, light_name);
+        assert_eq!(mgr.version(), 2);
+        assert_eq!(mgr.drain_events().len(), 2);
+
+        let reload_errs = mgr.reload();
+        assert!(!reload_errs.is_empty()); // broken.{json,toml,xml} reported without aborting
+
+        drop(std::fs::remove_dir_all(&dir));
+    }
+}

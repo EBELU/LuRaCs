@@ -1014,3 +1014,100 @@ impl SharedSettingsExt for SharedSettings {
         self.write().expect("settings lock poisoned")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_settings_categories_paths_updates_and_persistence() {
+        for cat in [
+            Category::Theme,
+            Category::Plotting,
+            Category::Importing,
+            Category::Scanning,
+            Category::Gps,
+            Category::Optimizer,
+            Category::RealTime,
+            Category::Spectrogram,
+            Category::Logging,
+            Category::Connections,
+            Category::Workspace,
+            Category::Session,
+        ] {
+            assert!(!cat.as_str().is_empty());
+            assert!(!cat.display_name().is_empty());
+            assert!(!cat.fields().is_empty());
+            let first = cat.fields()[0];
+            assert!(cat.contains_field(first));
+            assert_eq!(Category::of_field(first), Some(cat));
+        }
+        assert!(!Category::Theme.contains_field("nonexistent"));
+        assert_eq!(Category::of_field("no_such_field_xyz"), None);
+
+        let dir = std::env::temp_dir().join("luracs_test_settings");
+        drop(std::fs::remove_dir_all(&dir));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let paths = Paths::with_overrides(
+            PathOverrides::new()
+                .base(dir.clone())
+                .config(dir.join("cfg.json"))
+                .appdata(dir.join("app"))
+                .last_opened_dir(dir.clone()),
+        )
+        .unwrap();
+
+        let mut s = Settings::builder()
+            .headless(true)
+            .paths(paths)
+            .temp(Temp::new())
+            .load_from_disk(false)
+            .build()
+            .unwrap();
+
+        s.update(Category::Theme, "name", Value::String("light-catppuccin".into()))
+            .unwrap();
+        s.update(Category::Optimizer, "use_chi2_weight", Value::Bool(true))
+            .unwrap();
+        s.update(Category::Importing, "load_calibration", Value::Bool(false))
+            .unwrap();
+        assert_eq!(
+            s.get_field(Category::Theme, "name"),
+            Some(Value::String("light-catppuccin".into()))
+        );
+        assert!(s.category_snapshot(Category::Theme).is_object());
+        assert!(s.category_snapshot(Category::Optimizer).is_object());
+        assert!(matches!(
+            s.update(Category::Theme, "unknown", Value::Null),
+            Err(SettingsError::UnknownField { .. })
+        ));
+        assert!(matches!(
+            s.update(Category::Theme, "name", Value::Bool(true)),
+            Err(SettingsError::TypeMismatch { .. })
+        ));
+
+        for i in 0..15 {
+            s.add_new_connection("Mock", &format!("MOCK:{i}"));
+        }
+        s.save().unwrap();
+        s.load().unwrap();
+
+        let shared: SharedSettings = Arc::new(RwLock::new(s));
+        assert!(shared.read_settings().headless);
+        shared.write_settings().headless = false;
+
+        let evs = shared.write_settings().drain_events();
+        assert!(evs.iter().any(|e| e.as_setting_changed().is_some()));
+        assert!(evs.iter().any(|e| e.as_latest_connection_updated().is_some()));
+
+        let mut extra = Vec::new();
+        shared.write_settings().drain_events_into(&mut extra);
+        assert!(extra.is_empty());
+
+        shared.write_settings().paths.set_config(dir.join("cfg2.json"));
+        shared.write_settings().paths.set_appdata(dir.join("app2"));
+
+        drop(std::fs::remove_dir_all(&dir));
+    }
+}
