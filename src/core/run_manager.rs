@@ -646,6 +646,7 @@ impl RunManager {
 
     // ---- Bluetooth ------------------------------------------------------
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn find_bluetooth(&self, timeout: Duration) -> Result<()> {
         let shared = Arc::clone(&self.shared);
         self.shared.handle.spawn(async move {
@@ -657,6 +658,7 @@ impl RunManager {
         Ok(())
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn connect_bluetooth_list(&self, targets: &[String], timeout: Duration) -> Result<()> {
         let shared = Arc::clone(&self.shared);
         let targets = targets.to_vec();
@@ -770,6 +772,7 @@ impl RunManager {
 // ---------------------------------------------------------------------------
 
 /// Scan for nearby BLE peripherals using `btleplug` for up to `duration` (or until `cancel`).
+#[cfg_attr(coverage_nightly, coverage(off))]
 pub async fn scan_ble_peripherals(
     duration: Duration,
     cancel: CancellationToken,
@@ -1074,6 +1077,143 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(30));
         drop(rm.poll());
         rm.remove_all_devices();
+        rm.shutdown();
+        drop(std::fs::remove_dir_all(&sg_dir));
+    }
+
+    #[test]
+    fn test_run_manager_error_paths_runner_events_and_gps_forwarding() {
+        struct FailStartDummy(DummyDevice);
+        #[async_trait::async_trait]
+        impl DeviceWrapper for FailStartDummy {
+            fn type_key(&self) -> &'static str { self.0.type_key() }
+            fn name(&self) -> &str { self.0.name() }
+            fn connection(&self) -> ConnectionType { self.0.connection() }
+            fn state(&self) -> DeviceState { self.0.state() }
+            fn set_state(&self, s: DeviceState) { self.0.set_state(s); }
+            fn channels(&self) -> Option<usize> { self.0.channels() }
+            fn is_running(&self) -> bool { self.0.is_running() }
+            fn is_stopped(&self) -> bool { self.0.is_stopped() }
+            fn connected_timestamp(&self) -> f64 { self.0.connected_timestamp() }
+            async fn start(&self) -> std::result::Result<(), crate::clients::DeviceError> {
+                Err(crate::clients::DeviceError::Protocol("start failed".into()))
+            }
+            async fn stop(&self) -> std::result::Result<(), crate::clients::DeviceError> { Ok(()) }
+            async fn get_realtime_data(&self) -> std::result::Result<crate::clients::WrappedRealTimePackage, crate::clients::DeviceError> {
+                self.0.get_realtime_data().await
+            }
+            async fn get_status(&self) -> std::result::Result<crate::clients::WrappedStatusPackage, crate::clients::DeviceError> {
+                self.0.get_status().await
+            }
+            async fn get_spectrum(&self) -> std::result::Result<crate::clients::WrappedSpectrumPackage, crate::clients::DeviceError> {
+                self.0.get_spectrum().await
+            }
+        }
+        register_device("RunMgrFactoryErr", |_, _| {
+            Err(crate::clients::DeviceError::Protocol("factory boom".into()))
+        });
+        register_device("RunMgrFailStart", |addr, conn| {
+            Ok(Box::new(FailStartDummy(DummyDevice::new(addr, conn))))
+        });
+
+        let mut rm = RunManager::new(8, PollConfig::default()).unwrap();
+
+        // Unknown type, factory error, and start() error
+        let h1 = rm.add_device(
+            DeviceAddress::Other("u1".into()),
+            "NoSuchRunMgrDevice".into(),
+            ConnectionType::Network,
+        );
+        let h2 = rm.add_device(
+            DeviceAddress::Other("u2".into()),
+            "RunMgrFactoryErr".into(),
+            ConnectionType::Network,
+        );
+        let h3 = rm.add_device(
+            DeviceAddress::Other("u3".into()),
+            "RunMgrFailStart".into(),
+            ConnectionType::Network,
+        );
+        rm.runtime_handle().block_on(async {
+            drop(h1.await);
+            drop(h2.await);
+            drop(h3.await);
+        });
+        let evs = rm.poll();
+        assert!(evs.iter().any(|e| matches!(e, RunManagerEvent::DeviceError { .. })));
+        assert!(evs.iter().any(|e| matches!(
+            e,
+            RunManagerEvent::DeviceStateUpdated {
+                state: DeviceState::ConnectionFailed,
+                ..
+            }
+        )));
+
+        // Reconnect GPS while already connected closes prior GPS
+        rm.connect_mock_gps().unwrap();
+        rm.connect_mock_gps().unwrap();
+
+        let sg_dir = std::env::temp_dir().join("luracs_test_run_mgr_extra");
+        drop(std::fs::remove_dir_all(&sg_dir));
+        let sp = Spectrogram::open(
+            "sg_extra",
+            &sg_dir,
+            crate::spectogram::SpectrogramConfig::default(),
+            crate::spectogram::SpectrogramMode::New {
+                save_interval: 1.0,
+                spect_channels: 16,
+                device_id: "u_extra".into(),
+                calibration_coeff: vec![1.0, 0.0],
+                concat_factor: 1,
+                header_meta: serde_json::Value::Null,
+            },
+        )
+        .unwrap();
+        rm.add_spectrogram("sg_extra".into(), sp).unwrap();
+
+        // Inject synthetic DeviceEvents to cover poll() forwarding arms
+        let tx = rm.shared().device_event_tx.clone();
+        tx.send(DeviceEvent::DeviceStateUpdated {
+            name: "u_extra".into(),
+            state: DeviceState::Connected,
+        })
+        .unwrap();
+        tx.send(DeviceEvent::PollBehindSchedule {
+            name: "u_extra".into(),
+            behind_secs: 1.25,
+        })
+        .unwrap();
+        tx.send(DeviceEvent::PollFailed {
+            name: "u_extra".into(),
+            state: DeviceState::ConnectionFailed,
+            reason: "panic".into(),
+        })
+        .unwrap();
+        let pkg = crate::clients::WrappedSpectrumPackage {
+            y_axis: vec![1.0, 2.0, 3.0, 4.0].into(),
+            live_time: 1.0,
+            real_time: Some(1.0),
+            calib_coeff: None,
+            timestamp: 1.0,
+        };
+        tx.send(DeviceEvent::SpectrumUpdated {
+            name: "u_extra".into(),
+            data: pkg,
+        })
+        .unwrap();
+
+        rm.spectrogram_manager_mut().remove_roi("nonexistent");
+        std::thread::sleep(std::time::Duration::from_millis(25));
+        let polled = rm.poll();
+        assert!(polled.iter().any(|e| matches!(e, RunManagerEvent::DeviceError { .. })));
+        assert!(polled.iter().any(|e| matches!(
+            e,
+            RunManagerEvent::SpectrumUpdated { name, .. } if name == "u_extra"
+        )));
+
+        // remove_device with delete = false
+        rm.remove_device("u_extra".into(), false);
+        rm.close_spectrogram("sg_extra");
         rm.shutdown();
         drop(std::fs::remove_dir_all(&sg_dir));
     }
