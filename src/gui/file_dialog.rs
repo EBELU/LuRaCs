@@ -18,9 +18,11 @@ enum DialogResult {
     Files(Option<Vec<PathBuf>>),
 }
 
+type DialogCallback = Box<dyn FnOnce(&mut LuRaCsApp, DialogResult)>;
+
 struct PendingJob {
     rx: mpsc::Receiver<DialogResult>,
-    on_complete: Box<dyn FnOnce(&mut LuRaCsApp, DialogResult)>,
+    on_complete: DialogCallback,
 }
 
 /// Queue of in-flight file dialogs owned by `LuRaCsApp`.

@@ -338,23 +338,23 @@ pub fn draw_peak_id_hud(
                 owner_ok && badge.energy_kev >= roi.roi_bound.0 && badge.energy_kev <= roi.roi_bound.1
             });
 
-        let label = match badge.matches.first() {
-            Some(top) => format!("{} · {:.1}", top.nuclide_name, badge.energy_kev),
-            None => format!("? {:.1} keV", badge.energy_kev),
-        };
+        let label = badge.matches.first().map_or_else(
+            || format!("? {:.1} keV", badge.energy_kev),
+            |top| format!("{} · {:.1}", top.nuclide_name, badge.energy_kev),
+        );
 
         let galley = painter.layout_no_wrap(label, font.clone(), Color32::WHITE);
         let pad = Vec2::new(6.0, 3.0);
         let size = galley.size() + pad * 2.0;
 
         let mut center_x = px_x.clamp(
-            plot_area.left() + size.x * 0.5 + 2.0,
-            plot_area.right() - size.x * 0.5 - 2.0,
+            size.x.mul_add(0.5, plot_area.left()) + 2.0,
+            size.x.mul_add(-0.5, plot_area.right()) - 2.0,
         );
         let mut bottom_y = (px_y - 10.0).clamp(plot_area.top() + size.y + 2.0, plot_area.bottom() - 2.0);
 
         let mut rect = Rect::from_min_size(
-            Pos2::new(center_x - size.x * 0.5, bottom_y - size.y),
+            Pos2::new(size.x.mul_add(-0.5, center_x), bottom_y - size.y),
             size,
         );
 
@@ -364,7 +364,7 @@ pub fn draw_peak_id_hud(
                 bottom_y = (hit.top() - 4.0).max(plot_area.top() + size.y + 2.0);
                 center_x = rect.center().x;
                 rect = Rect::from_min_size(
-                    Pos2::new(center_x - size.x * 0.5, bottom_y - size.y),
+                    Pos2::new(size.x.mul_add(-0.5, center_x), bottom_y - size.y),
                     size,
                 );
             } else {

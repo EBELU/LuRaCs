@@ -87,7 +87,7 @@ impl SpectrogramRoisTab {
             self.next_plot_id += 1;
             let mut plot = Plot1D::new(render_state, id);
             plot.set_graph_x_label("Time [s]");
-            plot.set_graph_y_label(&format!("CPS ({alias})"), YAxis::Left);
+            plot.set_graph_y_label(format!("CPS ({alias})"), YAxis::Left);
             plot.plot_mut().x_inverted = true;
             plot.set_x_min_pos(Some(0.0));
             if let Some(colors) = &self.plot_colors {

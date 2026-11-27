@@ -514,7 +514,7 @@ impl SettingsDialog {
         );
     }
 
-    fn render_buttons(&mut self, app: &mut LuRaCsApp, ui: &mut egui::Ui) -> bool {
+    fn render_buttons(&self, app: &mut LuRaCsApp, ui: &mut egui::Ui) -> bool {
         let mut close_requested = false;
         let dirty = self.draft.has_changes(&app.settings.read_settings());
         let cancel_label = if dirty { "Cancel" } else { "Close" };
@@ -558,7 +558,7 @@ impl SettingsDialog {
     /// Commit every changed draft field through `Settings::update` and
     /// trigger the side-effects the old Python `edit_settings` /
     /// `edit_advanced_settings` performed on each change.
-    fn apply(&mut self, app: &mut LuRaCsApp, ui: &egui::Ui) {
+    fn apply(&self, app: &mut LuRaCsApp, ui: &egui::Ui) {
         // ---- 1. Theme (outside settings lock: ThemeManager::apply emits
         //         ThemeChanged, and the app's event loop persists it) ----
         let current_theme_name = app.settings.read_settings().theme.name.clone();

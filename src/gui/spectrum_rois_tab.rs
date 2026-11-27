@@ -166,24 +166,25 @@ impl SpectrumRoisTab {
                                         );
 
                                         let (nuc_name, photo_peak, diff_str) =
-                                            if let Some(em) = &roi.emission {
-                                                let n = em
-                                                    .parent_nuclide
-                                                    .as_ref()
-                                                    .map_or_else(|| "Annihilation".into(), |id| id.to_name());
-                                                if let Some(ekev) = &em.energy_kev {
-                                                    let e = ekev.value.mean();
-                                                    (
-                                                        n,
-                                                        format!("{e:.2} keV"),
-                                                        format!("{:.3} keV", fit.mu() - e),
-                                                    )
-                                                } else {
-                                                    (n, "None".into(), "None".into())
-                                                }
-                                            } else {
-                                                ("None".into(), "None".into(), "None".into())
-                                            };
+                                            roi.emission.as_ref().map_or_else(
+                                                || ("None".into(), "None".into(), "None".into()),
+                                                |em| {
+                                                    let n = em.parent_nuclide.as_ref().map_or_else(
+                                                        || "Annihilation".into(),
+                                                        |id| id.to_name(),
+                                                    );
+                                                    if let Some(ekev) = &em.energy_kev {
+                                                        let e = ekev.value.mean();
+                                                        (
+                                                            n,
+                                                            format!("{e:.2} keV"),
+                                                            format!("{:.3} keV", fit.mu() - e),
+                                                        )
+                                                    } else {
+                                                        (n, "None".into(), "None".into())
+                                                    }
+                                                },
+                                            );
 
                                         ui.label(&roi.alias);
                                         ui.label(spec_name);

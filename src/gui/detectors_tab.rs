@@ -57,7 +57,7 @@ impl DetectorsTab {
         entry.status = Some(status.clone());
     }
 
-    pub fn render(&mut self, ui: &mut egui::Ui, run_manager: &RunManager) {
+    pub fn render(&self, ui: &mut egui::Ui, run_manager: &RunManager) {
         let mut names = run_manager.list_devices();
         names.sort();
 

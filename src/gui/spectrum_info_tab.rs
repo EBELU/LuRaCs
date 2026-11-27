@@ -22,7 +22,7 @@ impl SpectrumInfoTab {
     }
 
     pub fn render(
-        &mut self,
+        &self,
         ui: &mut egui::Ui,
         spectrum_manager: &mut SpectrumManager,
         run_manager: &RunManager,
