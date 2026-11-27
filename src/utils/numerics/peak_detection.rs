@@ -388,5 +388,32 @@ mod tests {
         let res = find_peaks(&y, &x, 5).unwrap();
         assert!(!res.peaks.is_empty());
         assert!(res.log_info.contains("Peak Candidates:"));
+
+        // Direct edge-case checks for local_maxima, enforce_min_separation, post_process_peaks
+        assert!(local_maxima(&[0.0, 5.0, 0.0], Some(10.0)).is_empty());
+        assert_eq!(enforce_min_separation(&[10, 12, 20], 5), vec![10, 20]);
+        let post = post_process_peaks(&[5, 50], &[10, 45], &[48, 55], 60);
+        assert_eq!(post, vec![(35, 50, 59)]);
+
+        // Narrow/flat/close peaks to exercise sanity, fit-failure, bad-fit, and duplicate rejections
+        let mut x2: Vec<f64> = (0..120).map(|i| i as f64).collect();
+        let mut y2 = vec![10.0; 120];
+        for (i, yi) in y2.iter_mut().enumerate() {
+            let d1 = i as f64 - 50.0;
+            let d2 = i as f64 - 53.0;
+            *yi += 400.0 * (-0.5 * d1 * d1 / 2.0).exp();
+            *yi += 350.0 * (-0.5 * d2 * d2 / 2.0).exp();
+        }
+        drop(find_peaks(&y2, &x2, 5).unwrap());
+
+        // Force right-left < 4 via post_process_peaks / narrow plateau and broad peak > 20% width
+        x2.iter_mut().for_each(|v| *v += 30.0);
+        let broad: Vec<f64> = (0..120)
+            .map(|i| {
+                let d = i as f64 - 60.0;
+                10.0 + 500.0 * (-0.5 * d * d / (25.0 * 25.0)).exp()
+            })
+            .collect();
+        drop(find_peaks(&broad, &x2, 5).unwrap());
     }
 }

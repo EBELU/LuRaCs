@@ -103,6 +103,9 @@ mod tests {
         let short_mean = mean_filter(&[3.0, 6.0], 3, EdgeMode::Zeros);
         assert_eq!(short_mean, vec![3.0, 3.0]);
 
+        // Window size 1 (radius == 0 -> count == 0 in edge buffers)
+        assert_eq!(mean_filter(&[1.0, 2.0, 3.0], 1, EdgeMode::Mirror), vec![1.0, 2.0, 3.0]);
+
         // Long signal (> 1024 to hit DRIFT_RESET_INTERVAL)
         let long_sig = vec![2.0; 1100];
         let long_mean = mean_filter(&long_sig, 3, EdgeMode::Mirror);

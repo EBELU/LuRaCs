@@ -485,7 +485,14 @@ pub mod tests {
         let filtered = parser.get_spectrogram_by_date(Some(t0), Some(t1)).unwrap();
         assert_eq!(filtered.timestamps.len(), 1);
 
+        let recent = parser.get_spectrogram_rows(1).unwrap();
+        assert_eq!(recent.timestamps.len(), 1);
+
         parser.close();
         assert!(matches!(parser.get_header(), Err(DbParseError::Closed)));
+
+        let mut real_db = DbParser::open(Path::new("tests/data/Debug_Sg.db")).unwrap();
+        assert!(real_db.get_header().is_ok());
+        real_db.close();
     }
 }

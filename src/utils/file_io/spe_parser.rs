@@ -365,6 +365,19 @@ $ROI:
         // Error cases
         assert!(SpeParser::parse("$DATE_MEA:\n", "d.spe".into()).is_err());
         assert!(SpeParser::parse("$DATE_MEA:\nbad-date\n", "d.spe".into()).is_err());
+        assert!(SpeParser::parse("$MEAS_TIM:\n", "d.spe".into()).is_err());
+        assert!(SpeParser::parse("$DATA:\n", "d.spe".into()).is_err());
+        assert!(SpeParser::parse("$DATA:\n0\n", "d.spe".into()).is_err());
+        assert!(SpeParser::parse("$DATA:\nbad 3\n", "d.spe".into()).is_err());
+        assert!(SpeParser::parse("$DATA:\n0 bad\n", "d.spe".into()).is_err());
+        assert!(SpeParser::parse("$ENER_FIT:\n", "d.spe".into()).is_err());
+        assert!(SpeParser::parse("$ENER_FIT:\n0.0 bad\n", "d.spe".into()).is_err());
+        assert!(SpeParser::parse("$ROI:\n", "d.spe".into()).is_err());
+        assert!(SpeParser::parse("$ROI:\nbad\n", "d.spe".into()).is_err());
+        assert!(SpeParser::parse("$ROI:\n1\n", "d.spe".into()).is_err());
+        assert!(SpeParser::parse("$ROI:\n1\n5\n", "d.spe".into()).is_err());
+        assert!(SpeParser::parse("$ROI:\n1\nbad 5\n", "d.spe".into()).is_err());
+        assert!(SpeParser::parse("$ROI:\n1\n5 bad\n", "d.spe".into()).is_err());
 
         drop(std::fs::remove_dir_all(&dir));
     }

@@ -169,6 +169,11 @@ mod tests {
         assert_eq!(p2.primary, Color32::from_rgb(10, 20, 30));
         assert_eq!(p2.accent, Some(Color32::from_rgba_unmultiplied(1, 2, 3, 4)));
 
+        let raw_swap = r##"{"primary":[1,2,3,4],"list":[],"accent":[10,20,30]}"##;
+        let p2b: Palette = serde_json::from_str(raw_swap).unwrap();
+        assert_eq!(p2b.primary, Color32::from_rgba_unmultiplied(1, 2, 3, 4));
+        assert_eq!(p2b.accent, Some(Color32::from_rgb(10, 20, 30)));
+
         let raw_none = r##"{"primary":"#11223344","list":[],"accent":null}"##;
         let p3: Palette = serde_json::from_str(raw_none).unwrap();
         assert_eq!(p3.accent, None);

@@ -387,3 +387,188 @@ const fn type_name(value: &Value) -> &'static str {
         Value::Object(_) => "object",
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn valid_nuclide_json() -> Value {
+        json!({
+            "Nuclide": "Cs-137",
+            "Element": "Cesium",
+            "citation_ref": "ENSDF",
+            "Half-life (s)": [9.49e8, 1.0e6],
+            "Specific activity (Bq/g)": [3.21e12, 1.0e10],
+            "Daughters": [["(B-)", "Ba-137m", 0.944]],
+            "Emissions": [
+                {
+                    "Energy (keV)": 661.657,
+                    "Energy error (keV)": 0.003,
+                    "I (%)": 85.1,
+                    "I error (%)": 0.2,
+                    "Type": "gamma",
+                    "Origin": "nuclear decay"
+                },
+                {
+                    "Energy (keV)": 511.0,
+                    "Energy error (keV)": 0.0,
+                    "I (%)": 1.0,
+                    "I error (%)": 0.1,
+                    "Type": "gamma",
+                    "Origin": "annih."
+                },
+                {
+                    "Energy (keV)": 100.0,
+                    "Energy error (keV)": 0.1,
+                    "I (%)": 2.0,
+                    "I error (%)": 0.1,
+                    "Type": "beta-",
+                    "Origin": "unknown"
+                },
+                {
+                    "Energy (keV)": 200.0,
+                    "Energy error (keV)": 0.1,
+                    "I (%)": 2.0,
+                    "I error (%)": 0.1,
+                    "Type": "beta+",
+                    "Origin": "decay"
+                },
+                {
+                    "Energy (keV)": 300.0,
+                    "Energy error (keV)": 0.1,
+                    "I (%)": 2.0,
+                    "I error (%)": 0.1,
+                    "Type": "alpha",
+                    "Origin": "decay"
+                },
+                {
+                    "Energy (keV)": 32.0,
+                    "Energy error (keV)": 0.1,
+                    "I (%)": 2.0,
+                    "I error (%)": 0.1,
+                    "Type": "x-ray",
+                    "Origin": "decay"
+                },
+                {
+                    "Energy (keV)": 624.0,
+                    "Energy error (keV)": 0.1,
+                    "I (%)": 2.0,
+                    "I error (%)": 0.1,
+                    "Type": "ce",
+                    "Origin": "decay"
+                },
+                {
+                    "Energy (keV)": 400.0,
+                    "Energy error (keV)": 0.1,
+                    "I (%)": 2.0,
+                    "I error (%)": 0.1,
+                    "Type": "annihilation",
+                    "Origin": "annihilation"
+                },
+                {
+                    "Energy (keV)": 50.0,
+                    "Energy error (keV)": 0.1,
+                    "I (%)": 2.0,
+                    "I error (%)": 0.1,
+                    "Type": "mystery",
+                    "Origin": "decay"
+                }
+            ]
+        })
+    }
+
+    #[test]
+    fn test_load_nuclide_data_and_file_errors() {
+        let p = Path::new("test.json");
+        let nuc = nuclide_from_json(&valid_nuclide_json(), p).unwrap();
+        assert_eq!(nuc.emissions.len(), 9);
+        assert_eq!(nuc.emissions[1].r#type, Some(EmissionType::Annihilation));
+        assert_eq!(nuc.emissions[8].r#type, None);
+        assert_eq!(nuc.emissions[2].origin, None);
+
+        // Missing Emissions -> empty vec
+        let mut no_em = valid_nuclide_json();
+        no_em.as_object_mut().unwrap().remove("Emissions");
+        assert!(nuclide_from_json(&no_em, p).unwrap().emissions.is_empty());
+
+        // Real nuclide_data directory + glob error
+        let all = load_nuclide_data("resources/nuclide_data/Cs-137.json").unwrap();
+        assert_eq!(all.len(), 1);
+        assert!(matches!(load_nuclide_data("[invalid"), Err(NuclideLoadError::Glob(_))));
+
+        // File I/O and JSON parse errors
+        let missing = Path::new("/tmp/does_not_exist_nuclide_xyz.json");
+        assert!(matches!(nuclide_from_file(missing), Err(NuclideLoadError::Io { .. })));
+
+        let dir = std::env::temp_dir().join("luracs_test_nuclide_loader");
+        std::fs::create_dir_all(&dir).unwrap();
+        let bad_json = dir.join("bad.json");
+        std::fs::write(&bad_json, "{bad json").unwrap();
+        assert!(matches!(nuclide_from_file(&bad_json), Err(NuclideLoadError::Json { .. })));
+        drop(std::fs::remove_dir_all(&dir));
+    }
+
+    #[test]
+    fn test_nuclide_from_json_validation_errors() {
+        let p = Path::new("err.json");
+
+        // Invalid nuclide & element
+        let mut v = valid_nuclide_json();
+        v["Nuclide"] = json!("NotANuclide-999");
+        assert!(matches!(nuclide_from_json(&v, p), Err(NuclideLoadError::InvalidNuclide { .. })));
+
+        let mut v = valid_nuclide_json();
+        v["Element"] = json!("Unobtainium");
+        assert!(matches!(nuclide_from_json(&v, p), Err(NuclideLoadError::InvalidElement { .. })));
+
+        // Wrong type / missing fields
+        let mut v = valid_nuclide_json();
+        v["Nuclide"] = json!(123);
+        assert!(matches!(nuclide_from_json(&v, p), Err(NuclideLoadError::WrongType { .. })));
+
+        let mut v = valid_nuclide_json();
+        v.as_object_mut().unwrap().remove("Nuclide");
+        assert!(matches!(nuclide_from_json(&v, p), Err(NuclideLoadError::MissingField { .. })));
+
+        // Daughters errors
+        for bad_daughters in [
+            json!("not-array"),
+            json!(["not-entry-array"]),
+            json!([["a", "b"]]),
+            json!([[1, "Ba-137m", 0.5]]),
+            json!([["B-", 2, 0.5]]),
+            json!([["B-", "NoSuchNuc-999", 0.5]]),
+            json!([["B-", "Ba-137m", "bad"]]),
+        ] {
+            let mut v = valid_nuclide_json();
+            v["Daughters"] = bad_daughters;
+            assert!(nuclide_from_json(&v, p).is_err());
+        }
+        let mut v = valid_nuclide_json();
+        v.as_object_mut().unwrap().remove("Daughters");
+        assert!(matches!(nuclide_from_json(&v, p), Err(NuclideLoadError::MissingField { .. })));
+
+        // Emissions wrong type
+        let mut v = valid_nuclide_json();
+        v["Emissions"] = json!(true);
+        assert!(matches!(nuclide_from_json(&v, p), Err(NuclideLoadError::WrongType { .. })));
+
+        // get_f64 & get_pair errors
+        for bad_hl in [json!(null), json!("str"), json!([1.0]), json!(["x", 1.0]), json!([1.0, false])] {
+            let mut v = valid_nuclide_json();
+            v["Half-life (s)"] = bad_hl;
+            assert!(nuclide_from_json(&v, p).is_err());
+        }
+        let mut v = valid_nuclide_json();
+        v.as_object_mut().unwrap().remove("Half-life (s)");
+        assert!(nuclide_from_json(&v, p).is_err());
+
+        let mut v = valid_nuclide_json();
+        v["Emissions"][0]["Energy (keV)"] = json!({});
+        assert!(nuclide_from_json(&v, p).is_err());
+        let mut v = valid_nuclide_json();
+        v["Emissions"][0].as_object_mut().unwrap().remove("Energy (keV)");
+        assert!(nuclide_from_json(&v, p).is_err());
+    }
+}

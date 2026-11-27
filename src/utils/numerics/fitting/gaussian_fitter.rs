@@ -511,5 +511,48 @@ mod tests {
             ),
             Err(FitError::EmptyBounds)
         ));
+
+        // Direct test of poisson_weights_3arg adapter
+        let w3 = poisson_weights_3arg(
+            ArrayView1::from(&[0.0][..]),
+            ArrayView1::from(&[0.0, 4.0, 9.0][..]),
+            &[],
+        );
+        assert_eq!(w3.len(), 3);
+
+        // Bound with empty window (skipped) + zero-amplitude p0 -> InvalidInitialParams
+        let zeros = vec![0.0; 100];
+        assert!(matches!(
+            fit_gaussians(
+                &x,
+                &zeros,
+                10.0,
+                None,
+                None,
+                &[(40.0, 60.0), (200.0, 210.0)],
+                FitType::Gaussian,
+                false,
+                false,
+                BkgType::None,
+                0,
+            ),
+            Err(FitError::InvalidInitialParams)
+        ));
+
+        // i_high < bkg_est_channels flank branch + non-convergent/negative fit
+        let tiny_res = fit_gaussians(
+            &x,
+            &fg,
+            10.0,
+            None,
+            None,
+            &[(0.0, 3.0)],
+            FitType::Gaussian,
+            false,
+            false,
+            BkgType::Linear,
+            10,
+        );
+        drop(tiny_res);
     }
 }

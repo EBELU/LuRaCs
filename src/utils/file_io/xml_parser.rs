@@ -1186,6 +1186,8 @@ mod tests {
             n_err: 5.4,
             peak_area_err: 5.4,
         };
+        let mut em = Emission::annihilation();
+        em.parent_nuclide = Some(nucleide_nuclei::NuclideId::from_name("Cs-137").unwrap());
         spec.set_roi(Roi {
             tag: "r1".to_string(),
             alias: "Peak1".to_string(),
@@ -1198,7 +1200,7 @@ mod tests {
             fit: Some(fit),
             roi_counts: 30.0,
             live_time: 10.0,
-            emission: Some(Emission::annihilation()),
+            emission: Some(em),
             meta: Map::new(),
             merge: false,
             movable: true,
@@ -1213,14 +1215,32 @@ mod tests {
 
         let xml_path = stem.with_extension("xml");
         let parser = XmlParser::open(&xml_path, false).unwrap();
+        assert_eq!(parser.get_rois().len(), 1);
+        assert_eq!(parser.get_roi_data().len(), 1);
+        assert!(parser.get_instrument().is_some());
+        assert!(parser.get_instrument_owned().is_some());
         let parsed = parser.get_spectrum().unwrap();
         assert_eq!(parsed.channels, 4);
         assert!(parsed.calibrated);
         assert!(parsed.background.is_some());
         assert!(parsed.get_instrument().is_some());
+        let data = parser.into_data();
+        assert_eq!(data.peaks.len(), 1);
 
         let meta_only = XmlParser::open(&xml_path, true).unwrap();
         assert_eq!(meta_only.get_header().name, "full_n42");
+
+        // Real Raysid & RadiaCode XML fixtures + unknown root error
+        let raysid = XmlParser::open(Path::new("tests/data/Raysid-GRF-Eu152.xml"), false).unwrap();
+        assert!(raysid.get_spectrum().is_some());
+        let radiacode = XmlParser::open(Path::new("tests/data/103-GRF-Eu152.xml"), false).unwrap();
+        assert!(radiacode.get_spectrum().is_some());
+        let bad_xml = dir.join("unknown.xml");
+        std::fs::write(&bad_xml, "<UnknownRoot/>").unwrap();
+        assert!(matches!(
+            XmlParser::open(&bad_xml, false),
+            Err(XmlParseError::UnknownFormat(_))
+        ));
 
         // Counted-zeroes decompression
         let decomp = decompress_counted_zeroes(&Array1::from_vec(vec![1.0, 0.0, 3.0, 2.0]));
