@@ -285,3 +285,69 @@ Stops: {bg_stops}\n\
         bg_stops = py_list_dt(&r.bg_measurement.stop_timestamps),
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::containers::SpectrumData;
+    use ndarray::Array1;
+
+    #[test]
+    fn test_n42_report_writer_writes_xml_with_comment() {
+        let dir = std::env::temp_dir().join("luracs_test_n42_report");
+        std::fs::create_dir_all(&dir).unwrap();
+        let stem = dir.join("report_out");
+
+        let mut spec = Spectrum::new(4, "ReportSpec");
+        spec.set_foreground(
+            SpectrumData {
+                y_axis: Array1::from_vec(vec![10.0, 20.0, 30.0, 40.0]),
+                channels: 4,
+                total_counts: 100,
+                live_time: 5.0,
+                real_time: Some(5.0),
+                avg_dose_rate: None,
+                avg_cps: None,
+                start_date: None,
+                end_date: None,
+                spectrum_name: None,
+                instrument: None,
+            },
+            None,
+        );
+
+        let now = Utc::now();
+        let mut rep = MeasurementReport {
+            date: now,
+            author_name: "Alice".to_string(),
+            location: "Lab".to_string(),
+            longitude: 11.5,
+            latitude: 48.1,
+            weather: "Clear".to_string(),
+            wind_direction: "N".to_string(),
+            wind_speed: 3.2,
+            air_temperature: 21.5,
+            remark: "Test report".to_string(),
+            ..Default::default()
+        };
+        rep.fg_measurement.detector_name = "Det-A".to_string();
+        rep.fg_measurement.start_time = Some(now);
+        rep.fg_measurement.measurement_time = 5.0;
+        rep.fg_measurement.accumulated_counts = 100.0;
+        rep.fg_measurement.stop_timestamps = vec![now];
+        rep.fg_measurement.count_rate_data = vec![20.0];
+        rep.fg_measurement.dose_rate_data = vec![0.1];
+        rep.fg_measurement.rate_axis = vec![1.0];
+
+        let writer = N42ReportWriter::new(&spec, &stem, &rep).unwrap();
+        writer.write_out().unwrap();
+
+        let xml_path = stem.with_extension("xml");
+        let xml = std::fs::read_to_string(&xml_path).unwrap();
+        assert!(xml.contains("MeasurementReport"));
+        assert!(xml.contains("Alice"));
+        assert!(xml.contains("Foreground Summary"));
+
+        drop(std::fs::remove_dir_all(&dir));
+    }
+}

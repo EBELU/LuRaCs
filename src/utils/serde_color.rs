@@ -125,3 +125,59 @@ mod helper {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rsplot::egui::Color32;
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
+    struct Palette {
+        #[serde(with = "c")]
+        primary: Color32,
+        #[serde(with = "vec")]
+        list: Vec<Color32>,
+        #[serde(with = "opt")]
+        accent: Option<Color32>,
+    }
+
+    #[test]
+    fn test_serde_color_roundtrip_and_formats() {
+        let p = Palette {
+            primary: Color32::from_rgb(0x12, 0x34, 0x56),
+            list: vec![
+                Color32::from_rgb(0xaa, 0xbb, 0xcc),
+                Color32::from_rgba_unmultiplied(0x10, 0x20, 0x30, 0x80),
+            ],
+            accent: Some(Color32::from_rgba_unmultiplied(0xff, 0x00, 0x00, 0x40)),
+        };
+        let json = serde_json::to_string(&p).unwrap();
+        assert!(json.contains("#123456"));
+        assert!(json.contains("#aabbcc"));
+        assert!(json.contains("#ff000040"));
+
+        // `vec::deserialize` uses `Color32`'s `[u8; 4]` deserializer.
+        let vec_json = r##"{"primary":"#123456","list":[[10,20,30,255]],"accent":null}"##;
+        let decoded: Palette = serde_json::from_str(vec_json).unwrap();
+        assert_eq!(decoded.primary, p.primary);
+        assert_eq!(decoded.list, vec![Color32::from_rgba_unmultiplied(10, 20, 30, 255)]);
+
+        // RGB / RGBA array forms & None
+        let raw_json = r##"{"primary":[10,20,30],"list":[],"accent":[1,2,3,4]}"##;
+        let p2: Palette = serde_json::from_str(raw_json).unwrap();
+        assert_eq!(p2.primary, Color32::from_rgb(10, 20, 30));
+        assert_eq!(p2.accent, Some(Color32::from_rgba_unmultiplied(1, 2, 3, 4)));
+
+        let raw_none = r##"{"primary":"#11223344","list":[],"accent":null}"##;
+        let p3: Palette = serde_json::from_str(raw_none).unwrap();
+        assert_eq!(p3.accent, None);
+        assert!(serde_json::to_string(&p3).unwrap().contains("null"));
+
+        // Invalid hex
+        let bad = r##"{"primary":"zzzzzz","list":[],"accent":null}"##;
+        assert!(serde_json::from_str::<Palette>(bad).is_err());
+        let bad_opt = r##"{"primary":"#112233","list":[],"accent":"bad"}"##;
+        assert!(serde_json::from_str::<Palette>(bad_opt).is_err());
+    }
+}

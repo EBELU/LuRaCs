@@ -889,3 +889,28 @@ const fn bool_py(b: bool) -> &'static str {
 fn meta_bool(meta: &serde_json::Map<String, serde_json::Value>, key: &str, default: bool) -> bool {
     meta.get(key).and_then(|v| v.as_bool()).unwrap_or(default)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_n42_writer_enum_helpers() {
+        assert_eq!(fit_type_str(FitType::Gaussian), "Gaussian");
+        assert_eq!(fit_type_str(FitType::None), "None");
+        assert_eq!(bkg_type_str(BkgType::None), "None");
+        assert_eq!(bkg_type_str(BkgType::Linear), "Linear");
+        assert_eq!(bkg_type_str(BkgType::Quadratic), "Quadratic");
+        assert_eq!(emission_type_str(EmissionType::Gamma), "gamma");
+        assert_eq!(emission_type_str(EmissionType::Annihilation), "annih.");
+        assert_eq!(emission_type_str(EmissionType::BetaMinus), "beta-");
+        assert_eq!(emission_type_str(EmissionType::BetaPlus), "beta+");
+        assert_eq!(emission_type_str(EmissionType::Alpha), "alpha");
+        assert_eq!(emission_type_str(EmissionType::XRay), "x-ray");
+        assert_eq!(emission_type_str(EmissionType::ConversionElectron), "ce");
+        assert_eq!(emission_origin_str(EmissionOrigin::Annihilation), "annih.");
+        assert_eq!(emission_origin_str(EmissionOrigin::NuclearDecay), "decay");
+        assert_eq!(bool_py(true), "True");
+        assert_eq!(bool_py(false), "False");
+    }
+}

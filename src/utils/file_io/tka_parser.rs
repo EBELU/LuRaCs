@@ -141,3 +141,51 @@ impl SpectrumParser for TkaParser {
         Ok(self.spectrum.clone())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_tka_parser_open_parse_and_errors() {
+        let dir = std::env::temp_dir().join("luracs_test_tka");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("sample.tka");
+        std::fs::write(&path, "10\n12\n5\n15\n25\n").unwrap();
+
+        let parser = TkaParser::open(&path).unwrap();
+        let spec = parser.get_spectrum().unwrap();
+        assert_eq!(spec.channels, 3);
+        let fg = spec.foreground.as_ref().unwrap();
+        assert_eq!(fg.total_counts, 45);
+        assert!((fg.live_time - 10.0).abs() < 1e-12);
+        assert_eq!(fg.real_time, Some(12.0));
+
+        let data = parser.into_data();
+        assert_eq!(data.name, "sample.tka");
+
+        // Error cases
+        assert!(matches!(
+            TkaParser::parse("", "empty.tka".into()),
+            Err(TkaParseError::MissingLine { .. })
+        ));
+        assert!(matches!(
+            TkaParser::parse("abc\n10\n", "bad1.tka".into()),
+            Err(TkaParseError::InvalidNumber { line: 1, .. })
+        ));
+        assert!(matches!(
+            TkaParser::parse("10\n", "no_real.tka".into()),
+            Err(TkaParseError::MissingLine { .. })
+        ));
+        assert!(matches!(
+            TkaParser::parse("10\nxyz\n", "bad2.tka".into()),
+            Err(TkaParseError::InvalidNumber { line: 2, .. })
+        ));
+        assert!(matches!(
+            TkaParser::parse("10\n12\nfoo\n", "bad3.tka".into()),
+            Err(TkaParseError::InvalidNumber { line: 3, .. })
+        ));
+
+        drop(std::fs::remove_dir_all(&dir));
+    }
+}

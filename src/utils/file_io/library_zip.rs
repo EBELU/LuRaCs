@@ -160,3 +160,46 @@ pub fn unzip_library(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_zip_and_unzip_library_and_zip_slip_guard() {
+        let dir = std::env::temp_dir().join("luracs_test_lib_zip");
+        drop(std::fs::remove_dir_all(&dir));
+        let src = dir.join("src_lib");
+        let sub = src.join("sub");
+        let dst = dir.join("dst_lib");
+        let zip_path = dir.join("lib.zip");
+
+        fs::create_dir_all(&sub).unwrap();
+        fs::write(src.join("nuclide.json"), b"{}").unwrap();
+        fs::write(src.join("settings.json"), b"secret").unwrap();
+        fs::write(sub.join("det.xml"), b"<xml/>").unwrap();
+
+        zip_library(&src, &zip_path).unwrap();
+        unzip_library(&zip_path, &dst).unwrap();
+
+        assert!(dst.join("nuclide.json").exists());
+        assert!(dst.join("sub").join("det.xml").exists());
+        // settings.json must be skipped
+        assert!(!dst.join("settings.json").exists());
+
+        // Zip Slip guard
+        let evil_zip = dir.join("evil.zip");
+        {
+            let f = File::create(&evil_zip).unwrap();
+            let mut zw = ZipWriter::new(f);
+            let opts = SimpleFileOptions::default();
+            zw.start_file("../escape.txt", opts).unwrap();
+            zw.write_all(b"pwn").unwrap();
+            zw.finish().unwrap();
+        }
+        let err = unzip_library(&evil_zip, &dst).unwrap_err();
+        assert!(matches!(err, LibraryZipError::UnsafeEntry { .. }));
+
+        drop(fs::remove_dir_all(&dir));
+    }
+}

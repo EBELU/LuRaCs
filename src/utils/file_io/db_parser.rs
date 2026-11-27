@@ -390,3 +390,102 @@ fn row_to_spectrogram_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Spectrogr
         meta_blob: row.get(7)?,
     })
 }
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+    use crate::utils::compress_spectrum;
+    use flate2::Compression;
+    use flate2::write::ZlibEncoder;
+    use std::io::Write;
+
+    pub fn build_test_db_connection() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE header (
+                id INTEGER PRIMARY KEY,
+                created REAL,
+                device_id TEXT,
+                channels INTEGER,
+                calibration TEXT,
+                concat INTEGER,
+                save_interval REAL,
+                meta TEXT
+            );
+            CREATE TABLE summary (
+                id INTEGER PRIMARY KEY,
+                accumulated_spectrum BLOB,
+                total_duration REAL,
+                total_dose REAL,
+                last_update REAL
+            );
+            CREATE TABLE spectrogram (
+                timestamp REAL,
+                avg_cps REAL,
+                avg_dr REAL,
+                temperature REAL,
+                latitude REAL,
+                longitude REAL,
+                spectrum BLOB,
+                meta BLOB
+            );",
+        )
+        .unwrap();
+
+        let spec_blob = compress_spectrum(&[10, 20, 30, 40]).unwrap();
+        let mut enc = ZlibEncoder::new(Vec::new(), Compression::default());
+        enc.write_all(br#"{"note":"ok"}"#).unwrap();
+        let meta_blob = enc.finish().unwrap();
+
+        conn.execute(
+            "INSERT INTO header VALUES (1, 1700000000.0, 'RC-102', 4, '[0.0, 2.0]', 2, 1.0, '{}')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO summary VALUES (1, ?1, 20.0, 0.5, 1700000020.0)",
+            [&spec_blob],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO spectrogram VALUES (1700000005.0, 5000.0, 120.0, 25000.0, 48.1, 11.5, ?1, ?2)",
+            rusqlite::params![&spec_blob, &meta_blob],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO spectrogram VALUES (1700000010.0, 6000.0, NULL, 0.0, NULL, NULL, ?1, NULL)",
+            rusqlite::params![&spec_blob],
+        )
+        .unwrap();
+
+        conn
+    }
+
+    #[test]
+    fn test_db_parser_queries_and_close() {
+        let conn = build_test_db_connection();
+        let mut parser = DbParser::from_connection(conn).unwrap();
+
+        let header = parser.get_header().unwrap();
+        assert_eq!(header.device_id, "RC-102");
+        assert_eq!(header.channels, 4);
+        assert_eq!(header.calibration, vec![0.0, 2.0]);
+
+        let summary = parser.get_summary().unwrap();
+        assert!((summary.total_duration - 20.0).abs() < 1e-12);
+        assert_eq!(summary.total_spectrum.as_slice().unwrap(), &[10.0, 20.0, 30.0, 40.0]);
+
+        let cols = parser.get_spectrogram_by_date(None, None).unwrap();
+        assert_eq!(cols.timestamps.len(), 2);
+        assert_eq!(cols.spectra.dim(), (2, 4));
+        assert!(cols.temperatures[1].is_nan());
+
+        let t0 = Local.timestamp_opt(1_700_000_000, 0).unwrap();
+        let t1 = Local.timestamp_opt(1_700_000_008, 0).unwrap();
+        let filtered = parser.get_spectrogram_by_date(Some(t0), Some(t1)).unwrap();
+        assert_eq!(filtered.timestamps.len(), 1);
+
+        parser.close();
+        assert!(matches!(parser.get_header(), Err(DbParseError::Closed)));
+    }
+}

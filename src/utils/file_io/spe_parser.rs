@@ -318,3 +318,54 @@ fn parse_spe_date(s: &str, file: &str) -> Result<DateTime<Local>, SpeParseError>
             value: s.to_string(),
         })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_spe_parser_full_file_and_errors() {
+        let spe = "\
+$SPEC_ID:
+Test sample
+$DATE_MEA:
+01/15/2024 12:30:00
+$MEAS_TIM:
+10 12
+$DATA:
+0 3
+5
+15
+25
+35
+$ENER_FIT:
+0.0 2.5
+$ROI:
+1
+1 2
+";
+        let dir = std::env::temp_dir().join("luracs_test_spe");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("sample.spe");
+        std::fs::write(&path, spe).unwrap();
+
+        let parser = SpeParser::open(&path).unwrap();
+        assert_eq!(parser.roi_bounds(), &[(1, 2)]);
+        let spec = parser.get_spectrum().unwrap();
+        assert_eq!(spec.channels, 4);
+        assert!(spec.calibrated);
+        let fg = spec.foreground.as_ref().unwrap();
+        assert_eq!(fg.total_counts, 80);
+        assert!((fg.live_time - 10.0).abs() < 1e-12);
+        assert_eq!(fg.real_time, Some(12.0));
+
+        let data = parser.into_data();
+        assert_eq!(data.name, "sample.spe");
+
+        // Error cases
+        assert!(SpeParser::parse("$DATE_MEA:\n", "d.spe".into()).is_err());
+        assert!(SpeParser::parse("$DATE_MEA:\nbad-date\n", "d.spe".into()).is_err());
+
+        drop(std::fs::remove_dir_all(&dir));
+    }
+}

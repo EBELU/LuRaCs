@@ -389,11 +389,7 @@ pub mod xlsx_export {
         // `?` is the right way to unwrap it.
         macro_rules! next_sheet {
             ($name:expr) => {{
-                let ws = if sheets_written == 0 {
-                    workbook.worksheet_from_index(0)?
-                } else {
-                    workbook.add_worksheet()
-                };
+                let ws = workbook.add_worksheet();
                 sheets_written += 1;
                 ws.set_name($name);
                 ws
@@ -422,7 +418,7 @@ pub mod xlsx_export {
         // If nothing was written, keep the workbook valid by renaming the
         // default sheet instead of removing it.
         if sheets_written == 0 {
-            let ws = workbook.worksheet_from_index(0)?;
+            let ws = workbook.add_worksheet();
             ws.set_name("Empty");
         }
 
@@ -436,11 +432,109 @@ pub mod xlsx_export {
         path: impl AsRef<Path>,
     ) -> CsvXlsxResult<()> {
         let mut workbook = Workbook::new();
-        let ws = workbook.worksheet_from_index(0)?;
+        let ws = workbook.add_worksheet();
         ws.set_name("ROIs");
         let rows: Vec<[Cell; ROI_COLS]> = rois.into_iter().map(roi_row).collect();
         write_roi_table(ws, &rows)?;
         workbook.save(with_extension(path, "xlsx"))?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::containers::{BkgType, Fit, FitType, SpectrumData};
+
+    #[test]
+    fn test_csv_and_xlsx_export_spectrum_and_rois() {
+        let dir = std::env::temp_dir().join("luracs_test_export");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let mut spec = Spectrum::new(3, "ExpSpec");
+        let make_sd = |counts: Vec<f64>| SpectrumData {
+            y_axis: Array1::from_vec(counts),
+            channels: 3,
+            total_counts: 6,
+            live_time: 2.0,
+            real_time: Some(2.0),
+            avg_dose_rate: None,
+            avg_cps: None,
+            start_date: None,
+            end_date: None,
+            spectrum_name: None,
+            instrument: None,
+        };
+        spec.set_foreground(make_sd(vec![1.0, 2.0, 3.0]), None);
+        spec.set_background(make_sd(vec![0.5, 1.0, 1.5]), None);
+
+        let fit = Fit {
+            region_lower: Some(0.0),
+            region_upper: Some(3.0),
+            lower: 0.5,
+            upper: 2.5,
+            params: Array1::from_vec(vec![10.0, 1.5, 1.0]),
+            param_errs: Array1::from_vec(vec![1.0, 0.1, 0.2]),
+            bkg_params: None,
+            bkg_est_channels: 1,
+            g: 6.0,
+            b: 1.0,
+            n: 5.0,
+            peak_area: 5.0,
+            g_err: 2.4,
+            b_err: 1.0,
+            n_err: 2.6,
+            peak_area_err: 2.6,
+        };
+        let roi = Roi {
+            tag: "r1".to_string(),
+            alias: "Peak1".to_string(),
+            spectrum: "ExpSpec".to_string(),
+            roi_bound: (0.5, 2.5),
+            region_bound: (0.0, 3.0),
+            fit_type: FitType::Gaussian,
+            bkg_type: BkgType::Linear,
+            bkg_est_channels: 1,
+            fit: Some(fit),
+            roi_counts: 6.0,
+            live_time: 2.0,
+            emission: Some(Emission::annihilation()),
+            meta: serde_json::Map::new(),
+            merge: false,
+            movable: true,
+            poisson_weights: true,
+            owner_spectrum: None,
+        };
+        spec.set_roi(roi);
+
+        // CSV
+        let csv_spec = dir.join("spec.csv");
+        let csv_rois = dir.join("rois.csv");
+        csv_export::spectrum(&spec, &csv_spec).unwrap();
+        csv_export::rois(spec.rois.values(), &csv_rois).unwrap();
+        assert!(csv_spec.exists());
+        assert!(csv_rois.exists());
+
+        // XLSX
+        let xlsx_spec = dir.join("spec.xlsx");
+        let xlsx_empty = dir.join("empty.xlsx");
+        let xlsx_rois = dir.join("rois.xlsx");
+        xlsx_export::spectrum(&spec, &xlsx_spec).unwrap();
+        xlsx_export::spectrum_with(
+            &spec,
+            &xlsx_empty,
+            xlsx_export::Options {
+                spectra: false,
+                rois: false,
+                instrument: false,
+            },
+        )
+        .unwrap();
+        xlsx_export::rois(spec.rois.values(), &xlsx_rois).unwrap();
+        assert!(xlsx_spec.exists());
+        assert!(xlsx_empty.exists());
+        assert!(xlsx_rois.exists());
+
+        drop(std::fs::remove_dir_all(&dir));
     }
 }

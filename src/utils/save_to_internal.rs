@@ -154,3 +154,60 @@ pub fn save_rois_to_library(spectrum: &Spectrum, library: &Path) -> SaveResult<P
     tracing::debug!(path = %new_file.display(), "ROIs saved to library");
     Ok(new_file)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::containers::SpectrumData;
+    use ndarray::Array1;
+
+    #[test]
+    fn test_save_spectrum_instrument_and_rois_to_library() {
+        let dir = std::env::temp_dir().join("luracs_test_save_internal");
+        drop(std::fs::remove_dir_all(&dir));
+        let spec_dir = dir.join("spectra");
+        let uniq_dir = dir.join("unique");
+        let gen_dir = dir.join("generic");
+        let roi_dir = dir.join("rois");
+
+        let mut spec = Spectrum::new(4, "Spec1");
+        spec.set_foreground(
+            SpectrumData {
+                y_axis: Array1::from_vec(vec![1.0, 2.0, 3.0, 4.0]),
+                channels: 4,
+                total_counts: 10,
+                live_time: 2.0,
+                real_time: Some(2.0),
+                avg_dose_rate: None,
+                avg_cps: None,
+                start_date: None,
+                end_date: None,
+                spectrum_name: None,
+                instrument: None,
+            },
+            None,
+        );
+
+        let spec_path = save_spectrum_to_library(&spec, &spec_dir).unwrap();
+        assert!(spec_path.exists());
+
+        let generic = GenericInstrument {
+            model: "GenModel".to_string(),
+            ..Default::default()
+        };
+        let unique = UniqueInstrument::from_template("Uniq1", &generic);
+
+        let uniq_path =
+            save_instrument_to_library(InstrumentRef::from(&unique), &uniq_dir, &gen_dir).unwrap();
+        assert!(uniq_path.exists());
+
+        let err = save_instrument_to_library(InstrumentRef::from(&generic), &uniq_dir, &gen_dir)
+            .unwrap_err();
+        assert!(matches!(err, SaveError::GenericInstrumentUnsupported));
+
+        let roi_path = save_rois_to_library(&spec, &roi_dir).unwrap();
+        assert!(roi_path.exists());
+
+        drop(std::fs::remove_dir_all(&dir));
+    }
+}

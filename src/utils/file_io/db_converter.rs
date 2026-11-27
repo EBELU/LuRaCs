@@ -206,7 +206,7 @@ impl DbWriter {
 
         {
             let header = parser.get_header()?;
-            let ws = workbook.worksheet_from_index(0)?;
+            let ws = workbook.add_worksheet();
             ws.set_name("Header");
             header_to_sheet(&header).write(ws)?;
         }
@@ -311,5 +311,39 @@ impl DbWriter {
         }
 
         Ok(new_spectrum)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::TimeZone;
+
+    #[test]
+    fn test_db_writer_export_xlsx_and_build_spectrum() {
+        let dir = std::env::temp_dir().join("luracs_test_db_conv");
+        std::fs::create_dir_all(&dir).unwrap();
+        let xlsx_path = dir.join("db_export.xlsx");
+
+        let conn = super::super::db_parser::tests::build_test_db_connection();
+        let parser = DbParser::from_connection(conn).unwrap();
+
+        DbWriter::export_full_xlsx(&parser, &xlsx_path, true).unwrap();
+        assert!(xlsx_path.exists());
+
+        let spec_full = DbWriter::build_spectrum_from_db(&parser, dir.join("full.xml"), None, None)
+            .unwrap();
+        assert_eq!(spec_full.channels, 4);
+        assert!(spec_full.calibrated);
+
+        let t0 = Local.timestamp_opt(1_700_000_000, 0).unwrap();
+        let t1 = Local.timestamp_opt(1_700_000_020, 0).unwrap();
+        let spec_slice =
+            DbWriter::build_spectrum_from_db(&parser, dir.join("slice.xml"), Some(t0), Some(t1))
+                .unwrap();
+        assert_eq!(spec_slice.channels, 4);
+        assert_eq!(spec_slice.foreground.unwrap().total_counts, 200);
+
+        drop(std::fs::remove_dir_all(&dir));
     }
 }

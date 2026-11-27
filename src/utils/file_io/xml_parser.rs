@@ -1099,3 +1099,133 @@ fn decompress_counted_zeroes(values: &Array1<f64>) -> Array1<f64> {
     }
     Array1::from_vec(result)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::file_io::{N42Writer, WriteOptions};
+    use ndarray::Array2;
+
+    #[test]
+    fn test_n42_write_and_xml_parser_roundtrip() {
+        let dir = std::env::temp_dir().join("luracs_test_n42_roundtrip");
+        std::fs::create_dir_all(&dir).unwrap();
+        let stem = dir.join("full_n42");
+
+        let mut spec = Spectrum::new(4, "FullN42");
+        spec.remark = "roundtrip test".to_string();
+        spec.instrument_model = Some("NaI".to_string());
+        spec.instrument_id = Some("SN-1".to_string());
+        spec.apply_calibration(vec![2.0, 10.0]);
+
+        let now = Utc::now();
+        let make_sd = |counts: Vec<f64>| SpectrumData {
+            y_axis: Array1::from_vec(counts),
+            channels: 4,
+            total_counts: 100,
+            live_time: 10.0,
+            real_time: Some(10.5),
+            avg_dose_rate: Some(0.12),
+            avg_cps: Some(10.0),
+            start_date: Some(now),
+            end_date: Some(now),
+            spectrum_name: Some("fg".to_string()),
+            instrument: None,
+        };
+        spec.set_foreground(make_sd(vec![10.0, 20.0, 30.0, 40.0]), None);
+        spec.set_background(make_sd(vec![1.0, 2.0, 3.0, 4.0]), None);
+
+        let generic = GenericInstrument {
+            model: "NaI-3x3".to_string(),
+            manufacturer: "Acme".to_string(),
+            detector_type: "Scintillator".to_string(),
+            detector_material: Some("NaI(Tl)".to_string()),
+            detector_shape: Some("Cylindrical".to_string()),
+            detector_dimensions_cm: Some(vec![Quantity::new_scalar(7.62, 0.1, cm(), None, None)]),
+            resolution_fn: Some(ResolutionSignature::KOverSqrtE),
+            resolution_params: Some(vec![70.0]),
+            resolution_e_points: Some(vec![662.0]),
+            resolution_fwhm_points: Some(vec![Quantity::new_scalar(45.0, 1.0, dimensionless(), None, None)]),
+            resolution_created: Some(now),
+            int_efficiency_fn: Some(EfficiencySignature::ExpAtten),
+            int_efficiency_params: Some(vec![
+                Quantity::new_scalar(1.0, 0.05, dimensionless(), None, None),
+                Quantity::new_scalar(0.001, 0.0001, dimensionless(), None, None),
+            ]),
+            int_efficiency_e_points: Some(vec![662.0]),
+            int_efficiency_eff_points: Some(vec![Quantity::new_scalar(0.5, 0.02, dimensionless(), None, None)]),
+            int_efficiency_created: Some(now),
+            int_efficiency_description: Some("test eff".to_string()),
+            response_matrix: Some(Array2::eye(2)),
+            response_matrix_shape: Some([2, 2]),
+            remark: "inst remark".to_string(),
+        };
+        let mut unique = UniqueInstrument::from_template("Det-Roundtrip", &generic);
+        unique.calibration_poly_order = Some(1);
+        unique.calibration_coefficients = Some(vec![2.0, 10.0]);
+        unique.calibration_energy_points = Some(vec![10.0, 12.0]);
+        unique.calibration_channel_points = Some(vec![0.0, 1.0]);
+        unique.calibration_date = Some(now);
+        spec.set_instrument(unique);
+
+        let fit = Fit {
+            region_lower: Some(10.0),
+            region_upper: Some(16.0),
+            lower: 11.0,
+            upper: 15.0,
+            params: Array1::from_vec(vec![30.0, 13.0, 1.0]),
+            param_errs: Array1::from_vec(vec![2.0, 0.1, 0.2]),
+            bkg_params: Some(Array1::from_vec(vec![1.0, 0.0])),
+            bkg_est_channels: 2,
+            g: 30.0,
+            b: 4.0,
+            n: 26.0,
+            peak_area: 26.0,
+            g_err: 5.0,
+            b_err: 2.0,
+            n_err: 5.4,
+            peak_area_err: 5.4,
+        };
+        spec.set_roi(Roi {
+            tag: "r1".to_string(),
+            alias: "Peak1".to_string(),
+            spectrum: "FullN42".to_string(),
+            roi_bound: (11.0, 15.0),
+            region_bound: (10.0, 16.0),
+            fit_type: FitType::Gaussian,
+            bkg_type: BkgType::Linear,
+            bkg_est_channels: 2,
+            fit: Some(fit),
+            roi_counts: 30.0,
+            live_time: 10.0,
+            emission: Some(Emission::annihilation()),
+            meta: Map::new(),
+            merge: false,
+            movable: true,
+            poisson_weights: true,
+            owner_spectrum: None,
+        });
+
+        N42Writer::new(&spec, &stem, WriteOptions::default())
+            .unwrap()
+            .write_out()
+            .unwrap();
+
+        let xml_path = stem.with_extension("xml");
+        let parser = XmlParser::open(&xml_path, false).unwrap();
+        let parsed = parser.get_spectrum().unwrap();
+        assert_eq!(parsed.channels, 4);
+        assert!(parsed.calibrated);
+        assert!(parsed.background.is_some());
+        assert!(parsed.get_instrument().is_some());
+
+        let meta_only = XmlParser::open(&xml_path, true).unwrap();
+        assert_eq!(meta_only.get_header().name, "full_n42");
+
+        // Counted-zeroes decompression
+        let decomp = decompress_counted_zeroes(&Array1::from_vec(vec![1.0, 0.0, 3.0, 2.0]));
+        assert_eq!(decomp.as_slice().unwrap(), &[1.0, 0.0, 0.0, 0.0, 2.0]);
+
+        drop(std::fs::remove_dir_all(&dir));
+    }
+}

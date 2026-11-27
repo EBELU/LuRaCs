@@ -41,3 +41,24 @@ pub trait SpectrumParser {
         None
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct DummyParser;
+    impl SpectrumParser for DummyParser {
+        type Error = ();
+        fn get_spectrum(&self) -> Result<Spectrum, ()> {
+            Ok(Spectrum::new(4, "dummy"))
+        }
+    }
+
+    #[test]
+    fn test_spectrum_parser_defaults() {
+        let p = DummyParser;
+        assert_eq!(p.get_spectrum().unwrap().channels, 4);
+        assert!(p.get_rois().unwrap().is_empty());
+        assert!(p.get_instrument().is_none());
+    }
+}
