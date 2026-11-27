@@ -569,3 +569,140 @@ where
     *target = serde_json::from_value(val)?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_instrument_library_crud_updates_and_errors() {
+        assert_eq!(LibraryKind::Unique.to_string(), "UniqueInstrument");
+        assert_eq!(LibraryKind::Generic.to_string(), "GenericInstrument");
+
+        let g = GenericInstrument::default();
+        let mut u = UniqueInstrument::from_template("Det-1", &g);
+        u.name = "Det-1".to_string();
+
+        let mut ulib = InstrumentLibrary::new(LibraryKind::Unique);
+        assert_eq!(ulib.kind(), LibraryKind::Unique);
+        assert!(ulib.is_empty());
+
+        // Wrong kind rejected
+        assert!(matches!(
+            ulib.set_raw("bad", Instrument::Generic(g.clone())),
+            Err(InstrumentLibraryError::WrongKind { .. })
+        ));
+
+        ulib.set_raw("k1", Instrument::Unique(u.clone())).unwrap();
+        assert_eq!(ulib.len(), 1);
+        assert!(ulib.contains("k1"));
+        assert_eq!(ulib.get("k1").unwrap().name_or_model(), "Det-1");
+        assert!(ulib.get("k1").unwrap().as_unique().is_some());
+        assert!(ulib.get("k1").unwrap().as_generic().is_none());
+        assert_eq!(ulib.iter().count(), 1);
+        assert!(ulib.get_instrument_by_name("Det-1").is_some());
+        assert_eq!(ulib.get_instrument_names(), vec!["Det-1".to_string()]);
+        assert_eq!(ulib.get_key_by_name("Det-1"), Some(&"k1".to_string()));
+        assert_eq!(
+            ulib.get_key_from_attr("name", &Value::String("Det-1".into())),
+            Some(&"k1".to_string())
+        );
+
+        // Update atomic validation & success
+        let mut bad_updates = Map::new();
+        bad_updates.insert("no_such_field".into(), Value::Bool(true));
+        assert!(matches!(
+            ulib.update_instrument_data("k1", bad_updates),
+            Err(InstrumentLibraryError::UnknownField { .. })
+        ));
+
+        let mut good_updates = Map::new();
+        good_updates.insert("remark".into(), Value::String("updated".into()));
+        ulib.update_instrument_data("k1", good_updates).unwrap();
+
+        // Efficiency, calibration, resolution
+        ulib.set_efficiency("k1", &[(1.0, 0.1)], &[662.0], &[(0.5, 0.01)])
+            .unwrap();
+        ulib.set_calibration("k1", 1, &[2.0, 0.0], &[100.0], &[200.0])
+            .unwrap();
+        ulib.set_resolution("k1", &[1.5], &[662.0], &[(25.0, 0.5)])
+            .unwrap();
+
+        // Notification-only add & rename + remove
+        ulib.add_instrument(Instrument::Unique(u.clone())).unwrap();
+        ulib.rename_instrument("k1", Instrument::Unique(u)).unwrap();
+        assert!(!ulib.contains("k1"));
+        assert!(!ulib.drain_events().is_empty());
+
+        // Generic library
+        let mut glib = InstrumentLibrary::new(LibraryKind::Generic);
+        glib.set_raw("g1", Instrument::Generic(g)).unwrap();
+        assert_eq!(glib.get("g1").unwrap().model(), glib.get("g1").unwrap().name_or_model());
+        assert!(glib.get("g1").unwrap().as_generic().is_some());
+        glib.set_efficiency("g1", &[(1.0, 0.1)], &[662.0], &[(0.5, 0.01)])
+            .unwrap();
+        glib.set_resolution("g1", &[1.5], &[662.0], &[(25.0, 0.5)])
+            .unwrap();
+        assert!(matches!(
+            glib.set_calibration("g1", 1, &[1.0], &[1.0], &[1.0]),
+            Err(InstrumentLibraryError::WrongKind { .. })
+        ));
+        assert!(matches!(
+            glib.set_calibration("missing", 1, &[1.0], &[1.0], &[1.0]),
+            Err(InstrumentLibraryError::NotFound(_))
+        ));
+
+        // Parser with no instrument attached + parser with UniqueInstrument
+        let p = XmlParser::open(std::path::Path::new("tests/data/Raysid-GRF-Eu152.xml"), false).unwrap();
+        assert!(matches!(
+            glib.set_instrument_from_parser("p", &p),
+            Err(InstrumentLibraryError::NoInstrument)
+        ));
+
+        let dir = std::env::temp_dir().join("luracs_test_inst_lib");
+        drop(std::fs::remove_dir_all(&dir));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut tmp_spec = crate::containers::Spectrum::new(2, "InstSpec");
+        tmp_spec.set_instrument(UniqueInstrument::from_template(
+            "Det-P",
+            &GenericInstrument::default(),
+        ));
+        crate::utils::N42Writer::new(
+            &tmp_spec,
+            &dir.join("inst"),
+            crate::utils::WriteOptions {
+                export_spectrum: false,
+                export_rois: false,
+                export_instrument: true,
+                comment: None,
+            },
+        )
+        .unwrap()
+        .write_out()
+        .unwrap();
+        let p_inst = XmlParser::open(&dir.join("inst.xml"), false).unwrap();
+        ulib.set_instrument_from_parser("from_xml", &p_inst).unwrap();
+        assert!(matches!(
+            glib.set_instrument_from_parser("wrong", &p_inst),
+            Err(InstrumentLibraryError::WrongKind { .. })
+        ));
+        assert!(ulib.get_key_from_attr("no_such_attr", &Value::Null).is_none());
+
+        let mut g_updates = Map::new();
+        g_updates.insert("remark".into(), Value::String("g_updated".into()));
+        glib.update_instrument_data("g1", g_updates).unwrap();
+        assert!(matches!(
+            glib.update_instrument_data("missing", Map::new()),
+            Err(InstrumentLibraryError::NotFound(_))
+        ));
+        assert!(matches!(
+            glib.set_efficiency("missing", &[], &[], &[]),
+            Err(InstrumentLibraryError::NotFound(_))
+        ));
+        assert!(matches!(
+            glib.set_resolution("missing", &[], &[], &[]),
+            Err(InstrumentLibraryError::NotFound(_))
+        ));
+        drop(std::fs::remove_dir_all(&dir));
+    }
+}

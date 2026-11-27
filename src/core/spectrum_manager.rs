@@ -761,3 +761,230 @@ impl From<ParsedData> for SpectrumImportBundle {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::containers::GenericInstrument;
+
+    #[test]
+    fn test_spectrum_manager_lifecycle_events_and_import() {
+        let dir = std::env::temp_dir().join("luracs_test_spec_mgr");
+        drop(std::fs::remove_dir_all(&dir));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let mut mgr = SpectrumManager::new(
+            ColorScheme::default(),
+            dir.clone(),
+            Path::new("resources/nuclide_data"),
+        )
+        .unwrap();
+
+        assert!(mgr.create_spectrum("spec1", 10, None, false).unwrap());
+        assert!(!mgr.create_spectrum("spec1", 10, None, false).unwrap());
+        assert!(mgr.get_spectrum("spec1").is_some());
+        assert_eq!(mgr.get_spectra_dict().len(), 1);
+
+        let wrapped = WrappedSpectrumPackage {
+            y_axis: vec![1.0; 10].into(),
+            live_time: 5.0,
+            real_time: Some(6.0),
+            calib_coeff: None,
+            timestamp: 100.0,
+        };
+        let sd = spectrum_data_from_wrapped(&wrapped, Some("spec1".into()));
+        assert_eq!(sd.channels, 10);
+
+        mgr.set_foreground_spectrum("spec1", ForegroundInput::Wrapped(wrapped.clone()))
+            .unwrap();
+        mgr.set_background_spectrum("spec1", sd.clone()).unwrap();
+        mgr.calibrate_spectrum("spec1", vec![2.0, 0.0]).unwrap();
+        mgr.set_color("spec1", "fg", Color32::RED).unwrap();
+        mgr.set_color("spec1", "bkg", Color32::BLUE).unwrap();
+        mgr.update_visibility("spec1", false).unwrap();
+
+        let mut u = UniqueInstrument::from_template("DetX", &GenericInstrument::default());
+        u.name = "DetX".to_string();
+        mgr.set_spectrum_instrument("spec1", u.clone()).unwrap();
+        mgr.clear_spectrum_instrument("spec1").unwrap();
+
+        mgr.rename_spectrum("spec1", "spec2").unwrap();
+        assert!(mgr.get_spectrum("spec1").is_none());
+        assert!(mgr.get_spectrum("spec2").is_some());
+
+        // Import bundle with new instrument -> stores XML in unique_instrument_library_dir
+        let bundle = SpectrumImportBundle {
+            name: "imported".into(),
+            foreground: Some(SpectrumData {
+                y_axis: Array1::from_vec(vec![5.0; 10]),
+                channels: 10,
+                total_counts: 50,
+                live_time: 4.0,
+                real_time: None,
+                avg_dose_rate: None,
+                avg_cps: None,
+                start_date: None,
+                end_date: None,
+                spectrum_name: None,
+                instrument: None,
+            }),
+            background: Some(sd),
+            calibration: Some(vec![1.5, 0.0]),
+            peaks: vec![Roi {
+                tag: "r0".into(),
+                alias: "r0".into(),
+                spectrum: "imported".into(),
+                roi_bound: (1.0, 3.0),
+                region_bound: (0.0, 4.0),
+                fit_type: crate::containers::FitType::None,
+                bkg_type: crate::containers::BkgType::None,
+                bkg_est_channels: 1,
+                fit: None,
+                roi_counts: 0.0,
+                live_time: 4.0,
+                emission: None,
+                meta: serde_json::Map::new(),
+                merge: false,
+                movable: true,
+                poisson_weights: false,
+                owner_spectrum: None,
+            }],
+            instrument: Some(u),
+            remark: Some("rmk".into()),
+            instrument_model: Some("M".into()),
+            instrument_id: Some("ID".into()),
+        };
+        mgr.import_spectrum(bundle.clone(), ImportOptions::default())
+            .unwrap();
+        mgr.import_spectrum_as_background("spec2", bundle).unwrap();
+        mgr.remove_instrument_from_spectra("DetX");
+
+        // Handle AppEvents
+        mgr.handle_event(
+            &AppEvent::Command(AppCommand::RefitRois {
+                spectrum_name: Some("spec2".into()),
+                roi_tag: None,
+                use_chi2: false,
+            }),
+            false,
+            false,
+        );
+        mgr.handle_event(
+            &AppEvent::Command(AppCommand::RemoveSpectrum {
+                name: "spec2".into(),
+            }),
+            false,
+            false,
+        );
+        assert!(mgr.get_spectrum("spec2").is_none());
+
+        // Exercise Run events, ImportSpectrumBundle, set_spectrum, clear_background, and error paths
+        mgr.handle_event(
+            &AppEvent::Run(RunManagerEvent::CreateDeviceSpectrum {
+                device_name: "dev1".into(),
+                channels: 10,
+                connection: "dev1".into(),
+            }),
+            false,
+            false,
+        );
+        mgr.handle_event(
+            &AppEvent::Run(RunManagerEvent::SpectrumUpdated {
+                name: "dev1".into(),
+                data: wrapped.clone(),
+            }),
+            false,
+            false,
+        );
+        mgr.clear_background("imported").unwrap();
+        let _ = mgr.get_spectra_dict_mut();
+        mgr.set_spectrum("imported", Spectrum::new(4, "imported"))
+            .unwrap();
+        mgr.handle_event(
+            &AppEvent::Run(RunManagerEvent::RemoveDeviceSpectrum {
+                name: "dev1".into(),
+            }),
+            false,
+            false,
+        );
+        assert!(mgr.get_spectrum("dev1").is_none());
+
+        // Error branches for unknown spectrum
+        assert!(mgr.set_foreground_spectrum("nope", ForegroundInput::Wrapped(wrapped.clone())).is_err());
+        assert!(mgr.set_background_spectrum("nope", SpectrumData {
+            y_axis: Array1::zeros(4),
+            channels: 4,
+            total_counts: 0,
+            live_time: 1.0,
+            real_time: None,
+            avg_dose_rate: None,
+            avg_cps: None,
+            start_date: None,
+            end_date: None,
+            spectrum_name: None,
+            instrument: None,
+        }).is_err());
+        assert!(mgr.rename_spectrum("nope", "x").is_err());
+        assert!(mgr.calibrate_spectrum("nope", vec![1.0]).is_err());
+        assert!(mgr.set_color("nope", "fg", Color32::RED).is_err());
+        assert!(mgr.update_visibility("nope", true).is_err());
+        assert!(mgr.clear_background("nope").is_err());
+        assert!(mgr.clear_spectrum_instrument("nope").is_err());
+        let u_missing = UniqueInstrument::from_template("DetM", &GenericInstrument::default());
+        assert!(mgr.set_spectrum_instrument("nope", u_missing).is_err());
+
+        // AppCommand::CreateSpectrum, UpdateForeground, CalibrateSpectrum + import with None fg & tabbed
+        mgr.handle_event(
+            &AppEvent::Command(AppCommand::CreateSpectrum {
+                name: "cmd_s".into(),
+                channels: 10,
+                connection: None,
+                load_calibration: false,
+            }),
+            false,
+            false,
+        );
+        mgr.handle_event(
+            &AppEvent::Command(AppCommand::UpdateForeground {
+                name: "cmd_s".into(),
+                package: wrapped,
+            }),
+            false,
+            false,
+        );
+        mgr.handle_event(
+            &AppEvent::Command(AppCommand::CalibrateSpectrum {
+                name: "cmd_s".into(),
+                coefficients: vec![2.0, 0.0],
+            }),
+            false,
+            false,
+        );
+        let empty_bundle = SpectrumImportBundle {
+            name: "empty".into(),
+            foreground: None,
+            background: None,
+            calibration: None,
+            peaks: vec![],
+            instrument: None,
+            remark: None,
+            instrument_model: None,
+            instrument_id: None,
+        };
+        mgr.import_spectrum(empty_bundle.clone(), ImportOptions::default()).unwrap();
+        mgr.import_spectrum_as_background("cmd_s", empty_bundle).unwrap();
+
+        // From<ParsedData> for SpectrumImportBundle
+        let parser = crate::utils::XmlParser::open(Path::new("tests/data/Raysid-GRF-Eu152.xml"), false).unwrap();
+        let converted = SpectrumImportBundle::from(parser.into_data());
+        mgr.handle_event(
+            &AppEvent::Command(AppCommand::ImportSpectrumBundle(Box::new(converted))),
+            false,
+            false,
+        );
+
+        assert!(!mgr.drain_events().is_empty());
+
+        drop(std::fs::remove_dir_all(&dir));
+    }
+}

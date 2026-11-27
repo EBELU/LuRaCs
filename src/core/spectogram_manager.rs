@@ -374,3 +374,115 @@ pub fn energy_axis_for(spectrogram: &Spectrogram) -> Array1<f64> {
         spectrogram.spect_channels(),
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::spectogram::SpectrogramState;
+
+    fn sample_buffer(rows: Vec<Array1<f64>>) -> WrappedSpectrogramData {
+        let n = rows.len();
+        WrappedSpectrogramData {
+            db_name: "sg0".to_string(),
+            instrument: "Mock".to_string(),
+            calibration_coefficients: vec![1.0, 0.0],
+            start_date: 0.0,
+            duration: 10.0,
+            concat: 1,
+            spect_channels: 4,
+            save_interval: 2.0,
+            latest_spectrum: rows.last().cloned(),
+            spectrogram: rows,
+            timestamp_deque: vec![1.0; n],
+            time_delta: 2.0,
+            estimated_dose: 0.1,
+            status: SpectrogramState::Active,
+            gps_queue: vec![None; n],
+            count_rate_queue: vec![10.0; n],
+            dose_rate_queue: vec![0.1; n],
+        }
+    }
+
+    #[test]
+    fn test_spectrogram_manager_rois_and_receive_buffer() {
+        let mut mgr = SpectrogramManager::default();
+        mgr.register_logger("sg0");
+        assert!(mgr.spectrogram_registry.contains("sg0"));
+
+        mgr.set_roi_edit_mode(true);
+        assert!(mgr.roi_edit_mode());
+
+        let tag0 = mgr.add_roi(NewSpectrogramRoi {
+            e_region: (10.0, 30.0),
+            alias: Some("PeakA".into()),
+            emission: None,
+        });
+        let tag_empty = mgr.add_roi(NewSpectrogramRoi {
+            e_region: (500.0, 600.0),
+            alias: None,
+            emission: None,
+        });
+        assert_eq!(mgr.get_roi_alias_from_tag(&tag0), Some("PeakA"));
+        assert!(mgr.get_roi(&tag0).unwrap().movable);
+        assert!(mgr.update_roi_bounds(&tag0, (5.0, 35.0)));
+        assert!(!mgr.update_roi_bounds("missing", (0.0, 1.0)));
+
+        // Empty buffer -> Ok(())
+        let empty = sample_buffer(vec![]);
+        assert!(mgr.receive_buffer("sg0", &empty).is_ok());
+
+        // Missing energy axis -> Err
+        let buf = sample_buffer(vec![Array1::from_vec(vec![10.0, 20.0, 30.0, 40.0])]);
+        assert!(matches!(
+            mgr.receive_buffer("sg0", &buf),
+            Err(SpectrogramManagerError::MissingEnergyAxis(_))
+        ));
+
+        // Length mismatch -> Err
+        mgr.set_energy_axis("sg0", Array1::from_vec(vec![0.0, 10.0, 20.0]));
+        assert!(matches!(
+            mgr.receive_buffer("sg0", &buf),
+            Err(SpectrogramManagerError::AxisLengthMismatch { .. })
+        ));
+
+        // Valid axis + ROIs
+        let axis = energy_axis_from_calibration(&[10.0, 0.0], 4);
+        assert_eq!(axis.as_slice().unwrap(), &[0.0, 10.0, 20.0, 30.0]);
+        assert_eq!(energy_axis_from_calibration(&[], 3).as_slice().unwrap(), &[0.0, 1.0, 2.0]);
+        mgr.set_energy_axis("sg0", axis);
+        mgr.receive_buffer("sg0", &buf).unwrap();
+
+        let events = mgr.drain_events();
+        assert!(events.iter().any(|e| matches!(e, SpectrogramManagerEvent::RoiCountsUpdated { .. })));
+        assert!(events.iter().any(|e| matches!(e, SpectrogramManagerEvent::MapBufferUpdated { .. })));
+
+        // load_rois, remove_roi, clear_rois, unregister_logger
+        let r = Roi {
+            tag: "t0".into(),
+            alias: "Imported".into(),
+            spectrum: String::new(),
+            roi_bound: (1.0, 2.0),
+            region_bound: (0.0, 3.0),
+            fit_type: crate::containers::FitType::None,
+            bkg_type: crate::containers::BkgType::None,
+            bkg_est_channels: 1,
+            fit: None,
+            roi_counts: 0.0,
+            live_time: 1.0,
+            emission: None,
+            meta: serde_json::Map::new(),
+            merge: false,
+            movable: true,
+            poisson_weights: false,
+            owner_spectrum: None,
+        };
+        mgr.load_rois(&[r]);
+        mgr.remove_roi(&tag_empty);
+        mgr.clear_rois();
+        assert!(mgr.roi_registry.is_empty());
+
+        mgr.remove_energy_axis("sg0");
+        mgr.unregister_logger("sg0");
+        assert!(!mgr.spectrogram_registry.contains("sg0"));
+    }
+}

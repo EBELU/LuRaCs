@@ -262,15 +262,167 @@ impl EventDispatcher {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::clients::PollConfig;
+    use crate::core::io_manager::SaveFn;
+    use crate::gui::ColorScheme;
+    use crate::settings::Settings;
 
     #[test]
     fn test_event_dispatcher_queue() {
-        let mut dispatcher = EventDispatcher::new();
+        let mut dispatcher = EventDispatcher::default();
         assert!(dispatcher.frame_events().is_empty());
 
         dispatcher.send(AppCommand::RemoveSpectrum {
             name: "test".to_string(),
         });
-        assert_eq!(dispatcher.inbox.len(), 1);
+        dispatcher.send_batch([AppEvent::Command(AppCommand::CreateSpectrum {
+            name: "s1".to_string(),
+            channels: 8,
+            connection: None,
+            load_calibration: false,
+        })]);
+        assert_eq!(dispatcher.inbox.len(), 2);
+
+        let dir = std::env::temp_dir().join("luracs_test_dispatcher");
+        drop(std::fs::remove_dir_all(&dir));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let mut spec_mgr = SpectrumManager::new(
+            ColorScheme::default(),
+            dir.clone(),
+            std::path::Path::new("resources/nuclide_data"),
+        )
+        .unwrap();
+        let mut run_mgr = RunManager::new(8, PollConfig::default()).unwrap();
+        let noop = || -> SaveFn { Box::new(|_| Err("noop".into())) };
+        let mut io_mgr = IoManager::new(&dir, dir.clone(), false, noop(), noop(), noop(), noop());
+
+        // Populate file_index with a UniqueInstrument XML and Spectrum XML before dispatch
+        let ui_dir = dir.join("unique_instrument_library");
+        let sp_dir = dir.join("spectrum_library");
+        std::fs::create_dir_all(&ui_dir).unwrap();
+        std::fs::create_dir_all(&sp_dir).unwrap();
+        let mut tmp_spec = crate::containers::Spectrum::new(4, "IdxSpec");
+        tmp_spec.set_foreground(
+            crate::containers::SpectrumData {
+                y_axis: ndarray::Array1::from_vec(vec![1.0, 2.0, 3.0, 4.0]),
+                channels: 4,
+                total_counts: 10,
+                live_time: 1.0,
+                real_time: None,
+                avg_dose_rate: None,
+                avg_cps: None,
+                start_date: None,
+                end_date: None,
+                spectrum_name: None,
+                instrument: None,
+            },
+            None,
+        );
+        let mut u = crate::containers::UniqueInstrument::from_template(
+            "IdxDet",
+            &crate::containers::GenericInstrument::default(),
+        );
+        u.name = "IdxDet".to_string();
+        tmp_spec.set_instrument(u);
+        crate::utils::N42Writer::new(
+            &tmp_spec,
+            &ui_dir.join("IdxDet"),
+            crate::utils::WriteOptions {
+                export_spectrum: false,
+                export_rois: false,
+                export_instrument: true,
+                comment: None,
+            },
+        )
+        .unwrap()
+        .write_out()
+        .unwrap();
+        crate::utils::N42Writer::new(
+            &tmp_spec,
+            &sp_dir.join("IdxSpec"),
+            crate::utils::WriteOptions::default(),
+        )
+        .unwrap()
+        .write_out()
+        .unwrap();
+        io_mgr.file_index.run_index_all();
+
+        // Queue a RunManagerEvent and a ThemeManagerEvent
+        run_mgr.resize_spectrogram_deque(8);
+        let mut theme_mgr = ThemeManager::new(&dir, &dir, Some("dark-catppuccin"));
+        let ctx = eframe::egui::Context::default();
+        let mut out = ctx.run_ui(Default::default(), |ui| {
+            drop(theme_mgr.apply(ui, "light-catppuccin"));
+        });
+        out.textures_delta.clear();
+
+        let paths = crate::settings::Paths::with_overrides(
+            crate::settings::PathOverrides::new()
+                .base(dir.clone())
+                .config(dir.join("cfg.json"))
+                .appdata(dir.join("app"))
+                .last_opened_dir(dir.clone()),
+        )
+        .unwrap();
+        let settings = std::sync::Arc::new(std::sync::RwLock::new(
+            Settings::builder()
+                .headless(true)
+                .paths(paths)
+                .load_from_disk(false)
+                .build()
+                .unwrap(),
+        ));
+
+        dispatcher.send(AppCommand::CalibrateSpectrum {
+            name: "s1".to_string(),
+            coefficients: vec![2.0, 0.0],
+        });
+        dispatcher.send(AppCommand::AddRoi(Box::new(NewRoi::new(2.0, 6.0))));
+        dispatcher.dispatch(
+            &mut spec_mgr,
+            &mut run_mgr,
+            &mut io_mgr,
+            Some(&mut theme_mgr),
+            &settings,
+        );
+
+        assert!(!dispatcher.frame_events().is_empty());
+        assert!(spec_mgr.get_spectrum("s1").is_some());
+        assert_eq!(spec_mgr.roi_manager.registry().len(), 1);
+
+        // Exercise From<...> impls, ThemeChanged persistence, and remaining AppCommands
+        drop(AppEvent::from(RunManagerEvent::DeviceRemoved { name: "d".into() }));
+        drop(AppEvent::from(SpectrumManagerEvent::SpectrumRemoved("s".into())));
+        drop(AppEvent::from(RoiManagerEvent::Deleted { tag: "t".into() }));
+        drop(AppEvent::from(SpectrogramManagerEvent::RoiCountsUpdated {
+            logger_name: "l".into(),
+            counts: std::sync::Arc::new(std::collections::HashMap::new()),
+        }));
+        drop(AppEvent::from(FileIndexEvent::IndexUpdated {
+            which: IndexKind::Spectrum,
+        }));
+        dispatcher.send(ThemeManagerEvent::ThemeChanged {
+            name: "light-catppuccin".into(),
+        });
+        dispatcher.send(AppCommand::UpdateForeground {
+            name: "s1".into(),
+            package: WrappedSpectrumPackage {
+                y_axis: ndarray::Array1::from_vec(vec![1.0; 8]),
+                live_time: 2.0,
+                real_time: Some(2.0),
+                calib_coeff: None,
+                timestamp: 1.0,
+            },
+        });
+        dispatcher.send(AppCommand::RemoveRoi {
+            tag: "ROI_0".into(),
+        });
+        dispatcher.send(AppCommand::RemoveSpectrum { name: "s1".into() });
+        dispatcher.dispatch(&mut spec_mgr, &mut run_mgr, &mut io_mgr, None, &settings);
+        assert!(spec_mgr.get_spectrum("s1").is_none());
+
+        run_mgr.shutdown();
+        drop(std::fs::remove_dir_all(&dir));
     }
 }

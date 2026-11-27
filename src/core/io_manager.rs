@@ -904,3 +904,163 @@ impl IoManager {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::containers::SpectrumData;
+    use ndarray::Array1;
+
+    #[test]
+    fn test_indexer_file_index_and_importer_exporter() {
+        let dir = std::env::temp_dir().join("luracs_test_io_mgr");
+        drop(std::fs::remove_dir_all(&dir));
+        let spec_dir = dir.join("spectrum_library");
+        std::fs::create_dir_all(&spec_dir).unwrap();
+
+        let save_spec: SaveFn = Box::new(move |input| match input {
+            SaveInput::Spectrum(s) => save_spectrum_to_library(s, &spec_dir).map_err(|e| e.to_string()),
+            _ => Err("unsupported".into()),
+        });
+        let noop_save = || -> SaveFn { Box::new(|_| Err("noop".into())) };
+
+        let mut io = IoManager::new(
+            &dir,
+            dir.clone(),
+            false,
+            save_spec,
+            noop_save(),
+            noop_save(),
+            noop_save(),
+        );
+
+        let mut s = Spectrum::new(4, "TestSpec".to_string());
+        s.set_foreground(
+            SpectrumData {
+                y_axis: Array1::from_vec(vec![1.0, 2.0, 3.0, 4.0]),
+                channels: 4,
+                total_counts: 10,
+                live_time: 5.0,
+                real_time: None,
+                avg_dose_rate: None,
+                avg_cps: None,
+                start_date: None,
+                end_date: None,
+                spectrum_name: None,
+                instrument: None,
+            },
+            None,
+        );
+
+        let saved = io
+            .file_index
+            .indexer_mut(IndexKind::Spectrum)
+            .save_file(SaveInput::Spectrum(&s))
+            .unwrap();
+        assert!(saved.exists());
+        assert_eq!(io.file_index.indexer(IndexKind::Spectrum).len(), 1);
+        assert!(io.file_index.indexer(IndexKind::Spectrum).get(&saved).is_some());
+        assert_eq!(io.file_index.indexer(IndexKind::Spectrum).paths().count(), 1);
+
+        let renamed = saved.with_file_name("RenamedSpec.xml");
+        io.file_index
+            .indexer_mut(IndexKind::Spectrum)
+            .rename_file(&saved, &renamed)
+            .unwrap();
+        assert!(renamed.exists());
+
+        let updated = io
+            .file_index
+            .indexer_mut(IndexKind::Spectrum)
+            .update_file(&renamed, SaveInput::Spectrum(&s))
+            .unwrap();
+        assert!(updated.exists());
+
+        assert!(
+            io.file_index
+                .indexer(IndexKind::Spectrum)
+                .get_key_from_attr("name", &Value::String("TestSpec".into()))
+                .is_some()
+        );
+        assert!(
+            io.file_index
+                .indexer(IndexKind::Spectrum)
+                .get_item_from_attr("name", &Value::String("TestSpec".into()))
+                .is_some()
+        );
+
+        io.file_index
+            .indexer_mut(IndexKind::Spectrum)
+            .delete_file(&updated)
+            .unwrap();
+        assert!(io.file_index.indexer(IndexKind::Spectrum).get(&updated).is_none());
+
+        io.file_index.run_index_all();
+        assert!(!io.file_index.drain_events().is_empty());
+
+        // Importer on real test fixtures across filters
+        let outcomes = io.importer.import_paths(
+            &[
+                PathBuf::from("tests/data/HPGeEU152.TKA"),
+                PathBuf::from("tests/data/fontan.Spe"),
+                PathBuf::from("tests/data/Raysid-GRF-Eu152.xml"),
+                PathBuf::from("tests/data/Debug_Sg.db"),
+            ],
+            ImportFilter::All,
+            &dir,
+        );
+        assert_eq!(outcomes.len(), 4);
+        assert!(io.importer.parse_spectrum(Path::new("tests/data/HPGeEU152.TKA")).is_some());
+
+        let roi_outcomes = io.importer.import_paths(
+            &[PathBuf::from("tests/data/Raysid-GRF-Eu152.xml")],
+            ImportFilter::Rois,
+            &dir,
+        );
+        assert_eq!(roi_outcomes.len(), 1);
+        let inst_outcomes = io.importer.import_paths(
+            &[PathBuf::from("tests/data/Raysid-GRF-Eu152.xml")],
+            ImportFilter::Instrument,
+            &dir,
+        );
+        assert!(inst_outcomes.is_empty());
+        let sg_outcomes = io.importer.import_paths(
+            &[PathBuf::from("tests/data/Debug_Sg.db")],
+            ImportFilter::Spectrogram,
+            &dir,
+        );
+        assert_eq!(sg_outcomes.len(), 1);
+
+        // Exercise Db indexer & IndexedFile accessors
+        let sg_dir = dir.join("spectrogram_library");
+        std::fs::create_dir_all(&sg_dir).unwrap();
+        std::fs::copy("tests/data/Debug_Sg.db", sg_dir.join("Debug_Sg.db")).unwrap();
+        io.file_index.run_index_all();
+        let sg_idx = io.file_index.indexer_mut(IndexKind::Spectrogram);
+        assert_eq!(sg_idx.len(), 1);
+        let sg_key = sg_idx.paths().next().unwrap().clone();
+        assert!(sg_idx.get(&sg_key).unwrap().as_db().is_some());
+        assert!(sg_idx.get(&sg_key).unwrap().as_xml().is_none());
+        assert!(sg_idx.get_mut(&sg_key).unwrap().as_xml_mut().is_none());
+        assert!(sg_idx.get(&sg_key).unwrap().metadata().is_none());
+        assert!(matches!(
+            sg_idx.save_file(SaveInput::Spectrum(&s)),
+            Err(IoManagerError::NoSaveFn)
+        ));
+        sg_idx.delete_file(&sg_key).unwrap();
+
+        let bad_idx = Indexer::new(ParserKind::Db, "[invalid-glob");
+        let mut bad_idx = bad_idx;
+        bad_idx.run_index();
+        assert!(io.importer.parse_spectrum(Path::new("unknown.xyz")).is_none());
+
+        // Zip & unzip library
+        let zip_path = dir.join("lib.zip");
+        io.exporter.do_export_library(&dir, &zip_path).unwrap();
+        assert!(zip_path.exists());
+        let restore_dir = dir.join("restored");
+        io.importer.do_import_library(&zip_path, &restore_dir).unwrap();
+
+        drop(std::fs::remove_dir_all(&dir));
+    }
+}

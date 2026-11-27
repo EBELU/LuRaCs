@@ -405,3 +405,114 @@ impl From<&Emission> for EmissionKey {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::containers::{Fit, kev, percent};
+    use physure_core::quantity::Quantity;
+
+    #[test]
+    fn test_nuclide_library_load_query_chains_and_matching() {
+        let lib = NuclideLibrary::load_from_dir(Path::new("resources/nuclide_data")).unwrap();
+        let cs = lib.get_nuclide_by_name("Cs-137").unwrap().clone();
+        assert!(lib.get_nuclide(cs.nuclide).is_some());
+        assert!(lib.get_nuclide_by_name("InvalidNuclide999").is_none());
+
+        let ids = lib.sorted_nuclide_ids(true);
+        assert!(!ids.is_empty());
+        let names = lib.sorted_nuclide_names(false);
+        assert_eq!(names.len(), lib.sorted_nuclide_ids(false).len());
+
+        // Chains
+        assert_eq!(lib.decay_chains().len(), 2);
+        assert!(lib.decay_chain_ids("Th-232 -- Chain").is_some());
+        assert!(lib.decay_chain_ids("NoSuchChain").is_none());
+
+        // Energy matching (all + selected)
+        let m662 = lib.match_energy_to_nuclide(661.66).unwrap();
+        assert_eq!(m662.parent_nuclide, Some(cs.nuclide));
+        assert!(lib.match_energy_to_nuclide(999999.0).is_none());
+
+        // 511 keV annihilation special case
+        let mut custom = NuclideLibrary::empty();
+        custom.add_nuclide(cs.clone()).unwrap();
+        assert!(matches!(
+            custom.add_nuclide(cs.clone()),
+            Err(NuclideLibraryError::DuplicateNuclide(_))
+        ));
+
+        let mut ann_nuclide = cs.clone();
+        ann_nuclide.nuclide = NuclideId::from_name("Na-22").unwrap();
+        ann_nuclide.emissions.push(Emission {
+            parent_nuclide: Some(ann_nuclide.nuclide),
+            energy_kev: Some(Quantity::new_scalar(511.0, 0.0, kev(), None, None)),
+            intensity_percent: Some(Quantity::new_scalar(180.0, 0.0, percent(), None, None)),
+            r#type: None,
+            origin: None,
+        });
+        custom.add_nuclide(ann_nuclide.clone()).unwrap();
+
+        custom.track_selected_nuclide(ann_nuclide.nuclide, true, Color32::RED);
+        assert!(custom.selected().contains(&ann_nuclide.nuclide));
+        let m511 = custom.match_energy_to_nuclide(511.0).unwrap();
+        assert_eq!(m511.parent_nuclide, None);
+
+        let no_weight = custom.match_energy_with(
+            661.66,
+            MatchOptions {
+                match_only_shown: false,
+                window: 10.0,
+                weight_by_intensity: false,
+                filter_by_intensity_percent: 1.0,
+            },
+        );
+        assert!(no_weight.is_some());
+
+        // ROI matching with tie-break
+        let mk_roi = |fit: Option<Fit>| Roi {
+            tag: "t".into(),
+            alias: "a".into(),
+            spectrum: "s".into(),
+            roi_bound: (650.0, 670.0),
+            region_bound: (640.0, 680.0),
+            fit_type: crate::containers::FitType::Gaussian,
+            bkg_type: crate::containers::BkgType::Linear,
+            bkg_est_channels: 2,
+            fit,
+            roi_counts: 0.0,
+            live_time: 1.0,
+            emission: None,
+            meta: serde_json::Map::new(),
+            merge: false,
+            movable: true,
+            poisson_weights: false,
+            owner_spectrum: None,
+        };
+        let r1 = mk_roi(Some(Fit {
+            region_lower: None,
+            region_upper: None,
+            lower: 650.0,
+            upper: 670.0,
+            params: ndarray::Array1::from_vec(vec![100.0, 661.66, 2.0]),
+            param_errs: ndarray::Array1::zeros(3),
+            bkg_params: None,
+            bkg_est_channels: 2,
+            g: 0.0,
+            b: 0.0,
+            n: 0.0,
+            peak_area: 0.0,
+            g_err: 0.0,
+            b_err: 0.0,
+            n_err: 0.0,
+            peak_area_err: 0.0,
+        }));
+        let r2 = mk_roi(None);
+        let matched = custom.match_roi_to_nuclide([&r1, &r2], 10.0).unwrap();
+        assert_eq!(matched.parent_nuclide, Some(cs.nuclide));
+
+        custom.track_selected_nuclide(ann_nuclide.nuclide, false, Color32::RED);
+        assert!(!custom.selected().contains(&ann_nuclide.nuclide));
+        assert_eq!(custom.drain_events().len(), 2);
+    }
+}

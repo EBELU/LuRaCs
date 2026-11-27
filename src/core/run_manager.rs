@@ -963,3 +963,118 @@ async fn remove_device_async(shared: Arc<RunManagerShared>, name: String, remove
         shared.emit(RunManagerEvent::RemoveDeviceSpectrum { name });
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::clients::{DummyDevice, register_device};
+
+    #[test]
+    fn test_run_manager_devices_gps_spectrogram_and_poll() {
+        struct RunningDummy(DummyDevice);
+        #[async_trait::async_trait]
+        impl DeviceWrapper for RunningDummy {
+            fn type_key(&self) -> &'static str { self.0.type_key() }
+            fn name(&self) -> &str { self.0.name() }
+            fn connection(&self) -> ConnectionType { self.0.connection() }
+            fn state(&self) -> DeviceState { self.0.state() }
+            fn set_state(&self, s: DeviceState) { self.0.set_state(s); }
+            fn channels(&self) -> Option<usize> { self.0.channels() }
+            fn is_running(&self) -> bool { true }
+            fn is_stopped(&self) -> bool { false }
+            fn connected_timestamp(&self) -> f64 { self.0.connected_timestamp() }
+            async fn start(&self) -> std::result::Result<(), crate::clients::DeviceError> { Ok(()) }
+            async fn stop(&self) -> std::result::Result<(), crate::clients::DeviceError> { Ok(()) }
+            async fn get_realtime_data(&self) -> std::result::Result<crate::clients::WrappedRealTimePackage, crate::clients::DeviceError> {
+                self.0.get_realtime_data().await
+            }
+            async fn get_status(&self) -> std::result::Result<crate::clients::WrappedStatusPackage, crate::clients::DeviceError> {
+                self.0.get_status().await
+            }
+            async fn get_spectrum(&self) -> std::result::Result<crate::clients::WrappedSpectrumPackage, crate::clients::DeviceError> {
+                self.0.get_spectrum().await
+            }
+        }
+        register_device("RunMgrDummy", |addr, conn| {
+            Ok(Box::new(RunningDummy(DummyDevice::new(addr, conn))))
+        });
+
+        let mut rm = RunManager::new(16, PollConfig::default()).unwrap();
+        let _ = rm.shared();
+        let _ = rm.runtime_handle();
+        let _ = rm.poll_start_time();
+        let _ = rm.spectrogram_manager();
+        let _ = rm.spectrogram_manager_mut();
+
+        let cfg = PollConfig {
+            update_loop_delay: 0.05,
+            spectrum_update_delay: 0.1,
+        };
+        rm.set_poll_config(cfg);
+        assert!((rm.poll_config_get().update_loop_delay - 0.05).abs() < 1e-12);
+
+        // Mock GPS lifecycle
+        rm.connect_mock_gps().unwrap();
+        assert!(rm.has_gps());
+        drop(rm.poll());
+        rm.set_gps(false);
+        assert!(!rm.has_gps());
+
+        // Add & manage a DummyDevice via the internal runtime
+        let jh = rm.add_device(
+            DeviceAddress::Other("rm_dummy".into()),
+            "RunMgrDummy".into(),
+            ConnectionType::Network,
+        );
+        rm.runtime_handle().block_on(jh).unwrap();
+        assert_eq!(rm.list_devices(), vec!["rm_dummy".to_string()]);
+        assert!(rm.get_device("rm_dummy").is_some());
+
+        rm.reset_all_spectra();
+        rm.start_acquisition_all();
+        rm.stop_acquisition_all();
+
+        // Attach a Spectrogram for rm_dummy and let poll() process device + spectrogram events
+        let sg_dir = std::env::temp_dir().join("luracs_test_run_mgr_sg");
+        drop(std::fs::remove_dir_all(&sg_dir));
+        let sp = Spectrogram::open(
+            "sg_rm",
+            &sg_dir,
+            crate::spectogram::SpectrogramConfig::default(),
+            crate::spectogram::SpectrogramMode::New {
+                save_interval: 1.0,
+                spect_channels: 1024,
+                device_id: "rm_dummy".into(),
+                calibration_coeff: vec![1.0, 0.0],
+                concat_factor: 1,
+                header_meta: serde_json::Value::Null,
+            },
+        )
+        .unwrap();
+        rm.add_spectrogram("sg_rm".into(), sp).unwrap();
+        assert!(rm.get_spectrogram("sg_rm").is_some());
+        assert!(rm.get_spectrogram_mut("sg_rm").is_some());
+        rm.spectrogram_manager_mut().add_roi(
+            crate::core::spectogram_manager::NewSpectrogramRoi {
+                e_region: (10.0, 50.0),
+                alias: Some("sg_r".into()),
+                emission: None,
+            },
+        );
+
+        std::thread::sleep(std::time::Duration::from_millis(80));
+        let evs = rm.poll();
+        assert!(!evs.is_empty());
+
+        rm.resize_spectrogram_deque(32);
+        rm.close_spectrogram("sg_rm");
+        assert!(rm.get_spectrogram("sg_rm").is_none());
+
+        rm.remove_device("rm_dummy".into(), true);
+        std::thread::sleep(std::time::Duration::from_millis(30));
+        drop(rm.poll());
+        rm.remove_all_devices();
+        rm.shutdown();
+        drop(std::fs::remove_dir_all(&sg_dir));
+    }
+}

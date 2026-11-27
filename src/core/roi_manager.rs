@@ -900,3 +900,146 @@ fn build_result_roi(
         movable: source.movable,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ndarray::Array1;
+
+    fn make_gaussian_spectrum(name: &str) -> Spectrum {
+        let mut s = Spectrum::new(100, name.to_string());
+        let y: Array1<f64> = (0..100)
+            .map(|i| {
+                let d = i as f64 - 50.0;
+                10.0 + 300.0 * (-0.5 * d * d / 9.0).exp()
+            })
+            .collect();
+        let fg = SpectrumData {
+            y_axis: y,
+            channels: 100,
+            total_counts: 1000,
+            live_time: 10.0,
+            real_time: Some(12.0),
+            avg_dose_rate: None,
+            avg_cps: None,
+            start_date: None,
+            end_date: None,
+            spectrum_name: None,
+            instrument: None,
+        };
+        s.set_foreground(fg, None);
+        s
+    }
+
+    #[test]
+    fn test_roi_manager_crud_fitting_groups_and_events() {
+        let mut mgr = RoiManager::default();
+        let mut spectra = HashMap::new();
+        spectra.insert("s1".to_string(), make_gaussian_spectrum("s1"));
+
+        mgr.set_cps(true);
+        assert!(mgr.spectrum_is_cps());
+        mgr.set_bkg_sub(true);
+        assert!(mgr.spectrum_is_bkg_sub());
+
+        let mut spec = NewRoi::new(40.0, 60.0);
+        spec.alias = Some("Peak50".into());
+        let tag0 = mgr.add_roi(spec);
+        assert!(mgr.get_roi(&tag0).is_some());
+        assert_eq!(mgr.registry().len(), 1);
+
+        mgr.select_roi(&tag0);
+        assert_eq!(mgr.selected_roi(), Some(tag0.as_str()));
+        let _ = mgr.get_roi_color(&tag0);
+        mgr.clear_selection();
+        assert!(mgr.selected_roi().is_none());
+
+        // Overlapping ROI forms a group
+        let tag1 = mgr.add_roi(NewRoi::new(45.0, 65.0));
+        assert!(!mgr.groupings().is_empty());
+
+        mgr.update_roi_bounds(&mut spectra, &tag0, (41.0, 59.0), false);
+        mgr.set_roi_bound_raw(&tag0, (59.0, 41.0));
+        assert_eq!(mgr.get_roi(&tag0).unwrap().roi_bound, (41.0, 59.0));
+
+        mgr.update_roi_settings(
+            &mut spectra,
+            &tag0,
+            RoiSettingsPatch {
+                alias: Some("Renamed".into()),
+                fit_type: Some(FitType::None),
+                bkg_type: Some(BkgType::None),
+                bkg_est_channels: Some(2),
+                merge: Some(false),
+                movable: Some(false),
+                poisson_weights: Some(true),
+            },
+            false,
+        );
+        mgr.set_roi_emission(&mut spectra, &tag0, Some(Emission::annihilation()), false);
+        assert!(mgr.set_owner_spectrum(&tag0, Some("s1".into())));
+        assert!(!mgr.set_owner_spectrum("missing", None));
+        mgr.rename_owner_spectrum("s1", "s2");
+        assert_eq!(mgr.get_roi(&tag0).unwrap().owner_spectrum.as_deref(), Some("s2"));
+
+        // Re-enable Gaussian fit with bkg_sub=false, then also test bkg_sub=true with background
+        mgr.set_bkg_sub(false);
+        mgr.update_roi_settings(
+            &mut spectra,
+            &tag0,
+            RoiSettingsPatch {
+                fit_type: Some(FitType::Gaussian),
+                bkg_type: Some(BkgType::Linear),
+                ..Default::default()
+            },
+            true,
+        );
+        mgr.update_roi(&mut spectra, Some("s1"), Some(&tag1), false);
+        let bg = SpectrumData {
+            y_axis: Array1::from_elem(100, 5.0),
+            channels: 100,
+            total_counts: 500,
+            live_time: 10.0,
+            real_time: Some(10.0),
+            avg_dose_rate: None,
+            avg_cps: None,
+            start_date: None,
+            end_date: None,
+            spectrum_name: None,
+            instrument: None,
+        };
+        spectra.get_mut("s1").unwrap().set_background(bg, None);
+        mgr.set_bkg_sub(true);
+        mgr.refit_roi(&mut spectra, None, None, false);
+
+        assert!(!mgr.get_data_from_roi(&spectra, &tag1).is_empty());
+        assert!(mgr.get_data_from_spectrum(&spectra, "s1").is_some());
+
+        mgr.remove_roi(&mut spectra, &tag0, true, false);
+        mgr.clear_all(&mut spectra, false);
+        assert!(mgr.registry().is_empty());
+
+        let r = Roi {
+            tag: "imported".into(),
+            alias: "imported".into(),
+            spectrum: String::new(),
+            roi_bound: (1.0, 2.0),
+            region_bound: (0.0, 3.0),
+            fit_type: FitType::None,
+            bkg_type: BkgType::None,
+            bkg_est_channels: 1,
+            fit: None,
+            roi_counts: 0.0,
+            live_time: 1.0,
+            emission: None,
+            meta: Map::new(),
+            merge: false,
+            movable: true,
+            poisson_weights: false,
+            owner_spectrum: None,
+        };
+        mgr.load_rois(&[r]);
+        assert_eq!(mgr.registry().len(), 1);
+        assert!(!mgr.drain_events().is_empty());
+    }
+}
