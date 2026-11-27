@@ -592,11 +592,15 @@ fn ensure_dir(p: PathBuf) -> SettingsResult<PathBuf> {
     Ok(p)
 }
 
+// Creates real per-user directories under $HOME; not exercised by unit tests.
+#[cfg_attr(coverage_nightly, coverage(off))]
 fn app_data_dir() -> SettingsResult<PathBuf> {
     let proj = ProjectDirs::from("", "", "LuRaCs").ok_or(SettingsError::NoHomeDir)?;
     ensure_dir(proj.data_local_dir().to_path_buf())
 }
 
+// Creates real per-user directories under $HOME; not exercised by unit tests.
+#[cfg_attr(coverage_nightly, coverage(off))]
 fn config_dir() -> SettingsResult<PathBuf> {
     let proj = ProjectDirs::from("", "", "LuRaCs").ok_or(SettingsError::NoHomeDir)?;
     ensure_dir(proj.config_dir().to_path_buf())
@@ -1107,6 +1111,98 @@ mod tests {
 
         shared.write_settings().paths.set_config(dir.join("cfg2.json"));
         shared.write_settings().paths.set_appdata(dir.join("app2"));
+
+        drop(std::fs::remove_dir_all(&dir));
+    }
+
+    #[test]
+    fn test_settings_category_parsing_roundtrip_connections_and_builder() {
+        // Display + FromStr (case-insensitive) for every category
+        for cat in Category::ALL {
+            assert_eq!(cat.to_string(), cat.display_name());
+            assert_eq!(cat.as_str().parse::<Category>().unwrap(), *cat);
+            assert_eq!(
+                cat.as_str().to_ascii_uppercase().parse::<Category>().unwrap(),
+                *cat
+            );
+        }
+        assert!(matches!(
+            "definitely_not_a_category".parse::<Category>(),
+            Err(SettingsError::UnknownCategory(_))
+        ));
+
+        // Connections: dedupe, bounded push, trim
+        let mut conns = Connections::default();
+        for i in 0..(Connections::MAX_ITEMS + 3) {
+            conns.push(format!("dev{i}"));
+        }
+        conns.push("dev5");
+        assert_eq!(conns.recent.len(), Connections::MAX_ITEMS);
+        assert_eq!(conns.recent.front().map(String::as_str), Some("dev3"));
+        for i in 0..5 {
+            conns.recent.push_back(format!("extra{i}"));
+        }
+        conns.trim();
+        assert_eq!(conns.recent.len(), Connections::MAX_ITEMS);
+
+        let dir = std::env::temp_dir().join("luracs_test_settings_roundtrip");
+        drop(std::fs::remove_dir_all(&dir));
+        std::fs::create_dir_all(&dir).unwrap();
+        let paths = Paths::with_overrides(
+            PathOverrides::new()
+                .base(dir.clone())
+                .config(dir.join("cfg.json"))
+                .appdata(dir.join("app"))
+                .last_opened_dir(dir.clone()),
+        )
+        .unwrap();
+
+        // Builder with load_from_disk on a missing file is OK
+        let mut s = Settings::builder()
+            .paths(paths.clone())
+            .load_from_disk(true)
+            .build()
+            .unwrap();
+        assert!(!s.headless);
+
+        // Every field in every category can be re-written with its own value
+        for cat in Category::ALL {
+            assert!(s.category_snapshot(*cat).is_object());
+            for field in cat.fields() {
+                if let Some(v) = s.get_field(*cat, field) {
+                    s.update(*cat, field, v).unwrap();
+                }
+            }
+        }
+        let changed = s.drain_events();
+        assert!(changed.iter().all(|e| e.as_latest_connection_updated().is_none()));
+        assert!(changed.iter().all(|e| e.as_setting_changed().is_some()));
+
+        // add_new_connection only tracks BLE connections
+        s.add_new_connection("RadiaCode-102", "USB");
+        assert!(s.drain_events().is_empty());
+        s.add_new_connection("RadiaCode-102", "BLE");
+        s.add_new_connection("RaySID", "BLE");
+        let evs = s.drain_events();
+        assert_eq!(evs.len(), 2);
+        assert_eq!(
+            evs[1].as_latest_connection_updated().unwrap(),
+            &["RadiaCode-102".to_string(), "RaySID".to_string()]
+        );
+
+        // Explicit save_to / load_from roundtrip, plus missing-file no-op
+        let file = dir.join("explicit.json");
+        s.save_to(&file).unwrap();
+        let mut reloaded = Settings::with_paths(paths);
+        reloaded.load_from(dir.join("missing.json")).unwrap();
+        assert!(reloaded.connections.recent.is_empty());
+        reloaded.load_from(&file).unwrap();
+        assert_eq!(reloaded.connections.recent.len(), 2);
+        assert!(reloaded.load_from_str("not json").is_err());
+
+        // Read-only environment helpers
+        assert!(home_dir().unwrap().is_absolute());
+        assert!(runtime_base().exists());
 
         drop(std::fs::remove_dir_all(&dir));
     }
