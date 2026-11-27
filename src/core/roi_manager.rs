@@ -1042,4 +1042,61 @@ mod tests {
         assert_eq!(mgr.registry().len(), 1);
         assert!(!mgr.drain_events().is_empty());
     }
+
+    #[test]
+    fn test_roi_manager_edge_branches_and_disjoint_groups() {
+        let mut mgr = RoiManager::new();
+        let mut spectra = HashMap::new();
+
+        // Missing ROI / spectrum early-return paths
+        assert_eq!(mgr.get_roi_color("missing"), Color32::TRANSPARENT);
+        mgr.remove_roi(&mut spectra, "missing", true, false);
+        mgr.update_roi_settings(&mut spectra, "missing", RoiSettingsPatch::default(), false);
+        mgr.set_roi_emission(&mut spectra, "missing", None, false);
+        mgr.set_roi_bound_raw("missing", (1.0, 2.0));
+        mgr.on_roi_change(&mut spectra, "missing", false, false);
+        mgr.refit_roi(&mut spectra, None, None, false);
+
+        // Non-Gaussian color and disjoint group splitting
+        let mut none_spec = NewRoi::new(10.0, 20.0);
+        none_spec.fit_type = FitType::None;
+        let t_none = mgr.add_roi(none_spec);
+        assert_ne!(mgr.get_roi_color(&t_none), Color32::TRANSPARENT);
+
+        let t_far = mgr.add_roi(NewRoi::new(70.0, 80.0));
+        let groups = mgr.calculate_roi_groups();
+        assert_eq!(groups.len(), 2);
+
+        // Spectrum with live_time = 0.0 exercises real_time fallback in effective_live_time
+        let mut s = make_gaussian_spectrum("s_rt");
+        if let Some(fg) = s.foreground.as_mut() {
+            fg.live_time = 0.0;
+        }
+        spectra.insert("s_rt".to_string(), s);
+
+        // Flat-zero spectrum exercises non-converged / error fit path
+        let mut s_flat = Spectrum::new(100, "s_flat".to_string());
+        s_flat.set_foreground(
+            SpectrumData {
+                y_axis: Array1::zeros(100),
+                channels: 100,
+                total_counts: 0,
+                live_time: 10.0,
+                real_time: None,
+                avg_dose_rate: None,
+                avg_cps: None,
+                start_date: None,
+                end_date: None,
+                spectrum_name: None,
+                instrument: None,
+            },
+            None,
+        );
+        spectra.insert("s_flat".to_string(), s_flat);
+
+        // update_roi(None, None) & refit_roi(Some, Some)
+        mgr.update_roi(&mut spectra, None, None, false);
+        mgr.refit_roi(&mut spectra, Some("s_rt"), Some(&t_far), false);
+        mgr.on_roi_change(&mut spectra, &t_far, false, false);
+    }
 }
