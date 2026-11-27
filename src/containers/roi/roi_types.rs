@@ -150,3 +150,101 @@ impl Roi {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_count_field_from_str_and_get_count_data() {
+        let all_fields = [
+            ("roi_counts", CountField::RoiCounts, true),
+            ("A", CountField::A, true),
+            ("A_err", CountField::AErr, true),
+            ("G", CountField::G, true),
+            ("G_err", CountField::GErr, true),
+            ("B", CountField::B, true),
+            ("B_err", CountField::BErr, true),
+            ("N", CountField::N, true),
+            ("N_err", CountField::NErr, true),
+            ("peak_area", CountField::PeakArea, true),
+            ("peak_area_err", CountField::PeakAreaErr, true),
+            ("mu", CountField::Mu, false),
+            ("mu_err", CountField::MuErr, false),
+            ("sigma", CountField::Sigma, false),
+            ("sigma_err", CountField::SigmaErr, false),
+            ("fwhm", CountField::Fwhm, false),
+            ("fwhm_err", CountField::FwhmErr, false),
+            ("lower", CountField::Lower, false),
+            ("upper", CountField::Upper, false),
+            ("region_lower", CountField::RegionLower, false),
+            ("region_upper", CountField::RegionUpper, false),
+        ];
+
+        for (s, expected, is_cnt) in all_fields {
+            let parsed = CountField::from_str(s).unwrap();
+            assert_eq!(parsed, expected);
+            assert_eq!(parsed.is_count(), is_cnt);
+        }
+        assert!(CountField::from_str("bogus").is_err());
+
+        let fit = Fit {
+            region_lower: Some(600.0),
+            region_upper: Some(720.0),
+            lower: 640.0,
+            upper: 680.0,
+            params: Array1::from_vec(vec![50.0, 661.7, 4.0]),
+            param_errs: Array1::from_vec(vec![2.0, 0.1, 0.2]),
+            bkg_params: None,
+            bkg_est_channels: 3,
+            g: 200.0,
+            b: 40.0,
+            n: 160.0,
+            peak_area: 160.0,
+            g_err: 14.0,
+            b_err: 6.0,
+            n_err: 15.0,
+            peak_area_err: 15.0,
+        };
+
+        let mut roi = Roi {
+            tag: "r1".to_string(),
+            alias: "Cs137".to_string(),
+            spectrum: "s1".to_string(),
+            roi_bound: (640.0, 680.0),
+            region_bound: (600.0, 720.0),
+            fit_type: FitType::Gaussian,
+            bkg_type: BkgType::Linear,
+            bkg_est_channels: 3,
+            fit: Some(fit),
+            roi_counts: 200.0,
+            live_time: 10.0,
+            emission: None,
+            meta: serde_json::Map::new(),
+            merge: false,
+            movable: true,
+            poisson_weights: true,
+            owner_spectrum: None,
+        };
+
+        for (_, f, is_cnt) in all_fields {
+            let raw = roi.get_count_data(f, false).unwrap();
+            let cps_val = roi.get_count_data(f, true).unwrap();
+            if is_cnt {
+                assert!((cps_val - raw / 10.0).abs() < 1e-12);
+            } else {
+                assert!((cps_val - raw).abs() < 1e-12);
+            }
+        }
+
+        // Zero live_time -> None when cps == true
+        roi.live_time = 0.0;
+        assert!(roi.get_count_data(CountField::RoiCounts, true).is_none());
+
+        // No fit -> fit fields return None
+        roi.fit = None;
+        assert!(roi.get_count_data(CountField::A, false).is_none());
+        assert_eq!(roi.get_count_data(CountField::RoiCounts, false), Some(200.0));
+    }
+}

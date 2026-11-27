@@ -65,3 +65,24 @@ impl Default for MeasurementReport {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_measurement_report_default_and_serde() {
+        let mut rep = MeasurementReport {
+            author_name: "Tester".to_string(),
+            ..Default::default()
+        };
+        rep.fg_measurement.detector_name = "Det-1".to_string();
+        rep.fg_measurement.start_time = Some(Utc::now());
+
+        let json = serde_json::to_string(&rep).unwrap();
+        let decoded: MeasurementReport = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.author_name, "Tester");
+        assert_eq!(decoded.fg_measurement.detector_name, "Det-1");
+        assert!(decoded.bg_measurement.start_time.is_none());
+    }
+}

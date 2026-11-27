@@ -314,3 +314,135 @@ fn apply_drag(roi_manager: &mut RoiManager, view: &RoiViewState, data_x: f64) {
         _ => {}
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::containers::nuclide::Emission;
+    use crate::containers::roi::roi_types::{BkgType, FitType};
+
+    fn make_roi(tag: &str, lo: f64, hi: f64, movable: bool, owner: Option<&str>) -> Roi {
+        Roi {
+            tag: tag.to_string(),
+            alias: format!("Alias_{tag}"),
+            spectrum: "s1".to_string(),
+            roi_bound: (lo, hi),
+            region_bound: (lo - 5.0, hi + 5.0),
+            fit_type: FitType::None,
+            bkg_type: BkgType::None,
+            bkg_est_channels: 2,
+            fit: None,
+            roi_counts: 10.0,
+            live_time: 1.0,
+            emission: Some(Emission::annihilation()),
+            meta: serde_json::Map::new(),
+            merge: false,
+            movable,
+            poisson_weights: false,
+            owner_spectrum: owner.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn test_hit_test_rois_and_apply_drag() {
+        let mut reg = HashMap::new();
+        reg.insert("r1".to_string(), make_roi("r1", 100.0, 200.0, true, Some("s1")));
+        reg.insert("r2".to_string(), make_roi("r2", 300.0, 400.0, false, Some("s2")));
+
+        let visible_s1 = |r: &Roi| r.owner_spectrum.as_deref() == Some("s1");
+        let x_to_px = |x: f64| x as f32;
+
+        // Lower edge hit
+        assert_eq!(
+            hit_test_rois(&reg, &visible_s1, &x_to_px, 102.0),
+            Some(("r1".to_string(), Some(Edge::Lower), true))
+        );
+        // Upper edge hit
+        assert_eq!(
+            hit_test_rois(&reg, &visible_s1, &x_to_px, 198.0),
+            Some(("r1".to_string(), Some(Edge::Upper), true))
+        );
+        // Interior hit
+        assert_eq!(
+            hit_test_rois(&reg, &visible_s1, &x_to_px, 150.0),
+            Some(("r1".to_string(), None, true))
+        );
+        // Filtered out ROI not hit
+        assert_eq!(hit_test_rois(&reg, &visible_s1, &x_to_px, 350.0), None);
+        // Miss
+        assert_eq!(hit_test_rois(&reg, &visible_s1, &x_to_px, 50.0), None);
+
+        // apply_drag tests
+        let mut mgr = RoiManager::default();
+        let mut spec = crate::core::NewRoi::new(100.0, 200.0);
+        spec.owner_spectrum = Some("s1".to_string());
+        spec.emission = Some(Emission::annihilation());
+        let tag = mgr.add_roi(spec);
+
+        let view_lo = RoiViewState {
+            interaction: RoiInteraction::DraggingEdge {
+                tag: tag.clone(),
+                edge: Edge::Lower,
+            },
+            ..Default::default()
+        };
+        apply_drag(&mut mgr, &view_lo, 120.0);
+        assert_eq!(mgr.get_roi(&tag).unwrap().roi_bound, (120.0, 200.0));
+
+        let view_hi = RoiViewState {
+            interaction: RoiInteraction::DraggingEdge {
+                tag: tag.clone(),
+                edge: Edge::Upper,
+            },
+            ..Default::default()
+        };
+        apply_drag(&mut mgr, &view_hi, 250.0);
+        assert_eq!(mgr.get_roi(&tag).unwrap().roi_bound, (120.0, 250.0));
+
+        let view_reg = RoiViewState {
+            interaction: RoiInteraction::DraggingRegion {
+                tag: tag.clone(),
+                grab_x: 150.0,
+                initial_bound: (120.0, 250.0),
+            },
+            ..Default::default()
+        };
+        apply_drag(&mut mgr, &view_reg, 170.0);
+        assert_eq!(mgr.get_roi(&tag).unwrap().roi_bound, (140.0, 270.0));
+    }
+
+    #[test]
+    fn test_draw_rois_headless_egui() {
+        let mut mgr = RoiManager::default();
+        let mut spec = crate::core::NewRoi::new(100.0, 200.0);
+        spec.owner_spectrum = Some("s1".to_string());
+        spec.emission = Some(Emission::annihilation());
+        let tag = mgr.add_roi(spec);
+        mgr.select_roi(&tag);
+        let mut view = RoiViewState::default();
+
+        let ctx = egui::Context::default();
+        let raw_input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(500.0, 300.0))),
+            ..Default::default()
+        };
+
+        let mut out = ctx.run_ui(raw_input, |ui| {
+            let plot_area = Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(500.0, 300.0));
+            let resp = ui.allocate_rect(plot_area, egui::Sense::click_and_drag());
+            let events = draw_rois(
+                ui,
+                &resp,
+                plot_area,
+                &mut mgr,
+                Some("s1"),
+                &mut view,
+                |x| x as f32,
+                f64::from,
+                true,
+            );
+            assert!(events.is_empty());
+        });
+        out.textures_delta.clear();
+    }
+}

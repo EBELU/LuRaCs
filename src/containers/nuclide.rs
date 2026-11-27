@@ -186,3 +186,46 @@ pub struct Nuclide {
     #[serde(default)]
     pub emissions: Vec<Emission>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_emission_and_nuclide_serde_roundtrip() {
+        let empty = Emission::empty();
+        assert!(empty.parent_nuclide.is_none());
+        assert!(empty.energy_kev.is_none());
+
+        let ann = Emission::annihilation();
+        assert_eq!(ann.r#type, Some(EmissionType::Annihilation));
+        assert_eq!(ann.origin, Some(EmissionOrigin::Annihilation));
+
+        let cs137 = NuclideId::from_name("Cs-137").unwrap();
+        let ba137m = NuclideId::from_name("Ba-137m").unwrap();
+        let em = Emission {
+            parent_nuclide: Some(cs137),
+            energy_kev: Some(Quantity::new_scalar(661.657, 0.003, kev(), None, None)),
+            intensity_percent: Some(Quantity::new_scalar(85.1, 0.2, percent(), None, None)),
+            r#type: Some(EmissionType::Gamma),
+            origin: Some(EmissionOrigin::NuclearDecay),
+        };
+
+        let nuclide = Nuclide {
+            nuclide: cs137,
+            element: Element::Cs,
+            daughters: vec![(ba137m, "IT".to_string(), 0.946)],
+            half_life_s: Quantity::new_scalar(9.49e8, 1e6, seconds(), None, None),
+            specific_activity_bq_per_g: Quantity::new_scalar(3.21e12, 1e10, bq_per_g(), None, None),
+            citation_ref: "ENSDF".to_string(),
+            emissions: vec![em, empty, ann],
+        };
+
+        let json = serde_json::to_string(&nuclide).unwrap();
+        let decoded: Nuclide = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.nuclide, cs137);
+        assert_eq!(decoded.element, Element::Cs);
+        assert_eq!(decoded.daughters.len(), 1);
+        assert_eq!(decoded.emissions.len(), 3);
+    }
+}

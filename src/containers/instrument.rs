@@ -113,3 +113,40 @@ impl DerefMut for UniqueInstrument {
         &mut self.generic
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::containers::physure_helper::{cm, dimensionless};
+
+    #[test]
+    fn test_generic_and_unique_instrument_lifecycle_and_serde() {
+        let generic = GenericInstrument {
+            model: "NaI-3x3".to_string(),
+            manufacturer: "Acme".to_string(),
+            detector_type: "Scintillator".to_string(),
+            detector_dimensions_cm: Some(vec![Quantity::new_scalar(7.62, 0.1, cm(), None, None)]),
+            resolution_fwhm_points: Some(vec![Quantity::new_scalar(
+                45.0,
+                1.0,
+                dimensionless(),
+                None,
+                None,
+            )]),
+            ..Default::default()
+        };
+        let copy = generic.get_copy();
+        assert_eq!(copy.model, "NaI-3x3");
+
+        let mut unique = UniqueInstrument::from_template("Det-1", &generic);
+        assert_eq!(unique.name, "Det-1");
+        assert_eq!(unique.model, "NaI-3x3");
+        unique.remark = "updated".to_string();
+        assert_eq!(unique.generic.remark, "updated");
+
+        let json = serde_json::to_string(&unique).unwrap();
+        let decoded: UniqueInstrument = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.name, "Det-1");
+        assert_eq!(decoded.detector_dimensions_cm.as_ref().unwrap().len(), 1);
+    }
+}

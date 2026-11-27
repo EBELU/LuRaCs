@@ -53,3 +53,43 @@ impl Fit {
         2.354_820_045 * self.sigma_err()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_fit_accessors_and_serde() {
+        let fit = Fit {
+            region_lower: Some(600.0),
+            region_upper: Some(720.0),
+            lower: 640.0,
+            upper: 680.0,
+            params: Array1::from_vec(vec![100.0, 661.7, 4.0]),
+            param_errs: Array1::from_vec(vec![5.0, 0.2, 0.4]),
+            bkg_params: Some(Array1::from_vec(vec![1.0, 2.0])),
+            bkg_est_channels: 3,
+            g: 10.0,
+            b: 2.0,
+            n: 8.0,
+            peak_area: 8.0,
+            g_err: 3.0,
+            b_err: 1.0,
+            n_err: 3.16,
+            peak_area_err: 3.16,
+        };
+
+        assert!((fit.a() - 100.0).abs() < 1e-12);
+        assert!((fit.mu() - 661.7).abs() < 1e-12);
+        assert!((fit.sigma() - 2.0).abs() < 1e-12);
+        assert!((fit.fwhm() - 4.709_640_09).abs() < 1e-8);
+        assert!((fit.a_err() - 5.0).abs() < 1e-12);
+        assert!((fit.mu_err() - 0.2).abs() < 1e-12);
+        assert!((fit.sigma_err() - 0.1).abs() < 1e-12);
+        assert!((fit.fwhm_err() - 0.235_482_004_5).abs() < 1e-9);
+
+        let json = serde_json::to_string(&fit).unwrap();
+        let decoded: Fit = serde_json::from_str(&json).unwrap();
+        assert_eq!(fit, decoded);
+    }
+}

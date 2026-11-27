@@ -284,4 +284,115 @@ impl Spectrum {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::containers::instrument::GenericInstrument;
+    use crate::containers::{BkgType, FitType};
+
+    fn make_data(y: Vec<f64>, live_time: f64) -> SpectrumData {
+        let channels = y.len();
+        let total_counts = y.iter().sum::<f64>() as u64;
+        SpectrumData {
+            y_axis: Array1::from_vec(y),
+            channels,
+            total_counts,
+            live_time,
+            real_time: Some(live_time),
+            avg_dose_rate: None,
+            avg_cps: None,
+            start_date: None,
+            end_date: None,
+            spectrum_name: None,
+            instrument: None,
+        }
+    }
+
+    #[test]
+    fn test_spectrum_lifecycle_calibration_and_data_accessors() {
+        let mut spec = Spectrum::new(4, "TestSpec");
+        assert_eq!(spec.channels, 4);
+        assert_eq!(spec.x_axis.as_slice().unwrap(), &[0.0, 1.0, 2.0, 3.0]);
+
+        // No foreground -> zeros
+        assert_eq!(spec.get_foreground(false, false).unwrap().as_slice().unwrap(), &[0.0; 4]);
+        assert!(spec.get_background(false, false).is_none());
+        assert!(spec.get_bkg_sub(false).is_none());
+
+        // Instrument management
+        let inst = UniqueInstrument::from_template("Det-1", &GenericInstrument::default());
+        spec.set_instrument(inst);
+        assert!(spec.get_instrument().is_some());
+
+        // Set foreground (adopts spectrum's instrument)
+        spec.set_foreground(make_data(vec![10.0, 20.0, 0.0, 40.0], 2.0), Some(Color32::RED));
+        assert_eq!(spec.color_foreground, Color32::RED);
+        assert!(spec.foreground.as_ref().unwrap().instrument.is_some());
+
+        // Bkg-sub falls back to foreground cps when no background
+        assert_eq!(spec.get_bkg_sub(false).unwrap().as_slice().unwrap(), &[5.0, 10.0, 0.0, 20.0]);
+
+        // Log foreground
+        let fg_log = spec.get_foreground(true, false).unwrap();
+        assert!((fg_log[0] - 1.0).abs() < 1e-12);
+        assert!(fg_log[2].is_nan());
+
+        // Set background
+        spec.set_background(make_data(vec![2.0, 4.0, 0.0, 10.0], 2.0), Some(Color32::BLUE));
+        assert_eq!(spec.color_background, Color32::BLUE);
+        assert_eq!(spec.get_background(false, true).unwrap().as_slice().unwrap(), &[1.0, 2.0, 0.0, 5.0]);
+        let bg_log = spec.get_background(true, false).unwrap();
+        assert!(bg_log[2].is_nan());
+
+        // Bkg-sub with background (linear & log)
+        assert_eq!(spec.get_bkg_sub(false).unwrap().as_slice().unwrap(), &[4.0, 8.0, 0.0, 15.0]);
+        let sub_log = spec.get_bkg_sub(true).unwrap();
+        assert!(sub_log[2].is_nan());
+
+        // Zero live_time -> None when cps == true
+        spec.set_foreground(make_data(vec![1.0; 4], 0.0), None);
+        assert!(spec.get_foreground(false, true).is_none());
+        spec.set_background(make_data(vec![1.0; 4], 0.0), None);
+        assert!(spec.get_background(false, true).is_none());
+
+        // Calibration & get_channel_from_energy
+        assert_eq!(spec.get_channel_from_energy(2.4), 2);
+        spec.apply_calibration(vec![1.0, 0.0]); // identity: [1, 0] -> calibrated = false
+        assert!(!spec.calibrated);
+        assert_eq!(spec.get_channel_from_energy(2.4), 2);
+
+        spec.apply_calibration(vec![10.0, 0.0]); // E = 10 * ch -> calibrated = true
+        assert!(spec.calibrated);
+        assert_eq!(spec.get_channel_from_energy(20.0), 2);
+
+        // ROI management
+        let roi = Roi {
+            tag: "r1".to_string(),
+            alias: "Peak".to_string(),
+            spectrum: "TestSpec".to_string(),
+            roi_bound: (1.0, 3.0),
+            region_bound: (0.0, 4.0),
+            fit_type: FitType::None,
+            bkg_type: BkgType::None,
+            bkg_est_channels: 2,
+            fit: None,
+            roi_counts: 0.0,
+            live_time: 1.0,
+            emission: None,
+            meta: serde_json::Map::new(),
+            merge: false,
+            movable: true,
+            poisson_weights: false,
+            owner_spectrum: None,
+        };
+        spec.set_roi(roi);
+        assert!(spec.rois.contains_key("r1"));
+        spec.remove_roi("r1");
+        assert!(!spec.rois.contains_key("r1"));
+
+        spec.clear_instrument();
+        assert!(spec.get_instrument().is_none());
+    }
+}
+
 
