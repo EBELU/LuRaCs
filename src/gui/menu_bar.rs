@@ -44,6 +44,7 @@ pub fn render(app: &mut LuRaCsApp, ui: &mut egui::Ui) {
         file_menu(app, ui);
         view_menu(app, ui);
         detector_menu(app, ui);
+        devices_menu(app, ui);
         gamma_tools_menu(app, ui);
         tools_menu(app, ui);
         options_menu(app, ui);
@@ -310,6 +311,37 @@ fn view_menu(app: &mut LuRaCsApp, ui: &mut egui::Ui) {
 
 fn detector_menu(app: &mut LuRaCsApp, ui: &mut egui::Ui) {
     ui.menu_button("Detector", |ui| {
+        if ui.button("Start Acquisition").clicked() {
+            app.run_manager.start_acquisition_all();
+        }
+        if ui.button("Stop Acquisition").clicked() {
+            app.run_manager.stop_acquisition_all();
+        }
+        if ui.button("Reset All Spectra").clicked() {
+            app.modal_stack
+                .push(Modal::root(ModalKind::Confirm(ConfirmModal::new(
+                    "Confirm",
+                    "Reset the accumulated spectrum of all connected devices?",
+                    ConfirmAction::ResetAllSpectra,
+                ))));
+        }
+        if ui.button("Disconnect All").clicked() {
+            app.modal_stack
+                .push(Modal::root(ModalKind::Confirm(ConfirmModal::new(
+                    "Confirm",
+                    "Disconnect all devices?",
+                    ConfirmAction::DisconnectAll,
+                ))));
+        }
+    });
+}
+
+// ===========================================================================
+// Devices
+// ===========================================================================
+
+fn devices_menu(app: &mut LuRaCsApp, ui: &mut egui::Ui) {
+    ui.menu_button("Devices", |ui| {
         // --- Connections ---
         if ui.button("Connect Bluetooth").clicked() {
             app.bluetooth_window
@@ -352,32 +384,6 @@ fn detector_menu(app: &mut LuRaCsApp, ui: &mut egui::Ui) {
         }
         if ui.button("Connect Serial GPS").clicked() {
             app.serial_gps_window.open_and_scan();
-        }
-
-        ui.separator();
-
-        // --- Device control ---
-        if ui.button("Start Acquisition").clicked() {
-            app.run_manager.start_acquisition_all();
-        }
-        if ui.button("Stop Acquisition").clicked() {
-            app.run_manager.stop_acquisition_all();
-        }
-        if ui.button("Reset All Spectra").clicked() {
-            app.modal_stack
-                .push(Modal::root(ModalKind::Confirm(ConfirmModal::new(
-                    "Confirm",
-                    "Reset the accumulated spectrum of all connected devices?",
-                    ConfirmAction::ResetAllSpectra,
-                ))));
-        }
-        if ui.button("Disconnect All").clicked() {
-            app.modal_stack
-                .push(Modal::root(ModalKind::Confirm(ConfirmModal::new(
-                    "Confirm",
-                    "Disconnect all devices?",
-                    ConfirmAction::DisconnectAll,
-                ))));
         }
     });
 }
