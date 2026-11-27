@@ -500,4 +500,133 @@ mod tests {
             k_badge.matches.iter().map(|m| &m.nuclide_name).collect::<Vec<_>>()
         );
     }
+
+    #[test]
+    fn test_peak_id_cache_and_draw_hud_kittest() {
+        use egui_kittest::Harness;
+        use ndarray::Array1;
+
+        use crate::containers::SpectrumData;
+        use crate::gui::ColorScheme;
+
+        let dir = std::env::temp_dir().join("luracs_peak_id_hud_test");
+        drop(std::fs::create_dir_all(&dir));
+        let mut sm = SpectrumManager::new(
+            ColorScheme::default(),
+            dir.clone(),
+            Path::new("resources/nuclide_data"),
+        )
+        .unwrap();
+        sm.create_spectrum("CalSpec", 1024, None, false).unwrap();
+        let x: Vec<f64> = (0..1024).map(|i| i as f64 * 2.0).collect();
+        let mut y = vec![10.0_f64; 1024];
+        for (i, &e) in x.iter().enumerate() {
+            y[i] = 1500.0f64.mul_add((-0.5 * ((e - 661.7) / 8.0).powi(2)).exp(), y[i]);
+        }
+        sm.set_foreground_spectrum(
+            "CalSpec",
+            crate::ForegroundInput::Raw(SpectrumData {
+                y_axis: Array1::from_vec(y),
+                channels: 1024,
+                total_counts: 20_000,
+                live_time: 10.0,
+                real_time: Some(10.0),
+                avg_dose_rate: None,
+                avg_cps: None,
+                start_date: None,
+                end_date: None,
+                spectrum_name: None,
+                instrument: None,
+            }),
+        )
+        .unwrap();
+        sm.spectrum_registry
+            .get_mut("CalSpec")
+            .unwrap()
+            .apply_calibration(vec![2.0, 0.0]);
+
+        let mut cache = PeakIdCache::default();
+        let mut plot_state = SpectrumPlotState::new_headless();
+        plot_state.peak_id_enabled = false;
+        cache.update_if_needed(&plot_state, &sm);
+        assert!(cache.badges.is_empty());
+
+        plot_state.peak_id_enabled = true;
+        cache.update_if_needed(&plot_state, &sm);
+        assert!(!cache.badges.is_empty());
+
+        // Add an unmatched badge and draw HUD in Harness; verify click creates ROI.
+        let mut badges = cache.badges.clone();
+        badges.push(DetectedPeakBadge {
+            spectrum_name: "CalSpec".into(),
+            energy_kev: 999.0,
+            lo_kev: 985.0,
+            hi_kev: 1015.0,
+            peak_counts: 250.0,
+            peak_cps: 25.0,
+            matches: Vec::new(),
+        });
+
+        struct HudState {
+            badges: Vec<DetectedPeakBadge>,
+            plot_state: SpectrumPlotState,
+            sm: SpectrumManager,
+        }
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(640.0, 400.0))
+            .with_accessibility_check(false)
+            .build_ui_state(
+                |ui, st: &mut HudState| {
+                    ui.ctx()
+                        .set_missing_glyph_policy(egui::epaint::text::MissingGlyphPolicy::Tofu);
+                    let area = ui.available_rect_before_wrap();
+                    draw_peak_id_hud(
+                        ui,
+                        area,
+                        &st.badges,
+                        &st.plot_state,
+                        &mut st.sm,
+                        false,
+                        |e| (e as f32 / 2048.0).mul_add(area.width(), area.left()),
+                        |c| (c as f32 / 2000.0).mul_add(-area.height(), area.bottom()),
+                    );
+                },
+                HudState {
+                    badges,
+                    plot_state,
+                    sm,
+                },
+            );
+        harness.run();
+
+        // Click on the Cs-137 badge near x=661.7 keV, y=1510 counts -> slightly above apex.
+        let area = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(640.0, 400.0));
+        let click_x = (661.7_f32 / 2048.0).mul_add(area.width(), area.left());
+        let click_y = (1510.0_f32 / 2000.0).mul_add(-area.height(), area.bottom()) - 18.0;
+        harness.input_mut().events.push(egui::Event::PointerMoved(
+            egui::Pos2::new(click_x, click_y),
+        ));
+        harness.run();
+        harness.input_mut().events.push(egui::Event::PointerButton {
+            pos: egui::Pos2::new(click_x, click_y),
+            button: egui::PointerButton::Primary,
+            pressed: true,
+            modifiers: egui::Modifiers::NONE,
+        });
+        harness.run();
+        harness.input_mut().events.push(egui::Event::PointerButton {
+            pos: egui::Pos2::new(click_x, click_y),
+            button: egui::PointerButton::Primary,
+            pressed: false,
+            modifiers: egui::Modifiers::NONE,
+        });
+        harness.run();
+        assert!(!harness.state().sm.roi_manager.registry().is_empty());
+
+        // Also exercise log scale rendering path.
+        harness.state_mut().plot_state.log = true;
+        harness.run();
+
+        drop(std::fs::remove_dir_all(&dir));
+    }
 }

@@ -94,7 +94,7 @@ pub struct FeatureLine {
 
 pub struct SpectrumPlotState {
     /// Retained rsplot widget (owns wgpu resources for this plot).
-    plot: Plot1D,
+    plot: Option<Plot1D>,
 
     // View toggles
     pub log: bool,
@@ -148,15 +148,22 @@ impl SpectrumPlotState {
     }
 
     fn with_id(render_state: &RenderState, plot_id: u64) -> Self {
-        Self {
-            plot: {
-                let mut plot = Plot1D::new(render_state, plot_id);
-                // Disable left-drag rectangle zoom; keep wheel zoom and ROI drag working.
-                plot.set_interaction_mode(rsplot::PlotInteractionMode::Select); // = false; // ← candidate field name
-                plot.set_x_min_pos(Some(0.0));
+        let mut plot = Plot1D::new(render_state, plot_id);
+        // Disable left-drag rectangle zoom; keep wheel zoom and ROI drag working.
+        plot.set_interaction_mode(rsplot::PlotInteractionMode::Select);
+        plot.set_x_min_pos(Some(0.0));
+        Self::with_plot(Some(plot))
+    }
 
-                plot
-            },
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn new_headless() -> Self {
+        Self::with_plot(None)
+    }
+
+    fn with_plot(plot: Option<Plot1D>) -> Self {
+        Self {
+            plot,
             log: false,
             cps: false,
             user_cps_pref: false,
@@ -188,7 +195,9 @@ impl SpectrumPlotState {
     }
 
     pub fn retheme(&mut self, colors: &crate::theme_manager::ResolvedPlotColors) {
-        colors.apply_to(&mut self.plot);
+        if let Some(plot) = &mut self.plot {
+            colors.apply_to(plot);
+        }
     }
 }
 
@@ -218,55 +227,67 @@ pub fn render(
 
     render_toolbar(state, spectrum_manager, settings, ui);
 
+    let bg_curves = collect_background_curves(state, spectrum_manager, settings);
+    let primary_curves = collect_primary_curves(state, spectrum_manager, settings);
+    let roi_curves = collect_roi_curves(state, spectrum_manager, theme_def);
+    let markers = collect_markers(state, spectrum_manager);
+
+    let Some(plot) = state.plot.as_mut() else {
+        if state.cursor_enabled {
+            update_cursor(state, spectrum_manager, settings);
+        } else {
+            state.cursor_info.clear();
+            state.cursor_nuclide = None;
+            state.cursor_emission_lines.clear();
+        }
+        return;
+    };
+
     // --- Axis labels ---
-    state.plot.set_graph_x_label("Energy [keV]");
-    state
-        .plot
-        .set_graph_y_label(if state.cps { "CPS" } else { "Counts" }, YAxis::Left);
+    plot.set_graph_x_label("Energy [keV]");
+    plot.set_graph_y_label(if state.cps { "CPS" } else { "Counts" }, YAxis::Left);
 
     // --- Log mode ---
-    state.plot.set_y_log(state.log);
+    plot.set_y_log(state.log);
 
     // Match pyqtgraph: log mode floors at log10(y) = -10 (y ≈ 1e-10);
     // linear mode floors at y = 0.
-    state
-        .plot
-        .set_y_min_pos(Some(if state.log { -10.0 } else { 0.0 }));
+    plot.set_y_min_pos(Some(if state.log { -10.0 } else { 0.0 }));
     if !state.log {
-        state.plot.set_y_max_pos(Some(1e16));
+        plot.set_y_max_pos(Some(1e16));
     }
 
     // --- One-shot auto-fit if we've requested a reset ---
-    state.plot.set_auto_reset_zoom(state.reset_pending);
+    plot.set_auto_reset_zoom(state.reset_pending);
 
     // --- Rebuild every frame ---
-    state.plot.clear();
+    plot.clear();
 
-    for curve in collect_background_curves(state, spectrum_manager, settings) {
-        add_solid_curve(&mut state.plot, curve, CurveInterpolation::StepPost);
+    for curve in bg_curves {
+        add_solid_curve(plot, curve, CurveInterpolation::StepPost);
     }
-    for curve in collect_primary_curves(state, spectrum_manager, settings) {
-        add_solid_curve(&mut state.plot, curve, CurveInterpolation::StepPost);
+    for curve in primary_curves {
+        add_solid_curve(plot, curve, CurveInterpolation::StepPost);
     }
-    for group in collect_roi_curves(state, spectrum_manager, theme_def) {
-        add_solid_curve(&mut state.plot, group.gaussian, CurveInterpolation::Linear);
+    for group in roi_curves {
+        add_solid_curve(plot, group.gaussian, CurveInterpolation::Linear);
         if let Some(lin) = group.linear {
-            add_dashed_curve(&mut state.plot, lin);
+            add_dashed_curve(plot, lin);
         }
     }
 
     // --- Markers: nuclide lines, feature lines, cursor ---
-    for m in collect_markers(state, spectrum_manager) {
+    for m in markers {
         let mut marker = Marker::vline(m.x)
             .with_line_style(m.line_style)
             .with_line_width(m.width)
             .with_draggable(false);
         marker.color = m.color;
-        state.plot.add_marker_data(&marker);
+        plot.add_marker_data(&marker);
     }
 
     // --- Show ---
-    let response = state.plot.show(ui);
+    let response = plot.show(ui);
 
     // --- ROI overlay & interaction ---
     let transform = &response.transform;
@@ -320,7 +341,9 @@ pub fn render(
     state.y_range = (ymin, ymax);
 
     if state.reset_pending {
-        state.plot.set_auto_reset_zoom(false);
+        if let Some(plot) = &mut state.plot {
+            plot.set_auto_reset_zoom(false);
+        }
         state.reset_pending = false;
     }
 
@@ -331,8 +354,9 @@ pub fn render(
     // next frame's `show()` with a 1-frame lag invisible at 60 fps.
     if state.y_axis_locked
         && let Some((lo, hi)) = visible_y_range(state, spectrum_manager)
+        && let Some(plot_widget) = &mut state.plot
     {
-        let plot = state.plot.plot_mut();
+        let plot = plot_widget.plot_mut();
         let (x0, x1, _, _) = plot.limits;
         plot.limits = (x0, x1, lo, hi);
     }
@@ -377,18 +401,18 @@ fn render_toolbar(
         };
         if ui.button(lock_label).clicked() {
             state.y_axis_locked = !state.y_axis_locked;
-            if state.y_axis_locked {
-                state
-                    .plot
-                    .plot_mut()
-                    .set_scroll_zoom_axes_override(Some((true, false)));
-                state
-                    .plot
-                    .plot_mut()
-                    .set_pan_axes_override(Some((true, false)));
-            } else {
-                state.plot.plot_mut().set_scroll_zoom_axes_override(None);
-                state.plot.plot_mut().set_pan_axes_override(None);
+            if let Some(plot_widget) = &mut state.plot {
+                if state.y_axis_locked {
+                    plot_widget
+                        .plot_mut()
+                        .set_scroll_zoom_axes_override(Some((true, false)));
+                    plot_widget
+                        .plot_mut()
+                        .set_pan_axes_override(Some((true, false)));
+                } else {
+                    plot_widget.plot_mut().set_scroll_zoom_axes_override(None);
+                    plot_widget.plot_mut().set_pan_axes_override(None);
+                }
             }
         }
 
@@ -1099,4 +1123,145 @@ fn roi_bounds_from_view(state: &SpectrumPlotState) -> (f64, f64) {
         f64::mul_add(diff, 0.15, x_min),
         f64::mul_add(diff, 0.45, x_min),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use egui_kittest::Harness;
+    use egui_kittest::kittest::Queryable;
+
+    use super::*;
+    use crate::ForegroundInput;
+    use crate::containers::SpectrumData;
+    use crate::gui::ColorScheme;
+    use crate::settings::{PathOverrides, Paths};
+    use crate::theme_manager;
+
+    fn make_test_settings(dir: &Path) -> Settings {
+        let paths = Paths::with_overrides(
+            PathOverrides::default()
+                .config(dir.join("cfg"))
+                .appdata(dir.join("app"))
+                .last_opened_dir(dir.to_path_buf()),
+        )
+        .unwrap();
+        Settings::builder().paths(paths).build().unwrap()
+    }
+
+    #[test]
+    fn test_kittest_spectrum_plot_toolbar_and_helpers() {
+        let dir = std::env::temp_dir().join("luracs_spectrum_plot_test");
+        drop(std::fs::create_dir_all(&dir));
+        let mut settings = make_test_settings(&dir);
+        settings.plotting.brush = true;
+        settings.temp.spectrum_view_emission_lines_to_cursor = true;
+        let theme = theme_manager::dark();
+
+        let mut sm = SpectrumManager::new(
+            ColorScheme::default(),
+            dir.clone(),
+            Path::new("resources/nuclide_data"),
+        )
+        .unwrap();
+        sm.create_spectrum("CalSpec", 128, None, false).unwrap();
+        let y: Array1<f64> = (0..128)
+            .map(|i| {
+                let d = i as f64 - 66.0;
+                500.0f64.mul_add((-0.5 * d * d / 4.0).exp(), 10.0)
+            })
+            .collect();
+        sm.set_foreground_spectrum(
+            "CalSpec",
+            ForegroundInput::Raw(SpectrumData {
+                y_axis: y,
+                channels: 128,
+                total_counts: 5000,
+                live_time: 10.0,
+                real_time: Some(10.0),
+                avg_dose_rate: None,
+                avg_cps: None,
+                start_date: None,
+                end_date: None,
+                spectrum_name: None,
+                instrument: None,
+            }),
+        )
+        .unwrap();
+        sm.spectrum_registry
+            .get_mut("CalSpec")
+            .unwrap()
+            .apply_calibration(vec![10.0, 0.0]);
+
+        struct State {
+            plot_state: SpectrumPlotState,
+            sm: SpectrumManager,
+            settings: Settings,
+            theme: ThemeDefinition,
+        }
+
+        let mut plot_state = SpectrumPlotState::new_headless();
+        plot_state.x_range = (0.0, 1280.0);
+        plot_state.cursor_x = 661.7;
+
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(960.0, 480.0))
+            .with_accessibility_check(false)
+            .build_ui_state(
+                |ui, st: &mut State| {
+                    ui.ctx()
+                        .set_missing_glyph_policy(egui::epaint::text::MissingGlyphPolicy::Tofu);
+                    render(&mut st.plot_state, &mut st.sm, &st.settings, &st.theme, ui);
+                },
+                State {
+                    plot_state,
+                    sm,
+                    settings,
+                    theme,
+                },
+            );
+        harness.run();
+
+        // Toggle y-axis lock, Log, CPS, Cursor, Peak ID, Add ROI
+        harness.get_by_label("Unlock y-axis").click();
+        harness.run();
+        assert!(!harness.state().plot_state.y_axis_locked);
+
+        harness.get_by_label("Lock y-axis").click();
+        harness.run();
+        assert!(harness.state().plot_state.y_axis_locked);
+
+        harness.get_by_label("Log").click();
+        harness.run();
+        assert!(harness.state().plot_state.log);
+        assert!(harness.query_by_label("ⓘ fill disabled in log").is_some());
+
+        harness.get_by_label("CPS").click();
+        harness.run();
+        assert!(harness.state().plot_state.cps);
+
+        harness.get_by_label("Cursor").click();
+        harness.run();
+        assert!(harness.state().plot_state.cursor_enabled);
+
+        harness.get_by_label("Peak ID").click();
+        harness.run();
+        assert!(harness.state().plot_state.peak_id_enabled);
+
+        harness.get_by_label("Add ROI").click();
+        harness.run();
+        assert_eq!(harness.state().sm.roi_manager.registry().len(), 1);
+
+        harness.get_by_label("Reset Zoom").click();
+        harness.run();
+
+        // Mode & range helpers
+        let lin_range = visible_y_range(&harness.state().plot_state, &harness.state().sm);
+        assert!(lin_range.is_some());
+        assert_ne!(plot_id_from("A"), plot_id_from("B"));
+        assert_eq!(with_alpha(Color32::RED, 42).a(), 42);
+
+        drop(std::fs::remove_dir_all(&dir));
+    }
 }
