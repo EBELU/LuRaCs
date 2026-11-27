@@ -144,5 +144,20 @@ mod tests {
         let deconv = richardson_lucy(&x_axis, &y, 0.01, &sens, &opts);
         assert_eq!(deconv.len(), n);
         assert!(deconv[15] > deconv[0]);
+
+        // Empty (n == 0) & zero-sigma (k == 0.0)
+        let empty = Array1::zeros(0);
+        assert_eq!(richardson_lucy(&empty, &empty, 0.01, &empty, &opts).len(), 0);
+        let zero_k = richardson_lucy(&x_axis, &y, 0.0, &sens, &MlEmOptions { iterations: 2 });
+        assert!((zero_k[15] - 100.0).abs() < 1e-6);
+
+        // Parallel branch (n >= PARALLEL_ROW_THRESHOLD)
+        let n_big = PARALLEL_ROW_THRESHOLD;
+        let x_big = Array1::from_iter((0..n_big).map(|i| (i + 1) as f64 * 10.0));
+        let mut y_big = Array1::zeros(n_big);
+        y_big[200] = 50.0;
+        let sens_big = Array1::ones(n_big);
+        let deconv_big = richardson_lucy(&x_big, &y_big, 0.01, &sens_big, &MlEmOptions { iterations: 2 });
+        assert_eq!(deconv_big.len(), n_big);
     }
 }

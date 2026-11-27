@@ -168,3 +168,38 @@ pub fn savgol_filter_with_coeffs(y: &[f64], coeffs: &[f64]) -> SavgolResult<Vec<
 
     Ok(out)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_savgol_errors_and_short_signal_path() {
+        assert!(matches!(savgol_coeffs(4, 2, 0), Err(SavgolError::EvenWindow(4))));
+        assert!(matches!(
+            savgol_coeffs(3, 3, 0),
+            Err(SavgolError::PolyorderTooLarge { .. })
+        ));
+        assert!(matches!(
+            savgol_coeffs(5, 2, 3),
+            Err(SavgolError::DerivTooLarge { .. })
+        ));
+
+        let coeffs = savgol_coeffs(5, 2, 0).unwrap();
+        assert!(matches!(
+            savgol_filter_with_coeffs(&[1.0, 2.0], &[1.0, 2.0]),
+            Err(SavgolError::EvenWindow(2))
+        ));
+        assert!(matches!(
+            savgol_filter_with_coeffs(&[1.0, 2.0], &coeffs),
+            Err(SavgolError::SignalTooShort { .. })
+        ));
+
+        // Short signal where half < n < window_length (2 < 4 < 5)
+        let short_out = savgol_filter_with_coeffs(&[1.0, 1.0, 1.0, 1.0], &coeffs).unwrap();
+        assert_eq!(short_out.len(), 4);
+        for v in short_out {
+            assert!((v - 1.0).abs() < 1e-10);
+        }
+    }
+}

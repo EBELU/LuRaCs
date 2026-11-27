@@ -119,13 +119,20 @@ mod tests {
         assert!((interp(25.0, &xp, &fp) - 31.0).abs() < 1e-12);
         assert!((interp(10.0, &xp, &fp) - 11.0).abs() < 1e-12);
         assert!((interp(15.0, &xp, &fp) - 21.0).abs() < 1e-12);
+        let xp_dup = [0.0, 10.0, 10.0 + 1e-14, 20.0];
+        let fp_dup = [1.0, 11.0, 20.0, 31.0];
+        assert!((interp(10.0 + 5e-15, &xp_dup, &fp_dup) - 11.0).abs() < 1e-12);
 
         // searchsorted_left & searchsorted_left_arr (contiguous & non-contiguous)
         assert_eq!(searchsorted_left(&xp, 10.0), 1);
         let arr = Array1::from_vec(vec![1.0, 3.0, 5.0, 7.0]);
         assert_eq!(searchsorted_left_arr(&arr, 4.0), 2);
-        let strided = arr.slice(ndarray::s![..;2]).to_owned();
-        assert_eq!(searchsorted_left_arr(&strided, 4.0), 1);
+        let non_contig = arr.slice(ndarray::s![..;2]);
+        assert_eq!(searchsorted_left_arr(&non_contig.to_owned(), 4.0), 1);
+        let mut flipped = Array1::from_vec(vec![7.0, 5.0, 3.0, 1.0]);
+        flipped.invert_axis(ndarray::Axis(0));
+        assert!(flipped.as_slice().is_none());
+        assert_eq!(searchsorted_left_arr(&flipped, 4.0), 2);
 
         // is_monotonic_increasing
         assert!(is_monotonic_increasing(&[1.0, 1.0, 2.0, 5.0]));

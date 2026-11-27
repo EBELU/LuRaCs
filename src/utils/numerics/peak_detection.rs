@@ -347,3 +347,46 @@ pub fn peak_discriminator(
 
     (accepted_fits, log_info)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_local_mad_median_filter_and_find_peaks_branches() {
+        assert!(matches!(
+            local_mad_threshold(&[1.0, 2.0, 3.0], 2, 1.0),
+            Err(SavgolError::EvenWindow(2))
+        ));
+        let mad = local_mad_threshold(&[1.0, 2.0, 1.0, 10.0, 1.0, 2.0, 1.0], 3, 2.0).unwrap();
+        assert_eq!(mad.len(), 7);
+
+        assert!(matches!(
+            median_filter(&[1.0, 2.0, 3.0], 4),
+            Err(SavgolError::EvenWindow(4))
+        ));
+        let med = median_filter(&[1.0, 100.0, 1.0, 1.0, 1.0], 3).unwrap();
+        assert_eq!(&med[1..], &[1.0, 1.0, 1.0, 1.0]);
+
+        // Even window error on find_peaks
+        let x: Vec<f64> = (0..120).map(|i| i as f64).collect();
+        assert!(matches!(
+            find_peaks(&x, &x, 4),
+            Err(SavgolError::EvenWindow(4))
+        ));
+
+        // Spectrum with narrow + broad + noisy features to exercise rejection paths
+        let mut y = vec![10.0; 120];
+        for (i, yi) in y.iter_mut().enumerate() {
+            let d1 = i as f64 - 40.0;
+            let d2 = i as f64 - 80.0;
+            *yi = 500.0f64.mul_add((-0.5 * d1 * d1 / 4.0).exp(), *yi);
+            *yi = 300.0f64.mul_add((-0.5 * d2 * d2 / 6.0).exp(), *yi);
+        }
+        // Inject a 1-bin spike to trigger sanity/fit rejection
+        y[15] = 200.0;
+        let res = find_peaks(&y, &x, 5).unwrap();
+        assert!(!res.peaks.is_empty());
+        assert!(res.log_info.contains("Peak Candidates:"));
+    }
+}
