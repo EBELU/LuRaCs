@@ -44,7 +44,7 @@ pub struct ResolutionWindow {
     params: Vec<f64>,
     result_text: String,
     status_msg: String,
-    plot: Plot1D,
+    plot: Option<Plot1D>,
 }
 
 impl ResolutionWindow {
@@ -64,7 +64,24 @@ impl ResolutionWindow {
             params: Vec::new(),
             result_text: String::new(),
             status_msg: String::new(),
-            plot,
+            plot: Some(plot),
+        }
+    }
+
+    #[cfg(test)]
+    fn new_headless() -> Self {
+        Self {
+            open: false,
+            selected_peaks: HashSet::new(),
+            selected_instrument: String::new(),
+            plot_mode: ResolutionPlotMode::FwhmVsE,
+            energy_points: Vec::new(),
+            fwhm_points: Vec::new(),
+            resolution_points: Vec::new(),
+            params: Vec::new(),
+            result_text: String::new(),
+            status_msg: String::new(),
+            plot: None,
         }
     }
 
@@ -73,7 +90,9 @@ impl ResolutionWindow {
     }
 
     pub fn retheme(&mut self, colors: &crate::theme_manager::ResolvedPlotColors) {
-        colors.apply_to(&mut self.plot);
+        if let Some(plot) = &mut self.plot {
+            colors.apply_to(plot);
+        }
     }
 
     fn collect_peaks(spectrum_manager: &SpectrumManager) -> Vec<ResolutionPeakRow> {
@@ -163,7 +182,10 @@ impl ResolutionWindow {
     }
 
     fn rebuild_plot(&mut self) {
-        self.plot.clear();
+        let Some(plot) = &mut self.plot else {
+            return;
+        };
+        plot.clear();
         if self.energy_points.is_empty() || self.params.is_empty() {
             return;
         }
@@ -181,45 +203,42 @@ impl ResolutionWindow {
 
         match self.plot_mode {
             ResolutionPlotMode::FwhmVsE => {
-                self.plot.set_graph_x_label("E [keV]");
-                self.plot.set_graph_y_label("FWHM [keV]", YAxis::Left);
+                plot.set_graph_x_label("E [keV]");
+                plot.set_graph_y_label("FWHM [keV]", YAxis::Left);
                 for (&e, &(fwhm, _)) in self.energy_points.iter().zip(self.fwhm_points.iter()) {
                     let mut m = Marker::point(e, fwhm);
                     m.color = Color32::from_rgb(80, 200, 255);
-                    self.plot.add_marker_data(&m);
+                    plot.add_marker_data(&m);
                 }
                 let y_curve: Vec<f64> =
                     r_curve.iter().zip(x_curve.iter()).map(|(r, e)| r * e).collect();
-                self.plot
-                    .add_curve(&x_curve, &y_curve, Color32::from_rgb(255, 200, 60));
+                plot.add_curve(&x_curve, &y_curve, Color32::from_rgb(255, 200, 60));
             }
             ResolutionPlotMode::ResVsE => {
-                self.plot.set_graph_x_label("E [keV]");
-                self.plot.set_graph_y_label("Resolution [%]", YAxis::Left);
+                plot.set_graph_x_label("E [keV]");
+                plot.set_graph_y_label("Resolution [%]", YAxis::Left);
                 for (&e, &r) in self.energy_points.iter().zip(self.resolution_points.iter()) {
                     let mut m = Marker::point(e, r * 100.0);
                     m.color = Color32::from_rgb(80, 200, 255);
-                    self.plot.add_marker_data(&m);
+                    plot.add_marker_data(&m);
                 }
                 let y_curve: Vec<f64> = r_curve.iter().map(|r| r * 100.0).collect();
-                self.plot
-                    .add_curve(&x_curve, &y_curve, Color32::from_rgb(255, 200, 60));
+                plot.add_curve(&x_curve, &y_curve, Color32::from_rgb(255, 200, 60));
             }
             ResolutionPlotMode::ResVsInvSqrtE => {
-                self.plot.set_graph_x_label("1 / √(E) [1/√(keV)]");
-                self.plot.set_graph_y_label("Resolution [%]", YAxis::Left);
+                plot.set_graph_x_label("1 / √(E) [1/√(keV)]");
+                plot.set_graph_y_label("Resolution [%]", YAxis::Left);
                 for (&e, &r) in self.energy_points.iter().zip(self.resolution_points.iter()) {
                     let mut m = Marker::point(1.0 / e.sqrt(), r * 100.0);
                     m.color = Color32::from_rgb(80, 200, 255);
-                    self.plot.add_marker_data(&m);
+                    plot.add_marker_data(&m);
                 }
                 let inv_x: Vec<f64> = x_curve.iter().map(|e| 1.0 / e.sqrt()).collect();
                 let y_curve: Vec<f64> = r_curve.iter().map(|r| r * 100.0).collect();
-                self.plot
-                    .add_curve(&inv_x, &y_curve, Color32::from_rgb(255, 200, 60));
+                plot.add_curve(&inv_x, &y_curve, Color32::from_rgb(255, 200, 60));
             }
         }
-        self.plot.set_auto_reset_zoom(true);
+        plot.set_auto_reset_zoom(true);
     }
 
     fn assign_to_instruments(
@@ -436,7 +455,9 @@ impl ResolutionWindow {
                 }
 
                 ui.allocate_ui(egui::vec2(ui.available_width(), 220.0), |ui| {
-                    self.plot.show(ui);
+                    if let Some(plot) = &mut self.plot {
+                        plot.show(ui);
+                    }
                 });
 
                 ui.horizontal(|ui| {
@@ -505,5 +526,156 @@ mod tests {
         assert!((fit.parameters[0] - k_true).abs() < 1e-6);
         let pred = model(&energies, &fit.parameters);
         assert!((r_squared(&res_obs, &pred) - 1.0).abs() < 1e-9);
+        assert_eq!(r_squared(&[], &[]), 0.0);
+    }
+
+    #[test]
+    fn test_resolution_window_kittest_workflow() {
+        use crate::containers::{FitType, GenericInstrument, SpectrumData, UniqueInstrument};
+        use crate::core::{ForegroundInput, NewRoi};
+        use crate::gui::ColorScheme;
+        use egui_kittest::kittest::Queryable;
+        use egui_kittest::Harness;
+        use ndarray::Array1;
+        use std::path::Path;
+
+        let dir = std::env::temp_dir().join("luracs_test_res_win");
+        drop(std::fs::remove_dir_all(&dir));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let mut sm = SpectrumManager::new(
+            ColorScheme::default(),
+            dir.clone(),
+            Path::new("resources/nuclide_data"),
+        )
+        .unwrap();
+        sm.create_spectrum("ResSpec", 100, None, false).unwrap();
+        let y: Array1<f64> = (0..100)
+            .map(|i| {
+                let d = i as f64 - 50.0;
+                300.0f64.mul_add((-0.5 * d * d / 9.0).exp(), 10.0)
+            })
+            .collect();
+        sm.set_foreground_spectrum(
+            "ResSpec",
+            ForegroundInput::Raw(SpectrumData {
+                y_axis: y,
+                channels: 100,
+                total_counts: 1000,
+                live_time: 10.0,
+                real_time: Some(10.0),
+                avg_dose_rate: None,
+                avg_cps: None,
+                start_date: None,
+                end_date: None,
+                spectrum_name: None,
+                instrument: None,
+            }),
+        )
+        .unwrap();
+
+        let mut roi = NewRoi::new(40.0, 60.0);
+        roi.alias = Some("Peak50".into());
+        roi.fit_type = FitType::Gaussian;
+        let tag = sm.roi_manager.add_roi(roi);
+        sm.roi_manager
+            .on_roi_change(&mut sm.spectrum_registry, &tag, false, false);
+        let g = GenericInstrument {
+            model: "ResGeneric".into(),
+            ..GenericInstrument::default()
+        };
+        sm.generic_instrument_library
+            .add_instrument(crate::core::Instrument::Generic(g.clone()))
+            .unwrap();
+        let u = UniqueInstrument::from_template("ResUnique", &g);
+        sm.unique_instrument_library
+            .add_instrument(crate::core::Instrument::Unique(u))
+            .unwrap();
+
+        let mut harness = Harness::builder()
+            .with_accessibility_check(false)
+            .build_ui_state(
+                |ui, (w, sm): &mut (ResolutionWindow, SpectrumManager)| {
+                    ui.ctx()
+                        .set_missing_glyph_policy(egui::epaint::text::MissingGlyphPolicy::Tofu);
+                    w.render(ui, sm);
+                },
+                (ResolutionWindow::new_headless(), sm),
+            );
+
+        harness.run();
+        assert!(!harness.state().0.open);
+
+        harness.state_mut().0.open();
+        harness.run();
+
+        // No peaks selected -> status_msg
+        harness.get_by_label("Calculate").click();
+        harness.run();
+        assert_eq!(
+            harness.state().0.status_msg,
+            "Select at least one fitted peak."
+        );
+
+        // No fit yet -> Assign warns
+        harness.get_by_label("Assign to Selected Instrument").click();
+        harness.run();
+        assert_eq!(
+            harness.state().0.status_msg,
+            "Calculate a resolution fit first."
+        );
+
+        // Calculate using synthetic ResolutionPeakRows + exercise plot modes + assign
+        let peaks = vec![
+            ResolutionPeakRow {
+                tag: "t1".into(),
+                roi_alias: "P1".into(),
+                spectrum: "ResSpec".into(),
+                nuclide: "Cs-137".into(),
+                energy_kev: 661.66,
+                fwhm_kev: 45.0,
+                fwhm_err_kev: 1.0,
+                resolution: 45.0 / 661.66,
+            },
+            ResolutionPeakRow {
+                tag: "t2".into(),
+                roi_alias: "P2".into(),
+                spectrum: "ResSpec".into(),
+                nuclide: "K-40".into(),
+                energy_kev: 1460.8,
+                fwhm_kev: 66.0,
+                fwhm_err_kev: 1.5,
+                resolution: 66.0 / 1460.8,
+            },
+        ];
+        {
+            let w = &mut harness.state_mut().0;
+            w.selected_peaks.insert("t1".into());
+            w.selected_peaks.insert("t2".into());
+            w.calculate(&peaks);
+        }
+        harness.run();
+        assert!(harness.state().0.result_text.contains("SQRT(E)"));
+
+        harness.get_by_label("R / E").click();
+        harness.run();
+        harness.get_by_label("R / (1 / √(E))").click();
+        harness.run();
+
+        harness.get_by_label("Assign to Selected Instrument").click();
+        harness.run();
+        harness.get_by_label("Assign to Instrument Model").click();
+        harness.run();
+        assert!(harness
+            .state()
+            .0
+            .status_msg
+            .starts_with("Assigned resolution curve"));
+
+        harness.get_by_label("Close").click();
+        harness.run();
+        assert!(!harness.state().0.open);
+
+        drop(std::fs::remove_dir_all(&dir));
     }
 }

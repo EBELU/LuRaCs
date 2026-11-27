@@ -273,4 +273,71 @@ mod tests {
         assert!(docs.iter().any(|e| e.label == "Welcome"));
         assert!(Path::new("resources/docs/bibliography.md").is_file());
     }
+
+    #[test]
+    fn test_documentation_and_bibliography_windows_kittest() {
+        use egui_kittest::kittest::Queryable;
+        use egui_kittest::Harness;
+
+        let dir = std::env::temp_dir().join("luracs_test_doc_windows");
+        drop(std::fs::remove_dir_all(&dir));
+        std::fs::create_dir_all(dir.join("sub")).unwrap();
+        std::fs::write(dir.join("Welcome.md"), "# Welcome\nHello **LuRaCs**.").unwrap();
+        std::fs::write(dir.join("sub/Guide.md"), "# Guide\nSome details.").unwrap();
+        let bib_path = dir.join("bib.md");
+        std::fs::write(&bib_path, "# Bibliography\n- Ref 1").unwrap();
+
+        // 1. DocumentationWindow
+        let doc_dir = dir.clone();
+        let mut harness = Harness::builder()
+            .with_accessibility_check(false)
+            .build_ui_state(
+                move |ui, win: &mut DocumentationWindow| {
+                    win.render(ui, &doc_dir);
+                },
+                DocumentationWindow::default(),
+            );
+
+        harness.run();
+        assert!(!harness.state().open);
+
+        harness.state_mut().open();
+        harness.run();
+        assert!(harness.state().open);
+        assert_eq!(harness.state().entries.len(), 3);
+
+        // Select another entry in the tree
+        harness.get_by_label("sub/Guide").click();
+        harness.run();
+        assert!(harness.state().cached_content.contains("Guide"));
+
+        // Close via "Close" button
+        harness.get_by_label("Close").click();
+        harness.run();
+        assert!(!harness.state().open);
+
+        // 2. BibliographyWindow (real file + missing file fallback)
+        let mut bib = BibliographyWindow::default();
+        bib.ensure_loaded(&dir.join("missing_bib_xyz.md"));
+        assert!(bib.cached_content.contains("Could not load"));
+        bib.loaded_path = None;
+
+        let mut bib_harness = Harness::builder()
+            .with_accessibility_check(false)
+            .build_ui_state(
+                move |ui, win: &mut BibliographyWindow| {
+                    win.render(ui, &bib_path);
+                },
+                bib,
+            );
+        bib_harness.run();
+        bib_harness.state_mut().open();
+        bib_harness.run();
+        assert!(bib_harness.state().open);
+        bib_harness.get_by_label("Close").click();
+        bib_harness.run();
+        assert!(!bib_harness.state().open);
+
+        drop(std::fs::remove_dir_all(&dir));
+    }
 }

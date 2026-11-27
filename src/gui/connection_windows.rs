@@ -297,106 +297,12 @@ impl BluetoothWindow {
                 }
 
                 egui::CentralPanel::default().show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.label("Device Type:");
-                        egui::ComboBox::from_id_salt("ble_device_kind")
-                            .selected_text(self.selected_kind.label())
-                            .show_ui(ui, |ui| {
-                                for kind in BleDeviceKind::ALL {
-                                    ui.selectable_value(
-                                        &mut self.selected_kind,
-                                        kind,
-                                        kind.label(),
-                                    );
-                                }
-                            });
-                    });
-
-                    ui.separator();
-
-                    if let Some(err) = &self.error_message {
-                        ui.colored_label(ui.visuals().error_fg_color, err);
+                    let (req, rescan, close) = self.render_contents(ui);
+                    if req.is_some() {
+                        request = req;
                     }
-
-                    egui::ScrollArea::vertical()
-                        .auto_shrink([false, false])
-                        .max_height(ui.available_height() - 40.0)
-                        .show(ui, |ui| {
-                            if self.scanning {
-                                let remaining = self
-                                    .scan_started_at
-                                    .map_or(0, |t| {
-                                        self.scan_duration
-                                            .saturating_sub(t.elapsed())
-                                            .as_secs_f64()
-                                            .ceil() as u64
-                                    });
-                                if remaining > 0 {
-                                    ui.label(format!("Scanning... {remaining}s"));
-                                } else {
-                                    ui.label("Finishing scan...");
-                                }
-                            } else if self.devices.is_empty() {
-                                ui.label("No Bluetooth devices found.");
-                            } else {
-                                for (idx, dev) in self.devices.iter().enumerate() {
-                                    let prefix = if dev.is_priority { "☢ " } else { "" };
-                                    let rssi_str = dev
-                                        .rssi
-                                        .map_or_else(String::new, |r| format!(" ({r} dBm)"));
-                                    let label = format!(
-                                        "{prefix}{} [{}]{rssi_str}",
-                                        dev.name, dev.address
-                                    );
-                                    let resp = ui.selectable_label(
-                                        self.selected_idx == Some(idx),
-                                        label,
-                                    );
-                                    if resp.clicked() {
-                                        self.selected_idx = Some(idx);
-                                    }
-                                    if resp.double_clicked() {
-                                        self.selected_idx = Some(idx);
-                                        request = Some(ConnectionRequest::Ble {
-                                            name: dev.name.clone(),
-                                            address: dev.address.clone(),
-                                            kind: self.selected_kind,
-                                        });
-                                        close_requested = true;
-                                    }
-                                }
-                            }
-                        });
-
-                    ui.separator();
-
-                    ui.horizontal(|ui| {
-                        let rescan_btn = ui.add_enabled(!self.scanning, egui::Button::new("Rescan"));
-                        if rescan_btn.clicked() {
-                            rescan_requested = true;
-                        }
-
-                        if ui.button("Cancel").clicked() {
-                            close_requested = true;
-                        }
-
-                        let can_connect = self
-                            .selected_idx
-                            .and_then(|i| self.devices.get(i))
-                            .is_some();
-                        if ui
-                            .add_enabled(can_connect, egui::Button::new("Connect"))
-                            .clicked()
-                            && let Some(dev) = self.selected_idx.and_then(|i| self.devices.get(i))
-                        {
-                            request = Some(ConnectionRequest::Ble {
-                                name: dev.name.clone(),
-                                address: dev.address.clone(),
-                                kind: self.selected_kind,
-                            });
-                            close_requested = true;
-                        }
-                    });
+                    rescan_requested |= rescan;
+                    close_requested |= close;
                 });
             });
 
@@ -409,6 +315,103 @@ impl BluetoothWindow {
         }
 
         request
+    }
+
+    pub fn render_contents(&mut self, ui: &mut egui::Ui) -> (Option<ConnectionRequest>, bool, bool) {
+        let mut request = None;
+        let mut close_requested = false;
+        let mut rescan_requested = false;
+
+        ui.horizontal(|ui| {
+            ui.label("Device Type:");
+            egui::ComboBox::from_id_salt("ble_device_kind")
+                .selected_text(self.selected_kind.label())
+                .show_ui(ui, |ui| {
+                    for kind in BleDeviceKind::ALL {
+                        ui.selectable_value(&mut self.selected_kind, kind, kind.label());
+                    }
+                });
+        });
+
+        ui.separator();
+
+        if let Some(err) = &self.error_message {
+            ui.colored_label(ui.visuals().error_fg_color, err);
+        }
+
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .max_height(ui.available_height() - 40.0)
+            .show(ui, |ui| {
+                if self.scanning {
+                    let remaining = self.scan_started_at.map_or(0, |t| {
+                        self.scan_duration
+                            .saturating_sub(t.elapsed())
+                            .as_secs_f64()
+                            .ceil() as u64
+                    });
+                    if remaining > 0 {
+                        ui.label(format!("Scanning... {remaining}s"));
+                    } else {
+                        ui.label("Finishing scan...");
+                    }
+                } else if self.devices.is_empty() {
+                    ui.label("No Bluetooth devices found.");
+                } else {
+                    for (idx, dev) in self.devices.iter().enumerate() {
+                        let prefix = if dev.is_priority { "☢ " } else { "" };
+                        let rssi_str = dev
+                            .rssi
+                            .map_or_else(String::new, |r| format!(" ({r} dBm)"));
+                        let label = format!("{prefix}{} [{}]{rssi_str}", dev.name, dev.address);
+                        let resp = ui.selectable_label(self.selected_idx == Some(idx), label);
+                        if resp.clicked() {
+                            self.selected_idx = Some(idx);
+                        }
+                        if resp.double_clicked() {
+                            self.selected_idx = Some(idx);
+                            request = Some(ConnectionRequest::Ble {
+                                name: dev.name.clone(),
+                                address: dev.address.clone(),
+                                kind: self.selected_kind,
+                            });
+                            close_requested = true;
+                        }
+                    }
+                }
+            });
+
+        ui.separator();
+
+        ui.horizontal(|ui| {
+            let rescan_btn = ui.add_enabled(!self.scanning, egui::Button::new("Rescan"));
+            if rescan_btn.clicked() {
+                rescan_requested = true;
+            }
+
+            if ui.button("Cancel").clicked() {
+                close_requested = true;
+            }
+
+            let can_connect = self
+                .selected_idx
+                .and_then(|i| self.devices.get(i))
+                .is_some();
+            if ui
+                .add_enabled(can_connect, egui::Button::new("Connect"))
+                .clicked()
+                && let Some(dev) = self.selected_idx.and_then(|i| self.devices.get(i))
+            {
+                request = Some(ConnectionRequest::Ble {
+                    name: dev.name.clone(),
+                    address: dev.address.clone(),
+                    kind: self.selected_kind,
+                });
+                close_requested = true;
+            }
+        });
+
+        (request, rescan_requested, close_requested)
     }
 }
 
@@ -554,101 +557,12 @@ impl UsbWindow {
                 }
 
                 egui::CentralPanel::default().show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.label("Device Type:");
-                        egui::ComboBox::from_id_salt("usb_device_kind")
-                            .selected_text(self.selected_kind.label())
-                            .show_ui(ui, |ui| {
-                                for kind in UsbDeviceKind::ALL {
-                                    ui.selectable_value(
-                                        &mut self.selected_kind,
-                                        kind,
-                                        kind.label(),
-                                    );
-                                }
-                            });
-                    });
-
-                    ui.separator();
-
-                    if let Some(err) = &self.error_message {
-                        ui.colored_label(ui.visuals().error_fg_color, err);
+                    let (req, rescan, close) = self.render_contents(ui);
+                    if req.is_some() {
+                        request = req;
                     }
-
-                    egui::ScrollArea::vertical()
-                        .auto_shrink([false, false])
-                        .max_height(ui.available_height() - 40.0)
-                        .show(ui, |ui| {
-                            if self.scanning {
-                                ui.label("Scanning USB bus...");
-                            } else if self.devices.is_empty() {
-                                ui.label("No USB devices found.");
-                            } else {
-                                for (idx, dev) in self.devices.iter().enumerate() {
-                                    let prefix = if dev.is_priority { "☢ " } else { "" };
-                                    let serial_str = dev
-                                        .serial
-                                        .as_deref()
-                                        .unwrap_or("no serial");
-                                    let label = format!(
-                                        "{prefix}{} ({:04x}:{:04x}, {serial_str})",
-                                        dev.product, dev.vendor_id, dev.product_id
-                                    );
-                                    let resp = ui.selectable_label(
-                                        self.selected_idx == Some(idx),
-                                        label,
-                                    );
-                                    if resp.clicked() {
-                                        self.selected_idx = Some(idx);
-                                    }
-                                    if resp.double_clicked() {
-                                        self.selected_idx = Some(idx);
-                                        request = Some(ConnectionRequest::Usb {
-                                            vendor_id: dev.vendor_id,
-                                            product_id: dev.product_id,
-                                            serial: dev.serial.clone(),
-                                            product: dev.product.clone(),
-                                            kind: self.selected_kind,
-                                        });
-                                        close_requested = true;
-                                    }
-                                }
-                            }
-                        });
-
-                    ui.separator();
-
-                    ui.horizontal(|ui| {
-                        if ui
-                            .add_enabled(!self.scanning, egui::Button::new("Rescan"))
-                            .clicked()
-                        {
-                            rescan_requested = true;
-                        }
-
-                        if ui.button("Cancel").clicked() {
-                            close_requested = true;
-                        }
-
-                        let can_connect = self
-                            .selected_idx
-                            .and_then(|i| self.devices.get(i))
-                            .is_some();
-                        if ui
-                            .add_enabled(can_connect, egui::Button::new("Connect"))
-                            .clicked()
-                            && let Some(dev) = self.selected_idx.and_then(|i| self.devices.get(i))
-                        {
-                            request = Some(ConnectionRequest::Usb {
-                                vendor_id: dev.vendor_id,
-                                product_id: dev.product_id,
-                                serial: dev.serial.clone(),
-                                product: dev.product.clone(),
-                                kind: self.selected_kind,
-                            });
-                            close_requested = true;
-                        }
-                    });
+                    rescan_requested |= rescan;
+                    close_requested |= close;
                 });
             });
 
@@ -660,6 +574,100 @@ impl UsbWindow {
         }
 
         request
+    }
+
+    pub fn render_contents(&mut self, ui: &mut egui::Ui) -> (Option<ConnectionRequest>, bool, bool) {
+        let mut request = None;
+        let mut close_requested = false;
+        let mut rescan_requested = false;
+
+        ui.horizontal(|ui| {
+            ui.label("Device Type:");
+            egui::ComboBox::from_id_salt("usb_device_kind")
+                .selected_text(self.selected_kind.label())
+                .show_ui(ui, |ui| {
+                    for kind in UsbDeviceKind::ALL {
+                        ui.selectable_value(&mut self.selected_kind, kind, kind.label());
+                    }
+                });
+        });
+
+        ui.separator();
+
+        if let Some(err) = &self.error_message {
+            ui.colored_label(ui.visuals().error_fg_color, err);
+        }
+
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .max_height(ui.available_height() - 40.0)
+            .show(ui, |ui| {
+                if self.scanning {
+                    ui.label("Scanning USB bus...");
+                } else if self.devices.is_empty() {
+                    ui.label("No USB devices found.");
+                } else {
+                    for (idx, dev) in self.devices.iter().enumerate() {
+                        let prefix = if dev.is_priority { "☢ " } else { "" };
+                        let serial_str = dev.serial.as_deref().unwrap_or("no serial");
+                        let label = format!(
+                            "{prefix}{} ({:04x}:{:04x}, {serial_str})",
+                            dev.product, dev.vendor_id, dev.product_id
+                        );
+                        let resp = ui.selectable_label(self.selected_idx == Some(idx), label);
+                        if resp.clicked() {
+                            self.selected_idx = Some(idx);
+                        }
+                        if resp.double_clicked() {
+                            self.selected_idx = Some(idx);
+                            request = Some(ConnectionRequest::Usb {
+                                vendor_id: dev.vendor_id,
+                                product_id: dev.product_id,
+                                serial: dev.serial.clone(),
+                                product: dev.product.clone(),
+                                kind: self.selected_kind,
+                            });
+                            close_requested = true;
+                        }
+                    }
+                }
+            });
+
+        ui.separator();
+
+        ui.horizontal(|ui| {
+            if ui
+                .add_enabled(!self.scanning, egui::Button::new("Rescan"))
+                .clicked()
+            {
+                rescan_requested = true;
+            }
+
+            if ui.button("Cancel").clicked() {
+                close_requested = true;
+            }
+
+            let can_connect = self
+                .selected_idx
+                .and_then(|i| self.devices.get(i))
+                .is_some();
+            if ui
+                .add_enabled(can_connect, egui::Button::new("Connect"))
+                .clicked()
+                && let Some(dev) = self.selected_idx.and_then(|i| self.devices.get(i))
+            {
+                request = Some(ConnectionRequest::Usb {
+                    vendor_id: dev.vendor_id,
+                    product_id: dev.product_id,
+                    serial: dev.serial.clone(),
+                    product: dev.product.clone(),
+                    kind: self.selected_kind,
+                });
+                close_requested = true;
+            }
+        });
+
+        (request, rescan_requested, close_requested)
     }
 }
 
@@ -756,53 +764,11 @@ impl NetworkWindow {
                 }
 
                 egui::CentralPanel::default().show(ui, |ui| {
-                    egui::Grid::new("network_connect_grid")
-                        .num_columns(2)
-                        .spacing([12.0, 8.0])
-                        .show(ui, |ui| {
-                            ui.label("Device IP:");
-                            ui.add(
-                                egui::TextEdit::singleline(&mut self.address)
-                                    .desired_width(240.0)
-                                    .hint_text("192.168.1.100"),
-                            );
-                            ui.end_row();
-
-                            ui.label("Device Type:");
-                            egui::ComboBox::from_id_salt("network_device_kind")
-                                .selected_text(self.kind.label())
-                                .show_ui(ui, |ui| {
-                                    for kind in NetworkDeviceKind::ALL {
-                                        ui.selectable_value(&mut self.kind, kind, kind.label());
-                                    }
-                                });
-                            ui.end_row();
-
-                            ui.label("");
-                            ui.checkbox(&mut self.use_gps, "Use for GPS");
-                            ui.end_row();
-                        });
-
-                    ui.add_space(12.0);
-                    ui.separator();
-
-                    ui.horizontal(|ui| {
-                        if ui.button("Cancel").clicked() {
-                            close_requested = true;
-                        }
-                        let valid = !self.address.trim().is_empty();
-                        if ui
-                            .add_enabled(valid, egui::Button::new("Connect"))
-                            .clicked()
-                        {
-                            request = Some(ConnectionRequest::Network {
-                                address: self.address.trim().to_string(),
-                                kind: self.kind,
-                                use_gps: self.use_gps,
-                            });
-                            close_requested = true;
-                        }
-                    });
+                    let (req, close) = self.render_contents(ui);
+                    if req.is_some() {
+                        request = req;
+                    }
+                    close_requested |= close;
                 });
             });
 
@@ -811,6 +777,61 @@ impl NetworkWindow {
         }
 
         request
+    }
+
+    pub fn render_contents(&mut self, ui: &mut egui::Ui) -> (Option<ConnectionRequest>, bool) {
+        let mut request = None;
+        let mut close_requested = false;
+
+        egui::Grid::new("network_connect_grid")
+            .num_columns(2)
+            .spacing([12.0, 8.0])
+            .show(ui, |ui| {
+                ui.label("Device IP:");
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.address)
+                        .desired_width(240.0)
+                        .hint_text("192.168.1.100"),
+                );
+                ui.end_row();
+
+                ui.label("Device Type:");
+                egui::ComboBox::from_id_salt("network_device_kind")
+                    .selected_text(self.kind.label())
+                    .show_ui(ui, |ui| {
+                        for kind in NetworkDeviceKind::ALL {
+                            ui.selectable_value(&mut self.kind, kind, kind.label());
+                        }
+                    });
+                ui.end_row();
+
+                ui.label("");
+                ui.checkbox(&mut self.use_gps, "Use for GPS");
+                ui.end_row();
+            });
+
+        ui.add_space(12.0);
+        ui.separator();
+
+        ui.horizontal(|ui| {
+            if ui.button("Cancel").clicked() {
+                close_requested = true;
+            }
+            let valid = !self.address.trim().is_empty();
+            if ui
+                .add_enabled(valid, egui::Button::new("Connect"))
+                .clicked()
+            {
+                request = Some(ConnectionRequest::Network {
+                    address: self.address.trim().to_string(),
+                    kind: self.kind,
+                    use_gps: self.use_gps,
+                });
+                close_requested = true;
+            }
+        });
+
+        (request, close_requested)
     }
 }
 
@@ -907,101 +928,11 @@ impl SerialGpsWindow {
                 }
 
                 egui::CentralPanel::default().show(ui, |ui| {
-                    egui::Grid::new("serial_gps_grid")
-                        .num_columns(2)
-                        .spacing([12.0, 8.0])
-                        .show(ui, |ui| {
-                            ui.label("Port:");
-                            ui.add(
-                                egui::TextEdit::singleline(&mut self.port)
-                                    .desired_width(260.0)
-                                    .hint_text("/dev/ttyUSB0 or COM3"),
-                            );
-                            ui.end_row();
-
-                            ui.label("Baud Rate:");
-                            egui::ComboBox::from_id_salt("serial_gps_baud")
-                                .selected_text(self.baud_rate.to_string())
-                                .show_ui(ui, |ui| {
-                                    for baud in BAUD_RATES {
-                                        ui.selectable_value(
-                                            &mut self.baud_rate,
-                                            baud,
-                                            baud.to_string(),
-                                        );
-                                    }
-                                });
-                            ui.end_row();
-                        });
-
-                    ui.add_space(6.0);
-                    ui.label("Detected Ports:");
-
-                    if let Some(err) = &self.error_message {
-                        ui.colored_label(ui.visuals().error_fg_color, err);
+                    let (req, close) = self.render_contents(ui, gps_connected);
+                    if req.is_some() {
+                        request = req;
                     }
-
-                    egui::ScrollArea::vertical()
-                        .auto_shrink([false, false])
-                        .max_height(ui.available_height() - 40.0)
-                        .show(ui, |ui| {
-                            if self.ports.is_empty() {
-                                ui.label("No serial ports detected.");
-                            } else {
-                                for entry in &self.ports {
-                                    let label =
-                                        format!("{} ({})", entry.port_name, entry.description);
-                                    let resp = ui.selectable_label(
-                                        self.port == entry.port_name,
-                                        label,
-                                    );
-                                    if resp.clicked() {
-                                        self.port = entry.port_name.clone();
-                                    }
-                                    if resp.double_clicked() {
-                                        self.port = entry.port_name.clone();
-                                        request = Some(ConnectionRequest::SerialGps {
-                                            port: entry.port_name.clone(),
-                                            baud_rate: self.baud_rate,
-                                        });
-                                        close_requested = true;
-                                    }
-                                }
-                            }
-                        });
-
-                    ui.separator();
-
-                    ui.horizontal(|ui| {
-                        if ui.button("Rescan").clicked() {
-                            self.refresh_ports();
-                        }
-                        if ui.button("Mock GPS").clicked() {
-                            request = Some(ConnectionRequest::MockGps);
-                            close_requested = true;
-                        }
-                        if ui
-                            .add_enabled(gps_connected, egui::Button::new("Disconnect"))
-                            .clicked()
-                        {
-                            request = Some(ConnectionRequest::DisconnectGps);
-                            close_requested = true;
-                        }
-                        if ui.button("Cancel").clicked() {
-                            close_requested = true;
-                        }
-                        let valid = !self.port.trim().is_empty();
-                        if ui
-                            .add_enabled(valid, egui::Button::new("Connect"))
-                            .clicked()
-                        {
-                            request = Some(ConnectionRequest::SerialGps {
-                                port: self.port.trim().to_string(),
-                                baud_rate: self.baud_rate,
-                            });
-                            close_requested = true;
-                        }
-                    });
+                    close_requested |= close;
                 });
             });
 
@@ -1010,6 +941,105 @@ impl SerialGpsWindow {
         }
 
         request
+    }
+
+    pub fn render_contents(
+        &mut self,
+        ui: &mut egui::Ui,
+        gps_connected: bool,
+    ) -> (Option<ConnectionRequest>, bool) {
+        let mut request = None;
+        let mut close_requested = false;
+
+        egui::Grid::new("serial_gps_grid")
+            .num_columns(2)
+            .spacing([12.0, 8.0])
+            .show(ui, |ui| {
+                ui.label("Port:");
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.port)
+                        .desired_width(260.0)
+                        .hint_text("/dev/ttyUSB0 or COM3"),
+                );
+                ui.end_row();
+
+                ui.label("Baud Rate:");
+                egui::ComboBox::from_id_salt("serial_gps_baud")
+                    .selected_text(self.baud_rate.to_string())
+                    .show_ui(ui, |ui| {
+                        for baud in BAUD_RATES {
+                            ui.selectable_value(&mut self.baud_rate, baud, baud.to_string());
+                        }
+                    });
+                ui.end_row();
+            });
+
+        ui.add_space(6.0);
+        ui.label("Detected Ports:");
+
+        if let Some(err) = &self.error_message {
+            ui.colored_label(ui.visuals().error_fg_color, err);
+        }
+
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .max_height(ui.available_height() - 40.0)
+            .show(ui, |ui| {
+                if self.ports.is_empty() {
+                    ui.label("No serial ports detected.");
+                } else {
+                    for entry in &self.ports {
+                        let label = format!("{} ({})", entry.port_name, entry.description);
+                        let resp = ui.selectable_label(self.port == entry.port_name, label);
+                        if resp.clicked() {
+                            self.port = entry.port_name.clone();
+                        }
+                        if resp.double_clicked() {
+                            self.port = entry.port_name.clone();
+                            request = Some(ConnectionRequest::SerialGps {
+                                port: entry.port_name.clone(),
+                                baud_rate: self.baud_rate,
+                            });
+                            close_requested = true;
+                        }
+                    }
+                }
+            });
+
+        ui.separator();
+
+        ui.horizontal(|ui| {
+            if ui.button("Rescan").clicked() {
+                self.refresh_ports();
+            }
+            if ui.button("Mock GPS").clicked() {
+                request = Some(ConnectionRequest::MockGps);
+                close_requested = true;
+            }
+            if ui
+                .add_enabled(gps_connected, egui::Button::new("Disconnect"))
+                .clicked()
+            {
+                request = Some(ConnectionRequest::DisconnectGps);
+                close_requested = true;
+            }
+            if ui.button("Cancel").clicked() {
+                close_requested = true;
+            }
+            let valid = !self.port.trim().is_empty();
+            if ui
+                .add_enabled(valid, egui::Button::new("Connect"))
+                .clicked()
+            {
+                request = Some(ConnectionRequest::SerialGps {
+                    port: self.port.trim().to_string(),
+                    baud_rate: self.baud_rate,
+                });
+                close_requested = true;
+            }
+        });
+
+        (request, close_requested)
     }
 }
 
@@ -1078,40 +1108,9 @@ impl DriverLibraryDialog {
                     close_requested = true;
                 }
                 egui::CentralPanel::default().show(ui, |ui| {
-                    egui::ScrollArea::vertical()
-                        .max_height(ui.available_height() - 36.0)
-                        .show(ui, |ui| {
-                            if self.drivers.is_empty() {
-                                ui.label("No third-party drivers installed.");
-                            } else {
-                                for (idx, path) in self.drivers.iter().enumerate() {
-                                    let name = path
-                                        .file_name()
-                                        .and_then(|s| s.to_str())
-                                        .unwrap_or("<unknown>");
-                                    if ui
-                                        .selectable_label(self.selected == Some(idx), name)
-                                        .clicked()
-                                    {
-                                        self.selected = Some(idx);
-                                    }
-                                }
-                            }
-                        });
-
-                    ui.separator();
-                    ui.horizontal(|ui| {
-                        let has_sel = self.selected.is_some();
-                        if ui
-                            .add_enabled(has_sel, egui::Button::new("Delete Selected"))
-                            .clicked()
-                        {
-                            delete_selected = true;
-                        }
-                        if ui.button("Close").clicked() {
-                            close_requested = true;
-                        }
-                    });
+                    let (del, close) = self.render_contents(ui);
+                    delete_selected |= del;
+                    close_requested |= close;
                 });
             });
 
@@ -1126,6 +1125,48 @@ impl DriverLibraryDialog {
         if close_requested {
             self.open = false;
         }
+    }
+
+    pub fn render_contents(&mut self, ui: &mut egui::Ui) -> (bool, bool) {
+        let mut delete_selected = false;
+        let mut close_requested = false;
+
+        egui::ScrollArea::vertical()
+            .max_height(ui.available_height() - 36.0)
+            .show(ui, |ui| {
+                if self.drivers.is_empty() {
+                    ui.label("No third-party drivers installed.");
+                } else {
+                    for (idx, path) in self.drivers.iter().enumerate() {
+                        let name = path
+                            .file_name()
+                            .and_then(|s| s.to_str())
+                            .unwrap_or("<unknown>");
+                        if ui
+                            .selectable_label(self.selected == Some(idx), name)
+                            .clicked()
+                        {
+                            self.selected = Some(idx);
+                        }
+                    }
+                }
+            });
+
+        ui.separator();
+        ui.horizontal(|ui| {
+            let has_sel = self.selected.is_some();
+            if ui
+                .add_enabled(has_sel, egui::Button::new("Delete Selected"))
+                .clicked()
+            {
+                delete_selected = true;
+            }
+            if ui.button("Close").clicked() {
+                close_requested = true;
+            }
+        });
+
+        (delete_selected, close_requested)
     }
 }
 
@@ -1264,5 +1305,331 @@ mod tests {
         assert_eq!(dialog.last_dir.as_deref(), Some(missing.as_path()));
 
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn test_kittest_bluetooth_window() {
+        use egui_kittest::Harness;
+        use egui_kittest::kittest::Queryable;
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let mut win = BluetoothWindow::new();
+        let mut closed_harness = Harness::builder().build_ui(|ui| {
+            assert!(win.render(ui, rt.handle()).is_none());
+        });
+        closed_harness.run();
+        drop(closed_harness);
+
+        let (tx, rx) = mpsc::channel();
+        drop(tx.send(BleScanMessage::Finished(Ok(vec![
+            BleScannedDevice {
+                name: "Other".into(),
+                address: "11:22".into(),
+                rssi: None,
+                is_priority: false,
+            },
+            BleScannedDevice {
+                name: "RadiaCode-102".into(),
+                address: "AA:BB".into(),
+                rssi: Some(-55),
+                is_priority: true,
+            },
+        ]))));
+        win.open = true;
+        win.scanning = true;
+        win.rx = Some(rx);
+        win.poll_scan();
+        assert!(!win.scanning);
+        assert_eq!(win.devices[0].name, "RadiaCode-102");
+
+        struct State {
+            win: BluetoothWindow,
+            last_req: Option<ConnectionRequest>,
+            rescan: bool,
+            close: bool,
+        }
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(460.0, 380.0))
+            .with_accessibility_check(false)
+            .build_ui_state(
+                |ui, st: &mut State| {
+                    ui.ctx()
+                        .set_missing_glyph_policy(egui::epaint::text::MissingGlyphPolicy::Tofu);
+                    let (req, rescan, close) = st.win.render_contents(ui);
+                    if req.is_some() {
+                        st.last_req = req;
+                    }
+                    st.rescan |= rescan;
+                    st.close |= close;
+                },
+                State {
+                    win,
+                    last_req: None,
+                    rescan: false,
+                    close: false,
+                },
+            );
+        harness.run();
+
+        harness
+            .get_by_label("☢ RadiaCode-102 [AA:BB] (-55 dBm)")
+            .click();
+        harness.run();
+        harness.get_by_label("Connect").click();
+        harness.run();
+        assert_eq!(
+            harness.state().last_req,
+            Some(ConnectionRequest::Ble {
+                name: "RadiaCode-102".into(),
+                address: "AA:BB".into(),
+                kind: BleDeviceKind::Auto,
+            })
+        );
+        assert!(harness.state().close);
+
+        harness.get_by_label("Rescan").click();
+        harness.run();
+        assert!(harness.state().rescan);
+
+        // Error message + scanning state coverage.
+        harness.state_mut().win.error_message = Some("BLE adapter off".into());
+        harness.state_mut().win.scanning = true;
+        harness.state_mut().win.scan_started_at = Some(Instant::now());
+        harness.run();
+        assert!(harness.query_by_label("BLE adapter off").is_some());
+    }
+
+    #[test]
+    fn test_kittest_usb_window() {
+        use egui_kittest::Harness;
+        use egui_kittest::kittest::Queryable;
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let mut win = UsbWindow::new();
+        let mut closed_harness = Harness::builder().build_ui(|ui| {
+            assert!(win.render(ui, rt.handle()).is_none());
+        });
+        closed_harness.run();
+        drop(closed_harness);
+
+        let (tx, rx) = mpsc::channel();
+        drop(tx.send(Ok(vec![UsbScannedDevice {
+            vendor_id: 0x0483,
+            product_id: 0xF123,
+            serial: Some("RC102".into()),
+            product: "RadiaCode".into(),
+            bus_id: "1".into(),
+            device_address: 3,
+            is_priority: true,
+        }])));
+        win.open = true;
+        win.scanning = true;
+        win.rx = Some(rx);
+        win.poll_scan();
+        assert!(!win.scanning);
+
+        struct State {
+            win: UsbWindow,
+            last_req: Option<ConnectionRequest>,
+            rescan: bool,
+            close: bool,
+        }
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(480.0, 380.0))
+            .with_accessibility_check(false)
+            .build_ui_state(
+                |ui, st: &mut State| {
+                    ui.ctx()
+                        .set_missing_glyph_policy(egui::epaint::text::MissingGlyphPolicy::Tofu);
+                    let (req, rescan, close) = st.win.render_contents(ui);
+                    if req.is_some() {
+                        st.last_req = req;
+                    }
+                    st.rescan |= rescan;
+                    st.close |= close;
+                },
+                State {
+                    win,
+                    last_req: None,
+                    rescan: false,
+                    close: false,
+                },
+            );
+        harness.run();
+
+        harness
+            .get_by_label("☢ RadiaCode (0483:f123, RC102)")
+            .click();
+        harness.run();
+        harness.get_by_label("Connect").click();
+        harness.run();
+        assert_eq!(
+            harness.state().last_req,
+            Some(ConnectionRequest::Usb {
+                vendor_id: 0x0483,
+                product_id: 0xF123,
+                serial: Some("RC102".into()),
+                product: "RadiaCode".into(),
+                kind: UsbDeviceKind::Auto,
+            })
+        );
+        assert!(harness.state().close);
+    }
+
+    #[test]
+    fn test_kittest_network_and_serial_gps_windows() {
+        use egui_kittest::Harness;
+        use egui_kittest::kittest::Queryable;
+
+        // NetworkWindow
+        let mut net = NetworkWindow::new();
+        let mut closed = Harness::builder().build_ui(|ui| {
+            assert!(net.render(ui).is_none());
+        });
+        closed.run();
+        drop(closed);
+
+        net.open_with_last_ip("10.0.0.42");
+        assert!(net.open);
+        struct NetState {
+            win: NetworkWindow,
+            req: Option<ConnectionRequest>,
+            closed: bool,
+        }
+        let mut net_harness = Harness::builder()
+            .with_size(egui::vec2(400.0, 220.0))
+            .with_accessibility_check(false)
+            .build_ui_state(
+                |ui, st: &mut NetState| {
+                    let (r, c) = st.win.render_contents(ui);
+                    if r.is_some() {
+                        st.req = r;
+                    }
+                    st.closed |= c;
+                },
+                NetState {
+                    win: net,
+                    req: None,
+                    closed: false,
+                },
+            );
+        net_harness.run();
+        net_harness.get_by_label("Use for GPS").click();
+        net_harness.run();
+        net_harness.get_by_label("Connect").click();
+        net_harness.run();
+        assert_eq!(
+            net_harness.state().req,
+            Some(ConnectionRequest::Network {
+                address: "10.0.0.42".into(),
+                kind: NetworkDeviceKind::DetectiveX,
+                use_gps: true,
+            })
+        );
+        assert!(net_harness.state().closed);
+
+        // SerialGpsWindow
+        let mut gps = SerialGpsWindow::new();
+        let mut gps_closed = Harness::builder().build_ui(|ui| {
+            assert!(gps.render(ui, false).is_none());
+        });
+        gps_closed.run();
+        drop(gps_closed);
+
+        gps.open = true;
+        gps.ports = vec![SerialPortEntry {
+            port_name: "/dev/ttyUSB0".into(),
+            description: "GPS Receiver".into(),
+        }];
+        struct GpsState {
+            win: SerialGpsWindow,
+            req: Option<ConnectionRequest>,
+            closed: bool,
+        }
+        let mut gps_harness = Harness::builder()
+            .with_size(egui::vec2(460.0, 340.0))
+            .with_accessibility_check(false)
+            .build_ui_state(
+                |ui, st: &mut GpsState| {
+                    let (r, c) = st.win.render_contents(ui, true);
+                    if r.is_some() {
+                        st.req = r;
+                    }
+                    st.closed |= c;
+                },
+                GpsState {
+                    win: gps,
+                    req: None,
+                    closed: false,
+                },
+            );
+        gps_harness.run();
+        gps_harness
+            .get_by_label("/dev/ttyUSB0 (GPS Receiver)")
+            .click();
+        gps_harness.run();
+        gps_harness.get_by_label("Connect").click();
+        gps_harness.run();
+        assert_eq!(
+            gps_harness.state().req,
+            Some(ConnectionRequest::SerialGps {
+                port: "/dev/ttyUSB0".into(),
+                baud_rate: 4800,
+            })
+        );
+        gps_harness.get_by_label("Mock GPS").click();
+        gps_harness.run();
+        assert_eq!(gps_harness.state().req, Some(ConnectionRequest::MockGps));
+        gps_harness.get_by_label("Disconnect").click();
+        gps_harness.run();
+        assert_eq!(
+            gps_harness.state().req,
+            Some(ConnectionRequest::DisconnectGps)
+        );
+    }
+
+    #[test]
+    fn test_kittest_driver_library_dialog() {
+        use egui_kittest::Harness;
+        use egui_kittest::kittest::Queryable;
+
+        let dir = std::env::temp_dir().join("luracs_test_driver_lib_ui");
+        drop(std::fs::remove_dir_all(&dir));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("drv_one.so"), b"").unwrap();
+
+        let mut dlg = DriverLibraryDialog::new();
+        dlg.open();
+        dlg.reload(&dir);
+
+        struct State {
+            dlg: DriverLibraryDialog,
+            del: bool,
+            closed: bool,
+        }
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(420.0, 320.0))
+            .build_ui_state(
+                |ui, st: &mut State| {
+                    let (d, c) = st.dlg.render_contents(ui);
+                    st.del |= d;
+                    st.closed |= c;
+                },
+                State {
+                    dlg,
+                    del: false,
+                    closed: false,
+                },
+            );
+        harness.run();
+        harness.get_by_label("drv_one.so").click();
+        harness.run();
+        harness.get_by_label("Delete Selected").click();
+        harness.run();
+        assert!(harness.state().del);
+        harness.get_by_label("Close").click();
+        harness.run();
+        assert!(harness.state().closed);
+        drop(std::fs::remove_dir_all(&dir));
     }
 }

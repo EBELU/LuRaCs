@@ -29,7 +29,7 @@ pub struct CalibrationWindow {
     ref_channels: Vec<f64>,
     ref_energies: Vec<f64>,
     status_msg: String,
-    plot: Plot1D,
+    plot: Option<Plot1D>,
 }
 
 impl CalibrationWindow {
@@ -47,7 +47,22 @@ impl CalibrationWindow {
             ref_channels: Vec::new(),
             ref_energies: Vec::new(),
             status_msg: String::new(),
-            plot,
+            plot: Some(plot),
+        }
+    }
+
+    #[cfg(test)]
+    const fn new_headless() -> Self {
+        Self {
+            open: false,
+            selected_spectrum: String::new(),
+            rows: Vec::new(),
+            poly_degree: 2,
+            poly_coeffs_asc: [0.0; 4],
+            ref_channels: Vec::new(),
+            ref_energies: Vec::new(),
+            status_msg: String::new(),
+            plot: None,
         }
     }
 
@@ -56,7 +71,9 @@ impl CalibrationWindow {
     }
 
     pub fn retheme(&mut self, colors: &crate::theme_manager::ResolvedPlotColors) {
-        colors.apply_to(&mut self.plot);
+        if let Some(plot) = &mut self.plot {
+            colors.apply_to(plot);
+        }
     }
 
     fn populate_table(&mut self, spectrum_manager: &SpectrumManager) {
@@ -141,17 +158,18 @@ impl CalibrationWindow {
                 self.ref_channels = res.reference_channels;
                 self.ref_energies = res.reference_energies;
 
-                self.plot.clear();
-                let ch_x: Vec<f64> = (0..res.x_axis.len()).map(|i| i as f64).collect();
-                let y_axis: Vec<f64> = res.x_axis.iter().copied().collect();
-                self.plot
-                    .add_curve(&ch_x, &y_axis, Color32::from_rgb(255, 200, 60));
-                for (&cx, &ey) in self.ref_channels.iter().zip(self.ref_energies.iter()) {
-                    let mut m = Marker::point(cx, ey);
-                    m.color = Color32::from_rgb(80, 200, 255);
-                    self.plot.add_marker_data(&m);
+                if let Some(plot) = &mut self.plot {
+                    plot.clear();
+                    let ch_x: Vec<f64> = (0..res.x_axis.len()).map(|i| i as f64).collect();
+                    let y_axis: Vec<f64> = res.x_axis.iter().copied().collect();
+                    plot.add_curve(&ch_x, &y_axis, Color32::from_rgb(255, 200, 60));
+                    for (&cx, &ey) in self.ref_channels.iter().zip(self.ref_energies.iter()) {
+                        let mut m = Marker::point(cx, ey);
+                        m.color = Color32::from_rgb(80, 200, 255);
+                        plot.add_marker_data(&m);
+                    }
+                    plot.set_auto_reset_zoom(true);
                 }
-                self.plot.set_auto_reset_zoom(true);
                 self.status_msg = format!("Calibrated degree-{} polynomial.", self.poly_degree);
             }
             Err(e) => {
@@ -339,7 +357,9 @@ impl CalibrationWindow {
                 });
 
                 ui.allocate_ui(egui::vec2(ui.available_width(), 220.0), |ui| {
-                    self.plot.show(ui);
+                    if let Some(plot) = &mut self.plot {
+                        plot.show(ui);
+                    }
                 });
 
                 ui.horizontal(|ui| {
@@ -409,5 +429,144 @@ mod tests {
         assert_eq!(res.coefficients.len(), 2);
         assert!((res.coefficients[0] - 3.0).abs() < 1e-9);
         assert!(res.coefficients[1].abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_calibration_window_kittest_workflow() {
+        use crate::containers::{GenericInstrument, SpectrumData, UniqueInstrument};
+        use crate::core::ForegroundInput;
+        use crate::gui::ColorScheme;
+        use egui_kittest::kittest::Queryable;
+        use egui_kittest::Harness;
+        use ndarray::Array1;
+        use std::path::Path;
+
+        let dir = std::env::temp_dir().join("luracs_test_cal_win");
+        drop(std::fs::remove_dir_all(&dir));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let mut sm = SpectrumManager::new(
+            ColorScheme::default(),
+            dir.clone(),
+            Path::new("resources/nuclide_data"),
+        )
+        .unwrap();
+        sm.create_spectrum("CalSpec", 1024, None, false).unwrap();
+        sm.set_foreground_spectrum(
+            "CalSpec",
+            ForegroundInput::Raw(SpectrumData {
+                y_axis: Array1::zeros(1024),
+                channels: 1024,
+                total_counts: 0,
+                live_time: 10.0,
+                real_time: Some(10.0),
+                avg_dose_rate: None,
+                avg_cps: None,
+                start_date: None,
+                end_date: None,
+                spectrum_name: None,
+                instrument: None,
+            }),
+        )
+        .unwrap();
+
+        let mut u = UniqueInstrument::from_template("CalDet", &GenericInstrument::default());
+        u.name = "CalDet".to_string();
+        u.calibration_coefficients = Some(vec![2.0, 0.0]);
+        sm.unique_instrument_library
+            .add_instrument(crate::core::Instrument::Unique(u.clone()))
+            .unwrap();
+        sm.spectrum_registry
+            .get_mut("CalSpec")
+            .unwrap()
+            .set_instrument(u);
+
+        let mut win = CalibrationWindow::new_headless();
+        win.poly_degree = 1;
+
+        let mut harness = Harness::builder()
+            .with_accessibility_check(false)
+            .build_ui_state(
+                |ui, (w, sm): &mut (CalibrationWindow, SpectrumManager)| {
+                    w.render(ui, sm);
+                },
+                (win, sm),
+            );
+
+        // Closed by default
+        harness.run();
+        assert!(!harness.state().0.open);
+
+        // Open
+        harness.state_mut().0.open();
+        harness.run();
+        assert_eq!(harness.state().0.selected_spectrum, "CalSpec");
+
+        // Error branches when empty
+        harness.get_by_label("Calculate").click();
+        harness.run();
+        assert_eq!(harness.state().0.status_msg, "Select at least one peak.");
+
+        harness.get_by_label("Assign to spectrum").click();
+        harness.run();
+        assert_eq!(
+            harness.state().0.status_msg,
+            "No calibration coefficients to assign."
+        );
+
+        // Get calibration from instrument
+        harness.get_by_label("Get calibration from instrument").click();
+        harness.run();
+        assert_eq!(
+            harness.state().0.status_msg,
+            "Loaded calibration from instrument."
+        );
+
+        // Add two calibration points and Calculate
+        harness.get_by_label("Add New Point").click();
+        harness.run();
+        harness.get_by_label("Add New Point").click();
+        harness.run();
+        {
+            let rows = &mut harness.state_mut().0.rows;
+            rows[0].measured = 100.0;
+            rows[0].reference = 300.0;
+            rows[1].measured = 500.0;
+            rows[1].reference = 1500.0;
+        }
+        harness.get_by_label("Calculate").click();
+        harness.run();
+        assert!(harness
+            .state()
+            .0
+            .status_msg
+            .starts_with("Calibrated degree-1 polynomial"));
+
+        // Assign to spectrum & instrument
+        harness.get_by_label("Assign to spectrum").click();
+        harness.run();
+        assert!(harness.state().1.spectrum_registry["CalSpec"].calibrated);
+
+        harness.get_by_label("Assign to instrument").click();
+        harness.run();
+        assert!(
+            harness
+                .state()
+                .0
+                .status_msg
+                .starts_with("Assigned calibration")
+                || harness
+                    .state()
+                    .0
+                    .status_msg
+                    .starts_with("Instrument assign failed")
+        );
+
+        // Close
+        harness.get_by_label("Close").click();
+        harness.run();
+        assert!(!harness.state().0.open);
+
+        drop(std::fs::remove_dir_all(&dir));
     }
 }

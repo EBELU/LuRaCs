@@ -103,24 +103,46 @@ impl PeakFeaturesWindow {
     }
 
     pub fn apply(&self, spectrum_screen: &mut SpectrumScreen) {
+        self.apply_with(&mut |label, enabled, val, color| {
+            spectrum_screen.set_feature_line(label, enabled, val, color);
+        });
+    }
+
+    pub fn apply_with(&self, mut set_line: impl FnMut(&'static str, bool, f64, Color32)) {
         for row in &self.rows {
             if let Some(val) = row.energy_kev
                 && val > 0.0
             {
-                spectrum_screen.set_feature_line(row.label, row.enabled, val, row.color);
+                set_line(row.label, row.enabled, val, row.color);
             } else {
-                spectrum_screen.set_feature_line(row.label, false, 0.0, row.color);
+                set_line(row.label, false, 0.0, row.color);
             }
         }
     }
 
     pub fn clear_lines(&self, spectrum_screen: &mut SpectrumScreen) {
+        self.clear_lines_with(&mut |label, enabled, val, color| {
+            spectrum_screen.set_feature_line(label, enabled, val, color);
+        });
+    }
+
+    pub fn clear_lines_with(&self, mut set_line: impl FnMut(&'static str, bool, f64, Color32)) {
         for row in &self.rows {
-            spectrum_screen.set_feature_line(row.label, false, 0.0, row.color);
+            set_line(row.label, false, 0.0, row.color);
         }
     }
 
     pub fn render(&mut self, ui: &egui::Ui, spectrum_screen: &mut SpectrumScreen) {
+        self.render_with(ui, |label, enabled, val, color| {
+            spectrum_screen.set_feature_line(label, enabled, val, color);
+        });
+    }
+
+    pub fn render_with(
+        &mut self,
+        ui: &egui::Ui,
+        mut set_line: impl FnMut(&'static str, bool, f64, Color32),
+    ) {
         if !self.open {
             return;
         }
@@ -196,10 +218,10 @@ impl PeakFeaturesWindow {
             });
 
         if clear_requested {
-            self.clear_lines(spectrum_screen);
+            self.clear_lines_with(&mut set_line);
         }
         if apply_requested {
-            self.apply(spectrum_screen);
+            self.apply_with(&mut set_line);
         }
         self.open = !close_requested;
     }
@@ -228,5 +250,68 @@ mod tests {
         win.calculate();
         assert!((win.rows[3].energy_kev.unwrap() - 949.8).abs() < 1e-6);
         assert!((win.rows[4].energy_kev.unwrap() - 438.8).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_peak_features_window_kittest_ui_actions() {
+        use egui_kittest::kittest::Queryable;
+        use egui_kittest::Harness;
+
+        #[derive(Default)]
+        struct State {
+            win: PeakFeaturesWindow,
+            calls: Vec<(&'static str, bool, f64)>,
+        }
+
+        let mut harness = Harness::builder()
+            .with_accessibility_check(false)
+            .build_ui_state(
+                |ui, st: &mut State| {
+                    st.win.render_with(ui, |label, enabled, val, _color| {
+                        st.calls.push((label, enabled, val));
+                    });
+                },
+                State::default(),
+            );
+
+        // Closed by default
+        harness.run();
+        assert!(harness.query_by_label("Apply").is_none());
+
+        // Open and render
+        harness.state_mut().win.open();
+        harness.run();
+        assert!(harness.query_by_label("Backscatter").is_some());
+        assert!(harness.query_by_label("Photopeak").is_some());
+
+        // Click Apply -> 5 calls (3 enabled, 2 disabled for <1022 keV)
+        harness.get_by_label("Apply").click();
+        harness.run();
+        assert_eq!(harness.state().calls.len(), 5);
+        assert!(harness.state().calls[2].1);
+        assert!(!harness.state().calls[3].1);
+
+        // Click Remove Lines -> 5 disabled calls
+        harness.state_mut().calls.clear();
+        harness.get_by_label("Remove Lines").click();
+        harness.run();
+        assert_eq!(harness.state().calls.len(), 5);
+        assert!(harness.state().calls.iter().all(|(_, en, _)| !*en));
+
+        // Click OK -> applies and closes
+        harness.state_mut().calls.clear();
+        harness.get_by_label("OK").click();
+        harness.run();
+        assert_eq!(harness.state().calls.len(), 5);
+        assert!(!harness.state().win.open);
+
+        // Re-open and click Cancel -> closes without applying
+        harness.state_mut().win.open();
+        harness.state_mut().calls.clear();
+        harness.run();
+        harness.get_by_label("Cancel").click();
+        harness.run();
+        assert!(harness.state().calls.is_empty());
+        assert!(!harness.state().win.open);
     }
 }

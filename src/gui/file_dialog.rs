@@ -185,6 +185,13 @@ impl<T: Send + 'static> PendingFileSlot<T> {
         self.rx = Some(rx);
     }
 
+    #[cfg(test)]
+    pub fn set_ready_for_test(&mut self, val: T) {
+        let (tx, rx) = mpsc::channel();
+        drop(tx.send(val));
+        self.rx = Some(rx);
+    }
+
     pub fn take_ready(&mut self) -> Option<T> {
         let rx = self.rx.as_ref()?;
         match rx.try_recv() {

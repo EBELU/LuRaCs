@@ -21,7 +21,9 @@ use eframe::egui::{self, Align2, Color32, Vec2};
 
 use crate::app::{LuRaCsApp, TopTab};
 use crate::containers::{GenericInstrument, UniqueInstrument};
-use crate::core::{ImportOptions, Instrument, SaveInput, SpectrumImportBundle};
+use crate::core::{
+    FileIndex, ImportOptions, Instrument, SaveInput, SpectrumImportBundle, SpectrumManager,
+};
 use crate::settings::SharedSettingsExt;
 use crate::spectogram::{Spectrogram, SpectrogramConfig, SpectrogramMode};
 use crate::utils::{csv_export, xlsx_export, DbParser, DbWriter, XmlParser};
@@ -40,6 +42,13 @@ pub enum DataLibraryTab {
     Roi,
     UniqueInstruments,
     GenericInstruments,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum QuickLoad {
+    Spectrum(PathBuf),
+    Spectrogram(PathBuf),
+    Roi(PathBuf),
 }
 
 // ---------------------------------------------------------------------------
@@ -226,6 +235,21 @@ impl DataLibraryWindow {
     // -----------------------------------------------------------------------
 
     fn render_content(&mut self, app: &mut LuRaCsApp, ui: &mut egui::Ui) {
+        let quick = self.render_tabs_table(&app.io_manager.file_index, &app.spectrum_manager, ui);
+        match quick {
+            Some(QuickLoad::Spectrum(p)) => self.load_spectrums(app, &[p]),
+            Some(QuickLoad::Spectrogram(p)) => self.load_spectrograms(app, &[p]),
+            Some(QuickLoad::Roi(p)) => self.load_rois_to_spectrum(app, &[p]),
+            None => {}
+        }
+    }
+
+    pub fn render_tabs_table(
+        &mut self,
+        file_index: &FileIndex,
+        spectrum_manager: &SpectrumManager,
+        ui: &mut egui::Ui,
+    ) -> Option<QuickLoad> {
         ui.horizontal(|ui| {
             ui.selectable_value(
                 &mut self.active_tab,
@@ -263,11 +287,21 @@ impl DataLibraryWindow {
         }
 
         match self.active_tab {
-            DataLibraryTab::Spectrum => self.render_spectrum_tab(app, ui),
-            DataLibraryTab::Spectrogram => self.render_spectrogram_tab(app, ui),
-            DataLibraryTab::Roi => self.render_roi_tab(app, ui),
-            DataLibraryTab::UniqueInstruments => self.render_unique_instruments_tab(app, ui),
-            DataLibraryTab::GenericInstruments => self.render_generic_instruments_tab(app, ui),
+            DataLibraryTab::Spectrum => self
+                .render_spectrum_tab(file_index, ui)
+                .map(QuickLoad::Spectrum),
+            DataLibraryTab::Spectrogram => self
+                .render_spectrogram_tab(file_index, ui)
+                .map(QuickLoad::Spectrogram),
+            DataLibraryTab::Roi => self.render_roi_tab(file_index, ui).map(QuickLoad::Roi),
+            DataLibraryTab::UniqueInstruments => {
+                self.render_unique_instruments_tab(spectrum_manager, ui);
+                None
+            }
+            DataLibraryTab::GenericInstruments => {
+                self.render_generic_instruments_tab(spectrum_manager, ui);
+                None
+            }
         }
     }
 
@@ -275,8 +309,8 @@ impl DataLibraryWindow {
     // Tab 1: Spectrum
     // -----------------------------------------------------------------------
 
-    fn render_spectrum_tab(&mut self, app: &mut LuRaCsApp, ui: &mut egui::Ui) {
-        let registry = &app.io_manager.file_index.spectrum;
+    fn render_spectrum_tab(&mut self, file_index: &FileIndex, ui: &mut egui::Ui) -> Option<PathBuf> {
+        let registry = &file_index.spectrum;
         let mut paths: Vec<PathBuf> = registry.paths().cloned().collect();
         paths.sort();
 
@@ -373,17 +407,19 @@ impl DataLibraryWindow {
                     });
             });
 
-        if let Some(path) = double_clicked_path {
-            self.load_spectrums(app, &[path]);
-        }
+        double_clicked_path
     }
 
     // -----------------------------------------------------------------------
     // Tab 2: Spectrogram
     // -----------------------------------------------------------------------
 
-    fn render_spectrogram_tab(&mut self, app: &mut LuRaCsApp, ui: &mut egui::Ui) {
-        let registry = &app.io_manager.file_index.spectrogram;
+    fn render_spectrogram_tab(
+        &mut self,
+        file_index: &FileIndex,
+        ui: &mut egui::Ui,
+    ) -> Option<PathBuf> {
+        let registry = &file_index.spectrogram;
         let mut paths: Vec<PathBuf> = registry.paths().cloned().collect();
         paths.sort();
 
@@ -472,17 +508,15 @@ impl DataLibraryWindow {
                     });
             });
 
-        if let Some(path) = double_clicked_path {
-            self.load_spectrograms(app, &[path]);
-        }
+        double_clicked_path
     }
 
     // -----------------------------------------------------------------------
     // Tab 3: ROI
     // -----------------------------------------------------------------------
 
-    fn render_roi_tab(&mut self, app: &mut LuRaCsApp, ui: &mut egui::Ui) {
-        let registry = &app.io_manager.file_index.roi;
+    fn render_roi_tab(&mut self, file_index: &FileIndex, ui: &mut egui::Ui) -> Option<PathBuf> {
+        let registry = &file_index.roi;
         let mut paths: Vec<PathBuf> = registry.paths().cloned().collect();
         paths.sort();
 
@@ -559,18 +593,15 @@ impl DataLibraryWindow {
                     });
             });
 
-        if let Some(path) = double_clicked_path {
-            self.load_rois_to_spectrum(app, &[path]);
-        }
+        double_clicked_path
     }
 
     // -----------------------------------------------------------------------
     // Tab 4: Instruments (Unique)
     // -----------------------------------------------------------------------
 
-    fn render_unique_instruments_tab(&mut self, app: &LuRaCsApp, ui: &mut egui::Ui) {
-        let mut keys: Vec<String> = app
-            .spectrum_manager
+    fn render_unique_instruments_tab(&mut self, spectrum_manager: &SpectrumManager, ui: &mut egui::Ui) {
+        let mut keys: Vec<String> = spectrum_manager
             .unique_instrument_library
             .iter()
             .map(|(k, _)| k.clone())
@@ -605,8 +636,7 @@ impl DataLibraryWindow {
 
                         // Rows
                         for key in &keys {
-                            let inst = app
-                                .spectrum_manager
+                            let inst = spectrum_manager
                                 .unique_instrument_library
                                 .get(key)
                                 .and_then(|i| i.as_unique());
@@ -646,9 +676,8 @@ impl DataLibraryWindow {
     // Tab 5: Generic Instruments
     // -----------------------------------------------------------------------
 
-    fn render_generic_instruments_tab(&mut self, app: &LuRaCsApp, ui: &mut egui::Ui) {
-        let mut keys: Vec<String> = app
-            .spectrum_manager
+    fn render_generic_instruments_tab(&mut self, spectrum_manager: &SpectrumManager, ui: &mut egui::Ui) {
+        let mut keys: Vec<String> = spectrum_manager
             .generic_instrument_library
             .iter()
             .map(|(k, _)| k.clone())
@@ -681,8 +710,7 @@ impl DataLibraryWindow {
 
                         // Rows
                         for key in &keys {
-                            let inst = app
-                                .spectrum_manager
+                            let inst = spectrum_manager
                                 .generic_instrument_library
                                 .get(key)
                                 .and_then(|i| i.as_generic());
@@ -1828,6 +1856,132 @@ mod tests {
         assert_eq!(format_duration(65.0), "01:05");
         assert_eq!(format_duration(3600.0), "01:00:00");
         assert_eq!(format_duration(3665.0), "01:01:05");
+    }
+
+    #[test]
+    fn test_kittest_data_library_tabs_selection_and_delete() {
+        use egui_kittest::Harness;
+        use egui_kittest::kittest::Queryable;
+
+        use crate::containers::Spectrum;
+        use crate::gui::ColorScheme;
+        use crate::utils::{N42Writer, WriteOptions};
+
+        let dir = std::env::temp_dir().join("luracs_data_lib_ui_test");
+        drop(std::fs::remove_dir_all(&dir));
+        let spec_dir = dir.join("spectrum_library");
+        std::fs::create_dir_all(&spec_dir).unwrap();
+
+        let spec = Spectrum::new(64, "LibSpec");
+        let spec_path = spec_dir.join("LibSpec.xml");
+        N42Writer::new(&spec, &spec_path, WriteOptions::default())
+            .unwrap()
+            .write_out()
+            .unwrap();
+
+        let mut file_index = FileIndex::new(
+            &dir,
+            Box::new(|_| Err("n/a".into())),
+            Box::new(|_| Err("n/a".into())),
+            Box::new(|_| Err("n/a".into())),
+            Box::new(|_| Err("n/a".into())),
+        );
+        file_index.run_index_all();
+
+        let mut sm = SpectrumManager::new(
+            ColorScheme::default(),
+            dir.clone(),
+            Path::new("resources/nuclide_data"),
+        )
+        .unwrap();
+        let tmpl = GenericInstrument {
+            model: "GenX".into(),
+            manufacturer: "MfrY".into(),
+            ..Default::default()
+        };
+        sm.generic_instrument_library
+            .set_raw("GenX", Instrument::Generic(tmpl.clone()))
+            .unwrap();
+        sm.unique_instrument_library
+            .set_raw(
+                "MyDet",
+                Instrument::Unique(UniqueInstrument::from_template("MyDet", &tmpl)),
+            )
+            .unwrap();
+
+        struct State {
+            win: DataLibraryWindow,
+            file_index: FileIndex,
+            sm: SpectrumManager,
+            quick: Option<QuickLoad>,
+        }
+        let mut win = DataLibraryWindow::new();
+        win.open();
+
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(820.0, 520.0))
+            .with_accessibility_check(false)
+            .build_ui_state(
+                |ui, st: &mut State| {
+                    ui.ctx()
+                        .set_missing_glyph_policy(egui::epaint::text::MissingGlyphPolicy::Tofu);
+                    let q = st.win.render_tabs_table(&st.file_index, &st.sm, ui);
+                    if q.is_some() {
+                        st.quick = q;
+                    }
+                },
+                State {
+                    win,
+                    file_index,
+                    sm,
+                    quick: None,
+                },
+            );
+        harness.run();
+
+        // Tab 1: Spectrum Library -> select row
+        harness.get_by_label("LibSpec").click();
+        harness.run();
+        assert_eq!(harness.state().win.selected_spectrums.len(), 1);
+        harness.state_mut().win.initiate_delete();
+        assert!(harness.state().win.has_open_modal());
+        harness.state_mut().win.pending_delete = None;
+
+        // Tab 2 & Tab 3
+        harness.get_by_label("Spectrogram Library").click();
+        harness.run();
+        assert_eq!(
+            harness.state().win.active_tab,
+            DataLibraryTab::Spectrogram
+        );
+
+        harness.get_by_label("ROI Library").click();
+        harness.run();
+        assert_eq!(harness.state().win.active_tab, DataLibraryTab::Roi);
+
+        // Tab 4: Unique Instruments -> select "MyDet"
+        harness.get_by_label("Instruments").click();
+        harness.run();
+        assert_eq!(
+            harness.state().win.active_tab,
+            DataLibraryTab::UniqueInstruments
+        );
+        harness.get_by_label("MyDet").click();
+        harness.run();
+        assert_eq!(harness.state().win.selected_unique_instruments.len(), 1);
+
+        // Tab 5: Generic Instruments -> select "GenX"
+        harness.get_by_label("Generic Instruments").click();
+        harness.run();
+        assert_eq!(
+            harness.state().win.active_tab,
+            DataLibraryTab::GenericInstruments
+        );
+        harness.get_by_label("GenX").click();
+        harness.run();
+        assert_eq!(harness.state().win.selected_generic_instruments.len(), 1);
+
+        drop(std::fs::remove_dir_all(&dir));
     }
 }
 

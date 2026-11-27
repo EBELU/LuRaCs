@@ -453,7 +453,7 @@ pub struct EfficiencyWindow {
     fit_params: Vec<f64>,
     fit_uncerts: Vec<f64>,
     status_msg: String,
-    plot: Plot1D,
+    plot: Option<Plot1D>,
     import_slot: crate::gui::PendingFileSlot<Option<std::path::PathBuf>>,
     export_slot: crate::gui::PendingFileSlot<Option<std::path::PathBuf>>,
 }
@@ -464,11 +464,22 @@ impl EfficiencyWindow {
         let mut plot = Plot1D::new(render_state, 0x3001);
         plot.set_graph_x_label("Energy [keV]");
         plot.set_graph_y_label("Intrinsic Efficiency", YAxis::Left);
+        Self::with_plot(Some(plot))
+    }
+
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn new_headless() -> Self {
+        Self::with_plot(None)
+    }
+
+    fn with_plot(plot: Option<Plot1D>) -> Self {
+        let default_src = EfficiencySource::default();
         Self {
             open: false,
-            sources: vec![EfficiencySource::default()],
+            sources: vec![default_src.clone()],
             selected_source: Some(0),
-            draft: Some(SourceUiDraft::from_source(&EfficiencySource::default())),
+            draft: Some(SourceUiDraft::from_source(&default_src)),
             selected_peaks: HashSet::new(),
             selected_instrument: String::new(),
             detector_area_cm2: 1.0,
@@ -490,7 +501,9 @@ impl EfficiencyWindow {
     }
 
     pub fn retheme(&mut self, colors: &crate::theme_manager::ResolvedPlotColors) {
-        colors.apply_to(&mut self.plot);
+        if let Some(plot) = &mut self.plot {
+            colors.apply_to(plot);
+        }
     }
 
     fn collect_peaks(&self, spectrum_manager: &SpectrumManager) -> Vec<PeakRow> {
@@ -629,7 +642,10 @@ impl EfficiencyWindow {
     }
 
     fn rebuild_plot(&mut self) {
-        self.plot.clear();
+        let Some(plot) = &mut self.plot else {
+            return;
+        };
+        plot.clear();
         if self.energies.is_empty() {
             return;
         }
@@ -639,7 +655,7 @@ impl EfficiencyWindow {
         for (&x, &y) in self.energies.iter().zip(ys.iter()) {
             let mut m = Marker::point(x, y);
             m.color = Color32::from_rgb(80, 200, 255);
-            self.plot.add_marker_data(&m);
+            plot.add_marker_data(&m);
         }
 
         if self.fit_params.len() == 4 {
@@ -653,10 +669,9 @@ impl EfficiencyWindow {
                 .iter()
                 .map(|&e| eval_fn(e, &self.fit_params).unwrap_or(0.0))
                 .collect();
-            self.plot
-                .add_curve(&xs, &fy, Color32::from_rgb(255, 200, 60));
+            plot.add_curve(&xs, &fy, Color32::from_rgb(255, 200, 60));
         }
-        self.plot.set_auto_reset_zoom(true);
+        plot.set_auto_reset_zoom(true);
     }
 
     fn assign_to_instruments(
@@ -766,6 +781,27 @@ impl EfficiencyWindow {
             return;
         }
 
+        let mut close_requested = false;
+        let viewport_id = egui::ViewportId::from_hash_of("efficiency_window");
+        let builder = egui::ViewportBuilder::default()
+            .with_title("Efficiency Window")
+            .with_inner_size([1020.0, 640.0])
+            .with_resizable(false);
+
+        ui.ctx()
+            .show_viewport_immediate(viewport_id, builder, |ui, _class| {
+                if ui.input(|i| i.viewport().close_requested()) {
+                    close_requested = true;
+                }
+                egui::CentralPanel::default().show(ui, |ui| {
+                    self.render_contents(ui, spectrum_manager);
+                });
+            });
+
+        self.open = !close_requested;
+    }
+
+    pub fn render_contents(&mut self, ui: &mut egui::Ui, spectrum_manager: &mut SpectrumManager) {
         let peaks = self.collect_peaks(spectrum_manager);
         let nuclides = spectrum_manager.nuclide_library.sorted_nuclide_names(false);
         let spectra: Vec<String> = std::iter::once("None".to_string())
@@ -812,24 +848,11 @@ impl EfficiencyWindow {
             }
         }
 
-        let mut close_requested = false;
         let mut do_calc = false;
         let mut do_assign_one = false;
         let mut do_assign_model = false;
 
-        let viewport_id = egui::ViewportId::from_hash_of("efficiency_window");
-        let builder = egui::ViewportBuilder::default()
-            .with_title("Efficiency Window")
-            .with_inner_size([1020.0, 640.0])
-            .with_resizable(false);
-
-        ui.ctx()
-            .show_viewport_immediate(viewport_id, builder, |ui, _class| {
-                if ui.input(|i| i.viewport().close_requested()) {
-                    close_requested = true;
-                }
-                egui::CentralPanel::default().show(ui, |ui| {
-                    ui.label("Peaks:");
+        ui.label("Peaks:");
                 egui::ScrollArea::vertical()
                     .id_salt("eff_peaks_scroll")
                     .max_height(130.0)
@@ -1069,10 +1092,10 @@ impl EfficiencyWindow {
                 });
 
                 ui.allocate_ui(egui::vec2(ui.available_width(), 200.0), |ui| {
-                    self.plot.show(ui);
+                    if let Some(plot) = &mut self.plot {
+                        plot.show(ui);
+                    }
                 });
-                });
-            });
 
         if do_calc {
             self.calculate(&peaks);
@@ -1083,22 +1106,132 @@ impl EfficiencyWindow {
         if do_assign_model {
             self.assign_to_instruments(spectrum_manager, true);
         }
-        self.open = !close_requested;
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+
+    use egui_kittest::Harness;
+    use egui_kittest::kittest::Queryable;
+    use ndarray::Array1;
+
     use super::*;
+    use crate::ForegroundInput;
+    use crate::containers::{BkgType, Emission, FitType, Roi, SpectrumData};
+    use crate::gui::ColorScheme;
+
+    fn make_nuclide_roi(tag: &str, alias: &str, energy_kev: f64, counts: f64) -> Roi {
+        let q_e = Quantity::new_scalar(energy_kev, 0.5, dimensionless(), None, None);
+        let q_i = Quantity::new_scalar(85.0, 1.0, dimensionless(), None, None);
+        let em = Emission {
+            parent_nuclide: Some("Cs-137".parse().unwrap()),
+            energy_kev: Some(q_e),
+            intensity_percent: Some(q_i),
+            r#type: None,
+            origin: None,
+        };
+        Roi {
+            tag: tag.to_string(),
+            alias: alias.to_string(),
+            spectrum: "spec_a".to_string(),
+            roi_bound: (0.0, 10.0),
+            region_bound: (0.0, 10.0),
+            fit_type: FitType::Gaussian,
+            bkg_type: BkgType::Linear,
+            bkg_est_channels: 3,
+            fit: None,
+            roi_counts: counts,
+            live_time: 100.0,
+            emission: Some(em),
+            meta: serde_json::Map::new(),
+            merge: false,
+            movable: true,
+            poisson_weights: true,
+            owner_spectrum: None,
+        }
+    }
+
+    fn make_spectrum_manager_with_peaks() -> SpectrumManager {
+        let dir = std::env::temp_dir().join("luracs_eff_win_sm");
+        drop(std::fs::create_dir_all(&dir));
+        let mut sm = SpectrumManager::new(
+            ColorScheme::default(),
+            dir,
+            Path::new("resources/nuclide_data"),
+        )
+        .unwrap();
+        sm.create_spectrum("spec_a", 128, None, false).unwrap();
+        sm.set_foreground_spectrum(
+            "spec_a",
+            ForegroundInput::Raw(SpectrumData {
+                y_axis: Array1::from_vec(vec![10.0; 128]),
+                channels: 128,
+                total_counts: 1280,
+                live_time: 100.0,
+                real_time: Some(100.0),
+                avg_dose_rate: None,
+                avg_cps: None,
+                start_date: None,
+                end_date: None,
+                spectrum_name: None,
+                instrument: None,
+            }),
+        )
+        .unwrap();
+        let rois: Vec<Roi> = [
+            (122.0, 5000.0),
+            (344.0, 3200.0),
+            (661.7, 1800.0),
+            (1173.2, 950.0),
+        ]
+        .iter()
+        .enumerate()
+        .map(|(i, (e, c))| make_nuclide_roi(&format!("roi_{i}"), &format!("Peak {i}"), *e, *c))
+        .collect();
+        sm.roi_manager.load_rois(&rois);
+        sm
+    }
+
+    #[test]
+    fn test_units_and_formatting() {
+        assert_eq!(TimeUnit::ALL.len(), 7);
+        assert_eq!(TimeUnit::Min.label(), "min");
+        assert!((TimeUnit::H.seconds() - 3600.0).abs() < 1e-9);
+        assert_eq!(ActivityUnit::ALL.len(), 9);
+        assert_eq!(ActivityUnit::KBq.label(), "kBq");
+        assert!((ActivityUnit::Ci.bq() - 3.7e10).abs() < 1e-6);
+
+        assert_eq!(format_duration_unit(0.0), (0.0, TimeUnit::S));
+        assert_eq!(format_duration_unit(120.0), (2.0, TimeUnit::Min));
+        assert_eq!(format_duration_unit(1e-7).1, TimeUnit::Us);
+
+        assert_eq!(format_activity_unit(0.0, 0.0), (0.0, 0.0, ActivityUnit::Bq));
+        assert_eq!(format_activity_unit(2_000.0, 100.0), (2.0, 0.1, ActivityUnit::KBq));
+        assert_eq!(format_activity_unit(0.5, 0.05), (0.5, 0.05, ActivityUnit::Bq));
+
+        assert!(parse_datetime_utc("2025-01-01T12:00:00Z").is_some());
+        assert!(parse_datetime_utc("2025-01-01 12:00:00").is_some());
+        assert!(parse_datetime_utc("invalid").is_none());
+    }
 
     #[test]
     fn test_decay_and_efficiency_math() {
         let (a_half, _) = decay_corrected_activity(1000.0, 50.0, 100.0, 100.0);
         assert!((a_half - 500.0).abs() < 1e-6);
+        assert_eq!(decay_corrected_activity(1000.0, 50.0, 0.0, 100.0), (1000.0, 50.0));
 
         let (decays, _) = number_of_decays(1000.0, 10.0, 100.0, 100.0);
         let expected = 1000.0 * (100.0 / LN_2) * 0.5;
         assert!((decays - expected).abs() < 1e-6);
+        assert_eq!(number_of_decays(1000.0, 10.0, 100.0, 0.0), (0.0, 0.0));
+        assert_eq!(number_of_decays(1000.0, 10.0, -1.0, 5.0), (5000.0, 50.0));
+
+        assert_eq!(compute_solid_angle(1.0, 0.1, 0.0, 0.1), (0.0, 0.0));
+        let (om, om_u) = compute_solid_angle(4.0 * PI * 100.0, 0.0, 10.0, 0.0);
+        assert!((om - 1.0).abs() < 1e-9);
+        assert!(om_u.abs() < 1e-9);
 
         let src = EfficiencySource {
             half_life_s: 1e12,
@@ -1112,6 +1245,19 @@ mod tests {
         let (eff, unc) =
             compute_point_efficiency(&src, 4.0 * PI * 100.0, 0.0, 50.0, 5.0, 1.0, 0.0).unwrap();
         assert!(eff > 0.0 && unc > 0.0);
+
+        assert!(compute_point_efficiency(&src, 1.0, 0.0, 50.0, 5.0, 0.0, 0.0).is_err());
+
+        let mut manual_src = EfficiencySource {
+            measurement_decay_compensate: true,
+            manual_solid_angle: true,
+            solid_angle: 0.0,
+            ..src
+        };
+        assert!(compute_point_efficiency(&manual_src, 1.0, 0.0, 50.0, 5.0, 1.0, 0.0).is_err());
+        manual_src.solid_angle = 0.05;
+        manual_src.solid_angle_uncert = 0.001;
+        assert!(compute_point_efficiency(&manual_src, 1.0, 0.0, 50.0, 5.0, 1.0, 0.0).is_ok());
     }
 
     #[test]
@@ -1122,5 +1268,156 @@ mod tests {
         assert_eq!(back.len(), 1);
         assert_eq!(back[0].name, src.name);
         assert_eq!(back[0].nuclide, src.nuclide);
+    }
+
+    #[test]
+    fn test_kittest_closed_render_is_noop() {
+        let mut win = EfficiencyWindow::new_headless();
+        let dir = std::env::temp_dir().join("luracs_eff_win_closed");
+        drop(std::fs::create_dir_all(&dir));
+        let mut sm = SpectrumManager::new(
+            ColorScheme::default(),
+            dir,
+            Path::new("resources/nuclide_data"),
+        )
+        .unwrap();
+        let mut harness = Harness::builder().build_ui(|ui| {
+            win.render(ui, &mut sm);
+        });
+        harness.run();
+        drop(harness);
+        assert!(!win.open);
+    }
+
+    #[test]
+    fn test_kittest_sources_calculate_and_assign() {
+        struct State {
+            win: EfficiencyWindow,
+            sm: SpectrumManager,
+        }
+        let mut win = EfficiencyWindow::new_headless();
+        win.open();
+        let sm = make_spectrum_manager_with_peaks();
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(1020.0, 640.0))
+            .with_accessibility_check(false)
+            .build_ui_state(
+                |ui, state: &mut State| {
+                    ui.ctx()
+                        .set_missing_glyph_policy(egui::epaint::text::MissingGlyphPolicy::Tofu);
+                    state.win.render_contents(ui, &mut state.sm);
+                },
+                State { win, sm },
+            );
+        harness.run();
+
+        // Add and remove a source via UI buttons.
+        harness.get_by_label("Add Source").click();
+        harness.run();
+        assert_eq!(harness.state().win.sources.len(), 2);
+        assert_eq!(harness.state().win.selected_source, Some(1));
+
+        harness.get_by_label("Source 1").click();
+        harness.run();
+        assert_eq!(harness.state().win.selected_source, Some(0));
+
+        harness.get_by_label("Source 2").click();
+        harness.run();
+        harness.get_by_label("Remove Source").click();
+        harness.run();
+        assert_eq!(harness.state().win.sources.len(), 1);
+
+        // Toggle options and try assigning before fit.
+        harness.get_by_label("Decay Compensate").click();
+        harness.get_by_label("Manual Ω").click();
+        harness.get_by_label("Weighted Fit").click();
+        harness.get_by_label("Assign to Instrument").click();
+        harness.run();
+        assert_eq!(
+            harness.state().win.status_msg,
+            "Calculate a valid 4-parameter fit first."
+        );
+
+        // Reset Decay Compensate = false / Manual Ω = false by toggling back, select 2 peaks -> < 4 points msg.
+        harness.get_by_label("Decay Compensate").click();
+        harness.get_by_label("Manual Ω").click();
+        harness.state_mut().win.selected_peaks.insert("roi_0".into());
+        harness.state_mut().win.selected_peaks.insert("roi_1".into());
+        harness.get_by_label("Calculate").click();
+        harness.run();
+        assert!(harness
+            .state()
+            .win
+            .status_msg
+            .contains("need >= 4 points"));
+
+        // Select all 4 peaks and calculate -> 4-parameter fit runs.
+        let nuclide_str = harness
+            .state()
+            .sm
+            .roi_manager
+            .get_roi("roi_0")
+            .and_then(|r| r.emission.as_ref())
+            .and_then(|e| e.parent_nuclide)
+            .map(|n| n.to_string())
+            .unwrap();
+        harness.state_mut().win.sources[0].nuclide = nuclide_str;
+        harness.state_mut().win.sources[0].ref_activity_bq = 3.7e7;
+        harness.state_mut().win.draft = Some(SourceUiDraft::from_source(
+            &harness.state().win.sources[0],
+        ));
+        harness.state_mut().win.selected_peaks.insert("roi_2".into());
+        harness.state_mut().win.selected_peaks.insert("roi_3".into());
+        harness.get_by_label("Calculate").click();
+        harness.run();
+        assert_eq!(
+            harness.state().win.energies.len(),
+            4,
+            "status: {}",
+            harness.state().win.status_msg
+        );
+        assert_eq!(
+            harness.state().win.fit_params.len(),
+            4,
+            "status: {}",
+            harness.state().win.status_msg
+        );
+        assert!(harness.state().win.status_msg.contains("Fitted 4 points"));
+
+        // Assign to one instrument and all of model.
+        harness.get_by_label("Assign to Instrument").click();
+        harness.run();
+        assert!(harness
+            .state()
+            .win
+            .status_msg
+            .contains("Assigned efficiency curve to"));
+        harness.get_by_label("Assign to All of Model").click();
+        harness.run();
+        assert!(harness
+            .state()
+            .win
+            .status_msg
+            .contains("Assigned efficiency curve to"));
+
+        // Test JSON export/import slots.
+        let tmp = std::env::temp_dir().join("luracs_eff_win_test.json");
+        drop(std::fs::remove_file(&tmp));
+        harness
+            .state_mut()
+            .win
+            .export_slot
+            .set_ready_for_test(Some(tmp.clone()));
+        harness.run();
+        assert!(harness.state().win.status_msg.contains("Saved"));
+
+        harness
+            .state_mut()
+            .win
+            .import_slot
+            .set_ready_for_test(Some(tmp.clone()));
+        harness.run();
+        assert!(harness.state().win.status_msg.contains("Loaded sources"));
+        drop(std::fs::remove_file(&tmp));
     }
 }

@@ -880,3 +880,126 @@ fn run_mlem_worker(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::containers::{Spectrum, SpectrumData};
+    use egui_kittest::kittest::Queryable;
+    use egui_kittest::Harness;
+
+    #[test]
+    fn test_deconvolution_window_kittest_ui_and_modals() {
+        let mut win = DeconvolutionWindow::new();
+        win.open = true;
+        win.instruments = vec![("inst1".into(), "Inst 1".into())];
+        win.spectra = vec![("spec1".into(), "Spec 1".into())];
+        win.selected_instrument = Some("inst1".into());
+        win.selected_spectrum = Some("spec1".into());
+        win.lists_dirty = false;
+
+        let mut harness = Harness::builder()
+            .with_accessibility_check(false)
+            .build_ui_state(
+                |ui, win: &mut DeconvolutionWindow| {
+                    ui.ctx()
+                        .set_missing_glyph_policy(egui::epaint::text::MissingGlyphPolicy::Tofu);
+                    win.draw_main_ui(ui);
+                    win.draw_modal(ui.ctx());
+                },
+                win,
+            );
+        harness.run();
+
+        // Open Algorithm ComboBox and switch to "Generalized Richardson-Lucy"
+        harness
+            .query_all_by_role(egui::accesskit::Role::ComboBox)
+            .next()
+            .unwrap()
+            .click();
+        harness.run();
+        harness.get_by_label("Generalized Richardson-Lucy").click();
+        harness.run();
+        assert!(matches!(harness.state().algorithm, Algorithm::Rl));
+
+        // Switch back to ML-EM
+        harness
+            .query_all_by_role(egui::accesskit::Role::ComboBox)
+            .next()
+            .unwrap()
+            .click();
+        harness.run();
+        harness.get_by_label("ML-EM").click();
+        harness.run();
+        assert!(matches!(harness.state().algorithm, Algorithm::Mlem));
+
+        // Click Calculate -> sets calculate_requested
+        harness.get_by_label("Calculate").click();
+        harness.run();
+        assert!(harness.state().calculate_requested);
+
+        // Error modal -> OK clears error_message
+        harness.state_mut().set_error("bad input");
+        harness.run();
+        assert!(harness.query_by_label("bad input").is_some());
+        harness.get_by_label("OK").click();
+        harness.run();
+        assert!(harness.state().error_message.is_none());
+
+        // Confirmation modal -> Yes sets confirmed_algorithm
+        harness.state_mut().pending_confirmation = Some(PendingConfirmation {
+            algorithm: Algorithm::Rl,
+            channels: 4096,
+        });
+        harness.run();
+        harness.get_by_label("Yes").click();
+        harness.run();
+        assert!(matches!(
+            harness.state().confirmed_algorithm,
+            Some(Algorithm::Rl)
+        ));
+
+        // Confirmation modal -> No clears without setting confirmed_algorithm
+        harness.state_mut().confirmed_algorithm = None;
+        harness.state_mut().pending_confirmation = Some(PendingConfirmation {
+            algorithm: Algorithm::Mlem,
+            channels: 4096,
+        });
+        harness.run();
+        harness.get_by_label("No").click();
+        harness.run();
+        assert!(harness.state().confirmed_algorithm.is_none());
+    }
+
+    #[test]
+    fn test_deconvolution_workers_and_helpers() {
+        let mut spec = Spectrum::new(32, "D");
+        spec.set_foreground(
+            SpectrumData {
+                y_axis: Array1::from_elem(32, 10.0),
+                channels: 32,
+                total_counts: 320,
+                live_time: 10.0,
+                real_time: None,
+                avg_dose_rate: None,
+                avg_cps: None,
+                start_date: None,
+                end_date: None,
+                spectrum_name: None,
+                instrument: None,
+            },
+            None,
+        );
+        assert_eq!(effective_y_axis(&spec, false).len(), 32);
+        assert_eq!(effective_y_axis(&spec, true).len(), 32);
+
+        assert!(load_response_npz("/nonexistent/deconv_matrix.npz").is_err());
+
+        let (tx, rx) = std::sync::mpsc::channel();
+        let x = Array1::from_iter((0..32).map(|i| i as f64 * 10.0));
+        let y = Array1::from_elem(32, 5.0);
+        run_rl_worker(tx, x, y, 1.0, 2);
+        let events: Vec<Event> = rx.try_iter().collect();
+        assert!(events.iter().any(|e| matches!(e, Event::Done(_))));
+    }
+}
