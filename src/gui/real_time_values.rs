@@ -79,6 +79,11 @@ impl RealTimeValuesTab {
         colors.apply_to(&mut self.dr_plot);
     }
 
+    pub fn set_color_scheme(&mut self, scheme: ColorScheme) {
+        self.color_rotator = ColorRotator::new(scheme);
+        self.colors.clear();
+    }
+
     // -----------------------------------------------------------------------
     // Event hooks (called from App::handle_run_manager_event)
     // -----------------------------------------------------------------------

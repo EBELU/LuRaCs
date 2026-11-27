@@ -10,8 +10,6 @@
 //!   Si-mode uses `EnterSiMode` / `ExitSiMode`, which route through
 //!   `App::set_si_mode` so the tab switch happens too.
 //! - **Info dialogs** go through `modals` (`InfoModal`).
-//! - **Windows** open via `StubWindow::open()` for now; each becomes a real
-//!   window once its Python source is ported.
 //! - **Settings toggles** write to `settings.temp.*` (cursor emissions, ROI
 //!   labels) so they persist, and to `App::view_*` for the two that don't.
 //!
@@ -452,12 +450,11 @@ fn gamma_tools_menu(app: &mut LuRaCsApp, ui: &mut egui::Ui) {
 // Tools
 // ===========================================================================
 
-fn tools_menu(app: &LuRaCsApp, ui: &mut egui::Ui) {
+fn tools_menu(app: &mut LuRaCsApp, ui: &mut egui::Ui) {
     ui.menu_button("Tools", |ui| {
         if ui.button("Add Calc ROI").clicked() {
-            // TODO: route into SpectrogramScreen once that tab is ported.
-            // Python: `spectrogram_roi_tab.plot_container.add_calc_roi`.
-            tracing::info!("Add Calc ROI not yet ported");
+            app.spectrogram_roi_tab.add_calc_roi();
+            app.bottom_tab = crate::app::BottomTab::SpectrogramRois;
         }
     });
 }
