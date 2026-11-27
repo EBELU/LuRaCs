@@ -75,7 +75,7 @@ impl DocumentationWindow {
         let builder = egui::ViewportBuilder::default()
             .with_title("Documentation")
             .with_inner_size([800.0, 600.0])
-            .with_resizable(true);
+            .with_resizable(false);
 
         ui.ctx()
             .show_viewport_immediate(viewport_id, builder, |ui, _class| {
@@ -184,7 +184,7 @@ impl BibliographyWindow {
         let builder = egui::ViewportBuilder::default()
             .with_title("Bibliography")
             .with_inner_size([800.0, 600.0])
-            .with_resizable(true);
+            .with_resizable(false);
 
         ui.ctx()
             .show_viewport_immediate(viewport_id, builder, |ui, _class| {
