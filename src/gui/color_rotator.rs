@@ -212,3 +212,56 @@ impl ColorRotator {
         self.palette.len()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_color_scheme_and_rotator() {
+        assert_eq!(ColorScheme::default(), ColorScheme::Mpl);
+        for scheme in ColorScheme::ALL {
+            assert_eq!(scheme.to_string(), scheme.as_str());
+            assert_eq!(scheme.as_str().parse::<ColorScheme>().unwrap(), *scheme);
+            assert!(!scheme.palette().is_empty());
+        }
+        assert_eq!("matplotlib".parse::<ColorScheme>().unwrap(), ColorScheme::Mpl);
+        assert_eq!(
+            "libreoffice".parse::<ColorScheme>().unwrap(),
+            ColorScheme::LibreOffice
+        );
+        assert_eq!(
+            "catppuccin-latte".parse::<ColorScheme>().unwrap(),
+            ColorScheme::Catppuccin
+        );
+        assert!("unknown".parse::<ColorScheme>().is_err());
+
+        // Hue shift (positive, negative, achromatic)
+        let red = Color32::from_rgb(255, 0, 0);
+        assert_ne!(shift_hue(red, 120.0), red);
+        assert_ne!(shift_hue(red, -60.0), red);
+        let gray = Color32::from_rgb(128, 128, 128);
+        assert_eq!(shift_hue(gray, 90.0), gray);
+
+        // ColorRotator lifecycle
+        static CUSTOM: [Color32; 2] = [Color32::RED, Color32::BLUE];
+        let mut custom = ColorRotator::from_palette(&CUSTOM, 1.5);
+        assert_eq!(custom.palette_len(), 2);
+        assert_eq!(custom.index(), 0);
+        assert_eq!(custom.next_color(), Color32::RED);
+        assert_eq!(custom.next_color(), Color32::BLUE);
+        assert_eq!(custom.next_color(), Color32::RED); // wraps around
+        assert_eq!(custom.index(), 3);
+        custom.reset();
+        assert_eq!(custom.index(), 0);
+
+        let mut rot = ColorRotator::new(ColorScheme::Catppuccin).with_width(3.0);
+        let s1 = rot.next_stroke(None);
+        assert!((s1.width - 3.0).abs() < 1e-6);
+        let s2 = rot.next_stroke(Some(5.0));
+        assert!((s2.width - 5.0).abs() < 1e-6);
+
+        let (c1, c2) = rot.get_color_pair();
+        assert_ne!(c1, c2);
+    }
+}

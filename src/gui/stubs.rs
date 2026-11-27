@@ -65,3 +65,29 @@ impl StubWindow {
             });
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use egui_kittest::kittest::Queryable;
+    use egui_kittest::Harness;
+
+    #[test]
+    fn test_stub_and_stub_window_render() {
+        let mut harness = Harness::new_ui_state(
+            |ui, (stub, win): &mut (Stub, StubWindow)| {
+                stub.render(ui);
+                win.render(ui);
+            },
+            (Stub::new("PanelA"), StubWindow::new("WinB")),
+        );
+
+        harness.run();
+        assert!(harness.query_by_label("PanelA — not yet ported").is_some());
+        assert!(!harness.state().1.open);
+
+        harness.state_mut().1.open();
+        assert!(harness.state().1.open);
+        harness.run();
+    }
+}
