@@ -1011,7 +1011,7 @@ mod tests {
             Spectrogram::open(
                 "bad",
                 &dir,
-                cfg.clone(),
+                cfg,
                 SpectrogramMode::New {
                     save_interval: 1.0,
                     spect_channels: 4,
@@ -1027,7 +1027,7 @@ mod tests {
         let mut sp = Spectrogram::open(
             "sg_test",
             &dir,
-            cfg.clone(),
+            cfg,
             SpectrogramMode::New {
                 save_interval: 1.0,
                 spect_channels: 4,
@@ -1134,7 +1134,7 @@ mod tests {
         let mut sp2 = Spectrogram::open(
             "sg_test",
             &dir,
-            cfg.clone(),
+            cfg,
             SpectrogramMode::New {
                 save_interval: 1.0,
                 spect_channels: 4,

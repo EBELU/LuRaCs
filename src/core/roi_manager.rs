@@ -911,7 +911,7 @@ mod tests {
         let y: Array1<f64> = (0..100)
             .map(|i| {
                 let d = i as f64 - 50.0;
-                10.0 + 300.0 * (-0.5 * d * d / 9.0).exp()
+                300.0f64.mul_add((-0.5 * d * d / 9.0).exp(), 10.0)
             })
             .collect();
         let fg = SpectrumData {

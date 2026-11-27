@@ -401,8 +401,8 @@ mod tests {
         for (i, yi) in y2.iter_mut().enumerate() {
             let d1 = i as f64 - 50.0;
             let d2 = i as f64 - 53.0;
-            *yi += 400.0 * (-0.5 * d1 * d1 / 2.0).exp();
-            *yi += 350.0 * (-0.5 * d2 * d2 / 2.0).exp();
+            *yi = 400.0f64.mul_add((-0.5 * d1 * d1 / 2.0).exp(), *yi);
+            *yi = 350.0f64.mul_add((-0.5 * d2 * d2 / 2.0).exp(), *yi);
         }
         drop(find_peaks(&y2, &x2, 5).unwrap());
 
@@ -411,7 +411,7 @@ mod tests {
         let broad: Vec<f64> = (0..120)
             .map(|i| {
                 let d = i as f64 - 60.0;
-                10.0 + 500.0 * (-0.5 * d * d / (25.0 * 25.0)).exp()
+                500.0f64.mul_add((-0.5 * d * d / (25.0 * 25.0)).exp(), 10.0)
             })
             .collect();
         drop(find_peaks(&broad, &x2, 5).unwrap());

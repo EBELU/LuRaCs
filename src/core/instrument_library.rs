@@ -669,7 +669,7 @@ mod tests {
         ));
         crate::utils::N42Writer::new(
             &tmp_spec,
-            &dir.join("inst"),
+            dir.join("inst"),
             crate::utils::WriteOptions {
                 export_spectrum: false,
                 export_rois: false,
@@ -680,7 +680,7 @@ mod tests {
         .unwrap()
         .write_out()
         .unwrap();
-        let p_inst = XmlParser::open(&dir.join("inst.xml"), false).unwrap();
+        let p_inst = XmlParser::open(dir.join("inst.xml"), false).unwrap();
         ulib.set_instrument_from_parser("from_xml", &p_inst).unwrap();
         assert!(matches!(
             glib.set_instrument_from_parser("wrong", &p_inst),

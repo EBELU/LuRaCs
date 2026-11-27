@@ -327,7 +327,7 @@ mod tests {
         tmp_spec.set_instrument(u);
         crate::utils::N42Writer::new(
             &tmp_spec,
-            &ui_dir.join("IdxDet"),
+            ui_dir.join("IdxDet"),
             crate::utils::WriteOptions {
                 export_spectrum: false,
                 export_rois: false,
@@ -340,7 +340,7 @@ mod tests {
         .unwrap();
         crate::utils::N42Writer::new(
             &tmp_spec,
-            &sp_dir.join("IdxSpec"),
+            sp_dir.join("IdxSpec"),
             crate::utils::WriteOptions::default(),
         )
         .unwrap()
