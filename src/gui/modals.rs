@@ -132,20 +132,20 @@ pub enum ConfirmAction {
 
 enum ModalOutcome {
     Pending,
-    Accepted,
+    Accepted(Option<ConfirmAction>),
     Cancelled,
 }
 
 impl ModalKind {
-    fn render(&mut self, app: &mut LuRaCsApp, ui: &egui::Ui) -> ModalOutcome {
+    fn render(&mut self, ui: &egui::Ui) -> ModalOutcome {
         match self {
-            Self::Confirm(c) => render_confirm(c, app, ui),
+            Self::Confirm(c) => render_confirm(c, ui),
             Self::Info(i) => render_info(i, ui),
         }
     }
 }
 
-fn render_confirm(c: &mut ConfirmModal, app: &mut LuRaCsApp, ui: &egui::Ui) -> ModalOutcome {
+fn render_confirm(c: &mut ConfirmModal, ui: &egui::Ui) -> ModalOutcome {
     let mut decision: Option<bool> = None;
 
     egui::Window::new(&c.title)
@@ -166,12 +166,7 @@ fn render_confirm(c: &mut ConfirmModal, app: &mut LuRaCsApp, ui: &egui::Ui) -> M
         });
 
     match decision {
-        Some(true) => {
-            if let Some(action) = c.action.take() {
-                dispatch_action(app, action);
-            }
-            ModalOutcome::Accepted
-        }
+        Some(true) => ModalOutcome::Accepted(c.action.take()),
         Some(false) => ModalOutcome::Cancelled,
         None => ModalOutcome::Pending,
     }
@@ -191,7 +186,7 @@ fn render_info(i: &InfoModal, ui: &egui::Ui) -> ModalOutcome {
             }
         });
     if accepted {
-        ModalOutcome::Accepted
+        ModalOutcome::Accepted(None)
     } else {
         ModalOutcome::Pending
     }
@@ -224,25 +219,25 @@ pub fn has_modal_for(app: &LuRaCsApp, viewport: ViewportId) -> bool {
 /// `ui` closure for each window/viewport. Only the topmost modal for this
 /// viewport is shown; the rest wait in the stack.
 pub fn render_modals_for(app: &mut LuRaCsApp, viewport: ViewportId, ui: &egui::Ui) {
-    // Topmost modal for this viewport
-    let Some(idx) = app.modal_stack.iter().rposition(|m| m.target == viewport) else {
-        return;
-    };
+    if let Some(action) = render_modals_in_stack(&mut app.modal_stack, viewport, ui) {
+        dispatch_action(app, action);
+    }
+}
 
-    // Move the modal out of the stack so `render` can safely `&mut app`
-    // (including pushing new modals via `dispatch_action`).
-    let mut modal = app.modal_stack.remove(idx);
-    let outcome = modal.kind.render(app, ui);
-
-    match outcome {
+fn render_modals_in_stack(
+    stack: &mut Vec<Modal>,
+    viewport: ViewportId,
+    ui: &egui::Ui,
+) -> Option<ConfirmAction> {
+    let idx = stack.iter().rposition(|m| m.target == viewport)?;
+    let mut modal = stack.remove(idx);
+    match modal.kind.render(ui) {
         ModalOutcome::Pending => {
-            // Re-insert at the same position so ordering relative to
-            // modals for other viewports is preserved.
-            app.modal_stack.insert(idx, modal);
+            stack.insert(idx, modal);
+            None
         }
-        ModalOutcome::Accepted | ModalOutcome::Cancelled => {
-            // Modal consumed; dropped.
-        }
+        ModalOutcome::Accepted(action) => action,
+        ModalOutcome::Cancelled => None,
     }
 }
 
@@ -274,5 +269,71 @@ mod tests {
         );
         assert_eq!(deconv_modal.target, deconv_id);
         assert_ne!(deconv_modal.target, settings_id);
+    }
+
+    #[test]
+    fn test_modals_kittest_confirm_cancel_and_info() {
+        use egui_kittest::kittest::Queryable;
+        use egui_kittest::Harness;
+
+        #[derive(Default)]
+        struct State {
+            stack: Vec<Modal>,
+            actions: Vec<ConfirmAction>,
+        }
+
+        let mut harness = Harness::new_ui_state(
+            |ui, st: &mut State| {
+                if let Some(act) = render_modals_in_stack(&mut st.stack, ViewportId::ROOT, ui) {
+                    st.actions.push(act);
+                }
+            },
+            State {
+                stack: vec![
+                    Modal::root(ModalKind::Info(InfoModal::new("InfoTitle", "InfoMsg"))),
+                    Modal::new(
+                        ViewportId::from_hash_of("other"),
+                        ModalKind::Info(InfoModal::new("Other", "KeepMe")),
+                    ),
+                    Modal::root(ModalKind::Confirm(ConfirmModal::new(
+                        "ConfirmCancel",
+                        "CancelMsg",
+                        ConfirmAction::DisconnectAll,
+                    ))),
+                    Modal::root(ModalKind::Confirm(ConfirmModal::new(
+                        "ConfirmOk",
+                        "OkMsg",
+                        ConfirmAction::ResetAllSpectra,
+                    ))),
+                ],
+                actions: Vec::new(),
+            },
+        );
+
+        // Topmost ROOT modal is ConfirmOk
+        harness.run();
+        assert!(harness.query_by_label("OkMsg").is_some());
+        harness.get_by_label("OK").click();
+        harness.run();
+        assert_eq!(harness.state().actions.len(), 1);
+        assert!(matches!(harness.state().actions[0], ConfirmAction::ResetAllSpectra));
+
+        // Next ROOT modal is ConfirmCancel
+        assert!(harness.query_by_label("CancelMsg").is_some());
+        harness.get_by_label("Cancel").click();
+        harness.run();
+        assert_eq!(harness.state().actions.len(), 1); // Cancel does not push action
+
+        // Next ROOT modal is InfoTitle
+        assert!(harness.query_by_label("InfoMsg").is_some());
+        harness.get_by_label("OK").click();
+        harness.run();
+
+        // Only the "other" viewport modal remains
+        assert_eq!(harness.state().stack.len(), 1);
+        assert_eq!(
+            harness.state().stack[0].target,
+            ViewportId::from_hash_of("other")
+        );
     }
 }

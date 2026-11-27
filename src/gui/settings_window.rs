@@ -285,9 +285,17 @@ impl SettingsDialog {
     }
 
     fn render_sections(&mut self, app: &LuRaCsApp, ui: &mut egui::Ui) {
+        self.render_sections_with_registry(app.theme_manager.registry(), ui);
+    }
+
+    fn render_sections_with_registry(
+        &mut self,
+        registry: &crate::theme_manager::ThemeRegistry,
+        ui: &mut egui::Ui,
+    ) {
         // ---- Theme ----
         section(ui, "Theme", |ui| {
-            self.render_theme(app, ui);
+            self.render_theme_with_registry(registry, ui);
         });
 
         // ---- Plotting ----
@@ -331,12 +339,14 @@ impl SettingsDialog {
         });
     }
 
-    fn render_theme(&mut self, app: &LuRaCsApp, ui: &mut egui::Ui) {
+    fn render_theme_with_registry(
+        &mut self,
+        registry: &crate::theme_manager::ThemeRegistry,
+        ui: &mut egui::Ui,
+    ) {
         // Theme picker sourced from the live registry, so user-loaded
         // themes appear here automatically.
-        let label = app
-            .theme_manager
-            .registry()
+        let label = registry
             .get(&self.draft.theme_name)
             .map(|t| t.meta.label().to_string())
             .unwrap_or_else(|| self.draft.theme_name.clone());
@@ -344,7 +354,7 @@ impl SettingsDialog {
         egui::ComboBox::from_label("Theme")
             .selected_text(label)
             .show_ui(ui, |ui| {
-                for theme in app.theme_manager.registry().iter() {
+                for theme in registry.iter() {
                     ui.selectable_value(
                         &mut self.draft.theme_name,
                         theme.meta.name.clone(),
@@ -904,4 +914,73 @@ fn apply_font_size_to_ctx(ctx: &egui::Context, size: u32) {
         .into_iter()
         .collect();
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::settings::{PathOverrides, Paths};
+    use crate::theme_manager::ThemeRegistry;
+    use egui_kittest::kittest::Queryable;
+    use egui_kittest::Harness;
+
+    #[test]
+    fn test_settings_dialog_kittest_sections_and_helpers() {
+        assert_eq!(DrawMode::from_flags(true, false), DrawMode::Pen);
+        assert_eq!(DrawMode::from_flags(false, true), DrawMode::Brush);
+        assert_eq!(DrawMode::from_flags(true, true), DrawMode::Both);
+        assert_eq!(DrawMode::Pen.to_flags(), (true, false));
+        assert_eq!(DrawMode::Brush.to_flags(), (false, true));
+        assert_eq!(DrawMode::Both.to_flags(), (true, true));
+        assert_eq!(color_scheme_label(ColorScheme::Mpl), "Matplotlib");
+        assert_eq!(color_scheme_label(ColorScheme::LibreOffice), "LibreOffice");
+        assert_eq!(color_scheme_label(ColorScheme::Catppuccin), "Catppuccin");
+
+        let dir = std::env::temp_dir().join("luracs_test_settings_dlg");
+        drop(std::fs::remove_dir_all(&dir));
+        std::fs::create_dir_all(&dir).unwrap();
+        let paths = Paths::with_overrides(
+            PathOverrides::new()
+                .base(std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")))
+                .config(dir.join("cfg"))
+                .appdata(dir.join("app"))
+                .last_opened_dir(dir.clone()),
+        )
+        .unwrap();
+        let settings = Settings::builder().paths(paths).build().unwrap();
+        let draft = SettingsDraft::from_settings(&settings);
+        let dlg = SettingsDialog {
+            open: false,
+            draft,
+            close_after_modal: false,
+        };
+
+        let registry = ThemeRegistry::with_builtins();
+
+        let mut harness = Harness::builder()
+            .with_accessibility_check(false)
+            .build_ui_state(
+                |ui, (dlg, reg): &mut (SettingsDialog, ThemeRegistry)| {
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        dlg.render_sections_with_registry(reg, ui);
+                    });
+                },
+                (dlg, registry),
+            );
+        harness.run();
+        assert!(harness.query_all_by_label("Theme").next().is_some());
+        assert!(harness.query_by_label("Plotting").is_some());
+        assert!(harness.query_by_label("Logging").is_some());
+
+        // Toggle DrawMode radio buttons
+        harness.get_by_label("Pen").click();
+        harness.run();
+        assert_eq!(harness.state().0.draft.draw_mode, DrawMode::Pen);
+        harness.get_by_label("Brush").click();
+        harness.run();
+        assert_eq!(harness.state().0.draft.draw_mode, DrawMode::Brush);
+
+        apply_font_size_to_ctx(&harness.ctx, 16);
+        drop(std::fs::remove_dir_all(&dir));
+    }
 }

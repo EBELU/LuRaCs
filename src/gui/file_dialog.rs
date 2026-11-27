@@ -36,6 +36,7 @@ impl FileDialogQueue {
         Self::default()
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn pick_file(
         &mut self,
         ctx: &egui::Context,
@@ -53,6 +54,7 @@ impl FileDialogQueue {
         );
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn pick_files(
         &mut self,
         ctx: &egui::Context,
@@ -70,6 +72,7 @@ impl FileDialogQueue {
         );
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn save_file(
         &mut self,
         ctx: &egui::Context,
@@ -87,6 +90,7 @@ impl FileDialogQueue {
         );
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn pick_folder(
         &mut self,
         ctx: &egui::Context,
@@ -125,10 +129,16 @@ impl FileDialogQueue {
 
     /// Poll all in-flight dialogs and run callbacks for any that finished.
     pub fn poll(app: &mut LuRaCsApp) {
-        if app.file_dialogs.jobs.is_empty() {
-            return;
+        for (cb, res) in app.file_dialogs.drain_completed() {
+            cb(app, res);
         }
-        let jobs = std::mem::take(&mut app.file_dialogs.jobs);
+    }
+
+    fn drain_completed(&mut self) -> Vec<(DialogCallback, DialogResult)> {
+        if self.jobs.is_empty() {
+            return Vec::new();
+        }
+        let jobs = std::mem::take(&mut self.jobs);
         let mut still_pending = Vec::new();
         let mut completed = Vec::new();
 
@@ -140,10 +150,8 @@ impl FileDialogQueue {
             }
         }
 
-        app.file_dialogs.jobs = still_pending;
-        for (cb, res) in completed {
-            cb(app, res);
-        }
+        self.jobs = still_pending;
+        completed
     }
 }
 
@@ -190,5 +198,67 @@ impl<T: Send + 'static> PendingFileSlot<T> {
                 None
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_file_dialog_queue_and_pending_file_slot() {
+        let ctx = egui::Context::default();
+
+        // PendingFileSlot: empty -> pending -> ready -> disconnected
+        let mut slot: PendingFileSlot<i32> = PendingFileSlot::new();
+        assert!(slot.take_ready().is_none());
+
+        let (tx, rx) = mpsc::channel();
+        slot.rx = Some(rx);
+        assert!(slot.take_ready().is_none()); // Empty
+        drop(tx);
+        assert!(slot.take_ready().is_none()); // Disconnected
+
+        slot.spawn(&ctx, || 123);
+        let mut got = None;
+        for _ in 0..50 {
+            if let Some(v) = slot.take_ready() {
+                got = Some(v);
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(got, Some(123));
+
+        // FileDialogQueue: empty, pending, disconnected, and completed
+        let mut queue = FileDialogQueue::new();
+        assert!(queue.drain_completed().is_empty());
+
+        let (tx1, rx1) = mpsc::channel();
+        queue.jobs.push(PendingJob {
+            rx: rx1,
+            on_complete: Box::new(|_, _| {}),
+        });
+        assert!(queue.drain_completed().is_empty()); // Empty stays pending
+        assert_eq!(queue.jobs.len(), 1);
+        drop(tx1);
+        assert!(queue.drain_completed().is_empty()); // Disconnected is dropped
+        assert!(queue.jobs.is_empty());
+
+        queue.spawn(
+            &ctx,
+            || DialogResult::File(Some(PathBuf::from("test.n42"))),
+            |_, _| {},
+        );
+        let mut completed = Vec::new();
+        for _ in 0..50 {
+            completed = queue.drain_completed();
+            if !completed.is_empty() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(completed.len(), 1);
+        assert!(matches!(completed[0].1, DialogResult::File(Some(_))));
     }
 }
