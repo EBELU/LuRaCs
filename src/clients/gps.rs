@@ -477,4 +477,51 @@ mod tests {
         assert!(!gps.is_open());
         assert!(!gps.is_mock());
     }
+
+    #[test]
+    fn test_parse_gps_sentences_and_merge() {
+        let gga = parse_gps("$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47");
+        assert!(gga.valid);
+        assert!(gga.latitude.is_some());
+        assert!(gga.longitude.is_some());
+        assert_eq!(gga.satellites, 8);
+
+        let rmc = parse_gps("$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*6A");
+        assert!(rmc.valid);
+        assert!(rmc.speed.is_some());
+
+        let gsa = parse_gps("$GPGSA,A,3,04,05,,09,12,,,24,,,,,2.5,1.3,2.1*39");
+        assert!(gsa.valid);
+        assert_eq!(gsa.fix_type, 3);
+
+        let gsv = parse_gps("$GPGSV,2,1,08,01,40,083,46,02,17,308,41,12,07,344,39,14,22,228,45*75");
+        assert_eq!(gsv.satellites_in_view, 8);
+
+        let bad = parse_gps("NOT_NMEA\n$GPGGA,short\n$GPRMC,short\n$GPGSA,short\n$GPGSV,1");
+        assert!(!bad.valid);
+
+        let mut state = GpsState::default();
+        state.merge(gga);
+        assert!(state.data.valid);
+        state.merge(rmc);
+        state.merge(gsa);
+        state.merge(gsv);
+        assert_eq!(state.data.satellites_in_view, 8);
+    }
+
+    #[test]
+    fn test_gps_new_mock_poll_and_format() {
+        let mut closed = Gps::new();
+        assert!(!closed.poll());
+        assert_eq!(closed.packets_received(), 0);
+
+        let mut gps = Gps::new_mock();
+        assert!(gps.is_open());
+        assert!(gps.is_mock());
+        let _ = gps.poll();
+        let data = gps.data();
+        let formatted = format_gps(data);
+        assert!(!formatted.is_empty());
+        gps.close();
+    }
 }

@@ -684,3 +684,131 @@ impl DeviceWrapper for DummyDevice {
 // Example registration — call once at app startup.
 //
 // register_device("Dummy", |addr, conn| Ok(Box::new(DummyDevice::new(addr, conn))));
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_device_address_display_name() {
+        let usb_with_serial = DeviceAddress::Usb {
+            vendor_id: 0x1234,
+            product_id: 0x5678,
+            serial: Some("SN001".to_string()),
+        };
+        assert_eq!(usb_with_serial.display_name(), "USB:1234:5678:SN001");
+
+        let usb_no_serial = DeviceAddress::Usb {
+            vendor_id: 0x1234,
+            product_id: 0x5678,
+            serial: None,
+        };
+        assert_eq!(usb_no_serial.display_name(), "USB:1234:5678");
+
+        let ble = DeviceAddress::Ble {
+            name: "RadiaCode-102".to_string(),
+        };
+        assert_eq!(ble.display_name(), "BLE:RadiaCode-102");
+
+        let net = DeviceAddress::Network {
+            host: "127.0.0.1".to_string(),
+            port: 5000,
+        };
+        assert_eq!(net.display_name(), "NET:127.0.0.1:5000");
+
+        let other = DeviceAddress::Other("COM3".to_string());
+        assert_eq!(other.display_name(), "COM3");
+    }
+
+    #[test]
+    fn test_device_state_from_u8_and_poll_config() {
+        assert_eq!(DeviceState::from_u8(0), DeviceState::Uninitialized);
+        assert_eq!(DeviceState::from_u8(1), DeviceState::Connecting);
+        assert_eq!(DeviceState::from_u8(2), DeviceState::Connected);
+        assert_eq!(DeviceState::from_u8(3), DeviceState::ConnectionFailed);
+        assert_eq!(DeviceState::from_u8(4), DeviceState::ConnectionLost);
+        assert_eq!(DeviceState::from_u8(5), DeviceState::Stopping);
+        assert_eq!(DeviceState::from_u8(6), DeviceState::Stopped);
+        assert_eq!(DeviceState::from_u8(7), DeviceState::Error);
+        assert_eq!(DeviceState::from_u8(99), DeviceState::Uninitialized);
+
+        let cfg = PollConfig::default();
+        assert_eq!(cfg.spectrum_interval(), 1);
+        let cfg2 = PollConfig {
+            update_loop_delay: 0.25,
+            spectrum_update_delay: 1.0,
+        };
+        assert_eq!(cfg2.spectrum_interval(), 4);
+    }
+
+    #[test]
+    fn test_registry_and_match_model_to_str() {
+        register_device("TestDummyModel", |addr, conn| {
+            Ok(Box::new(DummyDevice::new(addr, conn)))
+        });
+        let reg = get_registry();
+        assert!(reg.contains_key("TestDummyModel"));
+
+        assert!(match_model_to_str("TestDummyModel").is_some());
+        assert!(match_model_to_str("UnknownModelXYZ").is_none());
+    }
+
+    #[tokio::test]
+    async fn test_dummy_device_and_handle_lifecycle() {
+        let mut dev = DummyDevice::new(
+            DeviceAddress::Other("dummy0".to_string()),
+            ConnectionType::Network,
+        );
+        assert_eq!(dev.type_key(), "Dummy");
+        assert_eq!(dev.name(), "dummy0");
+        assert_eq!(dev.connection(), ConnectionType::Network);
+        assert_eq!(dev.channels(), Some(1024));
+        let _ = dev.connected_timestamp();
+        dev.set_state(DeviceState::Connected);
+        assert_eq!(dev.state(), DeviceState::Connected);
+
+        assert!(dev.start().await.is_ok());
+        assert!(!dev.is_running());
+        assert!(dev.is_stopped());
+
+        assert!(dev.get_realtime_data().await.is_ok());
+        assert!(dev.get_status().await.is_ok());
+        assert!(dev.get_spectrum().await.is_ok());
+        assert!(dev.supported_settings().is_empty());
+        dev.reset_spectrum();
+        assert!(dev.set_calibration(&[0.0, 1.0]).is_err());
+        dev.start_acquisition();
+        dev.stop_acquisition();
+
+        assert!(dev.stop().await.is_ok());
+        assert!(dev.is_stopped());
+
+        let dev2 = DummyDevice::new(
+            DeviceAddress::Other("dummy1".to_string()),
+            ConnectionType::Usb,
+        );
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let settings = Arc::new(RwLock::new(PollConfig {
+            update_loop_delay: 0.01,
+            spectrum_update_delay: 0.01,
+        }));
+        let handle = DeviceHandle::new(Box::new(dev2));
+        assert!(handle.start(tx.clone(), settings.clone()).await.is_ok());
+        // Calling start_polling while already running hits early return.
+        handle.start_polling(tx, settings).await;
+        tokio::time::sleep(Duration::from_millis(35)).await;
+        handle.stop_polling().await;
+        assert!(handle.stop().await.is_ok());
+
+        while let Ok(_ev) = rx.try_recv() {}
+
+        let dev3 = Arc::new(DummyDevice::new(
+            DeviceAddress::Ble {
+                name: "ble0".to_string(),
+            },
+            ConnectionType::Ble,
+        ));
+        let handle_arc = DeviceHandle::new_arc(dev3);
+        assert_eq!(handle_arc.wrapper.connection(), ConnectionType::Ble);
+    }
+}

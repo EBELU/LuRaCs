@@ -204,4 +204,39 @@ mod tests {
         assert_eq!(link.status(), LinkStatus::Connected);
         assert_eq!(link.reconnect_count(), 1);
     }
+
+    #[tokio::test]
+    async fn test_mock_link_recv_and_reconnect_failures_and_close() {
+        let link = MockLink::ble_mock("BLE:ErrTest");
+        assert_eq!(link.name, "BLE:ErrTest");
+
+        link.set_fail_next_recv(Some(LinkError::Disconnected("recv dropped".into())));
+        let err = link.recv(Duration::from_millis(5)).await.unwrap_err();
+        assert_eq!(err, LinkError::Disconnected("recv dropped".into()));
+        assert_eq!(link.status(), LinkStatus::Disconnected);
+
+        // Send and recv while disconnected return Disconnected error.
+        assert!(matches!(
+            link.send(b"x").await,
+            Err(LinkError::Disconnected(_))
+        ));
+        assert!(matches!(
+            link.recv(Duration::from_millis(5)).await,
+            Err(LinkError::Disconnected(_))
+        ));
+
+        // Fail next reconnect
+        link.set_fail_next_reconnect(Some(LinkError::Disconnected("reconn fail".into())));
+        assert!(matches!(
+            link.reconnect().await,
+            Err(LinkError::Disconnected(_))
+        ));
+        assert_eq!(link.status(), LinkStatus::Disconnected);
+
+        // Recover and close
+        link.reconnect().await.unwrap();
+        assert_eq!(link.status(), LinkStatus::Connected);
+        link.close().await.unwrap();
+        assert_eq!(link.status(), LinkStatus::Disconnected);
+    }
 }

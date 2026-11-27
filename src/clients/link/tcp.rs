@@ -112,3 +112,89 @@ impl DeviceLink for TcpLink {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::net::TcpListener;
+
+    #[tokio::test]
+    async fn test_tcp_link_connect_send_recv_reconnect_close() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+
+        let server = tokio::spawn(async move {
+            let (mut sock1, _) = listener.accept().await.unwrap();
+            let mut buf = [0u8; 16];
+            let n = sock1.read(&mut buf).await.unwrap();
+            assert_eq!(&buf[..n], b"ping");
+            sock1.write_all(b"pong").await.unwrap();
+            drop(sock1);
+
+            // Second connection for reconnect()
+            let (mut sock2, _) = listener.accept().await.unwrap();
+            sock2.write_all(b"again").await.unwrap();
+            // Keep open briefly so timeout can be tested, then drop for EOF
+            tokio::time::sleep(Duration::from_millis(80)).await;
+            drop(sock2);
+        });
+
+        let link = TcpLink::connect("127.0.0.1", port).await.unwrap();
+        assert_eq!(link.address_name(), format!("NET:127.0.0.1:{port}"));
+        assert_eq!(link.status(), LinkStatus::Connected);
+        assert!(!link.reconnect_policy().is_reconnectable());
+
+        link.send(b"ping").await.unwrap();
+        let reply = link.recv(Duration::from_secs(1)).await.unwrap();
+        assert_eq!(reply, b"pong");
+
+        // Reconnect and read from second socket
+        link.reconnect().await.unwrap();
+        let reply2 = link.recv(Duration::from_secs(1)).await.unwrap();
+        assert_eq!(reply2, b"again");
+
+        // Timeout before peer closes
+        let err_to = link.recv(Duration::from_millis(10)).await.unwrap_err();
+        assert!(matches!(err_to, LinkError::Timeout(_)));
+
+        // Wait for peer drop -> EOF -> Disconnected
+        tokio::time::sleep(Duration::from_millis(90)).await;
+        let err_eof = link.recv(Duration::from_secs(1)).await.unwrap_err();
+        assert!(matches!(err_eof, LinkError::Disconnected(_)));
+
+        // Close clears stream; subsequent send/recv return Disconnected
+        link.close().await.unwrap();
+        assert!(matches!(
+            link.send(b"x").await.unwrap_err(),
+            LinkError::Disconnected(_)
+        ));
+        assert!(matches!(
+            link.recv(Duration::from_millis(50)).await.unwrap_err(),
+            LinkError::Disconnected(_)
+        ));
+
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_tcp_link_connect_and_reconnect_refused() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        drop(listener);
+
+        let err = TcpLink::connect("127.0.0.1", port).await.err().unwrap();
+        assert!(matches!(err, LinkError::Disconnected(_)));
+
+        // Also exercise reconnect failure when server is gone
+        let listener2 = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port2 = listener2.local_addr().unwrap().port();
+        let accept_task = tokio::spawn(async move {
+            let (_s, _) = listener2.accept().await.unwrap();
+            drop(listener2);
+        });
+        let link = TcpLink::connect("127.0.0.1", port2).await.unwrap();
+        accept_task.await.unwrap();
+        let reconn_err = link.reconnect().await.unwrap_err();
+        assert!(matches!(reconn_err, LinkError::Disconnected(_)));
+    }
+}

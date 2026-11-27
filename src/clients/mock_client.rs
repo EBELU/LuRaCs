@@ -273,3 +273,58 @@ pub fn register_mock_device() {
         Ok(Box::new(MockDevice::new(addr, conn)))
     });
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::clients::get_registry;
+
+    #[tokio::test]
+    async fn test_mock_device_lifecycle_and_telemetry() {
+        register_mock_device();
+        let reg = get_registry();
+        let factory = reg.get("mock").expect("mock factory registered");
+        let dev = factory(
+            DeviceAddress::Ble {
+                name: "MockClient".into(),
+            },
+            ConnectionType::Usb,
+        )
+        .unwrap();
+
+        assert_eq!(dev.type_key(), "mock");
+        assert_eq!(dev.name(), "MockClient");
+        assert_eq!(dev.connection(), ConnectionType::Usb);
+        assert_eq!(dev.channels(), Some(1024));
+        assert_eq!(dev.state(), DeviceState::Uninitialized);
+        dev.set_state(DeviceState::Connected);
+        assert_eq!(dev.state(), DeviceState::Connected);
+        assert!(dev.connected_timestamp() > 0.0);
+        assert!(!dev.is_running());
+        assert!(!dev.is_stopped());
+        assert_eq!(dev.supported_settings(), &MOCK_SUPPORTED);
+
+        dev.start().await.unwrap();
+        assert!(dev.is_running());
+        assert!(!dev.is_stopped());
+
+        let rt = dev.get_realtime_data().await.unwrap();
+        assert!(rt.cps.is_finite());
+        assert!(rt.dr.is_finite());
+
+        let status = dev.get_status().await.unwrap();
+        assert_eq!(status.battery, Some(100));
+        assert!((status.temperature - 22.5).abs() < 1e-6);
+
+        let spec1 = dev.get_spectrum().await.unwrap();
+        assert_eq!(spec1.y_axis.len(), 1024);
+        assert!(spec1.calib_coeff.is_some());
+        let sum1: f64 = spec1.y_axis.sum();
+        let spec2 = dev.get_spectrum().await.unwrap();
+        assert!(spec2.y_axis.sum() >= sum1);
+
+        dev.stop().await.unwrap();
+        assert!(!dev.is_running());
+        assert!(dev.is_stopped());
+    }
+}

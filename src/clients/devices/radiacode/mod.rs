@@ -55,3 +55,19 @@ pub fn open_ble(target_name: impl Into<String>) -> RadiacodeDriver {
 pub fn from_link(link: Arc<dyn DeviceLink>, name: impl Into<String>) -> RadiacodeDriver {
     RadiacodeDriver::new(link, name)
 }
+
+#[cfg(test)]
+mod mod_tests {
+    use super::*;
+    use crate::clients::link::MockLink;
+
+    #[test]
+    fn test_radiacode_from_link_and_open_ble() {
+        let link = Arc::new(MockLink::usb_mock("USB:RC"));
+        let drv = from_link(link, "RC-test");
+        assert_eq!(drv.info().name, "RC-test");
+
+        let ble_drv = open_ble("RadiaCode-102");
+        assert_eq!(ble_drv.info().name, "RadiaCode-102");
+    }
+}

@@ -115,3 +115,75 @@ async fn test_digibase_hv_control() {
     let written = StatusRegister::from_slice(&sent[1][1..]).unwrap();
     assert_eq!(written.lld(), 25);
 }
+
+#[tokio::test]
+async fn test_digibase_driver_controls_status_and_protocol_errors() {
+    use crate::clients::device_wrapper_base::ConnectionType;
+
+    let mock = Arc::new(MockLink::usb_mock("USB:0a2d:000f"));
+    let driver = from_link(mock.clone(), "digiBase-ctrl");
+    assert_eq!(driver.link().address_name(), "USB:0a2d:000f");
+    assert_eq!(driver.info().connection_type, ConnectionType::Usb);
+
+    // StatusRegister::fine_gain & short errors
+    let mut reg = StatusRegister::default();
+    reg.set_fine_gain(1.5).unwrap();
+    let _ = reg.fine_gain();
+    assert!(StatusRegister::from_slice(&[0u8; 4]).is_err());
+    mock.push_incoming(vec![0u8; 8]);
+    assert!(
+        super::protocol::read_spectrum_counts(&*mock, std::time::Duration::from_millis(10))
+            .await
+            .is_err()
+    );
+
+    // read_status -> read_hv_adc_locked (2x write_status ack + 1x read_status)
+    mock.push_incoming(vec![0u8]);
+    mock.push_incoming(vec![0u8]);
+    mock.push_incoming(reg.as_bytes().to_vec());
+    let st = driver.read_status().await.unwrap();
+    assert_eq!(st.connection_type, Some(ConnectionType::Usb));
+
+    // start_acquisition (read_status + write_status), stop_acquisition (read_status + write_status)
+    mock.push_incoming(reg.as_bytes().to_vec());
+    mock.push_incoming(vec![0u8]);
+    driver.start_acquisition().await.unwrap();
+    mock.push_incoming(reg.as_bytes().to_vec());
+    mock.push_incoming(vec![0u8]);
+    driver.stop_acquisition().await.unwrap();
+
+    // reset_spectrum: clear_spectrum (ack), clear_counters_locked (2x write_status acks)
+    mock.push_incoming(vec![0u8]);
+    mock.push_incoming(vec![0u8]);
+    mock.push_incoming(vec![0u8]);
+    driver.reset_spectrum().await.unwrap();
+
+    // on_reconnect: read_status, clear_spectrum, 2x write_status, write_status
+    mock.push_incoming(reg.as_bytes().to_vec());
+    mock.push_incoming(vec![0u8]);
+    mock.push_incoming(vec![0u8]);
+    mock.push_incoming(vec![0u8]);
+    mock.push_incoming(vec![0u8]);
+    driver.on_reconnect().await.unwrap();
+
+    // HV controls: set_hv_enabled(true), set_hv_enabled(false), set_hv, set_uld, set_fine_gain
+    let hv = driver.hv_control().unwrap();
+    for _ in 0..3 {
+        mock.push_incoming(reg.as_bytes().to_vec());
+        mock.push_incoming(vec![0u8]);
+        // reset_spectrum: clear_spectrum + 2x write_status
+        mock.push_incoming(vec![0u8]);
+        mock.push_incoming(vec![0u8]);
+        mock.push_incoming(vec![0u8]);
+    }
+    hv.set_hv_enabled(true).await.unwrap();
+    hv.set_hv_enabled(false).await.unwrap();
+    hv.set_hv(800.0).await.unwrap();
+
+    for _ in 0..2 {
+        mock.push_incoming(reg.as_bytes().to_vec());
+        mock.push_incoming(vec![0u8]);
+    }
+    hv.set_uld(900.0).await.unwrap();
+    hv.set_fine_gain(1.25).await.unwrap();
+}

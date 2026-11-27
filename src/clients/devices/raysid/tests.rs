@@ -176,3 +176,14 @@ async fn test_raysid_driver_stream_integration() {
 
     driver.stop_acquisition().await.unwrap();
 }
+
+#[tokio::test]
+async fn test_raysid_driver_info_link_and_controls() {
+    let mock = Arc::new(MockLink::ble_mock("BLE:RaySID-2"));
+    let driver = from_link(mock.clone(), "RaySID-2");
+    assert_eq!(driver.link().address_name(), "BLE:RaySID-2");
+    assert_eq!(driver.info().model, "RaySID");
+    driver.start_acquisition().await.unwrap();
+    driver.reset_spectrum().await.unwrap();
+    assert!(!mock.sent_packets().is_empty());
+}

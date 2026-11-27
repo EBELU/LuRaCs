@@ -454,4 +454,191 @@ mod tests {
         assert!(has_status);
         assert!(has_spectrum);
     }
+
+    struct ConfigurableDriver {
+        name: String,
+        realtime_err: std::sync::Mutex<Option<DeviceError>>,
+        status_err: std::sync::Mutex<Option<DeviceError>>,
+        spectrum_err: std::sync::Mutex<Option<DeviceError>>,
+        gps_data: Option<crate::clients::gps::GpsData>,
+    }
+
+    #[async_trait]
+    impl DeviceDriver for ConfigurableDriver {
+        fn info(&self) -> DeviceInfo {
+            DeviceInfo {
+                name: self.name.clone(),
+                model: "ConfigModel".into(),
+                channels: 512,
+                connection_type: ConnectionType::Ble,
+                supported_settings: Vec::new(),
+            }
+        }
+
+        async fn read_realtime(&self) -> Result<WrappedRealTimePackage, DeviceError> {
+            let err = self.realtime_err.lock().unwrap().take();
+            if let Some(err) = err {
+                return Err(err);
+            }
+            Ok(WrappedRealTimePackage::default())
+        }
+
+        async fn read_status(&self) -> Result<WrappedStatusPackage, DeviceError> {
+            let err = self.status_err.lock().unwrap().take();
+            if let Some(err) = err {
+                return Err(err);
+            }
+            Ok(WrappedStatusPackage::default())
+        }
+
+        async fn read_spectrum(&self) -> Result<WrappedSpectrumPackage, DeviceError> {
+            let err = self.spectrum_err.lock().unwrap().take();
+            if let Some(err) = err {
+                return Err(err);
+            }
+            Ok(WrappedSpectrumPackage {
+                y_axis: Array1::zeros(512),
+                live_time: 1.0,
+                ..Default::default()
+            })
+        }
+
+        async fn read_gps(&self) -> Option<crate::clients::gps::GpsData> {
+            self.gps_data.clone()
+        }
+    }
+
+    #[tokio::test]
+    async fn test_runner_commands_config_change_and_gps() {
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let config = Arc::new(RwLock::new(PollConfig {
+            update_loop_delay: 0.05,
+            spectrum_update_delay: 0.05,
+        }));
+
+        let driver = Box::new(ConfigurableDriver {
+            name: "CmdDetector".into(),
+            realtime_err: std::sync::Mutex::new(None),
+            status_err: std::sync::Mutex::new(None),
+            spectrum_err: std::sync::Mutex::new(None),
+            gps_data: Some(crate::clients::gps::GpsData::default()),
+        });
+        let link = Box::new(MockLink::ble_mock("BLE:CmdDetector"));
+        let handle = DeviceRunner::spawn(driver, link, tx, config.clone());
+
+        drop(handle.command_tx.send(DeviceCommand::ResetSpectrum).await);
+        drop(handle.command_tx.send(DeviceCommand::StartAcquisition).await);
+        drop(handle.command_tx.send(DeviceCommand::StopAcquisition).await);
+        drop(handle.command_tx.send(DeviceCommand::SetCalibration(vec![0.0, 1.0])).await);
+        tokio::time::sleep(Duration::from_millis(80)).await;
+
+        config.write().unwrap().update_loop_delay = 0.06;
+        tokio::time::sleep(Duration::from_millis(80)).await;
+
+        drop(handle.command_tx.send(DeviceCommand::Stop).await);
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        assert!(handle.is_finished());
+
+        let mut events = Vec::new();
+        while let Ok(ev) = rx.try_recv() {
+            events.push(ev);
+        }
+        assert!(events.iter().any(|ev| matches!(ev, DeviceEvent::GpsUpdated { .. })));
+        assert!(events.iter().any(|ev| matches!(
+            ev,
+            DeviceEvent::DeviceStateUpdated {
+                state: DeviceState::Stopped,
+                ..
+            }
+        )));
+    }
+
+    #[tokio::test]
+    async fn test_runner_reconnect_success_failure_and_unrecoverable() {
+        // 1. Recoverable error -> reconnect succeeds
+        let (tx1, mut rx1) = mpsc::unbounded_channel();
+        let cfg1 = Arc::new(RwLock::new(PollConfig {
+            update_loop_delay: 0.05,
+            spectrum_update_delay: 0.05,
+        }));
+        let drv1 = Box::new(ConfigurableDriver {
+            name: "ReconnOk".into(),
+            realtime_err: std::sync::Mutex::new(Some(DeviceError::Link(
+                crate::clients::link::LinkError::Disconnected("drop".into()),
+            ))),
+            status_err: std::sync::Mutex::new(None),
+            spectrum_err: std::sync::Mutex::new(None),
+            gps_data: None,
+        });
+        let link1 = Box::new(MockLink::ble_mock("BLE:ReconnOk"));
+        let h1 = DeviceRunner::spawn(drv1, link1, tx1, cfg1);
+        tokio::time::sleep(Duration::from_millis(120)).await;
+        h1.stop().await;
+        let mut ev1 = Vec::new();
+        while let Ok(ev) = rx1.try_recv() {
+            ev1.push(ev);
+        }
+        assert!(ev1.iter().any(|ev| matches!(ev, DeviceEvent::Reconnected { .. })));
+
+        // 2. Recoverable error -> reconnect fails -> ConnectionLost
+        let (tx2, mut rx2) = mpsc::unbounded_channel();
+        let cfg2 = Arc::new(RwLock::new(PollConfig {
+            update_loop_delay: 0.05,
+            spectrum_update_delay: 0.05,
+        }));
+        let drv2 = Box::new(ConfigurableDriver {
+            name: "ReconnFail".into(),
+            realtime_err: std::sync::Mutex::new(None),
+            status_err: std::sync::Mutex::new(Some(DeviceError::Link(
+                crate::clients::link::LinkError::Disconnected("drop2".into()),
+            ))),
+            spectrum_err: std::sync::Mutex::new(None),
+            gps_data: None,
+        });
+        let link2 = MockLink::ble_mock("BLE:ReconnFail");
+        link2.set_fail_next_reconnect(Some(crate::clients::link::LinkError::Disconnected("nope".into())));
+        let h2 = DeviceRunner::spawn(drv2, Box::new(link2), tx2, cfg2);
+        tokio::time::sleep(Duration::from_millis(120)).await;
+        assert!(h2.is_finished());
+        let mut ev2 = Vec::new();
+        while let Ok(ev) = rx2.try_recv() {
+            ev2.push(ev);
+        }
+        assert!(ev2.iter().any(|ev| matches!(
+            ev,
+            DeviceEvent::PollFailed {
+                state: DeviceState::ConnectionLost,
+                ..
+            }
+        )));
+
+        // 3. Unrecoverable error in spectrum -> DeviceState::Error + PollFailed
+        let (tx3, mut rx3) = mpsc::unbounded_channel();
+        let cfg3 = Arc::new(RwLock::new(PollConfig {
+            update_loop_delay: 0.05,
+            spectrum_update_delay: 0.05,
+        }));
+        let drv3 = Box::new(ConfigurableDriver {
+            name: "Unrecov".into(),
+            realtime_err: std::sync::Mutex::new(None),
+            status_err: std::sync::Mutex::new(None),
+            spectrum_err: std::sync::Mutex::new(Some(DeviceError::Protocol("bad frame".into()))),
+            gps_data: None,
+        });
+        let link3 = Box::new(MockLink::ble_mock("BLE:Unrecov"));
+        let h3 = DeviceRunner::spawn(drv3, link3, tx3, cfg3);
+        tokio::time::sleep(Duration::from_millis(120)).await;
+        assert!(h3.is_finished());
+        let mut ev3 = Vec::new();
+        while let Ok(ev) = rx3.try_recv() {
+            ev3.push(ev);
+        }
+        assert!(ev3.iter().any(|ev| matches!(
+            ev,
+            DeviceEvent::PollFailed {
+                state: DeviceState::Error,
+                ..
+            }
+        )));
+    }
 }

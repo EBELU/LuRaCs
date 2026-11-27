@@ -247,3 +247,51 @@ async fn test_detective_x_runner_integration() {
     assert!(got_realtime, "expected real-time telemetry from DetectiveX runner");
     handle.abort();
 }
+
+#[tokio::test]
+async fn test_detective_x_http_link_connect_network_and_protocol_errors() {
+    use crate::clients::devices::detective_x::connect_network;
+    use crate::clients::link::{DeviceLink, LinkStatus};
+
+    let status_ok = r#"{"InstrumentStatus":{"Battery":50.0,"CrystalTemperature":273.0,"Coordinates":[0.0,0.0]}}"#;
+    let cal_ok = r#"{"CalibrationType":{"EquationModel":{"Model":"Polynomial","Coefficients":[1.0,0.5]}}}"#;
+    let server = MockHttpServer::start(vec![
+        ("200 OK", status_ok.to_string()),
+        ("200 OK", cal_ok.to_string()),
+        ("200 OK", String::new()),
+        ("200 OK", status_ok.to_string()),
+        ("200 OK", cal_ok.to_string()),
+        ("200 OK", String::new()),
+    ])
+    .await;
+    let drv = connect_network(&server.base_url, false).await.unwrap();
+    assert_eq!(drv.base_url(), server.base_url);
+    drv.on_reconnect().await.unwrap();
+
+    let link = HttpLink::new(&server.base_url);
+    assert_eq!(link.address_name(), format!("NET:{}", server.base_url));
+    assert_eq!(link.status(), LinkStatus::Connected);
+    assert!(!link.reconnect_policy().is_reconnectable());
+    assert!(link.send(b"x").await.is_ok());
+    assert!(link.recv(Duration::from_millis(10)).await.is_ok());
+    assert!(link.reconnect().await.is_ok());
+    assert!(link.close().await.is_ok());
+
+    // Protocol error branches
+    let bad_cal = r#"{"CalibrationType":{"EquationModel":{"Model":"Linear","Coefficients":[1.0]}}}"#;
+    let cal_srv = MockHttpServer::start(vec![("200 OK", bad_cal.to_string())]).await;
+    let cal_drv = DetectiveXDriver::new(&cal_srv.base_url, "DX_err", false).unwrap();
+    assert!(cal_drv.fetch_calibration().await.is_err());
+
+    let missing_gamma = r#"{"Measurement":{"CountDoseData":[]}}"#;
+    let resp1: super::protocol::DoseCountRateResponse = serde_json::from_str(missing_gamma).unwrap();
+    assert!(super::protocol::extract_gamma_current(&resp1).is_err());
+
+    let bad_unit = r#"{"Measurement":{"CountDoseData":[{"DetectorType":"Gamma","Remark":"Current","DoseRate":[],"CountRate":{"unit":"cpm","value":1.0}}]}}"#;
+    let resp2: super::protocol::DoseCountRateResponse = serde_json::from_str(bad_unit).unwrap();
+    assert!(super::protocol::extract_gamma_current(&resp2).is_err());
+
+    let missing_dose = r#"{"Measurement":{"CountDoseData":[{"DetectorType":"Gamma","Remark":"Current","DoseRate":[{"unit":"R/h","value":1.0}],"CountRate":{"unit":"cps","value":1.0}}]}}"#;
+    let resp3: super::protocol::DoseCountRateResponse = serde_json::from_str(missing_dose).unwrap();
+    assert!(super::protocol::extract_gamma_current(&resp3).is_err());
+}

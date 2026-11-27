@@ -27,3 +27,16 @@ pub async fn open_usb(serial: Option<&str>) -> Result<DigiDartDriver, DeviceErro
 pub fn from_link(link: Arc<dyn DeviceLink>, name: impl Into<String>) -> DigiDartDriver {
     DigiDartDriver::new(link, name)
 }
+
+#[cfg(test)]
+mod mod_tests {
+    use super::*;
+    use crate::clients::link::MockLink;
+
+    #[test]
+    fn test_digidart_from_link() {
+        let link = Arc::new(MockLink::usb_mock("USB:digiDART"));
+        let drv = from_link(link, "digiDART-test");
+        assert_eq!(drv.info().name, "digiDART-test");
+    }
+}

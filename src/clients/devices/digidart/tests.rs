@@ -123,3 +123,33 @@ async fn test_digidart_hv_control() {
     assert_eq!(sent[1], encode_command(Opcode::Clear as u16, 2, &[0, 0x8000]));
     assert_eq!(sent[2], encode_command(Opcode::SetLld as u16, 2, &[20]));
 }
+
+#[tokio::test]
+async fn test_digidart_controls_and_error_replies() {
+    let mock = Arc::new(MockLink::usb_mock("USB:0a2d:0005"));
+    let driver = from_link(mock.clone(), "digiDART-ctrl");
+    assert_eq!(driver.link().address_name(), "USB:0a2d:0005");
+
+    // start_acquisition (2 cmds: Clear + Start) & stop_acquisition
+    mock.push_incoming(vec![0, 0]);
+    mock.push_incoming(vec![0, 0]);
+    driver.start_acquisition().await.unwrap();
+    mock.push_incoming(vec![0, 0]);
+    driver.stop_acquisition().await.unwrap();
+
+    // HV controls: set_hv_enabled(true/false), set_uld, set_fine_gain
+    let hv = driver.hv_control().unwrap();
+    mock.push_incoming(vec![0, 0]);
+    hv.set_hv_enabled(true).await.unwrap();
+    mock.push_incoming(vec![0, 0]);
+    mock.push_incoming(vec![0, 0]);
+    hv.set_hv_enabled(false).await.unwrap();
+    mock.push_incoming(vec![0, 0]);
+    hv.set_uld(900.0).await.unwrap();
+    mock.push_incoming(vec![0, 0]);
+    hv.set_fine_gain(0.75).await.unwrap();
+
+    // Non-zero macro/micro error reply triggers Hardware error
+    mock.push_incoming(vec![0x01, 0x02]);
+    assert!(driver.start_acquisition().await.is_err());
+}

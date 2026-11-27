@@ -305,3 +305,78 @@ async fn test_radiacode_runner_integration() {
     assert!(got_realtime, "expected real-time telemetry from runner");
     handle.abort();
 }
+
+#[tokio::test]
+async fn test_radiacode_driver_methods_and_protocol_errors() {
+    use super::protocol::{decode_spectrum, execute_transaction};
+    use crate::clients::device_wrapper_base::ConnectionType;
+
+    let mock = Arc::new(MockLink::usb_mock("MOCK:RC2"));
+    let driver = from_link(mock.clone(), "RC-methods");
+    assert_eq!(driver.link().address_name(), "MOCK:RC2");
+    assert_eq!(driver.info().connection_type, ConnectionType::Usb);
+
+    // Helper to build a valid RD_VIRT_STRING reply
+    let make_vs_reply = |seq: u8, payload: &[u8]| -> Vec<u8> {
+        let flen = payload.len() as u32;
+        let mut resp = Vec::new();
+        resp.extend_from_slice(&(4 + 8 + flen).to_le_bytes());
+        resp.extend_from_slice(&(Command::RdVirtString as u16).to_le_bytes());
+        resp.push(0x00);
+        resp.push(0x80 | seq);
+        resp.extend_from_slice(&(1u32).to_le_bytes());
+        resp.extend_from_slice(&flen.to_le_bytes());
+        resp.extend_from_slice(payload);
+        resp
+    };
+
+    // read_configuration (seq 0) & read_serial_number (seq 1)
+    mock.push_incoming(make_vs_reply(0x00, b"cfg=1\n"));
+    assert_eq!(driver.read_configuration().await.unwrap(), "cfg=1\n");
+    mock.push_incoming(make_vs_reply(0x01, b"RC-102-001\0"));
+    assert_eq!(driver.read_serial_number().await.unwrap(), "RC-102-001");
+
+    // read_spectrum (seq 2): v0 spectrum with 2 channels
+    let mut spec_v0 = Vec::new();
+    spec_v0.extend_from_slice(&10.0f32.to_le_bytes()); // duration
+    spec_v0.extend_from_slice(&0.0f32.to_le_bytes()); // a0
+    spec_v0.extend_from_slice(&2.0f32.to_le_bytes()); // a1
+    spec_v0.extend_from_slice(&0.0f32.to_le_bytes()); // a2
+    spec_v0.extend_from_slice(&5u32.to_le_bytes());
+    spec_v0.extend_from_slice(&15u32.to_le_bytes());
+    mock.push_incoming(make_vs_reply(0x02, &spec_v0));
+    let spec = driver.read_spectrum().await.unwrap();
+    assert_eq!(spec.y_axis.len(), 2);
+
+    // reset_spectrum (seq 3): WR_VIRT_STRING / SET_EXCHANGE / spectrum reset reply (retcode=1)
+    let mut wr_reply = Vec::new();
+    wr_reply.extend_from_slice(&(4 + 4u32).to_le_bytes());
+    wr_reply.extend_from_slice(&(Command::WrVirtString as u16).to_le_bytes());
+    wr_reply.push(0x00);
+    wr_reply.push(0x80 | 0x03);
+    wr_reply.extend_from_slice(&1u32.to_le_bytes());
+    mock.push_incoming(wr_reply);
+    driver.reset_spectrum().await.unwrap();
+
+    // decode_spectrum error branches
+    assert!(decode_spectrum(&[0u8; 4], 0).is_err());
+    let bad_ver = vec![0u8; 20];
+    assert!(decode_spectrum(&bad_ver, 99).is_err());
+
+    // execute_transaction short response error
+    let mut short_resp = Vec::new();
+    short_resp.extend_from_slice(&2u32.to_le_bytes());
+    short_resp.extend_from_slice(&[0x01, 0x02]);
+    mock.push_incoming(short_resp);
+    assert!(
+        execute_transaction(
+            &*mock,
+            Command::RdVirtString as u16,
+            0x00,
+            &[],
+            Duration::from_millis(20)
+        )
+        .await
+        .is_err()
+    );
+}

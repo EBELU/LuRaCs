@@ -116,3 +116,48 @@ async fn test_identifinder_stream_and_commands() {
     assert!(reqs.iter().any(|r| r.contains("/virtualPha/api/?action=Stop")));
     drop(reqs);
 }
+
+#[tokio::test]
+async fn test_identifinder_connect_network_and_driver_methods() {
+    use crate::clients::devices::identifinder::connect_network;
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    tokio::spawn(async move {
+        while let Ok((mut socket, _)) = listener.accept().await {
+            tokio::spawn(async move {
+                let mut buf = [0u8; 4096];
+                if let Ok(n) = socket.read(&mut buf).await
+                    && n > 0
+                {
+                    let req = String::from_utf8_lossy(&buf[..n]);
+                    let first_line = req.lines().next().unwrap_or("");
+                    if first_line.contains("/virtualPha/signalR") {
+                        let sse_body = ": keepalive\n\n";
+                        let resp = format!(
+                            "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{sse_body}",
+                            sse_body.len()
+                        );
+                        drop(socket.write_all(resp.as_bytes()).await);
+                    } else {
+                        let json_body = r#"{"ok":true}"#;
+                        let resp = format!(
+                            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{json_body}",
+                            json_body.len()
+                        );
+                        drop(socket.write_all(resp.as_bytes()).await);
+                    }
+                }
+            });
+        }
+    });
+
+    let drv = connect_network(&addr.to_string()).await.unwrap();
+    assert_eq!(drv.base_url(), format!("http://{addr}"));
+    assert_eq!(drv.info().model, "IdentiFINDER R400");
+    assert!(drv.read_status().await.is_ok());
+    assert!(drv.identify_spectrum().await.is_ok());
+    assert!(drv.save_spectrum().await.is_ok());
+    drop(drv.stop_acquisition().await);
+}

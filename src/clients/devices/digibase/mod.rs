@@ -39,3 +39,16 @@ pub async fn open_usb(
 pub fn from_link(link: Arc<dyn DeviceLink>, name: impl Into<String>) -> DigiBaseDriver {
     DigiBaseDriver::new(link, name)
 }
+
+#[cfg(test)]
+mod mod_tests {
+    use super::*;
+    use crate::clients::link::MockLink;
+
+    #[test]
+    fn test_digibase_from_link() {
+        let link = Arc::new(MockLink::usb_mock("USB:digiBase"));
+        let drv = from_link(link, "digiBase-test");
+        assert_eq!(drv.info().name, "digiBase-test");
+    }
+}
