@@ -97,3 +97,4 @@ unnameable_types = "deny"
 unsafe_attr_outside_unsafe = "warn"
 unsafe_op_in_unsafe_fn = "warn"
 variant_size_differences = "warn"
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage_nightly)'] }

@@ -1,3 +1,4 @@
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 #![allow(
     unknown_lints,
     reason = "allow lint names unavailable on older toolchains"

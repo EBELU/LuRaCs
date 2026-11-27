@@ -44,6 +44,7 @@ struct BtleplugPeripheral {
     write_char: Characteristic,
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 #[async_trait]
 impl BlePeripheralHandle for BtleplugPeripheral {
     async fn write_without_response(&self, chunk: &[u8]) -> Result<(), LinkError> {
@@ -60,6 +61,7 @@ impl BlePeripheralHandle for BtleplugPeripheral {
 
 struct BtleplugBackend;
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 #[async_trait]
 impl BleBackend for BtleplugBackend {
     async fn connect(

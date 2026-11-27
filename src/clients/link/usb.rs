@@ -36,6 +36,7 @@ struct NusbInterfaceHandle {
     interface: Interface,
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 #[async_trait]
 impl UsbInterfaceHandle for NusbInterfaceHandle {
     async fn bulk_out(&self, endpoint: u8, data: &[u8]) -> Result<(), LinkError> {
@@ -84,6 +85,7 @@ impl UsbInterfaceHandle for NusbInterfaceHandle {
 
 struct NusbBackend;
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 #[async_trait]
 impl UsbBackend for NusbBackend {
     async fn open_interface(
@@ -142,6 +144,7 @@ pub struct UsbLink {
 
 impl UsbLink {
     /// Open a connection to a matching USB device asynchronously.
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub async fn open(
         vendor_id: u16,
         product_id: u16,
@@ -189,6 +192,7 @@ impl UsbLink {
         })
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     async fn find_device(
         vendor_id: u16,
         product_id: u16,
