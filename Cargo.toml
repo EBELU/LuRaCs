@@ -59,6 +59,9 @@ ndarray-npy = "0.11.0"
 ndarray = { version = "0.17.2", features = ["serde", "rayon"] }
 # ndarray-linalg = { version = "0.18.1", features = ["openblas-system"] }
 
+[dev-dependencies]
+egui_kittest = "0.37.0"
+
 [lints.clippy]
 cargo = "warn"
 complexity = "deny"
