@@ -110,3 +110,47 @@ pub trait DeviceDriver: Send + Sync {
         None
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct MinimalDriver(DeviceInfo);
+
+    #[async_trait]
+    impl DeviceDriver for MinimalDriver {
+        fn info(&self) -> DeviceInfo {
+            self.0.clone()
+        }
+        async fn read_realtime(&self) -> Result<WrappedRealTimePackage, DeviceError> {
+            Err(DeviceError::NotSupported("realtime"))
+        }
+        async fn read_status(&self) -> Result<WrappedStatusPackage, DeviceError> {
+            Err(DeviceError::NotSupported("status"))
+        }
+        async fn read_spectrum(&self) -> Result<WrappedSpectrumPackage, DeviceError> {
+            Err(DeviceError::NotSupported("spectrum"))
+        }
+    }
+
+    #[tokio::test]
+    async fn test_device_driver_default_methods() {
+        let drv = MinimalDriver(DeviceInfo {
+            name: "min".into(),
+            model: "min".into(),
+            channels: 0,
+            connection_type: ConnectionType::Network,
+            supported_settings: vec![],
+        });
+        assert!(drv.hv_control().is_none());
+        assert!(drv.read_gps().await.is_none());
+        assert!(drv.on_reconnect().await.is_ok());
+        assert!(drv.start_acquisition().await.is_ok());
+        assert!(drv.stop_acquisition().await.is_ok());
+        assert!(drv.reset_spectrum().await.is_ok());
+        assert!(matches!(
+            drv.set_calibration(&[0.0, 1.0]).await,
+            Err(DeviceError::NotSupported(_))
+        ));
+    }
+}

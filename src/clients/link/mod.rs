@@ -96,3 +96,60 @@ pub trait DeviceLink: Send + Sync {
     /// Close and release the underlying device resources.
     async fn close(&self) -> Result<(), LinkError>;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    struct DummyTransactionLink {
+        policy: ReconnectPolicy,
+        sent: Mutex<Vec<Vec<u8>>>,
+    }
+
+    #[async_trait]
+    impl DeviceLink for DummyTransactionLink {
+        fn address_name(&self) -> &str {
+            "dummy"
+        }
+        fn status(&self) -> LinkStatus {
+            LinkStatus::Connected
+        }
+        fn reconnect_policy(&self) -> &ReconnectPolicy {
+            &self.policy
+        }
+        async fn send(&self, data: &[u8]) -> Result<(), LinkError> {
+            self.sent.lock().unwrap().push(data.to_vec());
+            Ok(())
+        }
+        async fn recv(&self, _timeout: Duration) -> Result<Vec<u8>, LinkError> {
+            Ok(b"pong".to_vec())
+        }
+        async fn reconnect(&self) -> Result<(), LinkError> {
+            Ok(())
+        }
+        async fn close(&self) -> Result<(), LinkError> {
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_default_transaction_and_link_error_recoverable() {
+        let link = DummyTransactionLink {
+            policy: ReconnectPolicy::never(),
+            sent: Mutex::new(Vec::new()),
+        };
+        let resp = link
+            .transaction(b"ping", Duration::from_millis(10))
+            .await
+            .unwrap();
+        assert_eq!(resp, b"pong");
+        assert_eq!(*link.sent.lock().unwrap(), vec![b"ping".to_vec()]);
+        assert!(LinkError::Timeout(Duration::from_millis(1)).is_recoverable());
+        assert!(LinkError::Transient("x".into()).is_recoverable());
+        assert!(LinkError::Disconnected("x".into()).is_recoverable());
+        assert!(!LinkError::NotFound("x".into()).is_recoverable());
+        assert!(!LinkError::PermissionDenied("x".into()).is_recoverable());
+        assert!(!LinkError::Fatal("x".into()).is_recoverable());
+    }
+}

@@ -208,6 +208,8 @@ impl<S: Subscriber> Layer<S> for FileLayer {
 /// `RUST_LOG` overrides `debug` if set, so either works:
 ///     RUST_LOG=luracs=debug cargo run
 ///     cargo run -- --debug
+// Process-global tracing subscriber + panic hook; one-shot initialization.
+#[cfg_attr(coverage_nightly, coverage(off))]
 pub fn init_logging(debug: bool) -> Result<Arc<LogBuffer>, Box<dyn std::error::Error>> {
     let buffer = Arc::new(LogBuffer::new(4096));
 
@@ -270,5 +272,51 @@ mod tests {
         set_catch_exceptions(true);
         assert!(CATCH_EXCEPTIONS.load(Ordering::Relaxed));
         set_catch_exceptions(false);
+    }
+
+    #[test]
+    fn test_buffer_and_file_layers_with_scoped_subscriber() {
+        let buf = Arc::new(LogBuffer::new(16));
+        assert_eq!(buf.capacity(), 16);
+
+        let log_path = std::env::temp_dir().join("luracs_test_file_layer.log");
+        drop(std::fs::remove_file(&log_path));
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&log_path)
+            .unwrap();
+
+        let subscriber = tracing_subscriber::registry()
+            .with(BufferLayer(Arc::clone(&buf)))
+            .with(FileLayer(Mutex::new(Some(file))));
+
+        set_write_to_file(false);
+        tracing::subscriber::with_default(subscriber, || {
+            tracing::error!(code = 42, "err msg");
+            tracing::warn!("warn msg");
+            tracing::info!(extra = "str_val", "info msg");
+            tracing::debug!("debug msg");
+            tracing::trace!("trace msg");
+
+            // Now enable FileLayer writing and emit again
+            set_write_to_file(true);
+            tracing::info!(detail = "persisted", "file line");
+        });
+        set_write_to_file(false);
+
+        let snap = buf.snapshot();
+        assert_eq!(snap.len(), 6);
+        assert!(snap[0].contains("[ERROR]") && snap[0].contains("err msg") && snap[0].contains("code=42"));
+        assert!(snap[1].contains("[WARN ]"));
+        assert!(snap[2].contains("[INFO ]") && snap[2].contains("extra=str_val"));
+        assert!(snap[3].contains("[DEBUG]"));
+        assert!(snap[4].contains("[TRACE]"));
+
+        let file_contents = std::fs::read_to_string(&log_path).unwrap();
+        assert!(file_contents.contains("file line"));
+        assert!(!file_contents.contains("err msg"));
+        drop(std::fs::remove_file(&log_path));
     }
 }
