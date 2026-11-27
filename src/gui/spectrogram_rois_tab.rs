@@ -156,6 +156,26 @@ impl SpectrogramRoisTab {
         render_state: &RenderState,
         compact: bool,
     ) {
+        self.render_impl(
+            ui,
+            run_manager,
+            spectrogram_manager,
+            settings,
+            Some(render_state),
+            compact,
+        );
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn render_impl(
+        &mut self,
+        ui: &mut egui::Ui,
+        run_manager: &RunManager,
+        spectrogram_manager: &SpectrogramManager,
+        settings: &Settings,
+        render_state: Option<&RenderState>,
+        compact: bool,
+    ) {
         let mut roi_tags: Vec<String> = spectrogram_manager
             .roi_registry
             .keys()
@@ -253,27 +273,29 @@ impl SpectrogramRoisTab {
                                     })
                                     .unwrap_or_default();
 
-                                let plot = self.ensure_plot(tag, &alias, render_state);
-                                plot.clear();
-                                for (spec_name, data, color, dt) in &series_snapshot {
-                                    if data.is_empty() {
-                                        continue;
+                                if let Some(rs) = render_state {
+                                    let plot = self.ensure_plot(tag, &alias, rs);
+                                    plot.clear();
+                                    for (spec_name, data, color, dt) in &series_snapshot {
+                                        if data.is_empty() {
+                                            continue;
+                                        }
+                                        let n = data.len();
+                                        let x: Vec<f64> =
+                                            (0..n).map(|i| ((n - 1 - i) as f64) * dt).collect();
+                                        plot.add_curve_with_legend_and_interpolation(
+                                            &x,
+                                            data,
+                                            *color,
+                                            spec_name,
+                                            CurveInterpolation::Linear,
+                                        );
                                     }
-                                    let n = data.len();
-                                    let x: Vec<f64> =
-                                        (0..n).map(|i| ((n - 1 - i) as f64) * dt).collect();
-                                    plot.add_curve_with_legend_and_interpolation(
-                                        &x,
-                                        data,
-                                        *color,
-                                        spec_name,
-                                        CurveInterpolation::Linear,
-                                    );
-                                }
 
-                                ui.allocate_ui(egui::vec2(ui.available_width(), plot_h), |ui| {
-                                    plot.show(ui);
-                                });
+                                    ui.allocate_ui(egui::vec2(ui.available_width(), plot_h), |ui| {
+                                        plot.show(ui);
+                                    });
+                                }
                             }
 
                             // Calc ROIs (sg1/roi1 <op> sg2/roi2)
@@ -348,34 +370,36 @@ impl SpectrogramRoisTab {
                                 let dt1 = run_manager.get_spectrogram(&calc.sg1).map_or(1.0, |s| s.save_interval());
                                 let dt2 = run_manager.get_spectrogram(&calc.sg2).map_or(1.0, |s| s.save_interval());
                                 let dt = dt1.max(dt2);
-                                let calc_key = calc.label.clone();
-                                let plot = self.ensure_plot(&calc_key, &calc.label, render_state);
-                                plot.clear();
-                                if let (Some(s1), Some(s2)) = (d1, d2) {
-                                    let len = s1.len().min(s2.len());
-                                    if len > 0 {
-                                        let y: Vec<f64> = s1[s1.len() - len..]
-                                            .iter()
-                                            .zip(&s2[s2.len() - len..])
-                                            .map(|(&a, &b)| match calc.op {
-                                                CalcOp::Add => a + b,
-                                                CalcOp::Sub => a - b,
-                                                CalcOp::Div => if b != 0.0 { a / b } else { 0.0 },
-                                            })
-                                            .collect();
-                                        let x: Vec<f64> = (0..len).map(|i| ((len - 1 - i) as f64) * dt).collect();
-                                        plot.add_curve_with_legend_and_interpolation(
-                                            &x,
-                                            &y,
-                                            Color32::LIGHT_BLUE,
-                                            &calc.label,
-                                            CurveInterpolation::Linear,
-                                        );
+                                if let Some(rs) = render_state {
+                                    let calc_key = calc.label.clone();
+                                    let plot = self.ensure_plot(&calc_key, &calc.label, rs);
+                                    plot.clear();
+                                    if let (Some(s1), Some(s2)) = (d1, d2) {
+                                        let len = s1.len().min(s2.len());
+                                        if len > 0 {
+                                            let y: Vec<f64> = s1[s1.len() - len..]
+                                                .iter()
+                                                .zip(&s2[s2.len() - len..])
+                                                .map(|(&a, &b)| match calc.op {
+                                                    CalcOp::Add => a + b,
+                                                    CalcOp::Sub => a - b,
+                                                    CalcOp::Div => if b != 0.0 { a / b } else { 0.0 },
+                                                })
+                                                .collect();
+                                            let x: Vec<f64> = (0..len).map(|i| ((len - 1 - i) as f64) * dt).collect();
+                                            plot.add_curve_with_legend_and_interpolation(
+                                                &x,
+                                                &y,
+                                                Color32::LIGHT_BLUE,
+                                                &calc.label,
+                                                CurveInterpolation::Linear,
+                                            );
+                                        }
                                     }
+                                    ui.allocate_ui(egui::vec2(ui.available_width(), plot_h), |ui| {
+                                        plot.show(ui);
+                                    });
                                 }
-                                ui.allocate_ui(egui::vec2(ui.available_width(), plot_h), |ui| {
-                                    plot.show(ui);
-                                });
                             }
                             if let Some(idx) = remove_calc_idx {
                                 let removed = calc_rois.remove(idx);
@@ -447,5 +471,76 @@ mod tests {
         let (m, s) = mean_std(&[2.0, 4.0]);
         assert!((m - 3.0).abs() < 1e-12);
         assert!((s - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn test_spectrogram_rois_tab_kittest_ui() {
+        use crate::clients::PollConfig;
+        use crate::core::NewSpectrogramRoi;
+        use crate::settings::{PathOverrides, Paths};
+        use egui_kittest::kittest::Queryable;
+        use egui_kittest::Harness;
+
+        let dir = std::env::temp_dir().join("luracs_test_sg_rois_ui");
+        drop(std::fs::remove_dir_all(&dir));
+        std::fs::create_dir_all(&dir).unwrap();
+        let paths = Paths::with_overrides(
+            PathOverrides::new()
+                .base(std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")))
+                .config(dir.join("cfg"))
+                .appdata(dir.join("app"))
+                .last_opened_dir(dir.clone()),
+        )
+        .unwrap();
+        let settings = Settings::builder().paths(paths).build().unwrap();
+        let mut rm = RunManager::new(8, PollConfig::default()).unwrap();
+
+        let mut tab = SpectrogramRoisTab::new(ColorScheme::default());
+        let mut harness = Harness::builder()
+            .with_accessibility_check(false)
+            .build_ui_state(
+                |ui, (tab, rm, settings): &mut (SpectrogramRoisTab, RunManager, Settings)| {
+                    let sg_mgr = rm.spectrogram_manager();
+                    tab.render_impl(ui, rm, sg_mgr, settings, None, false);
+                },
+                (tab, rm, settings),
+            );
+
+        // 1. Empty state
+        harness.run();
+        assert!(harness.query_by_label("No spectrogram ROIs defined.").is_some());
+
+        // 2. Add ROI + counts + Calc ROI
+        let tag = harness
+            .state_mut()
+            .1
+            .spectrogram_manager_mut()
+            .add_roi(NewSpectrogramRoi {
+                e_region: (50.0, 150.0),
+                alias: Some("Cs137".into()),
+                emission: None,
+            });
+        harness
+            .state_mut()
+            .1
+            .spectrogram_manager_mut()
+            .spectrogram_registry
+            .insert("sg1".into());
+        let mut counts = HashMap::new();
+        counts.insert(tag, vec![10.0, 20.0, 30.0]);
+        {
+            let tab = &mut harness.state_mut().0;
+            tab.on_counts_updated("sg1", &Arc::new(counts));
+            tab.add_calc_roi();
+        }
+        harness.run();
+        assert!(harness.query_by_label("CAL_0").is_some());
+
+        // Remove Calc ROI via "Remove" button
+        harness.get_by_label("Remove").click();
+        harness.run();
+        assert!(harness.state().0.calc_rois.is_empty());
+
+        drop(std::fs::remove_dir_all(&dir));
     }
 }

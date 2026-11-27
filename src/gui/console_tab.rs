@@ -34,6 +34,16 @@ impl ConsoleTab {
     }
 
     pub fn render(app: &mut LuRaCsApp, ui: &mut egui::Ui) {
+        app.console_tab
+            .render_with(ui, &app.run_manager, &app.spectrum_manager);
+    }
+
+    pub fn render_with(
+        &mut self,
+        ui: &mut egui::Ui,
+        run_manager: &crate::core::RunManager,
+        spectrum_manager: &crate::core::SpectrumManager,
+    ) {
         let mut submitted: Option<String> = None;
 
         egui::Panel::bottom("console_input_bar")
@@ -41,7 +51,7 @@ impl ConsoleTab {
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     let resp = ui.add(
-                        egui::TextEdit::singleline(&mut app.console_tab.input)
+                        egui::TextEdit::singleline(&mut self.input)
                             .desired_width(ui.available_width() - 70.0)
                             .hint_text("Enter command…")
                             .font(egui::TextStyle::Monospace),
@@ -49,25 +59,20 @@ impl ConsoleTab {
 
                     if resp.has_focus() {
                         if ui.input(|i| i.key_pressed(egui::Key::ArrowUp))
-                            && !app.console_tab.history.is_empty()
+                            && !self.history.is_empty()
                         {
-                            app.console_tab.history_idx =
-                                app.console_tab.history_idx.saturating_sub(1);
-                            if let Some(cmd) =
-                                app.console_tab.history.get(app.console_tab.history_idx)
-                            {
-                                app.console_tab.input = cmd.clone();
+                            self.history_idx = self.history_idx.saturating_sub(1);
+                            if let Some(cmd) = self.history.get(self.history_idx) {
+                                self.input = cmd.clone();
                             }
                         } else if ui.input(|i| i.key_pressed(egui::Key::ArrowDown))
-                            && !app.console_tab.history.is_empty()
+                            && !self.history.is_empty()
                         {
-                            let len = app.console_tab.history.len();
-                            app.console_tab.history_idx =
-                                (app.console_tab.history_idx + 1).min(len);
-                            app.console_tab.input = app
-                                .console_tab
+                            let len = self.history.len();
+                            self.history_idx = (self.history_idx + 1).min(len);
+                            self.input = self
                                 .history
-                                .get(app.console_tab.history_idx)
+                                .get(self.history_idx)
                                 .cloned()
                                 .unwrap_or_default();
                         }
@@ -76,10 +81,10 @@ impl ConsoleTab {
                     let enter_pressed =
                         resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
                     if (ui.button("Enter").clicked() || enter_pressed)
-                        && !app.console_tab.input.trim().is_empty()
+                        && !self.input.trim().is_empty()
                     {
-                        submitted = Some(app.console_tab.input.trim().to_string());
-                        app.console_tab.input.clear();
+                        submitted = Some(self.input.trim().to_string());
+                        self.input.clear();
                         resp.request_focus();
                     }
                 });
@@ -91,19 +96,19 @@ impl ConsoleTab {
                 .auto_shrink([false, false])
                 .stick_to_bottom(true)
                 .show(ui, |ui| {
-                    for line in &app.console_tab.output {
+                    for line in &self.output {
                         ui.monospace(line);
                     }
                 });
         });
 
         if let Some(cmd) = submitted {
-            app.console_tab.execute(app.run_manager.list_devices(), &app.spectrum_manager, &cmd);
+            self.execute(run_manager.list_devices(), spectrum_manager, &cmd);
             // Run side-effect commands that mutate managers.
             match cmd.as_str() {
-                "start" => app.run_manager.start_acquisition_all(),
-                "stop" => app.run_manager.stop_acquisition_all(),
-                "reset" => app.run_manager.reset_all_spectra(),
+                "start" => run_manager.start_acquisition_all(),
+                "stop" => run_manager.stop_acquisition_all(),
+                "reset" => run_manager.reset_all_spectra(),
                 _ => {}
             }
         }
@@ -174,5 +179,85 @@ impl ConsoleTab {
             "reset" => self.output.push("Reset spectra on all devices.".to_string()),
             _ => self.output.push(format!("Unknown command: {cmd}")),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::clients::PollConfig;
+    use crate::core::{NewRoi, RunManager, SpectrumManager};
+    use crate::gui::ColorScheme;
+    use egui_kittest::kittest::Queryable;
+    use egui_kittest::Harness;
+    use std::path::Path;
+
+    #[test]
+    fn test_console_tab_ui_commands_and_history() {
+        let dir = std::env::temp_dir().join("luracs_test_console_tab");
+        drop(std::fs::remove_dir_all(&dir));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let rm = RunManager::new(8, PollConfig::default()).unwrap();
+        let mut sm = SpectrumManager::new(
+            ColorScheme::default(),
+            dir.clone(),
+            Path::new("resources/nuclide_data"),
+        )
+        .unwrap();
+        sm.roi_manager.add_roi(NewRoi::new(10.0, 20.0));
+
+        let mut harness = Harness::new_ui_state(
+            |ui, (tab, rm, sm): &mut (ConsoleTab, RunManager, SpectrumManager)| {
+                tab.render_with(ui, rm, sm);
+            },
+            (ConsoleTab::default(), rm, sm),
+        );
+        harness.run();
+        assert!(harness
+            .query_by_label("LuRaCs Console — type 'help' for available commands.")
+            .is_some());
+
+        for cmd in [
+            "help", "devices", "spectra", "rois", "start", "stop", "reset", "bogus",
+        ] {
+            harness.state_mut().0.input = cmd.into();
+            harness.get_by_label("Enter").click();
+            harness.run();
+        }
+        assert!(harness
+            .query_by_label("Unknown command: bogus")
+            .is_some());
+
+        // Clear output via "clear" command
+        harness.state_mut().0.input = "clear".into();
+        harness.get_by_label("Enter").click();
+        harness.run();
+        assert!(harness.state().0.output.is_empty());
+
+        // History bounded + ArrowUp/ArrowDown navigation
+        harness.get_by_role(egui::accesskit::Role::TextInput).focus();
+        harness.run();
+        harness.key_press(egui::Key::ArrowUp);
+        harness.run();
+        assert_eq!(harness.state().0.input, "clear");
+        harness.key_press(egui::Key::ArrowDown);
+        harness.run();
+        assert!(harness.state().0.input.is_empty());
+
+        // Direct execute with populated devices + spectra
+        {
+            let (tab, _, sm) = harness.state_mut();
+            tab.execute(vec!["Det1".into()], sm, "devices");
+        }
+        assert!(harness
+            .state()
+            .0
+            .output
+            .last()
+            .unwrap()
+            .contains("Det1"));
+
+        drop(std::fs::remove_dir_all(&dir));
     }
 }

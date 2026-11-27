@@ -353,7 +353,7 @@ impl SpectrumScreen {
                 );
             }
             PlotMode::Tabbed => {
-                self.render_tab_strip(ui);
+                render_tab_strip(&self.tab_order, &mut self.current_tab, ui);
                 ui.separator();
 
                 match self.current_tab.clone() {
@@ -369,24 +369,6 @@ impl SpectrumScreen {
                     }
                 }
             }
-        }
-    }
-
-    fn render_tab_strip(&mut self, ui: &mut egui::Ui) {
-        let tab_names = self.tab_order.clone();
-        let mut clicked: Option<String> = None;
-
-        ui.horizontal_wrapped(|ui| {
-            for tab_name in &tab_names {
-                let is_current = self.current_tab.as_deref() == Some(tab_name.as_str());
-                if ui.selectable_label(is_current, tab_name).clicked() {
-                    clicked = Some(tab_name.clone());
-                }
-            }
-        });
-
-        if let Some(name) = clicked {
-            self.current_tab = Some(name);
         }
     }
 
@@ -484,5 +466,61 @@ impl SpectrumScreen {
         }
 
         results
+    }
+}
+
+fn render_tab_strip(tab_order: &[String], current_tab: &mut Option<String>, ui: &mut egui::Ui) {
+    let mut clicked: Option<String> = None;
+
+    ui.horizontal_wrapped(|ui| {
+        for tab_name in tab_order {
+            let is_current = current_tab.as_deref() == Some(tab_name.as_str());
+            if ui.selectable_label(is_current, tab_name).clicked() {
+                clicked = Some(tab_name.clone());
+            }
+        }
+    });
+
+    if let Some(name) = clicked {
+        *current_tab = Some(name);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use egui_kittest::kittest::Queryable;
+    use egui_kittest::Harness;
+
+    #[test]
+    fn test_plot_screen_format_and_tab_strip_kittest() {
+        assert_eq!(
+            format_match_result(&[]),
+            "No matching nuclides were found"
+        );
+        let m = NuclideMatch {
+            alias: "ROI_0".into(),
+            nuclide: "Cs-137".into(),
+            energy_kev: 661.66,
+            intensity_percent: 85.1,
+        };
+        assert_eq!(m.display_line(), "ROI_0 --> Cs-137 | [661.7 keV - 85.10 %]");
+        let body = format_match_result(&[m]);
+        assert!(body.contains("Nuclides matched to ROIs:"));
+        assert!(body.contains("Cs-137"));
+
+        let tabs = vec!["SpecA".to_string(), "SpecB".to_string()];
+        let mut harness = Harness::builder()
+            .with_accessibility_check(false)
+            .build_ui_state(
+                |ui, (tabs, cur): &mut (Vec<String>, Option<String>)| {
+                    render_tab_strip(tabs, cur, ui);
+                },
+                (tabs, Some("SpecA".to_string())),
+            );
+        harness.run();
+        harness.get_by_label("SpecB").click();
+        harness.run();
+        assert_eq!(harness.state().1.as_deref(), Some("SpecB"));
     }
 }

@@ -182,3 +182,115 @@ fn format_large_u64(val: u64) -> String {
     }
     out.chars().rev().collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::clients::PollConfig;
+    use crate::containers::SpectrumData;
+    use crate::core::ForegroundInput;
+    use crate::gui::ColorScheme;
+    use egui_kittest::kittest::Queryable;
+    use egui_kittest::Harness;
+    use ndarray::Array1;
+    use std::path::Path;
+
+    fn make_data(counts: u64, live_time: f64, real_time: Option<f64>) -> SpectrumData {
+        SpectrumData {
+            y_axis: Array1::from_vec(vec![1.0, 2.0, 3.0, 4.0]),
+            channels: 4,
+            total_counts: counts,
+            live_time,
+            real_time,
+            avg_dose_rate: None,
+            avg_cps: None,
+            start_date: None,
+            end_date: None,
+            spectrum_name: None,
+            instrument: None,
+        }
+    }
+
+    #[test]
+    fn test_spectrum_info_tab_and_formatters() {
+        assert_eq!(format_hms(f64::NAN), "00:00:00");
+        assert_eq!(format_hms(-5.0), "00:00:00");
+        assert_eq!(format_hms(3665.0), "01:01:05");
+        assert_eq!(format_large_u64(1_234_567), "1 234 567");
+
+        let dir = std::env::temp_dir().join("luracs_test_spec_info_tab");
+        drop(std::fs::remove_dir_all(&dir));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let rm = RunManager::new(8, PollConfig::default()).unwrap();
+        let mut sm = SpectrumManager::new(
+            ColorScheme::default(),
+            dir.clone(),
+            Path::new("resources/nuclide_data"),
+        )
+        .unwrap();
+
+        let mut harness = Harness::new_ui_state(
+            |ui, (tab, sm, rm): &mut (SpectrumInfoTab, SpectrumManager, RunManager)| {
+                tab.render(ui, sm, rm);
+            },
+            (SpectrumInfoTab, sm, rm),
+        );
+        harness.run();
+        assert!(harness.query_by_label("No spectra loaded.").is_some());
+
+        // Add spectrum with foreground + background + connection
+        {
+            let sm = &mut harness.state_mut().1;
+            sm.create_spectrum("SpecA", 4, Some("Conn1"), false)
+                .unwrap();
+            sm.set_foreground_spectrum(
+                "SpecA",
+                ForegroundInput::Raw(make_data(1234, 3665.0, Some(3700.0))),
+            )
+            .unwrap();
+            sm.set_background_spectrum("SpecA", make_data(500, 60.0, None))
+                .unwrap();
+        }
+        harness.run();
+        assert!(harness.query_by_label("Foreground").is_some());
+        assert!(harness.query_by_label("Background").is_some());
+        assert!(harness.query_by_label("1 234").is_some());
+        assert!(harness.query_by_label("01:01:05").is_some());
+
+        // Toggle Hide -> Show via foreground "..." menu
+        harness.query_all_by_label("...").next().unwrap().click();
+        harness.run();
+        harness.get_by_label("Hide").click();
+        harness.run();
+        assert!(!harness.state().1.spectrum_registry["SpecA"].show_in_plot);
+
+        harness.query_all_by_label("...").next().unwrap().click();
+        harness.run();
+        harness.get_by_label("Show").click();
+        harness.run();
+        assert!(harness.state().1.spectrum_registry["SpecA"].show_in_plot);
+
+        // Remove Background via background "..." menu (2nd "...")
+        harness.query_all_by_label("...").nth(1).unwrap().click();
+        harness.run();
+        harness.get_by_label("Remove Background").click();
+        harness.run();
+        assert!(harness.state().1.spectrum_registry["SpecA"].background.is_none());
+
+        // Disconnect & Remove
+        harness.get_by_label("...").click();
+        harness.run();
+        harness.get_by_label("Disconnect & Remove").click();
+        harness.run();
+
+        // Remove Spectrum
+        harness.get_by_label("...").click();
+        harness.run();
+        harness.get_by_label("Remove Spectrum").click();
+        harness.run();
+        assert!(harness.state().1.spectrum_registry.is_empty());
+
+        drop(std::fs::remove_dir_all(&dir));
+    }
+}

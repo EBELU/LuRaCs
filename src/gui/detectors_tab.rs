@@ -172,3 +172,122 @@ impl DetectorsTab {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::clients::{
+        register_device, ConnectionType, DeviceAddress, DeviceWrapper, DummyDevice, PollConfig,
+    };
+    use egui_kittest::kittest::Queryable;
+    use egui_kittest::Harness;
+
+    #[test]
+    fn test_detectors_tab_empty_populated_status_and_menu_actions() {
+        struct RunningDummy(DummyDevice);
+        #[async_trait::async_trait]
+        impl DeviceWrapper for RunningDummy {
+            fn type_key(&self) -> &'static str { self.0.type_key() }
+            fn name(&self) -> &str { self.0.name() }
+            fn connection(&self) -> ConnectionType { self.0.connection() }
+            fn state(&self) -> DeviceState { self.0.state() }
+            fn set_state(&self, s: DeviceState) { self.0.set_state(s); }
+            fn channels(&self) -> Option<usize> { self.0.channels() }
+            fn is_running(&self) -> bool { true }
+            fn is_stopped(&self) -> bool { false }
+            fn connected_timestamp(&self) -> f64 { self.0.connected_timestamp() }
+            async fn start(&self) -> Result<(), crate::clients::DeviceError> { Ok(()) }
+            async fn stop(&self) -> Result<(), crate::clients::DeviceError> { Ok(()) }
+            async fn get_realtime_data(&self) -> Result<crate::clients::WrappedRealTimePackage, crate::clients::DeviceError> {
+                self.0.get_realtime_data().await
+            }
+            async fn get_status(&self) -> Result<WrappedStatusPackage, crate::clients::DeviceError> {
+                self.0.get_status().await
+            }
+            async fn get_spectrum(&self) -> Result<crate::clients::WrappedSpectrumPackage, crate::clients::DeviceError> {
+                self.0.get_spectrum().await
+            }
+        }
+        register_device("DetTabDummy", |addr, conn| {
+            Ok(Box::new(RunningDummy(DummyDevice::new(addr, conn))))
+        });
+
+        let rm = RunManager::new(8, PollConfig::default()).unwrap();
+        let mut tab = DetectorsTab::default();
+
+        // 1. Empty state
+        let mut harness = Harness::new_ui_state(
+            |ui, (tab, rm): &mut (DetectorsTab, RunManager)| {
+                tab.render(ui, rm);
+            },
+            (tab, rm),
+        );
+        harness.run();
+        assert!(harness.query_by_label("No detectors connected.").is_some());
+
+        // 2. Add device and update status
+        {
+            let rm = &harness.state().1;
+            let jh = rm.add_device(
+                DeviceAddress::Other("det_1".into()),
+                "DetTabDummy".into(),
+                ConnectionType::Network,
+            );
+            rm.runtime_handle().block_on(jh).unwrap();
+        }
+        let dev_name = harness.state().1.list_devices().into_iter().next().unwrap();
+        {
+            let tab = &mut harness.state_mut().0;
+            tab.on_device_wrapped(&dev_name);
+            tab.on_state_updated(&dev_name, DeviceState::Connecting);
+            tab.on_device_connected(&dev_name);
+            tab.on_status_updated(
+                &dev_name,
+                &WrappedStatusPackage {
+                    temperature: 25.5,
+                    battery: Some(88),
+                    charging: true,
+                    voltage: 3.7,
+                    device_state: Some(DeviceState::Connected),
+                    ..Default::default()
+                },
+            );
+        }
+        harness.run();
+        assert!(harness.query_by_label(dev_name.as_str()).is_some());
+        assert!(harness.query_by_label("25.5°C").is_some());
+        assert!(harness.query_by_label("88%").is_some());
+        assert!(harness.query_by_label("3.7V").is_some());
+
+        // Non-finite temperature/voltage and None battery
+        harness.state_mut().0.on_status_updated(
+            &dev_name,
+            &WrappedStatusPackage {
+                temperature: f64::NAN,
+                battery: None,
+                charging: false,
+                voltage: f64::NAN,
+                device_state: None,
+                ..Default::default()
+            },
+        );
+        harness.run();
+        assert!(harness.query_all_by_label("nan").next().is_some());
+
+        // Open "..." menu and trigger acquisition + disconnect actions
+        for action in [
+            "Reset Spectrum",
+            "Start Acquisition",
+            "Stop Acquisition",
+            "Disconnect",
+        ] {
+            harness.get_by_label("...").click();
+            harness.run();
+            harness.get_by_label(action).click();
+            harness.run();
+        }
+
+        harness.state_mut().0.on_device_removed(&dev_name);
+        assert!(harness.state().0.rows.is_empty());
+    }
+}

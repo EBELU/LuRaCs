@@ -146,9 +146,9 @@ fn format_nuclide_info(n: &Nuclide) -> String {
 // ===========================================================================
 
 pub struct DebugViewState {
-    spectrum_plot: Plot1D,
-    d1_plot: Plot1D,
-    d2_plot: Plot1D,
+    spectrum_plot: Option<Plot1D>,
+    d1_plot: Option<Plot1D>,
+    d2_plot: Option<Plot1D>,
 
     spectrum_y: Option<Vec<f64>>,
     d1: Option<Vec<f64>>,
@@ -159,9 +159,22 @@ pub struct DebugViewState {
 impl DebugViewState {
     fn new(render_state: &RenderState) -> Self {
         Self {
-            spectrum_plot: Plot1D::new(render_state, 0x1001),
-            d1_plot: Plot1D::new(render_state, 0x1002),
-            d2_plot: Plot1D::new(render_state, 0x1003),
+            spectrum_plot: Some(Plot1D::new(render_state, 0x1001)),
+            d1_plot: Some(Plot1D::new(render_state, 0x1002)),
+            d2_plot: Some(Plot1D::new(render_state, 0x1003)),
+            spectrum_y: None,
+            d1: None,
+            d2: None,
+            peaks: None,
+        }
+    }
+
+    #[cfg(test)]
+    const fn new_headless() -> Self {
+        Self {
+            spectrum_plot: None,
+            d1_plot: None,
+            d2_plot: None,
             spectrum_y: None,
             d1: None,
             d2: None,
@@ -171,28 +184,19 @@ impl DebugViewState {
 
     fn render(&mut self, ui: &mut egui::Ui) {
         ui.label("Spectrum");
-        render_one_plot(
-            &mut self.spectrum_plot,
-            self.spectrum_y.as_deref(),
-            self.peaks.as_deref(),
-            ui,
-        );
+        if let Some(p) = &mut self.spectrum_plot {
+            render_one_plot(p, self.spectrum_y.as_deref(), self.peaks.as_deref(), ui);
+        }
         ui.separator();
         ui.label("First Derivative");
-        render_one_plot(
-            &mut self.d1_plot,
-            self.d1.as_deref(),
-            self.peaks.as_deref(),
-            ui,
-        );
+        if let Some(p) = &mut self.d1_plot {
+            render_one_plot(p, self.d1.as_deref(), self.peaks.as_deref(), ui);
+        }
         ui.separator();
         ui.label("Second Derivative");
-        render_one_plot(
-            &mut self.d2_plot,
-            self.d2.as_deref(),
-            self.peaks.as_deref(),
-            ui,
-        );
+        if let Some(p) = &mut self.d2_plot {
+            render_one_plot(p, self.d2.as_deref(), self.peaks.as_deref(), ui);
+        }
     }
 }
 
@@ -296,10 +300,36 @@ impl IsotopicsTab {
         }
     }
 
+    #[cfg(test)]
+    fn new_headless() -> Self {
+        Self {
+            filter: String::new(),
+            last_filter: String::new(),
+            all_rows: Vec::new(),
+            filtered_rows: Vec::new(),
+            selected_info: None,
+            cached_info_id: None,
+            cached_info_text: String::new(),
+            nuclide_colors: HashMap::new(),
+            chain_checked: HashMap::new(),
+            search_spectrum: None,
+            search_window_length: 11,
+            debug: DebugViewState::new_headless(),
+            debug_open: false,
+            auto_set_emissions_requested: false,
+        }
+    }
+
     pub fn retheme(&mut self, colors: &crate::theme_manager::ResolvedPlotColors) {
-        colors.apply_to(&mut self.debug.spectrum_plot);
-        colors.apply_to(&mut self.debug.d1_plot);
-        colors.apply_to(&mut self.debug.d2_plot);
+        if let Some(p) = &mut self.debug.spectrum_plot {
+            colors.apply_to(p);
+        }
+        if let Some(p) = &mut self.debug.d1_plot {
+            colors.apply_to(p);
+        }
+        if let Some(p) = &mut self.debug.d2_plot {
+            colors.apply_to(p);
+        }
     }
 
     pub fn render(
@@ -733,5 +763,109 @@ mod tests {
             })
             .collect();
         assert_eq!(filtered, vec![0]);
+    }
+
+    #[test]
+    fn test_isotopics_tab_kittest_filter_info_and_peak_search() {
+        use crate::containers::SpectrumData;
+        use crate::core::ForegroundInput;
+        use crate::gui::ColorScheme;
+        use crate::settings::{PathOverrides, Paths};
+        use egui_kittest::kittest::Queryable;
+        use egui_kittest::Harness;
+        use ndarray::Array1;
+        use std::path::Path;
+
+        let dir = std::env::temp_dir().join("luracs_test_isotopics_ui");
+        drop(std::fs::remove_dir_all(&dir));
+        std::fs::create_dir_all(&dir).unwrap();
+        let paths = Paths::with_overrides(
+            PathOverrides::new()
+                .base(std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")))
+                .config(dir.join("cfg"))
+                .appdata(dir.join("app"))
+                .last_opened_dir(dir.clone()),
+        )
+        .unwrap();
+        let settings = Settings::builder().paths(paths).build().unwrap();
+
+        let mut sm = SpectrumManager::new(
+            ColorScheme::default(),
+            dir.clone(),
+            Path::new("resources/nuclide_data"),
+        )
+        .unwrap();
+        sm.create_spectrum("IsoSpec", 120, None, false).unwrap();
+        let y: Array1<f64> = (0..120)
+            .map(|i| {
+                let d = i as f64 - 60.0;
+                400.0f64.mul_add((-0.5 * d * d / 9.0).exp(), 5.0)
+            })
+            .collect();
+        sm.set_foreground_spectrum(
+            "IsoSpec",
+            ForegroundInput::Raw(SpectrumData {
+                y_axis: y,
+                channels: 120,
+                total_counts: 1000,
+                live_time: 10.0,
+                real_time: Some(10.0),
+                avg_dose_rate: None,
+                avg_cps: None,
+                start_date: None,
+                end_date: None,
+                spectrum_name: None,
+                instrument: None,
+            }),
+        )
+        .unwrap();
+
+        let mut harness = Harness::builder()
+            .with_accessibility_check(false)
+            .build_ui_state(
+                |ui, (tab, sm, settings): &mut (IsotopicsTab, SpectrumManager, Settings)| {
+                    ui.ctx()
+                        .set_missing_glyph_policy(egui::epaint::text::MissingGlyphPolicy::Tofu);
+                    tab.render(sm, settings, ui);
+                },
+                (IsotopicsTab::new_headless(), sm, settings),
+            );
+
+        // Initial render populates nuclide list
+        harness.run();
+        assert!(!harness.state().0.all_rows.is_empty());
+
+        // Filter to Cs-137 and select it for info display
+        harness.state_mut().0.filter = "cs-137".into();
+        harness.run();
+        assert!(!harness.state().0.filtered_rows.is_empty());
+        if let Some(RowItem::Nuclide { id, .. }) = harness
+            .state()
+            .0
+            .filtered_rows
+            .first()
+            .map(|&idx| harness.state().0.all_rows[idx].clone())
+        {
+            harness.state_mut().0.selected_info = Some(id);
+            harness.run();
+            assert!(harness.state().0.cached_info_text.contains("Half-Life ="));
+        }
+
+        // Auto Set Emissions
+        harness.get_by_label("Auto Set Emissions").click();
+        harness.run();
+        assert!(harness.state().0.auto_set_emissions_requested);
+
+        // Search peaks
+        harness.get_by_label("Search peaks").click();
+        harness.run();
+        assert!(harness.state().0.debug.peaks.is_some());
+
+        // View Derivatives
+        harness.get_by_label("View Derivatives").click();
+        harness.run();
+        assert!(harness.state().0.debug_open);
+
+        drop(std::fs::remove_dir_all(&dir));
     }
 }

@@ -328,3 +328,44 @@ fn format_cell(v: f64, decimals: usize) -> String {
         "—".into()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use egui_kittest::kittest::Queryable;
+    use egui_kittest::Harness;
+
+    #[test]
+    fn test_real_time_values_table_and_format_cell() {
+        assert_eq!(format_cell(12.3456, 2), "12.35");
+        assert_eq!(format_cell(0.5678, 3), "0.568");
+        assert_eq!(format_cell(f64::NAN, 2), "—");
+        assert_eq!(format_cell(f64::INFINITY, 2), "—");
+
+        let mut cps = HashMap::new();
+        let mut dr = HashMap::new();
+        cps.insert("DetA".to_string(), vec![1.0, 25.5]);
+        dr.insert("DetA".to_string(), vec![0.1, 0.25]);
+        cps.insert("DetEmpty".to_string(), vec![]);
+        dr.insert("DetEmpty".to_string(), vec![]);
+
+        type BufMap = HashMap<String, Vec<f64>>;
+
+        let mut harness = Harness::builder()
+            .with_accessibility_check(false)
+            .build_ui_state(
+                |ui, (cps, dr): &mut (BufMap, BufMap)| {
+                    ui.ctx()
+                        .set_missing_glyph_policy(egui::epaint::text::MissingGlyphPolicy::Tofu);
+                    draw_table(cps, dr, ui);
+                },
+                (cps, dr),
+            );
+        harness.run();
+        assert!(harness.query_by_label("DetA").is_some());
+        assert!(harness.query_by_label("25.50").is_some());
+        assert!(harness.query_by_label("0.250").is_some());
+        assert!(harness.query_by_label("DetEmpty").is_some());
+        assert!(harness.query_all_by_label("—").next().is_some());
+    }
+}

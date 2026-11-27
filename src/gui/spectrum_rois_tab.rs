@@ -378,3 +378,128 @@ fn format_grouped_int(v: i64) -> String {
     }
     out.chars().rev().collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::containers::{BkgType, Emission, FitType, SpectrumData};
+    use crate::core::{ForegroundInput, NewRoi};
+    use crate::gui::ColorScheme;
+    use egui_kittest::kittest::Queryable;
+    use egui_kittest::Harness;
+    use ndarray::Array1;
+    use std::path::Path;
+
+    #[test]
+    fn test_spectrum_rois_tab_kittest_and_formatters() {
+        assert_eq!(format_count(Some(1234.0), false), "1 234");
+        assert_eq!(format_count(Some(1.25), true), "1.2500 CPS");
+        assert_eq!(format_count(None, false), "None");
+        assert_eq!(format_val_err(Some(10.0), Some(2.0), false), "10 ± 2");
+        assert_eq!(format_val_err(Some(1.5), Some(0.25), true), "1.5000 ± 0.2500 CPS");
+        assert_eq!(format_val_err(None, Some(1.0), false), "None");
+        assert_eq!(format_grouped_int(-1234), "-1 234");
+
+        let dir = std::env::temp_dir().join("luracs_test_spec_rois_tab");
+        drop(std::fs::remove_dir_all(&dir));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let sm = SpectrumManager::new(
+            ColorScheme::default(),
+            dir.clone(),
+            Path::new("resources/nuclide_data"),
+        )
+        .unwrap();
+
+        let mut harness = Harness::builder()
+            .with_accessibility_check(false)
+            .build_ui_state(
+                |ui, (tab, sm, modals): &mut (SpectrumRoisTab, SpectrumManager, Vec<Modal>)| {
+                    tab.render(ui, sm, modals, false);
+                },
+                (SpectrumRoisTab::default(), sm, Vec::new()),
+            );
+
+        // 1. Empty state
+        harness.run();
+        assert!(harness.query_by_label("No ROIs.").is_some());
+        assert_eq!(format_roi_info_text("", &harness.state().1), "No ROI selected.");
+        assert_eq!(
+            format_roi_info_text("missing", &harness.state().1),
+            "No spectrum data for this ROI."
+        );
+
+        // 2. Populate Gaussian + No-Fit ROIs and a visible + hidden spectrum
+        {
+            let sm = &mut harness.state_mut().1;
+            let y: Array1<f64> = (0..100)
+                .map(|i| {
+                    let d = i as f64 - 50.0;
+                    300.0f64.mul_add((-0.5 * d * d / 9.0).exp(), 10.0)
+                })
+                .collect();
+            let fg = SpectrumData {
+                y_axis: y,
+                channels: 100,
+                total_counts: 1000,
+                live_time: 10.0,
+                real_time: Some(10.0),
+                avg_dose_rate: None,
+                avg_cps: None,
+                start_date: None,
+                end_date: None,
+                spectrum_name: None,
+                instrument: None,
+            };
+            sm.create_spectrum("VisSpec", 100, None, false).unwrap();
+            sm.set_foreground_spectrum("VisSpec", ForegroundInput::Raw(fg.clone()))
+                .unwrap();
+
+            sm.create_spectrum("HiddenSpec", 100, None, false).unwrap();
+            sm.set_foreground_spectrum("HiddenSpec", ForegroundInput::Raw(fg))
+                .unwrap();
+            sm.update_visibility("HiddenSpec", false).unwrap();
+
+            let mut gauss = NewRoi::new(40.0, 60.0);
+            gauss.alias = Some("Gauss50".into());
+            gauss.fit_type = FitType::Gaussian;
+            gauss.bkg_type = BkgType::Linear;
+            gauss.emission = Some(Emission::annihilation());
+            let g_tag = sm.roi_manager.add_roi(gauss);
+            sm.roi_manager
+                .on_roi_change(&mut sm.spectrum_registry, &g_tag, false, false);
+
+            let mut nofit = NewRoi::new(10.0, 20.0);
+            nofit.alias = Some("Plain15".into());
+            nofit.fit_type = FitType::None;
+            let n_tag = sm.roi_manager.add_roi(nofit);
+            sm.roi_manager
+                .on_roi_change(&mut sm.spectrum_registry, &n_tag, false, false);
+        }
+        harness.run();
+        assert!(harness.query_all_by_label("Gauss50").next().is_some());
+        assert!(harness.query_all_by_label("Plain15").next().is_some());
+        assert!(harness.query_all_by_label("No Fit").next().is_some());
+        assert!(harness.query_all_by_label("Spectrum Hidden").next().is_some());
+        assert!(harness.query_all_by_label("Annihilation").next().is_some());
+
+        // 3. Toggle CPS checkbox
+        harness.get_by_label("CPS").click();
+        harness.run();
+        assert!(harness.state().0.cps);
+        assert!(harness.state().1.roi_manager.spectrum_is_cps());
+
+        // 4. Clear ROIs pushes confirmation modal onto modal_stack
+        harness.get_by_label("Clear ROIs").click();
+        harness.run();
+        assert_eq!(harness.state().2.len(), 1);
+
+        // 5. Open ROI Info Viewer
+        harness.get_by_label("ROI Info").click();
+        harness.run();
+        assert!(harness.state().0.info_open);
+        assert!(harness.query_by_label("ROI Info Viewer").is_some());
+
+        drop(std::fs::remove_dir_all(&dir));
+    }
+}
