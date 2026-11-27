@@ -164,22 +164,24 @@ struct Cli {
     #[arg(long)]
     debug: bool,
 
-    #[arg(long, num_args = 1..)]
+    // Underscore aliases keep the Python-era flag spellings (`--map_url`, ...)
+    // working alongside clap's default kebab-case (`--map-url`, ...).
+    #[arg(long, alias = "import_spectrum", num_args = 1..)]
     import_spectrum: Option<Vec<PathBuf>>,
 
     #[arg(long, num_args = 1..)]
     nuclides: Option<Vec<String>>,
 
-    #[arg(long)]
+    #[arg(long, alias = "clear_local_cache")]
     clear_local_cache: bool,
 
-    #[arg(long)]
+    #[arg(long, alias = "map_url")]
     map_url: Option<String>,
 
-    #[arg(long)]
+    #[arg(long, alias = "map_file")]
     map_file: Option<PathBuf>,
 
-    #[arg(long)]
+    #[arg(long, alias = "import_rois")]
     import_rois: Option<PathBuf>,
 
     /// `-roi <lower> <upper>`, repeatable.
@@ -195,7 +197,7 @@ struct Cli {
     #[arg(long = "network", alias = "nw", num_args = 1..)]
     network: Option<Vec<String>>,
 
-    #[arg(long)]
+    #[arg(long, alias = "serial_gps")]
     serial_gps: Option<String>,
 }
 
@@ -265,6 +267,8 @@ fn dispatch_cli_args(
 // Entry point
 // ---------------------------------------------------------------------------
 
+// Process entry point: installs global logging/crypto and launches the GUI or headless loop.
+#[cfg_attr(coverage_nightly, coverage(off))]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     drop(rustls::crypto::ring::default_provider().install_default());
     let cli = Cli::parse();
@@ -333,6 +337,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 // GUI
 // ---------------------------------------------------------------------------
 
+// Opens a native eframe/wgpu window; requires a display and GPU.
+#[cfg_attr(coverage_nightly, coverage(off))]
 fn run_gui(
     shared_settings: SharedSettings,
     run_manager: RunManager,
@@ -389,6 +395,8 @@ fn app_title() -> String {
 // Headless
 // ---------------------------------------------------------------------------
 
+// Installs a process-wide Ctrl+C handler and blocks until it fires.
+#[cfg_attr(coverage_nightly, coverage(off))]
 fn run_headless(
     mut run_manager: RunManager,
     mut spectrum_manager: SpectrumManager,
@@ -457,6 +465,8 @@ fn shutdown_all(run_manager: &mut RunManager, shared_settings: &SharedSettings) 
 // Bootstrap helpers
 // ---------------------------------------------------------------------------
 
+// Reads/creates the real per-user settings under $HOME.
+#[cfg_attr(coverage_nightly, coverage(off))]
 fn load_settings(headless: bool) -> Result<SharedSettings, Box<dyn std::error::Error>> {
     let mut settings = Settings::new()?;
     if let Err(e) = settings.load() {
@@ -488,10 +498,25 @@ fn build_spectrum_manager(
 
 fn build_io_manager(settings: &SharedSettings) -> Result<IoManager, Box<dyn std::error::Error>> {
     let s = settings.read().unwrap();
-    let spectrum_lib = s.paths.spectrum_library.clone();
-    let roi_lib = s.paths.roi_library.clone();
-    let unique_lib = s.paths.unique_instrument_library.clone();
-    let generic_lib = s.paths.generic_instrument_library.clone();
+    let (spectrum_save, roi_save, unique_save, generic_save) = make_save_fns(&s.paths);
+
+    Ok(IoManager::new(
+        &s.paths.appdata,
+        s.paths.last_opened_dir.clone(),
+        s.plotting.tabbed_spectrum_view,
+        spectrum_save,
+        roi_save,
+        unique_save,
+        generic_save,
+    ))
+}
+
+/// Build the four library save callbacks (spectrum, ROI, unique, generic).
+fn make_save_fns(paths: &crate::settings::Paths) -> (SaveFn, SaveFn, SaveFn, SaveFn) {
+    let spectrum_lib = paths.spectrum_library.clone();
+    let roi_lib = paths.roi_library.clone();
+    let unique_lib = paths.unique_instrument_library.clone();
+    let generic_lib = paths.generic_instrument_library.clone();
     let unique_lib_for_generic = unique_lib.clone();
     let generic_lib_for_generic = generic_lib.clone();
 
@@ -528,15 +553,7 @@ fn build_io_manager(settings: &SharedSettings) -> Result<IoManager, Box<dyn std:
         _ => Err("wrong input for generic-instrument indexer".into()),
     });
 
-    Ok(IoManager::new(
-        &s.paths.appdata,
-        s.paths.last_opened_dir.clone(),
-        s.plotting.tabbed_spectrum_view,
-        spectrum_save,
-        roi_save,
-        unique_save,
-        generic_save,
-    ))
+    (spectrum_save, roi_save, unique_save, generic_save)
 }
 
 /// Forward indexer discoveries into the instrument libraries.
@@ -581,5 +598,175 @@ fn dispatch_file_index_events(io: &mut IoManager, spectrum_manager: &mut Spectru
             },
             FileIndexEvent::IndexUpdated { .. } => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::settings::{PathOverrides, Paths};
+
+    fn test_settings(tag: &str) -> (SharedSettings, PathBuf) {
+        let dir = std::env::temp_dir().join(format!("luracs_test_main_{tag}"));
+        drop(std::fs::remove_dir_all(&dir));
+        std::fs::create_dir_all(&dir).unwrap();
+        let paths = Paths::with_overrides(
+            PathOverrides::new()
+                .base(PathBuf::from(env!("CARGO_MANIFEST_DIR")))
+                .config(dir.join("cfg"))
+                .appdata(dir.join("app"))
+                .last_opened_dir(dir.clone()),
+        )
+        .unwrap();
+        let settings = Settings::builder()
+            .headless(true)
+            .paths(paths)
+            .build()
+            .unwrap();
+        (Arc::new(RwLock::new(settings)), dir)
+    }
+
+    #[test]
+    fn test_cli_parsing() {
+        let cli = Cli::try_parse_from([
+            "LuRaCs",
+            "--headless",
+            "--debug",
+            "--roi",
+            "10",
+            "20",
+            "--roi",
+            "30",
+            "40",
+            "--ble",
+            "RadiaCode-102",
+            "--nw",
+            "10.0.0.1",
+            "--map_url",
+            "https://tiles/{z}/{x}/{y}.pbf",
+            "--serial_gps",
+            "Mock",
+        ])
+        .unwrap();
+        assert!(cli.headless);
+        assert!(cli.debug);
+        assert_eq!(cli.roi, Some(vec![10.0, 20.0, 30.0, 40.0]));
+        assert_eq!(cli.bluetooth, Some(vec!["RadiaCode-102".to_string()]));
+        assert_eq!(cli.network, Some(vec!["10.0.0.1".to_string()]));
+        assert_eq!(cli.serial_gps.as_deref(), Some("Mock"));
+        assert!(cli.map_file.is_none());
+
+        // --roi requires exactly two values
+        assert!(Cli::try_parse_from(["LuRaCs", "--roi", "1"]).is_err());
+        // Kebab-case spellings are accepted too
+        let kebab = Cli::try_parse_from([
+            "LuRaCs",
+            "--map-file",
+            "tiles.pmtiles",
+            "--serial-gps",
+            "/dev/ttyUSB0",
+            "--clear-local-cache",
+        ])
+        .unwrap();
+        assert_eq!(kebab.map_file, Some(PathBuf::from("tiles.pmtiles")));
+        assert_eq!(kebab.serial_gps.as_deref(), Some("/dev/ttyUSB0"));
+        assert!(kebab.clear_local_cache);
+        assert_eq!(app_title(), "LuRaCs");
+    }
+
+    #[test]
+    fn test_bootstrap_helpers_dispatch_cli_and_shutdown() {
+        let (shared, dir) = test_settings("bootstrap");
+
+        let poll = poll_config_from(&shared.read().unwrap());
+        {
+            let s = shared.read_settings();
+            assert_eq!(poll.update_loop_delay, s.scanning.update_loop_delay_s);
+            assert_eq!(poll.spectrum_update_delay, s.scanning.spectrum_update_delay_s);
+        }
+
+        let mut spectrum_manager = build_spectrum_manager(&shared).unwrap();
+        let mut io_manager = build_io_manager(&shared).unwrap();
+        let mut run_manager = RunManager::new(8, poll).unwrap();
+
+        let spectrum_file = dir.join("dummy.n42");
+        std::fs::write(&spectrum_file, b"").unwrap();
+        let missing_file = dir.join("missing.n42");
+        let tiles_file = dir.join("tiles.pmtiles");
+
+        let args: [&std::ffi::OsStr; 16] = [
+            "LuRaCs".as_ref(),
+            "--debug".as_ref(),
+            "--roi".as_ref(),
+            "100".as_ref(),
+            "200".as_ref(),
+            "--network".as_ref(),
+            "192.168.0.10".as_ref(),
+            "--import_spectrum".as_ref(),
+            spectrum_file.as_os_str(),
+            missing_file.as_os_str(),
+            "--map_url".as_ref(),
+            "https://example/{z}/{x}/{y}.png".as_ref(),
+            "--map_file".as_ref(),
+            tiles_file.as_os_str(),
+            "--serial_gps".as_ref(),
+            "Mock".as_ref(),
+        ];
+        let cli = Cli::try_parse_from(args).unwrap();
+
+        dispatch_cli_args(&cli, &shared, &mut run_manager, &mut spectrum_manager).unwrap();
+
+        let roi = spectrum_manager.roi_manager.get_roi("ROI_0").expect("ROI from --roi");
+        assert_eq!(roi.roi_bound, (100.0, 200.0));
+        assert!(run_manager.has_gps());
+
+        // Startup discovery path with nothing indexed is a no-op
+        io_manager.file_index.run_index_all();
+        dispatch_file_index_events(&mut io_manager, &mut spectrum_manager);
+
+        shutdown_all(&mut run_manager, &shared);
+        assert!(shared.read_settings().paths.settings_file.exists());
+
+        drop(std::fs::remove_dir_all(&dir));
+    }
+
+    #[test]
+    fn test_save_fns_and_file_index_dispatch_loads_instruments() {
+        let (shared, dir) = test_settings("save_fns");
+        let paths = shared.read_settings().paths.clone();
+        let (spectrum_save, roi_save, unique_save, generic_save) = make_save_fns(&paths);
+
+        let generic = crate::containers::GenericInstrument::default();
+        let mut unique = crate::containers::UniqueInstrument::from_template("MainDet", &generic);
+        unique.name = "MainDet".to_string();
+        let spectrum = crate::containers::Spectrum::new(4, "MainSpec");
+
+        // Each callback rejects inputs meant for another library
+        let is_wrong_input = |r: &Result<PathBuf, String>| {
+            matches!(r, Err(e) if e.starts_with("wrong input"))
+        };
+        assert!(is_wrong_input(&spectrum_save(SaveInput::GenericInstrument(&generic))));
+        assert!(is_wrong_input(&roi_save(SaveInput::Spectrum(&spectrum))));
+        assert!(is_wrong_input(&unique_save(SaveInput::Spectrum(&spectrum))));
+        assert!(is_wrong_input(&generic_save(SaveInput::UniqueInstrument(&unique))));
+
+        // Matching inputs are routed to the save helpers
+        assert!(!is_wrong_input(&spectrum_save(SaveInput::Spectrum(&spectrum))));
+        assert!(!is_wrong_input(&roi_save(SaveInput::Rois {
+            rois: &[],
+            name: "MainRois",
+        })));
+        assert!(unique_save(SaveInput::UniqueInstrument(&unique)).is_ok());
+        assert!(!is_wrong_input(&generic_save(SaveInput::GenericInstrument(&generic))));
+
+        // The freshly-written unique instrument is picked up on startup discovery
+        let mut spectrum_manager = build_spectrum_manager(&shared).unwrap();
+        let mut io_manager = build_io_manager(&shared).unwrap();
+        let before = spectrum_manager.unique_instrument_library.len();
+        io_manager.file_index.run_index_all();
+        dispatch_file_index_events(&mut io_manager, &mut spectrum_manager);
+        assert!(spectrum_manager.unique_instrument_library.len() > before);
+
+        drop(std::fs::remove_dir_all(&dir));
     }
 }
