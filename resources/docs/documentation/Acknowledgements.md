@@ -1,41 +1,42 @@
 # Acknowledgements
 
-This application uses the following open-source projects:
+This application is written in Rust and uses the following open-source crates:
 
-| Package | License |
-|---|---|
-| bleak | MIT License |
-| numpy | BSD License |
-| pyqtgraph | MIT License |
-| PySide6 (Qt for Python) | LGPLv3 |
-| qasync | BSD License |
-| openpyxl | MIT License |
-| pyusb | BSD License |
-| lxml | BSD-style License |
-| libusb_package | LGPL |
-| uncertainties | BSD License |
-| plotext | MIT License |
-| prompt_toolkit | BSD License |
-| markdown | BSD License |
-| scikit-learn | BSD License |
-| scipy | BSD License |
+| Crate | Purpose | License |
+|---|---|---|
+| eframe / egui | Immediate-mode GUI framework | MIT OR Apache-2.0 |
+| egui_commonmark | Markdown viewer for egui | MIT OR Apache-2.0 |
+| walkers | Slippy map widget (MVT / PMTiles) | MIT |
+| tokio | Asynchronous runtime | MIT |
+| ndarray | N-dimensional arrays | MIT OR Apache-2.0 |
+| nalgebra | Linear algebra & fitting | Apache-2.0 |
+| physure | Physical quantities & uncertainty propagation | MIT OR Apache-2.0 |
+| nucleide-nuclei | Nuclide identifiers & decay data | MIT OR Apache-2.0 |
+| mendeleev | Chemical element data | MIT |
+| btleplug | Cross-platform Bluetooth Low Energy | MIT OR Apache-2.0 OR BSD-3-Clause |
+| nusb / rusb | USB device enumeration and I/O | MIT OR Apache-2.0 |
+| serialport | Serial port communication (GPS) | MPL-2.0 |
+| reqwest / rustls | HTTP & TLS client | MIT OR Apache-2.0 |
+| rusqlite | Embedded SQLite database | MIT |
+| rust_xlsxwriter | Excel `.xlsx` export | MIT OR Apache-2.0 |
+| quick-xml / roxmltree | XML parsing and N42 generation | MIT / MIT OR Apache-2.0 |
+| rfd | Native file dialogs | MIT |
+| serde / serde_json / toml / csv | Serialization & data formats | MIT OR Apache-2.0 |
+| rayon | Data parallelism | MIT OR Apache-2.0 |
+| zip / flate2 | Archive & compression | MIT OR Apache-2.0 |
+
+It also includes the workspace crates `rsplot` (GPU-accelerated `wgpu` plotting) and `egui_histogram_lut`.
 
 We gratefully acknowledge the maintainers and contributors of these projects.
 
-The following projects were forked and code included in this project but are not dependencies:
+The following projects inspired or provided protocol/format references used in this project:
 
 - [pmtiles](https://github.com/protomaps/PMTiles)
 - [radiacode](https://github.com/cdump/radiacode/tree/master)
 - [maplibre](https://github.com/maplibre/maplibre-gl-js)
 
-## Qt / PySide6
-
-This application uses Qt for Python (PySide6), licensed under the GNU Lesser General Public License v3 (LGPLv3).
-
-Users may replace or modify LGPL-covered Qt libraries in accordance with the LGPL.
-
 ## Colour Scheme and Icons
-This application uses the [Catppuccin](https://catppuccin.com/) colour scheme and [Material Design Icons](https://pictogrammers.com/library/mdi/) (Apache 2.0 see licences/)
+This application uses the [Catppuccin](https://catppuccin.com/) colour scheme and [Material Design Icons](https://pictogrammers.com/library/mdi/) (Apache 2.0).
 
 ## Project License
 
