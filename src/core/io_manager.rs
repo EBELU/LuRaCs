@@ -543,6 +543,7 @@ impl Importer {
     }
 
     /// Open a file dialog and return the picked paths + filter.
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn pick_files(&mut self, filter: ImportFilter) -> Option<(Vec<PathBuf>, ImportFilter)> {
         let dlg = self.build_pick_files_dialog(filter);
         let paths = dlg.pick_files()?;
@@ -556,6 +557,7 @@ impl Importer {
         Some((paths, filter))
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn pick_file(&mut self, filter: ImportFilter) -> Option<(PathBuf, ImportFilter)> {
         let dlg = FileDialog::new()
             .set_directory(&self.last_opened_dir)
@@ -660,6 +662,7 @@ impl Importer {
     }
 
     /// Convenience: dialog → outcomes in one step.
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn import_generic(
         &mut self,
         filter: ImportFilter,
@@ -760,6 +763,7 @@ impl Exporter {
         Self { last_opened_dir }
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn export_spectrum_dialog(&mut self, spectrum_name: &str) -> Option<ExportOutcome> {
         let path = FileDialog::new()
             .set_directory(&self.last_opened_dir)
@@ -787,6 +791,7 @@ impl Exporter {
     /// Ask for a source DB (if not currently loaded) and a target spectrum
     /// name. Returns the outcome for the caller to fulfil via
     /// `DbWriter::build_spectrum_from_db` + `FileIndex::save_file`.
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn export_spectrogram_to_spectrum_dialog(
         &mut self,
         spectrogram_name: Option<&str>,
@@ -824,6 +829,7 @@ impl Exporter {
         })
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn export_rois_dialog(&mut self, rois: Vec<Roi>) -> Option<ExportOutcome> {
         if rois.is_empty() {
             return None;
@@ -854,6 +860,7 @@ impl Exporter {
         self.last_opened_dir = dir;
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn export_library_dialog(&mut self) -> Option<ExportOutcome> {
         let path = self.build_export_library_dialog().save_file()?;
         self.last_opened_dir = path
@@ -1060,6 +1067,134 @@ mod tests {
         assert!(zip_path.exists());
         let restore_dir = dir.join("restored");
         io.importer.do_import_library(&zip_path, &restore_dir).unwrap();
+
+        drop(std::fs::remove_dir_all(&dir));
+    }
+
+    #[test]
+    fn test_io_manager_filters_builders_rename_overwrite_and_tabbed_rois() {
+        for f in [
+            ImportFilter::All,
+            ImportFilter::Spectrum,
+            ImportFilter::Spectrogram,
+            ImportFilter::Rois,
+            ImportFilter::Instrument,
+        ] {
+            assert!(!f.rfd_name().is_empty());
+            assert!(!f.extensions().is_empty());
+        }
+        for f in [
+            ExportFilter::Spectrum,
+            ExportFilter::Spectrogram,
+            ExportFilter::Rois,
+            ExportFilter::Instrument,
+        ] {
+            assert!(!f.extensions().is_empty());
+        }
+
+        let dir = std::env::temp_dir().join("luracs_test_io_mgr_extra");
+        drop(std::fs::remove_dir_all(&dir));
+        let spec_dir = dir.join("spectrum_library");
+        let ui_dir = dir.join("unique_instrument_library");
+        std::fs::create_dir_all(&spec_dir).unwrap();
+        std::fs::create_dir_all(&ui_dir).unwrap();
+
+        let save_spec: SaveFn = Box::new(move |input| match input {
+            SaveInput::Spectrum(s) => save_spectrum_to_library(s, &spec_dir).map_err(|e| e.to_string()),
+            _ => Err("unsupported".into()),
+        });
+        let noop = || -> SaveFn { Box::new(|_| Err("noop".into())) };
+
+        // tabbed_spectrum_view = true
+        let mut io = IoManager::new(&dir, dir.clone(), true, save_spec, noop(), noop(), noop());
+        io.importer.set_last_opened_dir(dir.clone());
+        io.exporter.set_last_opened_dir(dir.clone());
+        drop(io.importer.build_pick_files_dialog(ImportFilter::All));
+        drop(io.importer.build_pick_files_dialog(ImportFilter::Spectrum));
+        drop(io.exporter.build_export_library_dialog());
+
+        assert_eq!(io.file_index.indexer(IndexKind::Roi).len(), 0);
+        assert_eq!(io.file_index.indexer(IndexKind::UniqueInstrument).len(), 0);
+        assert_eq!(io.file_index.indexer(IndexKind::GenericInstrument).len(), 0);
+
+        // Save two spectra and rename one over the other to exercise overwrite branch
+        let mut s1 = Spectrum::new(4, "S1".to_string());
+        s1.set_foreground(
+            SpectrumData {
+                y_axis: Array1::from_vec(vec![1.0, 2.0, 3.0, 4.0]),
+                channels: 4,
+                total_counts: 10,
+                live_time: 1.0,
+                real_time: None,
+                avg_dose_rate: None,
+                avg_cps: None,
+                start_date: None,
+                end_date: None,
+                spectrum_name: None,
+                instrument: None,
+            },
+            None,
+        );
+        let mut s2 = Spectrum::new(4, "S2".to_string());
+        s2.set_foreground(s1.foreground.clone().unwrap(), None);
+
+        let p1 = io
+            .file_index
+            .indexer_mut(IndexKind::Spectrum)
+            .save_file(SaveInput::Spectrum(&s1))
+            .unwrap();
+        let p2 = io
+            .file_index
+            .indexer_mut(IndexKind::Spectrum)
+            .save_file(SaveInput::Spectrum(&s2))
+            .unwrap();
+        io.file_index
+            .indexer_mut(IndexKind::Spectrum)
+            .rename_file(&p1, &p2)
+            .unwrap();
+        assert!(!p1.exists());
+        assert!(p2.exists());
+
+        // Import XML with ROIs while tabbed_spectrum_view = true -> owner_spectrum populated
+        let roi_outcomes = io.importer.import_paths(
+            &[PathBuf::from("tests/data/Raysid-GRF-Eu152.xml")],
+            ImportFilter::Rois,
+            &dir,
+        );
+        assert!(matches!(
+            roi_outcomes.first(),
+            Some(ImportOutcome::Rois(rois)) if rois.iter().all(|r| r.owner_spectrum.is_some())
+        ));
+
+        // Instrument XML import
+        let mut inst_spec = Spectrum::new(4, "InstSpec");
+        inst_spec.set_foreground(s1.foreground.clone().unwrap(), None);
+        let mut u = crate::containers::UniqueInstrument::from_template(
+            "IoDet",
+            &crate::containers::GenericInstrument::default(),
+        );
+        u.name = "IoDet".to_string();
+        inst_spec.set_instrument(u);
+        let inst_base = ui_dir.join("IoDet");
+        crate::utils::N42Writer::new(
+            &inst_spec,
+            inst_base.clone(),
+            crate::utils::WriteOptions {
+                export_spectrum: false,
+                export_rois: false,
+                export_instrument: true,
+                comment: None,
+            },
+        )
+        .unwrap()
+        .write_out()
+        .unwrap();
+        let inst_path = inst_base.with_extension("xml");
+        let inst_outcomes = io.importer.import_paths(&[inst_path], ImportFilter::Instrument, &dir);
+        assert!(matches!(
+            inst_outcomes.first(),
+            Some(ImportOutcome::Instrument(_))
+        ));
 
         drop(std::fs::remove_dir_all(&dir));
     }
