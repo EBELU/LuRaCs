@@ -20,8 +20,8 @@ use crate::settings::Settings;
 use crate::utils::numerics::nanmean;
 
 pub struct RealTimeValuesTab {
-    cps_plot: Plot1D,
-    dr_plot: Plot1D,
+    cps_plot: Option<Plot1D>,
+    dr_plot: Option<Plot1D>,
 
     /// Per-device line color, assigned on first appearance.
     colors: HashMap<String, Color32>,
@@ -64,6 +64,20 @@ impl RealTimeValuesTab {
             .plot_mut()
             .set_pan_axes_override(Some((false, false)));
 
+        Self::with_plots(Some(cps_plot), Some(dr_plot), scheme)
+    }
+
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn new_headless(scheme: ColorScheme) -> Self {
+        Self::with_plots(None, None, scheme)
+    }
+
+    fn with_plots(
+        cps_plot: Option<Plot1D>,
+        dr_plot: Option<Plot1D>,
+        scheme: ColorScheme,
+    ) -> Self {
         Self {
             cps_plot,
             dr_plot,
@@ -75,8 +89,12 @@ impl RealTimeValuesTab {
     }
 
     pub fn retheme(&mut self, colors: &crate::theme_manager::ResolvedPlotColors) {
-        colors.apply_to(&mut self.cps_plot);
-        colors.apply_to(&mut self.dr_plot);
+        if let Some(plot) = &mut self.cps_plot {
+            colors.apply_to(plot);
+        }
+        if let Some(plot) = &mut self.dr_plot {
+            colors.apply_to(plot);
+        }
     }
 
     pub fn set_color_scheme(&mut self, scheme: ColorScheme) {
@@ -162,8 +180,12 @@ impl RealTimeValuesTab {
         // Pin the view. X is fixed (0..x_max) so the scroll window is
         // stable; Y auto-fits the data each frame (pyqtgraph does the same
         // by default).
-        self.cps_plot.plot_mut().limits = (0.0, x_max, 0.0, y_max_cps * 1.10);
-        self.dr_plot.plot_mut().limits = (0.0, x_max, 0.0, y_max_dr * 1.10);
+        if let Some(plot) = &mut self.cps_plot {
+            plot.plot_mut().limits = (0.0, x_max, 0.0, y_max_cps * 1.10);
+        }
+        if let Some(plot) = &mut self.dr_plot {
+            plot.plot_mut().limits = (0.0, x_max, 0.0, y_max_dr * 1.10);
+        }
 
         // Two plots share 2/3 of the row; table gets the remaining 1/3.
         let total_w = ui.available_width();
@@ -184,14 +206,18 @@ impl RealTimeValuesTab {
                 egui::vec2(half, total_h),
                 egui::Layout::top_down(egui::Align::Min),
                 |ui| {
-                    draw_strip_plot(cps_plot, &x_axis, cps_bufs, colors, show_mean_lines, ui);
+                    if let Some(plot) = cps_plot {
+                        draw_strip_plot(plot, &x_axis, cps_bufs, colors, show_mean_lines, ui);
+                    }
                 },
             );
             ui.allocate_ui_with_layout(
                 egui::vec2(half, total_h),
                 egui::Layout::top_down(egui::Align::Min),
                 |ui| {
-                    draw_strip_plot(dr_plot, &x_axis, dr_bufs, colors, show_mean_lines, ui);
+                    if let Some(plot) = dr_plot {
+                        draw_strip_plot(plot, &x_axis, dr_bufs, colors, show_mean_lines, ui);
+                    }
                 },
             );
             ui.separator();

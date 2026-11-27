@@ -214,6 +214,15 @@ impl SettingsDialog {
         }
     }
 
+    #[cfg(test)]
+    pub(crate) fn new_with(settings: &Settings) -> Self {
+        Self {
+            open: false,
+            draft: SettingsDraft::from_settings(settings),
+            close_after_modal: false,
+        }
+    }
+
     /// Open the dialog, refreshing the draft from the current settings.
     /// Call this from a menu-item handler.
     pub fn open_with(&mut self, settings: &Settings) {

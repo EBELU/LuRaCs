@@ -301,7 +301,7 @@ impl IsotopicsTab {
     }
 
     #[cfg(test)]
-    fn new_headless() -> Self {
+    pub(crate) fn new_headless() -> Self {
         Self {
             filter: String::new(),
             last_filter: String::new(),

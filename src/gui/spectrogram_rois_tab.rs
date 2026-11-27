@@ -167,7 +167,7 @@ impl SpectrogramRoisTab {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn render_impl(
+    pub(crate) fn render_impl(
         &mut self,
         ui: &mut egui::Ui,
         run_manager: &RunManager,

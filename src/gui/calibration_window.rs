@@ -52,7 +52,7 @@ impl CalibrationWindow {
     }
 
     #[cfg(test)]
-    const fn new_headless() -> Self {
+    pub(crate) const fn new_headless() -> Self {
         Self {
             open: false,
             selected_spectrum: String::new(),

@@ -118,9 +118,19 @@ pub struct SpectrumScreen {
 
 impl SpectrumScreen {
     pub fn new(render_state: &RenderState) -> Self {
+        Self::with_combined(SpectrumPlotState::new(render_state))
+    }
+
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn new_headless() -> Self {
+        Self::with_combined(SpectrumPlotState::new_headless())
+    }
+
+    fn with_combined(combined: SpectrumPlotState) -> Self {
         Self {
             mode: PlotMode::Combined,
-            combined: SpectrumPlotState::new(render_state),
+            combined,
             tabs: HashMap::new(),
             tab_order: Vec::new(),
             current_tab: None,
@@ -172,7 +182,7 @@ impl SpectrumScreen {
     pub fn sync_spectra(
         &mut self,
         spectrum_manager: &mut SpectrumManager,
-        render_state: &RenderState,
+        render_state: Option<&RenderState>,
     ) {
         let alive: HashSet<String> = spectrum_manager
             .get_spectra_dict()
@@ -222,7 +232,14 @@ impl SpectrumScreen {
         new_names.sort();
 
         for name in &new_names {
-            let mut state = SpectrumPlotState::for_spectrum(render_state, name.clone());
+            let mut state = render_state.map_or_else(
+                || {
+                    let mut s = SpectrumPlotState::new_headless();
+                    s.owned_spectrum = Some(name.clone());
+                    s
+                },
+                |rs| SpectrumPlotState::for_spectrum(rs, name.clone()),
+            );
             state.feature_lines = self.feature_lines.clone();
             if let Some(colors) = &self.plot_colors {
                 state.retheme(colors);
@@ -337,7 +354,7 @@ impl SpectrumScreen {
         spectrum_manager: &mut SpectrumManager,
         settings: &Settings,
         theme_def: &theme_manager::ThemeDefinition,
-        render_state: &RenderState,
+        render_state: Option<&RenderState>,
         ui: &mut egui::Ui,
     ) {
         self.sync_spectra(spectrum_manager, render_state);

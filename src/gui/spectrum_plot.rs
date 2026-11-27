@@ -155,7 +155,6 @@ impl SpectrumPlotState {
         Self::with_plot(Some(plot))
     }
 
-    #[cfg(test)]
     #[must_use]
     pub(crate) fn new_headless() -> Self {
         Self::with_plot(None)

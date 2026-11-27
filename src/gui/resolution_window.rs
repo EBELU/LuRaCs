@@ -69,7 +69,7 @@ impl ResolutionWindow {
     }
 
     #[cfg(test)]
-    fn new_headless() -> Self {
+    pub(crate) fn new_headless() -> Self {
         Self {
             open: false,
             selected_peaks: HashSet::new(),

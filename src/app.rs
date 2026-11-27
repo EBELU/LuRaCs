@@ -92,7 +92,7 @@ pub struct LuRaCsApp {
     pub theme_manager: ThemeManager,
     pub dispatcher: EventDispatcher,
     pub log_buffer: Arc<LogBuffer>,
-    pub render_state: RenderState,
+    pub render_state: Option<RenderState>,
 
     // --- Modal stack (scoped per viewport; ROOT is the main window) ---
     pub modal_stack: Vec<Modal>,
@@ -231,7 +231,7 @@ impl LuRaCsApp {
             theme_manager,
             dispatcher: EventDispatcher::new(),
             log_buffer,
-            render_state,
+            render_state: Some(render_state),
             modal_stack: Vec::new(),
             file_dialogs: FileDialogQueue::new(),
 
@@ -267,6 +267,82 @@ impl LuRaCsApp {
             efficiency_window,
             calibration_window,
             resolution_window,
+            deconvolution_window: DeconvolutionWindow::new(),
+            peak_features_window: PeakFeaturesWindow::new(),
+
+            view_realtime_avg_line: false,
+            view_spectrogram_rois_compact: false,
+            spectrogram_data: HashMap::new(),
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn new_headless(
+        settings: SharedSettings,
+        run_manager: RunManager,
+        spectrum_manager: SpectrumManager,
+        io_manager: IoManager,
+        log_buffer: Arc<LogBuffer>,
+    ) -> Self {
+        let settings_dialog = SettingsDialog::new_with(&settings.read_settings());
+        let (builtin_theme_dir, user_theme_dir, preferred_theme) = {
+            let s = settings.read_settings();
+            (
+                s.paths.themes.clone(),
+                s.paths.config.join("themes"),
+                s.theme.name.clone(),
+            )
+        };
+        let mut theme_manager =
+            ThemeManager::new(builtin_theme_dir, user_theme_dir, Some(&preferred_theme));
+        drop(theme_manager.drain_events());
+        let initial_theme_version = theme_manager.version();
+
+        let real_time_scheme = settings.read_settings().theme.color_rotator_scheme;
+        Self {
+            settings,
+            run_manager,
+            spectrum_manager,
+            io_manager,
+            theme_manager,
+            dispatcher: EventDispatcher::new(),
+            log_buffer,
+            render_state: None,
+            modal_stack: Vec::new(),
+            file_dialogs: FileDialogQueue::new(),
+
+            top_tab: TopTab::Spectrum,
+            bottom_tab: BottomTab::SpectrumInfo,
+            si_mode: false,
+            closing: false,
+            last_theme_version: initial_theme_version,
+
+            spectrum_screen: SpectrumScreen::new_headless(),
+            spectrogram_screen: SpectrogramScreen::new_headless(),
+            map_screen: MapScreen::new(),
+            measure_screen: MeasureScreen::new_headless(real_time_scheme),
+
+            spectrum_info_tab: SpectrumInfoTab,
+            spectrum_roi_tab: SpectrumRoisTab::new(),
+            spectrogram_roi_tab: SpectrogramRoisTab::new(real_time_scheme),
+            real_time_values_tab: RealTimeValuesTab::new_headless(real_time_scheme),
+            devices_tab: DetectorsTab::new(),
+            isotopics_tab: IsotopicsTab::new_headless(),
+            console_tab: ConsoleTab::new(),
+            log_tab: SystemLogTab::new(),
+
+            data_library: DataLibraryWindow::new(),
+            driver_dialog: DriverLibraryDialog::new(),
+            settings_dialog,
+            bluetooth_window: BluetoothWindow::new(),
+            usb_window: UsbWindow::new(),
+            network_window: NetworkWindow::new(),
+            serial_gps_window: SerialGpsWindow::new(),
+            documentation_dialog: DocumentationWindow::new(),
+            bibliography_dialog: BibliographyWindow::new(),
+            efficiency_window: EfficiencyWindow::new_headless(),
+            calibration_window: CalibrationWindow::new_headless(),
+            resolution_window: ResolutionWindow::new_headless(),
             deconvolution_window: DeconvolutionWindow::new(),
             peak_features_window: PeakFeaturesWindow::new(),
 
@@ -448,7 +524,7 @@ impl LuRaCsApp {
                     &mut self.spectrum_manager,
                     &settings_guard,
                     theme_def,
-                    &self.render_state,
+                    self.render_state.as_ref(),
                     ui,
                 );
             }
@@ -651,12 +727,12 @@ impl LuRaCsApp {
             BottomTab::SpectrogramRois => {
                 let settings_guard = self.settings.read_settings();
                 let compact = self.view_spectrogram_rois_compact;
-                self.spectrogram_roi_tab.render(
+                self.spectrogram_roi_tab.render_impl(
                     ui,
                     &self.run_manager,
                     self.run_manager.spectrogram_manager(),
                     &settings_guard,
-                    &self.render_state,
+                    self.render_state.as_ref(),
                     compact,
                 );
             }
@@ -877,8 +953,8 @@ impl LuRaCsApp {
 // eframe::App
 // ===========================================================================
 
-impl eframe::App for LuRaCsApp {
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+impl LuRaCsApp {
+    pub fn render_ui(&mut self, ui: &mut egui::Ui) {
         self.dispatch_all_events(ui.ctx());
         FileDialogQueue::poll(self);
 
@@ -927,6 +1003,12 @@ impl eframe::App for LuRaCsApp {
         // --- Modals for the main viewport ---
         render_modals_for(self, egui::ViewportId::ROOT, ui);
     }
+}
+
+impl eframe::App for LuRaCsApp {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        self.render_ui(ui);
+    }
 
     fn on_exit(&mut self) {
         self.shutdown();
@@ -957,4 +1039,141 @@ fn apply_font_size(ctx: &egui::Context, settings: &SharedSettings) {
         .into_iter()
         .collect();
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use egui_kittest::Harness;
+
+    use super::*;
+    use crate::clients::PollConfig;
+    use crate::gui::ColorScheme;
+    use crate::settings::{PathOverrides, Paths, Settings};
+
+    pub fn make_headless_app(dir: &Path) -> LuRaCsApp {
+        drop(std::fs::create_dir_all(dir));
+        let paths = Paths::with_overrides(
+            PathOverrides::default()
+                .config(dir.join("cfg"))
+                .appdata(dir.join("app"))
+                .last_opened_dir(dir.to_path_buf()),
+        )
+        .unwrap();
+        let settings = Arc::new(std::sync::RwLock::new(
+            Settings::builder().paths(paths).build().unwrap(),
+        ));
+        let sm = SpectrumManager::new(
+            ColorScheme::default(),
+            dir.join("app").join("unique_instrument_library"),
+            Path::new("resources/nuclide_data"),
+        )
+        .unwrap();
+        let io = crate::build_io_manager(&settings).unwrap();
+        let rm = RunManager::new(16, PollConfig::default()).unwrap();
+        let log_buffer = Arc::new(LogBuffer::new(100));
+        LuRaCsApp::new_headless(settings, rm, sm, io, log_buffer)
+    }
+
+    #[test]
+    fn test_app_si_mode_connections_and_shutdown() {
+        let dir = std::env::temp_dir().join("luracs_app_unit_test");
+        drop(std::fs::remove_dir_all(&dir));
+        let mut app = make_headless_app(&dir);
+
+        assert!(!app.si_mode);
+        app.set_si_mode(true);
+        assert!(app.si_mode);
+        assert_eq!(app.top_tab, TopTab::Measure);
+        app.set_si_mode(false);
+        assert!(!app.si_mode);
+
+        // Connection requests: unknown BLE/USB push modal; MockGps & DisconnectGps route cleanly.
+        app.handle_connection_request(ConnectionRequest::Ble {
+            name: "MysteryBLE".into(),
+            address: "00:11".into(),
+            kind: BleDeviceKind::Auto,
+        });
+        assert_eq!(app.modal_stack.len(), 1);
+        app.modal_stack.clear();
+
+        app.handle_connection_request(ConnectionRequest::Usb {
+            vendor_id: 0x1234,
+            product_id: 0x5678,
+            serial: None,
+            product: "UnknownMouse".into(),
+            kind: UsbDeviceKind::Auto,
+        });
+        assert_eq!(app.modal_stack.len(), 1);
+        app.modal_stack.clear();
+
+        app.handle_connection_request(ConnectionRequest::Network {
+            address: "http://127.0.0.1:9000/api".into(),
+            kind: NetworkDeviceKind::DetectiveX,
+            use_gps: true,
+        });
+        assert_eq!(
+            app.settings.read_settings().session.last_network_ip,
+            "http://127.0.0.1:9000/api"
+        );
+
+        app.handle_connection_request(ConnectionRequest::MockGps);
+        app.handle_connection_request(ConnectionRequest::DisconnectGps);
+
+        app.shutdown();
+        assert!(app.closing);
+        app.shutdown(); // idempotent
+
+        drop(std::fs::remove_dir_all(&dir));
+    }
+
+    #[test]
+    fn test_kittest_app_render_ui_all_tabs() {
+        let dir = std::env::temp_dir().join("luracs_app_kittest");
+        drop(std::fs::remove_dir_all(&dir));
+        let app = make_headless_app(&dir);
+
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(1200.0, 800.0))
+            .with_accessibility_check(false)
+            .build_ui_state(
+                |ui, app: &mut LuRaCsApp| {
+                    ui.ctx()
+                        .set_missing_glyph_policy(egui::epaint::text::MissingGlyphPolicy::Tofu);
+                    app.render_ui(ui);
+                },
+                app,
+            );
+        harness.run();
+
+        for top in [
+            TopTab::Spectrum,
+            TopTab::Spectrogram,
+            TopTab::Map,
+            TopTab::Measure,
+        ] {
+            harness.state_mut().top_tab = top;
+            harness.run();
+        }
+        for bottom in [
+            BottomTab::SpectrumInfo,
+            BottomTab::SpectrumRois,
+            BottomTab::SpectrogramRois,
+            BottomTab::RealTimeValues,
+            BottomTab::Detectors,
+            BottomTab::Isotopics,
+            BottomTab::Console,
+            BottomTab::SystemLog,
+        ] {
+            harness.state_mut().bottom_tab = bottom;
+            harness.run();
+        }
+
+        // Si mode renders top_area in CentralPanel without bottom area
+        harness.state_mut().set_si_mode(true);
+        harness.run();
+
+        drop(std::fs::remove_dir_all(&dir));
+    }
 }
