@@ -811,29 +811,29 @@ impl SettingsDialog {
             apply_font_size_to_ctx(ui.ctx(), self.draft.font_size);
         }
         if color_scheme_changed {
-            // TODO: notify `app.real_time_values_tab` of the new scheme
-            // (e.g. `app.real_time_values_tab.set_color_scheme(scheme)`),
-            // if that tab caches the scheme at construction.
-
+            app.real_time_values_tab
+                .set_color_scheme(self.draft.color_rotator_scheme);
+            app.spectrogram_roi_tab
+                .set_color_scheme(self.draft.color_rotator_scheme);
             tracing::info!(
                 scheme = ?self.draft.color_rotator_scheme,
                 "colour scheme changed",
             );
         }
         if let Some(len) = spectrogram_history_changed {
-            // TODO: `app.run_manager.resize_spectrogram_deque(len);`
+            app.run_manager.resize_spectrogram_deque(len);
             tracing::info!(length = len, "spectrogram history length changed");
         }
         if let Some(on) = logging_catch_changed {
-            // TODO: `if on { log_utils::attach_exception_handler(); } else { log_utils::detach_exception_handler(); }`
+            crate::logging::set_catch_exceptions(on);
             tracing::info!(enabled = on, "catch_exceptions changed");
         }
         if let Some(on) = logging_file_changed {
-            // TODO: attach/detach file handler
+            crate::logging::set_write_to_file(on);
             tracing::info!(enabled = on, "write_to_file changed");
         }
         if let Some(on) = logging_console_changed {
-            // TODO: attach/detach console handler
+            crate::logging::set_write_to_console(on);
             tracing::info!(enabled = on, "write_to_console changed");
         }
 
