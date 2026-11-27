@@ -454,6 +454,8 @@ pub struct EfficiencyWindow {
     fit_uncerts: Vec<f64>,
     status_msg: String,
     plot: Plot1D,
+    import_slot: crate::gui::PendingFileSlot<Option<std::path::PathBuf>>,
+    export_slot: crate::gui::PendingFileSlot<Option<std::path::PathBuf>>,
 }
 
 impl EfficiencyWindow {
@@ -478,6 +480,8 @@ impl EfficiencyWindow {
             fit_uncerts: Vec::new(),
             status_msg: String::new(),
             plot,
+            import_slot: crate::gui::PendingFileSlot::default(),
+            export_slot: crate::gui::PendingFileSlot::default(),
         }
     }
 
@@ -777,6 +781,33 @@ impl EfficiencyWindow {
             self.selected_instrument = first.clone();
         }
 
+        if let Some(Some(path)) = self.import_slot.take_ready() {
+            match std::fs::read_to_string(&path)
+                .map_err(|e| e.to_string())
+                .and_then(|s| {
+                    serde_json::from_str::<Vec<EfficiencySource>>(&s).map_err(|e| e.to_string())
+                }) {
+                Ok(loaded) if !loaded.is_empty() => {
+                    self.sources = loaded;
+                    self.selected_source = Some(0);
+                    self.draft = self.sources.first().map(SourceUiDraft::from_source);
+                    self.status_msg = format!("Loaded sources from {}", path.display());
+                }
+                Ok(_) => self.status_msg = "JSON contained no sources.".into(),
+                Err(e) => self.status_msg = format!("Load failed: {e}"),
+            }
+        }
+        if let Some(Some(path)) = self.export_slot.take_ready() {
+            self.sync_draft_to_selected();
+            match serde_json::to_string_pretty(&self.sources)
+                .map_err(|e| e.to_string())
+                .and_then(|s| std::fs::write(&path, s).map_err(|e| e.to_string()))
+            {
+                Ok(()) => self.status_msg = format!("Saved {}", path.display()),
+                Err(e) => self.status_msg = format!("Save failed: {e}"),
+            }
+        }
+
         let mut close_requested = false;
         let mut do_calc = false;
         let mut do_assign_one = false;
@@ -855,41 +886,15 @@ impl EfficiencyWindow {
                         self.selected_source = Some(next);
                         self.draft = self.sources.get(next).map(SourceUiDraft::from_source);
                     }
-                    if ui.button("From JSON").clicked()
-                        && let Some(path) = rfd::FileDialog::new()
-                            .add_filter("JSON", &["json"])
-                            .pick_file()
-                    {
-                        match std::fs::read_to_string(&path)
-                            .map_err(|e| e.to_string())
-                            .and_then(|s| {
-                                serde_json::from_str::<Vec<EfficiencySource>>(&s)
-                                    .map_err(|e| e.to_string())
-                            }) {
-                            Ok(loaded) if !loaded.is_empty() => {
-                                self.sources = loaded;
-                                self.selected_source = Some(0);
-                                self.draft = self.sources.first().map(SourceUiDraft::from_source);
-                                self.status_msg = format!("Loaded sources from {}", path.display());
-                            }
-                            Ok(_) => self.status_msg = "JSON contained no sources.".into(),
-                            Err(e) => self.status_msg = format!("Load failed: {e}"),
-                        }
+                    if ui.button("From JSON").clicked() {
+                        let dlg = rfd::FileDialog::new().add_filter("JSON", &["json"]);
+                        self.import_slot.spawn(ui.ctx(), move || dlg.pick_file());
                     }
-                    if ui.button("To JSON").clicked()
-                        && let Some(path) = rfd::FileDialog::new()
+                    if ui.button("To JSON").clicked() {
+                        let dlg = rfd::FileDialog::new()
                             .add_filter("JSON", &["json"])
-                            .set_file_name("sources.json")
-                            .save_file()
-                    {
-                        self.sync_draft_to_selected();
-                        match serde_json::to_string_pretty(&self.sources)
-                            .map_err(|e| e.to_string())
-                            .and_then(|s| std::fs::write(&path, s).map_err(|e| e.to_string()))
-                        {
-                            Ok(()) => self.status_msg = format!("Saved {}", path.display()),
-                            Err(e) => self.status_msg = format!("Save failed: {e}"),
-                        }
+                            .set_file_name("sources.json");
+                        self.export_slot.spawn(ui.ctx(), move || dlg.save_file());
                     }
                 });
 

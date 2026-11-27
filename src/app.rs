@@ -42,8 +42,8 @@ use crate::core::{EventDispatcher, ForegroundInput, SpectrumManager};
 use crate::core::{RunManager, RunManagerEvent};
 use crate::gui::{
     BleDeviceKind, BluetoothWindow, CalibrationWindow, ConnectionRequest, DataLibraryWindow,
-    DeconvolutionWindow, EfficiencyWindow, InfoModal, IsotopicsTab, MapScreen, MeasureScreen,
-    Modal, ModalKind, NetworkDeviceKind, NetworkWindow, PeakFeaturesWindow, RealTimeValuesTab,
+    DeconvolutionWindow, EfficiencyWindow, FileDialogQueue, InfoModal, IsotopicsTab, MapScreen,
+    MeasureScreen, Modal, ModalKind, NetworkDeviceKind, NetworkWindow, PeakFeaturesWindow, RealTimeValuesTab,
     ResolutionWindow, SerialGpsWindow, SettingsDialog, SpectrogramScreen, SpectrumScreen, Stub,
     StubWindow, UsbDeviceKind, UsbWindow, menu_bar, render_modals_for,  SpectrumInfoTab,
 };
@@ -93,6 +93,7 @@ pub struct LuRaCsApp {
 
     // --- Modal stack (scoped per viewport; ROOT is the main window) ---
     pub modal_stack: Vec<Modal>,
+    pub file_dialogs: FileDialogQueue,
 
     // --- Layout state ---
     pub top_tab: TopTab,
@@ -218,6 +219,7 @@ impl LuRaCsApp {
             log_buffer,
             render_state,
             modal_stack: Vec::new(),
+            file_dialogs: FileDialogQueue::new(),
 
             top_tab: TopTab::Spectrum,
             bottom_tab: BottomTab::SpectrumInfo,
@@ -821,6 +823,7 @@ impl LuRaCsApp {
 impl eframe::App for LuRaCsApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.dispatch_all_events(ui.ctx());
+        FileDialogQueue::poll(self);
 
         // --- Menu bar ---
         egui::Panel::top("menu_bar").show(ui, |ui| {

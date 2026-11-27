@@ -83,6 +83,7 @@ pub struct DeconvolutionWindow {
     // MLEM params
     mlem_iterations: i32,
     mlem_response_path: String,
+    response_file_slot: crate::gui::PendingFileSlot<Option<std::path::PathBuf>>,
 
     // Cached combo lists (refreshed when `lists_dirty`)
     instruments: Vec<(String, String)>,
@@ -135,6 +136,7 @@ impl DeconvolutionWindow {
             selected_instrument: None,
             selected_spectrum: None,
             lists_dirty: true,
+            response_file_slot: crate::gui::PendingFileSlot::new(),
             subtract_background: false,
             progress_percent: 0,
             progress_message: String::new(),
@@ -633,6 +635,9 @@ impl DeconvolutionWindow {
     }
 
     fn draw_mlem_form(&mut self, ui: &mut egui::Ui) {
+        if let Some(Some(path)) = self.response_file_slot.take_ready() {
+            self.mlem_response_path = path.display().to_string();
+        }
         egui::Grid::new("mlem_form").num_columns(2).show(ui, |ui| {
             ui.label("Iterations");
             ui.add(egui::DragValue::new(&mut self.mlem_iterations).range(1..=100_000));
@@ -645,12 +650,9 @@ impl DeconvolutionWindow {
                         .desired_width(280.0)
                         .hint_text("Path to .npz response matrix"),
                 );
-                if ui.button("Browse…").clicked()
-                    && let Some(path) = rfd::FileDialog::new()
-                        .add_filter("NPZ Files", &["npz"])
-                        .pick_file()
-                {
-                    self.mlem_response_path = path.display().to_string();
+                if ui.button("Browse…").clicked() {
+                    let dlg = rfd::FileDialog::new().add_filter("NPZ Files", &["npz"]);
+                    self.response_file_slot.spawn(ui.ctx(), move || dlg.pick_file());
                 }
             });
             ui.end_row();

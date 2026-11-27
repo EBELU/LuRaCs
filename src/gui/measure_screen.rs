@@ -845,7 +845,7 @@ impl MeasureScreen {
         }
 
         if app.measure_screen.report_dialog.render(ui) {
-            export_measurement_report(app);
+            export_measurement_report(app, ui.ctx());
         }
     }
 }
@@ -976,7 +976,7 @@ pub fn format_summary(fg: &Measurement, bg: &Measurement, spectrum_update_delay:
     )
 }
 
-fn export_measurement_report(app: &mut LuRaCsApp) {
+fn export_measurement_report(app: &mut LuRaCsApp, ctx: &egui::Context) {
     let timestamp = Local::now().format("%Y-%m-%d_%H-%M-%S");
     let default_name = format!("MeasurementReport_{timestamp}.xml");
 
@@ -989,9 +989,15 @@ fn export_measurement_report(app: &mut LuRaCsApp) {
         dialog = dialog.set_directory(&last_dir);
     }
 
-    let Some(path) = dialog.save_file() else {
-        return;
-    };
+    app.file_dialogs.save_file(ctx, dialog, |app, path| {
+        let Some(path) = path else {
+            return;
+        };
+        finish_export_measurement_report(app, path);
+    });
+}
+
+fn finish_export_measurement_report(app: &mut LuRaCsApp, path: std::path::PathBuf) {
 
     if let Some(parent) = path.parent() {
         app.settings.write_settings().paths.last_opened_dir = parent.to_path_buf();

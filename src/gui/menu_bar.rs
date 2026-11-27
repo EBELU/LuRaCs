@@ -60,11 +60,34 @@ fn file_menu(app: &mut LuRaCsApp, ui: &mut egui::Ui) {
     ui.menu_button("File", |ui| {
         // --- Import ---
         if ui.button("Import").clicked() {
-            let outcomes = app.io_manager.importer.import_generic(
-                ImportFilter::All,
-                &app.settings.read().unwrap().paths.spectrogram_library,
-            );
-            dispatch_import_outcomes(app, outcomes);
+            let dlg = app
+                .io_manager
+                .importer
+                .build_pick_files_dialog(ImportFilter::All);
+            app.file_dialogs.pick_files(ui.ctx(), dlg, |app, files| {
+                let Some(paths) = files else { return };
+                if paths.is_empty() {
+                    return;
+                }
+                if let Some(parent) = paths[0].parent() {
+                    app.io_manager
+                        .importer
+                        .set_last_opened_dir(parent.to_path_buf());
+                }
+                let spec_lib = app
+                    .settings
+                    .read()
+                    .unwrap()
+                    .paths
+                    .spectrogram_library
+                    .clone();
+                let outcomes = app.io_manager.importer.import_paths(
+                    &paths,
+                    ImportFilter::All,
+                    &spec_lib,
+                );
+                dispatch_import_outcomes(app, outcomes);
+            });
         }
 
         ui.separator();
@@ -74,25 +97,39 @@ fn file_menu(app: &mut LuRaCsApp, ui: &mut egui::Ui) {
             app.data_library.open();
         }
 
-        if ui.button("Export Data Library").clicked()
-            && let Some(ExportOutcome::Library(zip_path)) =
-                app.io_manager.exporter.export_library_dialog()
-        {
-            let appdata = app.settings.read().unwrap().paths.appdata.clone();
-            if let Err(e) = app
-                .io_manager
-                .exporter
-                .do_export_library(&appdata, &zip_path)
-            {
-                tracing::error!("Library export failed: {e}");
-            }
+        if ui.button("Export Data Library").clicked() {
+            let dlg = app.io_manager.exporter.build_export_library_dialog();
+            app.file_dialogs.save_file(ui.ctx(), dlg, |app, path| {
+                let Some(zip_path) = path else { return };
+                if let Some(parent) = zip_path.parent() {
+                    app.io_manager
+                        .exporter
+                        .set_last_opened_dir(parent.to_path_buf());
+                }
+                let appdata = app.settings.read().unwrap().paths.appdata.clone();
+                if let Err(e) = app
+                    .io_manager
+                    .exporter
+                    .do_export_library(&appdata, &zip_path)
+                {
+                    tracing::error!("Library export failed: {e}");
+                }
+            });
         }
 
         if ui.button("Import Data Library").clicked() {
-            let appdata = app.settings.read().unwrap().paths.appdata.clone();
-            if let Err(e) = app.io_manager.importer.import_library(&appdata) {
-                tracing::error!("Library import failed: {e}");
-            }
+            let dlg = app.io_manager.importer.build_import_library_dialog();
+            app.file_dialogs.pick_file(ui.ctx(), dlg, |app, path| {
+                let Some(zip_path) = path else { return };
+                let appdata = app.settings.read().unwrap().paths.appdata.clone();
+                if let Err(e) = app
+                    .io_manager
+                    .importer
+                    .do_import_library(&zip_path, &appdata)
+                {
+                    tracing::error!("Library import failed: {e}");
+                }
+            });
         }
 
         if ui.button("File Location").clicked() {
@@ -108,7 +145,7 @@ fn file_menu(app: &mut LuRaCsApp, ui: &mut egui::Ui) {
 
         // --- Drivers ---
         if ui.button("Import Drivers").clicked() {
-            import_third_party_drivers(app);
+            import_third_party_drivers(app, ui.ctx());
         }
         if ui.button("Drivers").clicked() {
             app.driver_dialog.open();
@@ -122,39 +159,37 @@ fn file_menu(app: &mut LuRaCsApp, ui: &mut egui::Ui) {
     });
 }
 
-fn import_third_party_drivers(app: &LuRaCsApp) {
-    let Some(files) = rfd::FileDialog::new()
-        .set_title("Import driver files")
-        .pick_files()
-    else {
-        return;
-    };
+fn import_third_party_drivers(app: &mut LuRaCsApp, ctx: &egui::Context) {
+    let dlg = rfd::FileDialog::new().set_title("Import driver files");
+    app.file_dialogs.pick_files(ctx, dlg, |app, files| {
+        let Some(files) = files else { return };
 
-    let library = app
-        .settings
-        .read()
-        .unwrap()
-        .paths
-        .third_party_drivers_library
-        .clone();
+        let library = app
+            .settings
+            .read()
+            .unwrap()
+            .paths
+            .third_party_drivers_library
+            .clone();
 
-    if let Err(e) = std::fs::create_dir_all(&library) {
-        tracing::error!("Could not create driver library: {e}");
-        return;
-    }
-
-    for src in files {
-        if !src.is_file() {
-            continue;
+        if let Err(e) = std::fs::create_dir_all(&library) {
+            tracing::error!("Could not create driver library: {e}");
+            return;
         }
-        let Some(file_name) = src.file_name() else {
-            continue;
-        };
-        let dst = library.join(file_name);
-        if let Err(e) = std::fs::copy(&src, &dst) {
-            tracing::error!("Could not copy {}: {e}", src.display());
+
+        for src in files {
+            if !src.is_file() {
+                continue;
+            }
+            let Some(file_name) = src.file_name() else {
+                continue;
+            };
+            let dst = library.join(file_name);
+            if let Err(e) = std::fs::copy(&src, &dst) {
+                tracing::error!("Could not copy {}: {e}", src.display());
+            }
         }
-    }
+    });
 }
 
 fn dispatch_import_outcomes(app: &mut LuRaCsApp, outcomes: Vec<ImportOutcome>) {

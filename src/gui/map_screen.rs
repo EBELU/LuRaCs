@@ -867,12 +867,14 @@ impl MapScreen {
             }
         }
 
-        if action_load_offline
-            && let Some(path) = rfd::FileDialog::new()
-                .add_filter("PMTiles", &["pmtiles"])
-                .pick_file()
-        {
-            app.map_screen.set_offline_pmtiles(&path, ui.ctx());
+        if action_load_offline {
+            let dlg = rfd::FileDialog::new().add_filter("PMTiles", &["pmtiles"]);
+            let ctx = ui.ctx().clone();
+            app.file_dialogs.pick_file(ui.ctx(), dlg, move |app, path| {
+                if let Some(path) = path {
+                    app.map_screen.set_offline_pmtiles(&path, &ctx);
+                }
+            });
         }
 
         if action_import_track {
@@ -882,7 +884,8 @@ impl MapScreen {
             if last_dir.is_dir() {
                 dialog = dialog.set_directory(&last_dir);
             }
-            if let Some(path) = dialog.pick_file() {
+            app.file_dialogs.pick_file(ui.ctx(), dialog, |app, path| {
+                let Some(path) = path else { return };
                 match MapTrack::import_from_file(&path) {
                     Ok(track) => {
                         let name = path
@@ -903,17 +906,17 @@ impl MapScreen {
                             ))));
                     }
                 }
-            }
+            });
         }
 
         if action_export_geojson {
             let track_name = app.map_screen.selected_track.clone();
-            if let Some(track) = app.map_screen.tracks.get(&track_name) {
-                if let Some(path) = rfd::FileDialog::new()
+            if let Some(track) = app.map_screen.tracks.get(&track_name).cloned() {
+                let dlg = rfd::FileDialog::new()
                     .add_filter("GeoJSON", &["geojson"])
-                    .set_file_name(format!("{track_name}.geojson"))
-                    .save_file()
-                {
+                    .set_file_name(format!("{track_name}.geojson"));
+                app.file_dialogs.save_file(ui.ctx(), dlg, move |app, path| {
+                    let Some(path) = path else { return };
                     let geojson = track.to_geojson();
                     match serde_json::to_string_pretty(&geojson)
                         .map_err(|e| e.to_string())
@@ -934,7 +937,7 @@ impl MapScreen {
                                 ))));
                         }
                     }
-                }
+                });
             } else {
                 app.modal_stack
                     .push(Modal::root(ModalKind::Info(InfoModal::new(

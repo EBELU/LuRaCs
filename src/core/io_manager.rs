@@ -520,13 +520,12 @@ impl Importer {
         }
     }
 
-    /// Open a file dialog and return the picked paths + filter.
-    pub fn pick_files(&mut self, filter: ImportFilter) -> Option<(Vec<PathBuf>, ImportFilter)> {
+    /// Build a `FileDialog` pre-configured for `filter` and `last_opened_dir`.
+    pub fn build_pick_files_dialog(&self, filter: ImportFilter) -> FileDialog {
         let mut dlg = FileDialog::new()
             .set_directory(&self.last_opened_dir)
             .add_filter(filter.rfd_name(), filter.extensions());
         if filter == ImportFilter::All {
-            // Add each named filter too, so the user sees them individually.
             for f in [
                 ImportFilter::Spectrum,
                 ImportFilter::Spectrogram,
@@ -536,6 +535,16 @@ impl Importer {
                 dlg = dlg.add_filter(f.rfd_name(), f.extensions());
             }
         }
+        dlg
+    }
+
+    pub fn set_last_opened_dir(&mut self, dir: PathBuf) {
+        self.last_opened_dir = dir;
+    }
+
+    /// Open a file dialog and return the picked paths + filter.
+    pub fn pick_files(&mut self, filter: ImportFilter) -> Option<(Vec<PathBuf>, ImportFilter)> {
+        let dlg = self.build_pick_files_dialog(filter);
         let paths = dlg.pick_files()?;
         if paths.is_empty() {
             return None;
@@ -662,12 +671,19 @@ impl Importer {
         self.import_paths(&paths, filter, appdata_spectrogram_library)
     }
 
-    pub fn import_library(&self, appdata: &Path) -> Result<()> {
-        let Some(zip_path) = FileDialog::new()
+    pub fn build_import_library_dialog(&self) -> FileDialog {
+        FileDialog::new()
             .set_title("Import zipped data library")
             .add_filter("Zip file", &["zip"])
-            .pick_file()
-        else {
+    }
+
+    pub fn do_import_library(&self, zip_path: &Path, appdata: &Path) -> Result<()> {
+        unzip_library(zip_path, appdata)?;
+        Ok(())
+    }
+
+    pub fn import_library(&self, appdata: &Path) -> Result<()> {
+        let Some(zip_path) = self.build_import_library_dialog().pick_file() else {
             return Ok(());
         };
         unzip_library(&zip_path, appdata)?;
@@ -827,12 +843,19 @@ impl Exporter {
         })
     }
 
-    pub fn export_library_dialog(&mut self) -> Option<ExportOutcome> {
-        let path = FileDialog::new()
+    pub fn build_export_library_dialog(&self) -> FileDialog {
+        FileDialog::new()
             .set_directory(&self.last_opened_dir)
             .set_title("Export zipped data library")
             .add_filter("Zip file", &["zip"])
-            .save_file()?;
+    }
+
+    pub fn set_last_opened_dir(&mut self, dir: PathBuf) {
+        self.last_opened_dir = dir;
+    }
+
+    pub fn export_library_dialog(&mut self) -> Option<ExportOutcome> {
+        let path = self.build_export_library_dialog().save_file()?;
         self.last_opened_dir = path
             .parent()
             .unwrap_or_else(|| Path::new("/"))

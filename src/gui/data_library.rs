@@ -756,13 +756,13 @@ impl DataLibraryWindow {
                         // Export menu
                         ui.menu_button("Export", |ui| {
                             if ui.button("LuRaCs XML (*.xml)").clicked() {
-                                export_same(&sel, "xml", "LuRaCs XML (*.xml)", &mut self.status_message);
+                                export_same(app, ui.ctx(), &sel, "xml", "LuRaCs XML (*.xml)");
                             }
                             if ui.button("CSV (*.csv)").clicked() {
-                                export_csv_spectrum(&sel, &mut self.status_message);
+                                export_csv_spectrum(app, ui.ctx(), &sel);
                             }
                             if ui.button("Excel Workbook (*.xlsx)").clicked() {
-                                export_xlsx_spectrum(&sel, &mut self.status_message);
+                                export_xlsx_spectrum(app, ui.ctx(), &sel);
                             }
                         });
 
@@ -789,10 +789,10 @@ impl DataLibraryWindow {
                         // Export menu
                         ui.menu_button("Export", |ui| {
                             if ui.button("LuRaCs SQLite Database (*.db)").clicked() {
-                                export_same(&sel, "db", "LuRaCs SQLite Database (*.db)", &mut self.status_message);
+                                export_same(app, ui.ctx(), &sel, "db", "LuRaCs SQLite Database (*.db)");
                             }
                             if ui.button("Excel Workbook (*.xlsx)").clicked() {
-                                export_xlsx_spectrogram(&sel, self.export_spectrum_data, &mut self.status_message);
+                                export_xlsx_spectrogram(app, ui.ctx(), &sel, self.export_spectrum_data);
                             }
                         });
 
@@ -824,7 +824,7 @@ impl DataLibraryWindow {
                         // Export menu
                         ui.menu_button("Export", |ui| {
                             if ui.button("LuRaCs ROI File (*.xml)").clicked() {
-                                export_same(&sel, "xml", "LuRaCs ROI File (*.xml)", &mut self.status_message);
+                                export_same(app, ui.ctx(), &sel, "xml", "LuRaCs ROI File (*.xml)");
                             }
                         });
 
@@ -846,7 +846,7 @@ impl DataLibraryWindow {
                         ui.menu_button("Export", |ui| {
                             if ui.button("LuRaCs Instrument File (*.xml)").clicked() {
                                 let paths: Vec<PathBuf> = sel.iter().map(PathBuf::from).filter(|p| p.exists()).collect();
-                                export_same(&paths, "xml", "LuRaCs Instrument File (*.xml)", &mut self.status_message);
+                                export_same(app, ui.ctx(), &paths, "xml", "LuRaCs Instrument File (*.xml)");
                             }
                         });
 
@@ -868,7 +868,7 @@ impl DataLibraryWindow {
                         ui.menu_button("Export", |ui| {
                             if ui.button("LuRaCs Instrument File (*.xml)").clicked() {
                                 let paths: Vec<PathBuf> = sel.iter().map(PathBuf::from).filter(|p| p.exists()).collect();
-                                export_same(&paths, "xml", "LuRaCs Instrument File (*.xml)", &mut self.status_message);
+                                export_same(app, ui.ctx(), &paths, "xml", "LuRaCs Instrument File (*.xml)");
                             }
                         });
 
@@ -1538,235 +1538,244 @@ fn format_duration(seconds: f64) -> String {
 }
 
 fn export_same(
+    app: &mut LuRaCsApp,
+    ctx: &egui::Context,
     selected: &[PathBuf],
     ext: &str,
     filter_label: &str,
-    status_msg: &mut Option<(String, bool)>,
 ) {
     if selected.is_empty() {
         return;
     }
     if selected.len() == 1 {
-        let src = &selected[0];
+        let src = selected[0].clone();
         let default_name = src
             .file_name()
             .unwrap_or_default()
             .to_string_lossy()
             .to_string();
-        if let Some(dest) = rfd::FileDialog::new()
+        let ext = ext.to_string();
+        let dlg = rfd::FileDialog::new()
             .set_file_name(&default_name)
-            .add_filter(filter_label, &[ext])
-            .save_file()
-        {
-            let dest = dest.with_extension(ext);
-            if let Err(e) = std::fs::copy(src, &dest) {
-                *status_msg = Some((format!("Export failed: {e}"), true));
+            .add_filter(filter_label, &[&ext]);
+        app.file_dialogs.save_file(ctx, dlg, move |app, dest| {
+            let Some(dest) = dest else { return };
+            let dest = dest.with_extension(&ext);
+            if let Err(e) = std::fs::copy(&src, &dest) {
+                app.data_library.status_message = Some((format!("Export failed: {e}"), true));
             } else {
-                *status_msg = Some((format!("Exported to {}", dest.display()), false));
+                app.data_library.status_message =
+                    Some((format!("Exported to {}", dest.display()), false));
             }
-        }
-    } else if let Some(folder) = rfd::FileDialog::new()
-        .set_title("Select Destination Folder")
-        .pick_folder()
-    {
-        let mut count = 0;
-        for src in selected {
-            if let Some(fname) = src.file_name() {
-                let dest = folder.join(fname);
-                if std::fs::copy(src, dest).is_ok() {
-                    count += 1;
+        });
+    } else {
+        let selected = selected.to_vec();
+        let dlg = rfd::FileDialog::new().set_title("Select Destination Folder");
+        app.file_dialogs.pick_folder(ctx, dlg, move |app, folder| {
+            let Some(folder) = folder else { return };
+            let mut count = 0;
+            for src in &selected {
+                if let Some(fname) = src.file_name() {
+                    let dest = folder.join(fname);
+                    if std::fs::copy(src, dest).is_ok() {
+                        count += 1;
+                    }
                 }
             }
-        }
-        *status_msg = Some((
-            format!("Exported {count} items to {}", folder.display()),
-            false,
-        ));
+            app.data_library.status_message = Some((
+                format!("Exported {count} items to {}", folder.display()),
+                false,
+            ));
+        });
     }
 }
 
-fn export_csv_spectrum(
-    selected: &[PathBuf],
-    status_msg: &mut Option<(String, bool)>,
-) {
+fn export_csv_spectrum(app: &mut LuRaCsApp, ctx: &egui::Context, selected: &[PathBuf]) {
     if selected.is_empty() {
         return;
     }
     if selected.len() == 1 {
-        let src = &selected[0];
+        let src = selected[0].clone();
         let default_name = src
             .file_stem()
             .unwrap_or_default()
             .to_string_lossy()
             .to_string();
-        if let Some(dest) = rfd::FileDialog::new()
+        let dlg = rfd::FileDialog::new()
             .set_file_name(&default_name)
-            .add_filter("CSV (*.csv)", &["csv"])
-            .save_file()
-        {
+            .add_filter("CSV (*.csv)", &["csv"]);
+        app.file_dialogs.save_file(ctx, dlg, move |app, dest| {
+            let Some(dest) = dest else { return };
             let dest = dest.with_extension("csv");
-            match XmlParser::open(src, false) {
+            match XmlParser::open(&src, false) {
                 Ok(parser) => {
                     if let Some(spec) = parser.get_spectrum() {
                         if let Err(e) = csv_export::spectrum(&spec, &dest) {
-                            *status_msg = Some((format!("Export failed: {e}"), true));
+                            app.data_library.status_message =
+                                Some((format!("Export failed: {e}"), true));
                         } else {
-                            *status_msg = Some((format!("Exported to {}", dest.display()), false));
+                            app.data_library.status_message =
+                                Some((format!("Exported to {}", dest.display()), false));
                         }
                     } else {
-                        *status_msg = Some(("File contains no foreground spectrum".into(), true));
+                        app.data_library.status_message =
+                            Some(("File contains no foreground spectrum".into(), true));
                     }
                 }
                 Err(e) => {
-                    *status_msg = Some((format!("Failed to read XML: {e}"), true));
+                    app.data_library.status_message =
+                        Some((format!("Failed to read XML: {e}"), true));
                 }
             }
-        }
-    } else if let Some(folder) = rfd::FileDialog::new()
-        .set_title("Select Destination Folder")
-        .pick_folder()
-    {
-        let mut count = 0;
-        for src in selected {
-            if let Ok(parser) = XmlParser::open(src, false)
-                && let Some(spec) = parser.get_spectrum()
-            {
-                let stem = src.file_stem().unwrap_or_default();
-                let dest = folder.join(stem).with_extension("csv");
-                if csv_export::spectrum(&spec, dest).is_ok() {
-                    count += 1;
+        });
+    } else {
+        let selected = selected.to_vec();
+        let dlg = rfd::FileDialog::new().set_title("Select Destination Folder");
+        app.file_dialogs.pick_folder(ctx, dlg, move |app, folder| {
+            let Some(folder) = folder else { return };
+            let mut count = 0;
+            for src in &selected {
+                if let Ok(parser) = XmlParser::open(src, false)
+                    && let Some(spec) = parser.get_spectrum()
+                {
+                    let stem = src.file_stem().unwrap_or_default();
+                    let dest = folder.join(stem).with_extension("csv");
+                    if csv_export::spectrum(&spec, dest).is_ok() {
+                        count += 1;
+                    }
                 }
             }
-        }
-        *status_msg = Some((
-            format!("Exported {count} CSV files to {}", folder.display()),
-            false,
-        ));
+            app.data_library.status_message = Some((
+                format!("Exported {count} CSV files to {}", folder.display()),
+                false,
+            ));
+        });
     }
 }
 
-fn export_xlsx_spectrum(
-    selected: &[PathBuf],
-    status_msg: &mut Option<(String, bool)>,
-) {
+fn export_xlsx_spectrum(app: &mut LuRaCsApp, ctx: &egui::Context, selected: &[PathBuf]) {
     if selected.is_empty() {
         return;
     }
     if selected.len() == 1 {
-        let src = &selected[0];
+        let src = selected[0].clone();
         let default_name = src
             .file_stem()
             .unwrap_or_default()
             .to_string_lossy()
             .to_string();
-        if let Some(dest) = rfd::FileDialog::new()
+        let dlg = rfd::FileDialog::new()
             .set_file_name(&default_name)
-            .add_filter("Excel Workbook (*.xlsx)", &["xlsx"])
-            .save_file()
-        {
+            .add_filter("Excel Workbook (*.xlsx)", &["xlsx"]);
+        app.file_dialogs.save_file(ctx, dlg, move |app, dest| {
+            let Some(dest) = dest else { return };
             let dest = dest.with_extension("xlsx");
-            match XmlParser::open(src, false) {
+            match XmlParser::open(&src, false) {
                 Ok(parser) => {
                     if let Some(spec) = parser.get_spectrum() {
                         if let Err(e) = xlsx_export::spectrum(&spec, &dest) {
-                            *status_msg = Some((format!("Export failed: {e}"), true));
+                            app.data_library.status_message =
+                                Some((format!("Export failed: {e}"), true));
                         } else {
-                            *status_msg = Some((format!("Exported to {}", dest.display()), false));
+                            app.data_library.status_message =
+                                Some((format!("Exported to {}", dest.display()), false));
                         }
                     } else {
-                        *status_msg = Some(("File contains no foreground spectrum".into(), true));
+                        app.data_library.status_message =
+                            Some(("File contains no foreground spectrum".into(), true));
                     }
                 }
                 Err(e) => {
-                    *status_msg = Some((format!("Failed to read XML: {e}"), true));
+                    app.data_library.status_message =
+                        Some((format!("Failed to read XML: {e}"), true));
                 }
             }
-        }
-    } else if let Some(folder) = rfd::FileDialog::new()
-        .set_title("Select Destination Folder")
-        .pick_folder()
-    {
-        let mut count = 0;
-        for src in selected {
-            if let Ok(parser) = XmlParser::open(src, false)
-                && let Some(spec) = parser.get_spectrum()
-            {
-                let stem = src.file_stem().unwrap_or_default();
-                let dest = folder.join(stem).with_extension("xlsx");
-                if xlsx_export::spectrum(&spec, dest).is_ok() {
-                    count += 1;
+        });
+    } else {
+        let selected = selected.to_vec();
+        let dlg = rfd::FileDialog::new().set_title("Select Destination Folder");
+        app.file_dialogs.pick_folder(ctx, dlg, move |app, folder| {
+            let Some(folder) = folder else { return };
+            let mut count = 0;
+            for src in &selected {
+                if let Ok(parser) = XmlParser::open(src, false)
+                    && let Some(spec) = parser.get_spectrum()
+                {
+                    let stem = src.file_stem().unwrap_or_default();
+                    let dest = folder.join(stem).with_extension("xlsx");
+                    if xlsx_export::spectrum(&spec, dest).is_ok() {
+                        count += 1;
+                    }
                 }
             }
-        }
-        *status_msg = Some((
-            format!("Exported {count} XLSX files to {}", folder.display()),
-            false,
-        ));
+            app.data_library.status_message = Some((
+                format!("Exported {count} XLSX files to {}", folder.display()),
+                false,
+            ));
+        });
     }
 }
 
 fn export_xlsx_spectrogram(
+    app: &mut LuRaCsApp,
+    ctx: &egui::Context,
     selected: &[PathBuf],
     export_spectrum_data: bool,
-    status_msg: &mut Option<(String, bool)>,
 ) {
     if selected.is_empty() {
         return;
     }
     if selected.len() == 1 {
-        let src = &selected[0];
+        let src = selected[0].clone();
         let default_name = src
             .file_stem()
             .unwrap_or_default()
             .to_string_lossy()
             .to_string();
-        if let Some(dest) = rfd::FileDialog::new()
+        let dlg = rfd::FileDialog::new()
             .set_file_name(&default_name)
-            .add_filter("Excel Workbook (*.xlsx)", &["xlsx"])
-            .save_file()
-        {
+            .add_filter("Excel Workbook (*.xlsx)", &["xlsx"]);
+        app.file_dialogs.save_file(ctx, dlg, move |app, dest| {
+            let Some(dest) = dest else { return };
             let dest = dest.with_extension("xlsx");
-            match DbParser::open(src) {
+            match DbParser::open(&src) {
                 Ok(parser) => {
-                    if let Err(e) = DbWriter::export_full_xlsx(
-                        &parser,
-                        &dest,
-                        export_spectrum_data,
-                    ) {
-                        *status_msg = Some((format!("Export failed: {e}"), true));
+                    if let Err(e) =
+                        DbWriter::export_full_xlsx(&parser, &dest, export_spectrum_data)
+                    {
+                        app.data_library.status_message =
+                            Some((format!("Export failed: {e}"), true));
                     } else {
-                        *status_msg = Some((format!("Exported to {}", dest.display()), false));
+                        app.data_library.status_message =
+                            Some((format!("Exported to {}", dest.display()), false));
                     }
                 }
                 Err(e) => {
-                    *status_msg = Some((format!("Failed to read DB: {e}"), true));
+                    app.data_library.status_message =
+                        Some((format!("Failed to read DB: {e}"), true));
                 }
             }
-        }
-    } else if let Some(folder) = rfd::FileDialog::new()
-        .set_title("Select Destination Folder")
-        .pick_folder()
-    {
-        let mut count = 0;
-        for src in selected {
-            if let Ok(parser) = DbParser::open(src) {
-                let stem = src.file_stem().unwrap_or_default();
-                let dest = folder.join(stem).with_extension("xlsx");
-                if DbWriter::export_full_xlsx(
-                    &parser,
-                    dest,
-                    export_spectrum_data,
-                )
-                .is_ok()
-                {
-                    count += 1;
+        });
+    } else {
+        let selected = selected.to_vec();
+        let dlg = rfd::FileDialog::new().set_title("Select Destination Folder");
+        app.file_dialogs.pick_folder(ctx, dlg, move |app, folder| {
+            let Some(folder) = folder else { return };
+            let mut count = 0;
+            for src in &selected {
+                if let Ok(parser) = DbParser::open(src) {
+                    let stem = src.file_stem().unwrap_or_default();
+                    let dest = folder.join(stem).with_extension("xlsx");
+                    if DbWriter::export_full_xlsx(&parser, dest, export_spectrum_data).is_ok() {
+                        count += 1;
+                    }
                 }
             }
-        }
-        *status_msg = Some((
-            format!("Exported {count} XLSX files to {}", folder.display()),
-            false,
-        ));
+            app.data_library.status_message = Some((
+                format!("Exported {count} XLSX files to {}", folder.display()),
+                false,
+            ));
+        });
     }
 }
 
