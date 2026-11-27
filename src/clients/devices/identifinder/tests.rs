@@ -157,7 +157,18 @@ async fn test_identifinder_connect_network_and_driver_methods() {
     assert_eq!(drv.base_url(), format!("http://{addr}"));
     assert_eq!(drv.info().model, "IdentiFINDER R400");
     assert!(drv.read_status().await.is_ok());
+    assert!(drv.read_spectrum().await.is_ok());
+    assert!(drv.start_acquisition().await.is_ok());
+    assert!(drv.on_reconnect().await.is_ok());
     assert!(drv.identify_spectrum().await.is_ok());
     assert!(drv.save_spectrum().await.is_ok());
     drop(drv.stop_acquisition().await);
+
+    // Connect error -> map_reqwest_err
+    let dead = crate::clients::devices::identifinder::IdentifinderDriver::new(
+        "http://127.0.0.1:1",
+        "Dead",
+    )
+    .unwrap();
+    assert!(dead.command("Start").await.is_err());
 }

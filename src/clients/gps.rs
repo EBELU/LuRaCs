@@ -523,5 +523,16 @@ mod tests {
         let formatted = format_gps(data);
         assert!(!formatted.is_empty());
         gps.close();
+
+        // Default, reset_rate, find_crlf, fmt_opt(None)
+        let mut def_gps = Gps::default();
+        assert!(!def_gps.is_open());
+        let mut st = GpsState::default();
+        st.data.update_rate = 5.0;
+        st.reset_rate();
+        assert_eq!(find_crlf(b"abc\r\ndef"), Some(3));
+        assert_eq!(find_crlf(b"abcdef"), None);
+        let empty_fmt = format_gps(&GpsData::default());
+        assert!(empty_fmt.contains("---"));
     }
 }

@@ -187,3 +187,36 @@ async fn test_raysid_driver_info_link_and_controls() {
     driver.reset_spectrum().await.unwrap();
     assert!(!mock.sent_packets().is_empty());
 }
+
+#[test]
+fn test_raysid_decode_spectrum_packet_variants_and_errors() {
+    use super::protocol::{NUM_CHANNELS, SpectrumAccumulator};
+    let acc = SpectrumAccumulator::default();
+    assert_eq!(acc.spectrum.len(), NUM_CHANNELS);
+
+    // Too short / invalid type / out-of-range start_ch
+    assert!(decode_spectrum_packet(&[1, 0x30, 0]).is_none());
+    assert!(decode_spectrum_packet(&[6, 0xFF, 0, 0, 1, 0, 0]).is_none());
+    assert!(decode_spectrum_packet(&[6, 0x30, 0xFF, 0x1F, 1, 0, 0]).is_none());
+
+    // point_type=1 (8-bit), point_type=2 (12-bit), point_type=3 (16-bit), header=0 (24-bit)
+    // Pad trailing 4 bytes since loop checks `pos + 4 < pkt.len()`
+    let mut pkt = vec![0u8, 0x31, 0x00, 0x00, 10, 0, 0];
+    pkt.push((1 << 6) | 1); // type 1, 1 val
+    pkt.push(0xFE); // -2
+    pkt.push((2 << 6) | 2); // type 2, 2 vals
+    pkt.extend_from_slice(&[0x00, 0x1F, 0xFF]); // +1, -1
+    pkt.push((3 << 6) | 1); // type 3, 1 val
+    pkt.extend_from_slice(&(-300i16).to_le_bytes());
+    pkt.push(0x00); // type 4 (24-bit), 1 val
+    pkt.extend_from_slice(&[0xFF, 0xFF, 0xFE]); // -2
+    pkt.extend_from_slice(&[0, 0, 0, 0]);
+    pkt[0] = (pkt.len() - 1) as u8;
+    let decoded = decode_spectrum_packet(&pkt).unwrap();
+    assert!(!decoded.values.is_empty());
+
+    // 0x32 (div 9)
+    let pkt9 = vec![6, 0x32, 0x00, 0x00, 9, 0, 0];
+    let d9 = decode_spectrum_packet(&pkt9).unwrap();
+    assert_eq!(d9.values.len(), 9);
+}

@@ -810,5 +810,52 @@ mod tests {
         ));
         let handle_arc = DeviceHandle::new_arc(dev3);
         assert_eq!(handle_arc.wrapper.connection(), ConnectionType::Ble);
+
+        // Exercise run_poll_loop with an active wrapper
+        struct ActiveWrapper {
+            calls: std::sync::atomic::AtomicUsize,
+        }
+        #[async_trait]
+        impl DeviceWrapper for ActiveWrapper {
+            fn type_key(&self) -> &'static str { "Active" }
+            fn name(&self) -> &str { "active" }
+            fn connection(&self) -> ConnectionType { ConnectionType::Network }
+            fn state(&self) -> DeviceState { DeviceState::Connected }
+            fn set_state(&self, _: DeviceState) {}
+            fn channels(&self) -> Option<usize> { Some(1024) }
+            fn is_running(&self) -> bool { true }
+            fn is_stopped(&self) -> bool { false }
+            fn connected_timestamp(&self) -> f64 { 0.0 }
+            async fn start(&self) -> Result<(), DeviceError> { Ok(()) }
+            async fn stop(&self) -> Result<(), DeviceError> { Ok(()) }
+            async fn get_realtime_data(&self) -> Result<WrappedRealTimePackage, DeviceError> {
+                if self.calls.fetch_add(1, Ordering::Relaxed) == 0 {
+                    Ok(WrappedRealTimePackage::default())
+                } else {
+                    Err(DeviceError::Protocol("boom".into()))
+                }
+            }
+            async fn get_status(&self) -> Result<WrappedStatusPackage, DeviceError> {
+                Ok(WrappedStatusPackage::default())
+            }
+            async fn get_spectrum(&self) -> Result<WrappedSpectrumPackage, DeviceError> {
+                Ok(WrappedSpectrumPackage::default())
+            }
+        }
+        let active = Arc::new(ActiveWrapper {
+            calls: std::sync::atomic::AtomicUsize::new(0),
+        });
+        let (tx2, mut rx2) = mpsc::unbounded_channel();
+        let settings2 = Arc::new(RwLock::new(PollConfig {
+            update_loop_delay: 0.005,
+            spectrum_update_delay: 0.005,
+        }));
+        let cancel2 = CancellationToken::new();
+        let c2 = cancel2.clone();
+        let j2 = tokio::spawn(run_poll_loop(active, tx2, settings2, cancel2));
+        tokio::time::sleep(Duration::from_millis(30)).await;
+        c2.cancel();
+        drop(j2.await);
+        assert!(rx2.try_recv().is_ok());
     }
 }

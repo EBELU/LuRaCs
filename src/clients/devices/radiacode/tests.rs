@@ -380,3 +380,36 @@ async fn test_radiacode_driver_methods_and_protocol_errors() {
         .is_err()
     );
 }
+
+#[test]
+fn test_radiacode_v1_eof_errors_and_data_buf_records() {
+    // v1 EOF errors for vlen 1..=5 and unsupported vlen=6
+    for vlen in 1..=6u8 {
+        let mut hdr = vec![0u8; 16];
+        let u16_hdr = (1u16 << 4) | u16::from(vlen);
+        hdr.extend_from_slice(&u16_hdr.to_le_bytes());
+        assert!(decode_spectrum(&hdr, 1).is_err());
+    }
+
+    // decode_data_buf record types: gid=1 (8B), gid=2 (16B), gid=6 (6B), gid=7 (4B), gid=8 (6B),
+    // eid=1 gid=1 (samples=1 -> 6+8B), and unknown record
+    let mut buf = Vec::new();
+    for (eid, gid, len) in [
+        (0u8, 1u8, 8usize),
+        (0, 2, 16),
+        (0, 6, 6),
+        (0, 7, 4),
+        (0, 8, 6),
+    ] {
+        buf.extend_from_slice(&[0, eid, gid, 0, 0, 0, 0]);
+        buf.extend(std::iter::repeat_n(0u8, len));
+    }
+    buf.extend_from_slice(&[0, 1, 1, 0, 0, 0, 0]);
+    buf.extend_from_slice(&1u16.to_le_bytes()); // 1 sample
+    buf.extend_from_slice(&100u32.to_le_bytes());
+    buf.extend(std::iter::repeat_n(0u8, 8));
+    buf.extend_from_slice(&[0, 99, 99, 0, 0, 0, 0]); // unknown -> break
+    let (rt, st) = decode_data_buf(&buf, 100.0);
+    assert!(rt.is_none());
+    assert!(st.is_none());
+}
