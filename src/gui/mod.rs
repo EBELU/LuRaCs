@@ -30,8 +30,8 @@ mod system_log_tab;
 pub use calibration_window::CalibrationWindow;
 pub use color_rotator::*;
 pub use connection_windows::{
-    BleDeviceKind, BluetoothWindow, ConnectionRequest, NetworkDeviceKind, NetworkWindow,
-    SerialGpsWindow, UsbDeviceKind, UsbWindow,
+    BleDeviceKind, BluetoothWindow, ConnectionRequest, DriverLibraryDialog, NetworkDeviceKind,
+    NetworkWindow, SerialGpsWindow, UsbDeviceKind, UsbWindow,
 };
 pub use console_tab::ConsoleTab;
 pub use data_library::*;

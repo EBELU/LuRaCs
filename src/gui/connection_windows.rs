@@ -1014,6 +1014,122 @@ impl SerialGpsWindow {
 }
 
 // ---------------------------------------------------------------------------
+// DriverLibraryDialog (port of luracs/gui/dialogs/driver_library_dialog.py)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Default)]
+pub struct DriverLibraryDialog {
+    pub open: bool,
+    drivers: Vec<std::path::PathBuf>,
+    selected: Option<usize>,
+    last_dir: Option<std::path::PathBuf>,
+}
+
+impl DriverLibraryDialog {
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            open: false,
+            drivers: Vec::new(),
+            selected: None,
+            last_dir: None,
+        }
+    }
+
+    pub fn open(&mut self) {
+        self.open = true;
+        self.selected = None;
+        self.last_dir = None;
+    }
+
+    fn reload(&mut self, dir: &std::path::Path) {
+        self.drivers.clear();
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let p = entry.path();
+                if p.is_file() {
+                    self.drivers.push(p);
+                }
+            }
+        }
+        self.drivers.sort();
+        self.last_dir = Some(dir.to_path_buf());
+    }
+
+    pub fn render(&mut self, ui: &egui::Ui, drivers_dir: &std::path::Path) {
+        if !self.open {
+            return;
+        }
+        if self.last_dir.as_deref() != Some(drivers_dir) {
+            self.reload(drivers_dir);
+        }
+
+        let viewport_id = egui::ViewportId::from_hash_of("driver_library_dialog");
+        let builder = egui::ViewportBuilder::default()
+            .with_title("Driver Library")
+            .with_inner_size([400.0, 300.0]);
+
+        let mut close_requested = false;
+        let mut delete_selected = false;
+
+        ui.ctx()
+            .show_viewport_immediate(viewport_id, builder, |ui, _class| {
+                if ui.input(|i| i.viewport().close_requested()) {
+                    close_requested = true;
+                }
+                egui::CentralPanel::default().show(ui, |ui| {
+                    egui::ScrollArea::vertical()
+                        .max_height(ui.available_height() - 36.0)
+                        .show(ui, |ui| {
+                            if self.drivers.is_empty() {
+                                ui.label("No third-party drivers installed.");
+                            } else {
+                                for (idx, path) in self.drivers.iter().enumerate() {
+                                    let name = path
+                                        .file_name()
+                                        .and_then(|s| s.to_str())
+                                        .unwrap_or("<unknown>");
+                                    if ui
+                                        .selectable_label(self.selected == Some(idx), name)
+                                        .clicked()
+                                    {
+                                        self.selected = Some(idx);
+                                    }
+                                }
+                            }
+                        });
+
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        let has_sel = self.selected.is_some();
+                        if ui
+                            .add_enabled(has_sel, egui::Button::new("Delete Selected"))
+                            .clicked()
+                        {
+                            delete_selected = true;
+                        }
+                        if ui.button("Close").clicked() {
+                            close_requested = true;
+                        }
+                    });
+                });
+            });
+
+        if delete_selected && let Some(idx) = self.selected.take()
+            && let Some(path) = self.drivers.get(idx).cloned()
+        {
+            if path.is_file() {
+                drop(std::fs::remove_file(&path));
+            }
+            self.reload(drivers_dir);
+        }
+        if close_requested {
+            self.open = false;
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Unit tests
 // ---------------------------------------------------------------------------
 
@@ -1118,5 +1234,35 @@ mod tests {
         let sorted = sort_usb_devices(devs);
         assert_eq!(sorted[0].product, "RadiaCode");
         assert_eq!(sorted[1].product, "Keyboard");
+    }
+
+    #[test]
+    fn test_driver_library_dialog_reload() {
+        let mut dialog = DriverLibraryDialog::new();
+        assert!(!dialog.open);
+        assert!(dialog.drivers.is_empty());
+
+        dialog.open();
+        assert!(dialog.open);
+
+        let dir = std::env::temp_dir().join("luracs_test_driver_library");
+        let _res = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("zebra.so"), b"").unwrap();
+        std::fs::write(dir.join("alpha.py"), b"").unwrap();
+        std::fs::create_dir_all(dir.join("subdir")).unwrap();
+
+        dialog.reload(&dir);
+        assert_eq!(dialog.drivers.len(), 2);
+        assert_eq!(dialog.drivers[0].file_name().unwrap(), "alpha.py");
+        assert_eq!(dialog.drivers[1].file_name().unwrap(), "zebra.so");
+        assert_eq!(dialog.last_dir.as_deref(), Some(dir.as_path()));
+
+        let missing = dir.join("missing");
+        dialog.reload(&missing);
+        assert!(dialog.drivers.is_empty());
+        assert_eq!(dialog.last_dir.as_deref(), Some(missing.as_path()));
+
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

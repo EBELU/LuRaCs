@@ -43,11 +43,11 @@ use crate::core::{RunManager, RunManagerEvent};
 use crate::gui::{
     BleDeviceKind, BluetoothWindow, CalibrationWindow, ConnectionRequest, ConsoleTab,
     BibliographyWindow, DataLibraryWindow, DeconvolutionWindow, DetectorsTab, DocumentationWindow,
-    EfficiencyWindow, FileDialogQueue,
+    DriverLibraryDialog, EfficiencyWindow, FileDialogQueue,
     InfoModal, IsotopicsTab, MapScreen, MeasureScreen, Modal, ModalKind, NetworkDeviceKind,
     NetworkWindow, PeakFeaturesWindow, RealTimeValuesTab, ResolutionWindow, SerialGpsWindow,
     SettingsDialog, SpectrogramRoisTab, SpectrogramScreen, SpectrumInfoTab, SpectrumRoisTab,
-    SpectrumScreen, StubWindow, SystemLogTab, UsbDeviceKind, UsbWindow, menu_bar,
+    SpectrumScreen, SystemLogTab, UsbDeviceKind, UsbWindow, menu_bar,
     render_modals_for,
 };
 use crate::logging::LogBuffer;
@@ -126,7 +126,7 @@ pub struct LuRaCsApp {
 
     // --- Windows ---
     pub data_library: DataLibraryWindow,
-    pub driver_dialog: StubWindow,
+    pub driver_dialog: DriverLibraryDialog,
     pub settings_dialog: SettingsDialog,
     pub bluetooth_window: BluetoothWindow,
     pub usb_window: UsbWindow,
@@ -134,7 +134,6 @@ pub struct LuRaCsApp {
     pub serial_gps_window: SerialGpsWindow,
     pub documentation_dialog: DocumentationWindow,
     pub bibliography_dialog: BibliographyWindow,
-    pub activity_window: StubWindow,
     pub efficiency_window: EfficiencyWindow,
     pub calibration_window: CalibrationWindow,
     pub resolution_window: ResolutionWindow,
@@ -257,7 +256,7 @@ impl LuRaCsApp {
             log_tab: SystemLogTab::new(),
 
             data_library: DataLibraryWindow::new(),
-            driver_dialog: StubWindow::new("Drivers"),
+            driver_dialog: DriverLibraryDialog::new(),
             settings_dialog,
             bluetooth_window: BluetoothWindow::new(),
             usb_window: UsbWindow::new(),
@@ -265,7 +264,6 @@ impl LuRaCsApp {
             serial_gps_window: SerialGpsWindow::new(),
             documentation_dialog: DocumentationWindow::new(),
             bibliography_dialog: BibliographyWindow::new(),
-            activity_window: StubWindow::new("Activity"),
             efficiency_window,
             calibration_window,
             resolution_window,
@@ -456,7 +454,6 @@ impl LuRaCsApp {
             }
             TopTab::Spectrogram => {
                 let devices = self.run_manager.list_devices();
-                // TODO: same signature change as above for `SpectrogramScreen`.
                 let theme = self.theme_manager.current();
                 let settings_guard = self.settings.read_settings();
                 let events = self.spectrogram_screen.render(
@@ -686,7 +683,13 @@ impl LuRaCsApp {
         let mut data_library = std::mem::take(&mut self.data_library);
         data_library.render(self, ui);
         self.data_library = data_library;
-        self.driver_dialog.render(ui);
+        let drivers_dir = self
+            .settings
+            .read_settings()
+            .paths
+            .third_party_drivers_library
+            .clone();
+        self.driver_dialog.render(ui, &drivers_dir);
         if self.settings_dialog.open {
             let mut settings_dialog = std::mem::take(&mut self.settings_dialog);
             self.settings_dialog.open = true;
@@ -716,7 +719,6 @@ impl LuRaCsApp {
         };
         self.documentation_dialog.render(ui, &doc_dir);
         self.bibliography_dialog.render(ui, &bib_path);
-        self.activity_window.render(ui);
         self.efficiency_window
             .render(ui, &mut self.spectrum_manager);
         self.calibration_window
