@@ -626,6 +626,10 @@ impl RunManager {
         self.connect_serial_gps("Mock", 9600)
     }
 
+    pub const fn has_gps(&self) -> bool {
+        self.has_gps
+    }
+
     pub fn set_gps(&mut self, state: bool) {
         if self.has_gps
             && let Some(mut gps) = self.gps.take()

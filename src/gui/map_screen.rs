@@ -10,12 +10,14 @@ use std::time::Instant;
 use chrono::{DateTime, Local, Utc};
 use eframe::egui::{self, Color32, Pos2, Rect};
 use egui_histogram_lut::{GradientPreset, HistogramLutState, HistogramLutWidget, Orientation};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use walkers::sources::{Attribution, TileSource};
-use walkers::{lat_lon, HttpTiles, Map, MapMemory, Plugin, PmTiles, Position, Projector, TileId, Tiles};
+use walkers::{
+    HttpTiles, Map, MapMemory, Plugin, PmTiles, Position, Projector, TileId, Tiles, lat_lon,
+};
 
 use crate::app::LuRaCsApp;
-use crate::clients::{format_gps, GpsData};
+use crate::clients::{GpsData, format_gps};
 use crate::core::{MappingBuffer, SpectrogramRoi};
 use crate::gui::{ConfirmAction, ConfirmModal, InfoModal, Modal, ModalKind};
 use crate::settings::SharedSettingsExt;
@@ -402,7 +404,8 @@ impl Plugin for TrackOverlayPlugin<'_> {
                 }
 
                 let base = self.lut_state.map_value(val);
-                let color = Color32::from_rgba_unmultiplied(base.r(), base.g(), base.b(), self.alpha);
+                let color =
+                    Color32::from_rgba_unmultiplied(base.r(), base.g(), base.b(), self.alpha);
                 painter.circle_filled(screen_pos, 5.0, color);
 
                 if let Some(hp) = response.hover_pos() {
@@ -514,7 +517,7 @@ impl MapScreen {
             ],
             selected_data_key: "count_rate".into(),
             lut_state: {
-                let mut s = HistogramLutState::new_with_stops(GradientPreset::Thermal, 4);
+                let mut s = HistogramLutState::new_with_stops(GradientPreset::Viridis, 4);
                 s.set_levels(0.0, 0.2);
                 s.view_range = (0.0, 0.2);
                 s
@@ -820,8 +823,10 @@ impl MapScreen {
             };
 
             let tiles_ref = tiles.as_mut().map(ActiveTiles::as_tiles_mut);
-            let map_widget =
-                Map::new(tiles_ref, &mut ms.map_memory, my_position).with_plugin(plugin);
+            let map_widget = Map::new(tiles_ref, &mut ms.map_memory, my_position)
+                .with_plugin(plugin)
+                .zoom_with_ctrl(false);
+
             ui.add(map_widget);
             ms.tiles = tiles;
         });
@@ -836,7 +841,9 @@ impl MapScreen {
             if save_url {
                 app.settings.write_settings().session.last_map_url = url.clone();
             }
-            if is_vector && (url.ends_with(".png") || url.ends_with(".jpg") || url.ends_with(".jpeg")) {
+            if is_vector
+                && (url.ends_with(".png") || url.ends_with(".jpg") || url.ends_with(".jpeg"))
+            {
                 is_vector = false;
                 app.modal_stack.push(Modal::root(ModalKind::Info(InfoModal::new(
                     "Raster Detected",
@@ -846,16 +853,15 @@ impl MapScreen {
             if !url.contains("{z}/{x}/{y}") {
                 let url_clone = url;
                 let ctx_clone = ui.ctx().clone();
-                app.modal_stack.push(Modal::root(ModalKind::Confirm(
-                    ConfirmModal::new(
+                app.modal_stack
+                    .push(Modal::root(ModalKind::Confirm(ConfirmModal::new(
                         "Invalid Tile Pattern",
                         "The given URL does not contain '{z}/{x}/{y}'. Continue anyway?",
                         ConfirmAction::Custom(Box::new(move |app| {
                             app.map_screen
                                 .set_online_source(&url_clone, is_vector, &ctx_clone);
                         })),
-                    ),
-                )));
+                    ))));
             } else {
                 app.map_screen.set_online_source(&url, is_vector, ui.ctx());
             }
@@ -890,9 +896,11 @@ impl MapScreen {
                         app.map_screen.recompute_auto_levels();
                     }
                     Err(e) => {
-                        app.modal_stack.push(Modal::root(ModalKind::Info(
-                            InfoModal::new("Import Track Failed", e),
-                        )));
+                        app.modal_stack
+                            .push(Modal::root(ModalKind::Info(InfoModal::new(
+                                "Import Track Failed",
+                                e,
+                            ))));
                     }
                 }
             }
@@ -912,24 +920,27 @@ impl MapScreen {
                         .and_then(|s| std::fs::write(&path, s).map_err(|e| e.to_string()))
                     {
                         Ok(()) => {
-                            app.modal_stack.push(Modal::root(ModalKind::Info(
-                                InfoModal::new(
+                            app.modal_stack
+                                .push(Modal::root(ModalKind::Info(InfoModal::new(
                                     "GeoJSON Exported",
                                     format!("Saved track to {}", path.display()),
-                                ),
-                            )));
+                                ))));
                         }
                         Err(e) => {
-                            app.modal_stack.push(Modal::root(ModalKind::Info(
-                                InfoModal::new("Export Failed", e),
-                            )));
+                            app.modal_stack
+                                .push(Modal::root(ModalKind::Info(InfoModal::new(
+                                    "Export Failed",
+                                    e,
+                                ))));
                         }
                     }
                 }
             } else {
-                app.modal_stack.push(Modal::root(ModalKind::Info(
-                    InfoModal::new("No Track", "No track selected to export."),
-                )));
+                app.modal_stack
+                    .push(Modal::root(ModalKind::Info(InfoModal::new(
+                        "No Track",
+                        "No track selected to export.",
+                    ))));
             }
         }
     }
@@ -947,7 +958,10 @@ fn draw_lut_sidebar(screen: &mut MapScreen, height: f32, ui: &mut egui::Ui) {
         .show_ui(ui, |ui| {
             for preset in GradientPreset::ALL {
                 if ui
-                    .selectable_label(screen.lut_state.gradient.preset == Some(preset), preset.label())
+                    .selectable_label(
+                        screen.lut_state.gradient.preset == Some(preset),
+                        preset.label(),
+                    )
                     .clicked()
                 {
                     screen.lut_state.gradient.load_preset_with_stops(preset, 4);
@@ -1047,7 +1061,11 @@ mod tests {
             is_vector: false,
         };
         assert_eq!(
-            raster.tile_url(TileId { zoom: 13, x: 4391, y: 2568 }),
+            raster.tile_url(TileId {
+                zoom: 13,
+                x: 4391,
+                y: 2568
+            }),
             "https://tile.openstreetmap.org/13/4391/2568.png"
         );
         assert_eq!(raster.tile_size(), 256);

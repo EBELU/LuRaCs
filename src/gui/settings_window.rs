@@ -516,11 +516,13 @@ impl SettingsDialog {
 
     fn render_buttons(&mut self, app: &mut LuRaCsApp, ui: &mut egui::Ui) -> bool {
         let mut close_requested = false;
+        let dirty = self.draft.has_changes(&app.settings.read_settings());
+        let cancel_label = if dirty { "Cancel" } else { "Close" };
         ui.horizontal(|ui| {
             if ui.button("Apply").clicked() {
                 self.apply(app, ui);
             }
-            if ui.button("Cancel").clicked() {
+            if ui.button(cancel_label).clicked() {
                 close_requested = self.request_cancel(app);
             }
         });
@@ -851,10 +853,6 @@ impl SettingsDialog {
                         message,
                     )),
                 ));
-            self.close_after_modal = true;
-        } else {
-            // Close on successful apply.
-            self.open = false;
         }
     }
 }

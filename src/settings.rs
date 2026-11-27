@@ -208,7 +208,7 @@ pub struct Theme {
 impl Default for Theme {
     fn default() -> Self {
         Self {
-            name: "light-catppuccin".into(),
+            name: crate::theme_manager::names::DEFAULT.into(),
             color_rotator_scheme: ColorScheme::Catppuccin,
             font_size: 10,
         }

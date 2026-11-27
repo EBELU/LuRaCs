@@ -173,6 +173,14 @@ impl LuRaCsApp {
         let mut theme_manager =
             ThemeManager::new(builtin_theme_dir, user_theme_dir, Some(&preferred_theme));
 
+        // If `preferred_theme` wasn't found (e.g. stale or legacy name),
+        // sync `settings.theme.name` to the resolved fallback theme so the
+        // Settings window reflects what is actually active.
+        let resolved_theme = theme_manager.current().meta.name.clone();
+        if resolved_theme != preferred_theme {
+            settings.write_settings().theme.name = resolved_theme;
+        }
+
         // Apply the initial theme once so egui has correct visuals.
         if let Err(e) = theme_manager.apply_current(&cc.egui_ctx) {
             tracing::warn!(
@@ -626,13 +634,15 @@ impl LuRaCsApp {
         data_library.render(self, ui);
         self.data_library = data_library;
         self.driver_dialog.render(ui);
-        let mut settings_dialog = std::mem::take(&mut self.settings_dialog);
-        self.settings_dialog.open = true;
-        settings_dialog.render(self, ui);
-        if !self.settings_dialog.open {
-            settings_dialog.open = false;
+        if self.settings_dialog.open {
+            let mut settings_dialog = std::mem::take(&mut self.settings_dialog);
+            self.settings_dialog.open = true;
+            settings_dialog.render(self, ui);
+            if !self.settings_dialog.open {
+                settings_dialog.open = false;
+            }
+            self.settings_dialog = settings_dialog;
         }
-        self.settings_dialog = settings_dialog;
         let handle = self.run_manager.runtime_handle().clone();
         if let Some(req) = self.bluetooth_window.render(ui, &handle) {
             self.handle_connection_request(req);
@@ -643,7 +653,8 @@ impl LuRaCsApp {
         if let Some(req) = self.network_window.render(ui) {
             self.handle_connection_request(req);
         }
-        if let Some(req) = self.serial_gps_window.render(ui) {
+        let gps_connected = self.run_manager.has_gps();
+        if let Some(req) = self.serial_gps_window.render(ui, gps_connected) {
             self.handle_connection_request(req);
         }
         self.documentation_dialog.render(ui);
@@ -795,6 +806,9 @@ impl LuRaCsApp {
                         },
                     )));
                 }
+            }
+            ConnectionRequest::DisconnectGps => {
+                self.run_manager.set_gps(false);
             }
         }
     }

@@ -777,18 +777,24 @@ impl EfficiencyWindow {
             self.selected_instrument = first.clone();
         }
 
-        let mut open = self.open;
+        let mut close_requested = false;
         let mut do_calc = false;
         let mut do_assign_one = false;
         let mut do_assign_model = false;
 
-        egui::Window::new("Efficiency Window")
-            .collapsible(false)
-            .resizable(false)
-            .default_size([1020.0, 640.0])
-            .open(&mut open)
-            .show(ui.ctx(), |ui| {
-                ui.label("Peaks:");
+        let viewport_id = egui::ViewportId::from_hash_of("efficiency_window");
+        let builder = egui::ViewportBuilder::default()
+            .with_title("Efficiency Window")
+            .with_inner_size([1020.0, 640.0])
+            .with_resizable(false);
+
+        ui.ctx()
+            .show_viewport_immediate(viewport_id, builder, |ui, _class| {
+                if ui.input(|i| i.viewport().close_requested()) {
+                    close_requested = true;
+                }
+                egui::CentralPanel::default().show(ui, |ui| {
+                    ui.label("Peaks:");
                 egui::ScrollArea::vertical()
                     .id_salt("eff_peaks_scroll")
                     .max_height(130.0)
@@ -1056,6 +1062,7 @@ impl EfficiencyWindow {
                 ui.allocate_ui(egui::vec2(ui.available_width(), 200.0), |ui| {
                     self.plot.show(ui);
                 });
+                });
             });
 
         if do_calc {
@@ -1067,7 +1074,7 @@ impl EfficiencyWindow {
         if do_assign_model {
             self.assign_to_instruments(spectrum_manager, true);
         }
-        self.open = open;
+        self.open = !close_requested;
     }
 }
 

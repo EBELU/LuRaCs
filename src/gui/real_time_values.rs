@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use eframe::egui::{self, Color32};
 use eframe::egui_wgpu::RenderState;
 use rsplot::core::items::CurveInterpolation;
-use rsplot::{LineStyle, Marker, Plot1D, YAxis};
+use rsplot::{LineStyle, Marker, Plot1D, PlotInteractionMode, YAxis};
 
 use crate::gui::color_rotator::{ColorRotator, ColorScheme};
 use crate::settings::Settings;
@@ -41,12 +41,28 @@ impl RealTimeValuesTab {
         cps_plot.set_graph_y_label("CPS", YAxis::Left);
         cps_plot.plot_mut().x_inverted = true;
         cps_plot.set_x_min_pos(Some(0.0));
+        cps_plot.set_interaction_mode(PlotInteractionMode::Select);
 
         let mut dr_plot = Plot1D::new(render_state, 0x3002);
         dr_plot.set_graph_x_label("Time [s]");
         dr_plot.set_graph_y_label("Dose Rate [μSv/h]", YAxis::Left);
         dr_plot.plot_mut().x_inverted = true;
         dr_plot.set_x_min_pos(Some(0.0));
+        dr_plot.set_interaction_mode(PlotInteractionMode::Select);
+
+        cps_plot
+            .plot_mut()
+            .set_scroll_zoom_axes_override(Some((false, false)));
+        cps_plot
+            .plot_mut()
+            .set_pan_axes_override(Some((false, false)));
+
+        dr_plot
+            .plot_mut()
+            .set_scroll_zoom_axes_override(Some((false, false)));
+        dr_plot
+            .plot_mut()
+            .set_pan_axes_override(Some((false, false)));
 
         Self {
             cps_plot,
@@ -302,5 +318,3 @@ fn format_cell(v: f64, decimals: usize) -> String {
         "—".into()
     }
 }
-
-

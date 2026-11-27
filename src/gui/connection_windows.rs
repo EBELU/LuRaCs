@@ -154,6 +154,7 @@ pub enum ConnectionRequest {
         baud_rate: u32,
     },
     MockGps,
+    DisconnectGps,
 }
 
 // ---------------------------------------------------------------------------
@@ -885,7 +886,7 @@ impl SerialGpsWindow {
         }
     }
 
-    pub fn render(&mut self, ui: &egui::Ui) -> Option<ConnectionRequest> {
+    pub fn render(&mut self, ui: &egui::Ui, gps_connected: bool) -> Option<ConnectionRequest> {
         if !self.open {
             return None;
         }
@@ -977,6 +978,13 @@ impl SerialGpsWindow {
                         }
                         if ui.button("Mock GPS").clicked() {
                             request = Some(ConnectionRequest::MockGps);
+                            close_requested = true;
+                        }
+                        if ui
+                            .add_enabled(gps_connected, egui::Button::new("Disconnect"))
+                            .clicked()
+                        {
+                            request = Some(ConnectionRequest::DisconnectGps);
                             close_requested = true;
                         }
                         if ui.button("Cancel").clicked() {

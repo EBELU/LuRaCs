@@ -334,19 +334,24 @@ impl ResolutionWindow {
             self.selected_instrument = first.clone();
         }
 
-        let mut open = self.open;
         let mut close_requested = false;
         let mut do_calc = false;
         let mut do_assign_one = false;
         let mut do_assign_model = false;
 
-        egui::Window::new("Resolution Window")
-            .collapsible(false)
-            .resizable(false)
-            .default_size([920.0, 620.0])
-            .open(&mut open)
-            .show(ui.ctx(), |ui| {
-                ui.label("Peaks:");
+        let viewport_id = egui::ViewportId::from_hash_of("resolution_window");
+        let builder = egui::ViewportBuilder::default()
+            .with_title("Resolution Window")
+            .with_inner_size([920.0, 620.0])
+            .with_resizable(false);
+
+        ui.ctx()
+            .show_viewport_immediate(viewport_id, builder, |ui, _class| {
+                if ui.input(|i| i.viewport().close_requested()) {
+                    close_requested = true;
+                }
+                egui::CentralPanel::default().show(ui, |ui| {
+                    ui.label("Peaks:");
                 egui::ScrollArea::vertical()
                     .id_salt("res_peaks_scroll")
                     .max_height(150.0)
@@ -444,6 +449,7 @@ impl ResolutionWindow {
                         ui.label(&self.status_msg);
                     }
                 });
+                });
             });
 
         if do_calc {
@@ -455,7 +461,7 @@ impl ResolutionWindow {
         if do_assign_model {
             self.assign_to_instruments(spectrum_manager, true);
         }
-        self.open = open && !close_requested;
+        self.open = !close_requested;
     }
 }
 

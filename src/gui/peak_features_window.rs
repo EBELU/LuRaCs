@@ -125,17 +125,23 @@ impl PeakFeaturesWindow {
             return;
         }
 
-        let mut open = self.open;
         let mut close_requested = false;
         let mut apply_requested = false;
         let mut clear_requested = false;
 
-        egui::Window::new("Peak Features")
-            .collapsible(false)
-            .resizable(false)
-            .open(&mut open)
-            .show(ui.ctx(), |ui| {
-                ui.horizontal(|ui| {
+        let viewport_id = egui::ViewportId::from_hash_of("peak_features_window");
+        let builder = egui::ViewportBuilder::default()
+            .with_title("Peak Features")
+            .with_inner_size([360.0, 230.0])
+            .with_resizable(false);
+
+        ui.ctx()
+            .show_viewport_immediate(viewport_id, builder, |ui, _class| {
+                if ui.input(|i| i.viewport().close_requested()) {
+                    close_requested = true;
+                }
+                egui::CentralPanel::default().show(ui, |ui| {
+                    ui.horizontal(|ui| {
                     ui.label("Input Energy:");
                     if ui
                         .add(
@@ -186,6 +192,7 @@ impl PeakFeaturesWindow {
                         close_requested = true;
                     }
                 });
+                });
             });
 
         if clear_requested {
@@ -194,7 +201,7 @@ impl PeakFeaturesWindow {
         if apply_requested {
             self.apply(spectrum_screen);
         }
-        self.open = open && !close_requested;
+        self.open = !close_requested;
     }
 }
 

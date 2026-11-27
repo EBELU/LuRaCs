@@ -223,20 +223,25 @@ impl CalibrationWindow {
             .and_then(|b| b.instrument.as_ref().map(|i| i.name.clone()))
             .unwrap_or_else(|| "None".to_string());
 
-        let mut open = self.open;
         let mut close_requested = false;
         let mut do_calc = false;
         let mut do_assign_spec = false;
         let mut do_assign_instr = false;
         let mut do_get_instr = false;
 
-        egui::Window::new("Calibration Window")
-            .collapsible(false)
-            .resizable(false)
-            .default_size([920.0, 620.0])
-            .open(&mut open)
-            .show(ui.ctx(), |ui| {
-                ui.horizontal(|ui| {
+        let viewport_id = egui::ViewportId::from_hash_of("calibration_window");
+        let builder = egui::ViewportBuilder::default()
+            .with_title("Calibration Window")
+            .with_inner_size([920.0, 620.0])
+            .with_resizable(false);
+
+        ui.ctx()
+            .show_viewport_immediate(viewport_id, builder, |ui, _class| {
+                if ui.input(|i| i.viewport().close_requested()) {
+                    close_requested = true;
+                }
+                egui::CentralPanel::default().show(ui, |ui| {
+                    ui.horizontal(|ui| {
                     ui.label("Spectrum:");
                     let prev = self.selected_spectrum.clone();
                     egui::ComboBox::from_id_salt("cal_spec_combo")
@@ -347,6 +352,7 @@ impl CalibrationWindow {
                         ui.label(&self.status_msg);
                     }
                 });
+                });
             });
 
         if do_get_instr {
@@ -376,7 +382,7 @@ impl CalibrationWindow {
         if do_assign_instr {
             self.assign_to_instrument(spectrum_manager);
         }
-        self.open = open && !close_requested;
+        self.open = !close_requested;
     }
 }
 
