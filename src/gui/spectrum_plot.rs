@@ -51,6 +51,7 @@ use crate::containers::{BkgType, Roi, RoiEvent, draw_rois};
 use crate::containers::{EmissionType, RoiViewState};
 use crate::core::NewRoi;
 use crate::core::SpectrumManager;
+use crate::gui::peak_id_hud::{PeakIdCache, draw_peak_id_hud};
 use crate::settings::Settings;
 use crate::theme_manager::ThemeDefinition;
 use crate::utils::{multi_gaussian, polyval};
@@ -129,6 +130,8 @@ pub struct SpectrumPlotState {
     reset_pending: bool,
 
     pub roi_view: RoiViewState,
+    pub peak_id_enabled: bool,
+    pub peak_id_cache: PeakIdCache,
 }
 
 impl SpectrumPlotState {
@@ -171,6 +174,8 @@ impl SpectrumPlotState {
             feature_lines: HashMap::new(),
             reset_pending: true,
             roi_view: RoiViewState::default(),
+            peak_id_enabled: false,
+            peak_id_cache: PeakIdCache::default(),
         }
     }
 
@@ -288,6 +293,21 @@ pub fn render(
             );
         }
     }
+
+    // --- Peak ID HUD ---
+    let mut peak_id_cache = std::mem::take(&mut state.peak_id_cache);
+    peak_id_cache.update_if_needed(state, spectrum_manager);
+    draw_peak_id_hud(
+        ui,
+        transform.area,
+        &peak_id_cache.badges,
+        state,
+        spectrum_manager,
+        use_chi2,
+        |x| transform.data_to_pixel(x, 0.0).x,
+        |y| transform.data_to_pixel(0.0, y).y,
+    );
+    state.peak_id_cache = peak_id_cache;
 
     // --- Read back bounds ---
     let (xmin, xmax) = (response.transform.x.min, response.transform.x.max);
@@ -419,6 +439,24 @@ fn render_toolbar(
                 use_chi2,
                 true,
             );
+        }
+
+        let has_calibrated = spectrum_manager.spectrum_registry.iter().any(|(name, s)| {
+            s.show_in_plot
+                && s.calibrated
+                && state.owned_spectrum.as_ref().is_none_or(|o| o == name)
+        });
+        ui.add_enabled_ui(has_calibrated, |ui| {
+            let resp = ui
+                .toggle_value(&mut state.peak_id_enabled, "Peak ID")
+                .on_hover_text("Detect peaks and match nuclides inline (click a badge to create an ROI)");
+            if resp.changed() && !state.peak_id_enabled {
+                state.peak_id_cache.clear();
+            }
+        });
+        if !has_calibrated && state.peak_id_enabled {
+            state.peak_id_enabled = false;
+            state.peak_id_cache.clear();
         }
 
         let mut new_mode = state.bkg_mode;
