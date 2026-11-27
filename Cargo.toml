@@ -14,6 +14,7 @@ csv = "1.4.0"
 ctrlc = "3.5.2"
 directories = "6.0.0"
 eframe = { version = "0.37.0", features = ["persistence", "serde"] }
+egui_commonmark = "0.26"
 flate2 = "1.1.11"
 glob = "0.3.4"
 mendeleev = { version = "0.8.4", features = ["serde"] }

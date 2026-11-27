@@ -5,6 +5,7 @@
 use std::path::{Path, PathBuf};
 
 use eframe::egui;
+use egui_commonmark::{CommonMarkCache, CommonMarkViewer};
 use walkdir::WalkDir;
 
 #[derive(Debug, Clone)]
@@ -19,6 +20,7 @@ pub struct DocumentationWindow {
     selected_idx: usize,
     cached_content: String,
     loaded_dir: Option<PathBuf>,
+    md_cache: CommonMarkCache,
 }
 
 impl Default for DocumentationWindow {
@@ -28,13 +30,14 @@ impl Default for DocumentationWindow {
 }
 
 impl DocumentationWindow {
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             open: false,
             entries: Vec::new(),
             selected_idx: 0,
             cached_content: String::new(),
             loaded_dir: None,
+            md_cache: CommonMarkCache::default(),
         }
     }
 
@@ -128,7 +131,11 @@ impl DocumentationWindow {
                         .id_salt("doc_content_scroll")
                         .auto_shrink([false, false])
                         .show(ui, |ui| {
-                            render_markdown(ui, &self.cached_content);
+                            CommonMarkViewer::new().show(
+                                ui,
+                                &mut self.md_cache,
+                                &self.cached_content,
+                            );
                         });
                 });
             });
@@ -143,6 +150,7 @@ pub struct BibliographyWindow {
     pub open: bool,
     cached_content: String,
     loaded_path: Option<PathBuf>,
+    md_cache: CommonMarkCache,
 }
 
 impl Default for BibliographyWindow {
@@ -152,11 +160,12 @@ impl Default for BibliographyWindow {
 }
 
 impl BibliographyWindow {
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             open: false,
             cached_content: String::new(),
             loaded_path: None,
+            md_cache: CommonMarkCache::default(),
         }
     }
 
@@ -212,7 +221,11 @@ impl BibliographyWindow {
                         .id_salt("bib_content_scroll")
                         .auto_shrink([false, false])
                         .show(ui, |ui| {
-                            render_markdown(ui, &self.cached_content);
+                            CommonMarkViewer::new().show(
+                                ui,
+                                &mut self.md_cache,
+                                &self.cached_content,
+                            );
                         });
                 });
             });
@@ -248,84 +261,6 @@ fn collect_doc_entries(doc_dir: &Path) -> Vec<DocEntry> {
     }
     entries.sort_by(|a, b| a.label.cmp(&b.label));
     entries
-}
-
-/// Lightweight markdown renderer for headings, bullets, code blocks, and links.
-fn render_markdown(ui: &mut egui::Ui, md: &str) {
-    let mut in_code = false;
-    let mut code_buf = String::new();
-
-    for line in md.lines() {
-        let trimmed = line.trim_end();
-        if trimmed.starts_with("```") {
-            if in_code {
-                egui::Frame::group(ui.style()).show(ui, |ui| {
-                    ui.monospace(code_buf.trim_end());
-                });
-                code_buf.clear();
-                in_code = false;
-            } else {
-                in_code = true;
-            }
-            continue;
-        }
-        if in_code {
-            code_buf.push_str(line);
-            code_buf.push('\n');
-            continue;
-        }
-
-        if trimmed.is_empty() {
-            ui.add_space(4.0);
-        } else if let Some(rest) = trimmed.strip_prefix("# ") {
-            ui.add_space(6.0);
-            ui.heading(rest.trim());
-            ui.separator();
-        } else if let Some(rest) = trimmed.strip_prefix("## ") {
-            ui.add_space(6.0);
-            ui.strong(egui::RichText::new(rest.trim()).size(16.0));
-        } else if let Some(rest) = trimmed.strip_prefix("### ") {
-            ui.add_space(4.0);
-            ui.strong(rest.trim());
-        } else if let Some(rest) = trimmed.strip_prefix("- ").or_else(|| trimmed.strip_prefix("* "))
-        {
-            ui.horizontal_wrapped(|ui| {
-                ui.label("•");
-                render_inline_links(ui, rest.trim());
-            });
-        } else {
-            render_inline_links(ui, trimmed);
-        }
-    }
-
-    if in_code && !code_buf.is_empty() {
-        egui::Frame::group(ui.style()).show(ui, |ui| {
-            ui.monospace(code_buf.trim_end());
-        });
-    }
-}
-
-fn render_inline_links(ui: &mut egui::Ui, text: &str) {
-    if let (Some(lb), Some(rb)) = (text.find('['), text.find("]("))
-        && rb > lb
-        && let Some(rp_rel) = text[rb + 2..].find(')')
-    {
-        let label = &text[lb + 1..rb];
-        let url = &text[rb + 2..rb + 2 + rp_rel];
-        let before = &text[..lb];
-        let after = &text[rb + 2 + rp_rel + 1..];
-        ui.horizontal_wrapped(|ui| {
-            if !before.is_empty() {
-                ui.label(before);
-            }
-            ui.hyperlink_to(label, url);
-            if !after.is_empty() {
-                ui.label(after);
-            }
-        });
-        return;
-    }
-    ui.label(text);
 }
 
 #[cfg(test)]
