@@ -41,11 +41,14 @@ use crate::core::IoManager;
 use crate::core::{EventDispatcher, ForegroundInput, SpectrumManager};
 use crate::core::{RunManager, RunManagerEvent};
 use crate::gui::{
-    BleDeviceKind, BluetoothWindow, CalibrationWindow, ConnectionRequest, DataLibraryWindow,
-    DeconvolutionWindow, EfficiencyWindow, FileDialogQueue, InfoModal, IsotopicsTab, MapScreen,
-    MeasureScreen, Modal, ModalKind, NetworkDeviceKind, NetworkWindow, PeakFeaturesWindow, RealTimeValuesTab,
-    ResolutionWindow, SerialGpsWindow, SettingsDialog, SpectrogramScreen, SpectrumScreen, Stub,
-    StubWindow, UsbDeviceKind, UsbWindow, menu_bar, render_modals_for,  SpectrumInfoTab,
+    BleDeviceKind, BluetoothWindow, CalibrationWindow, ConnectionRequest, ConsoleTab,
+    BibliographyWindow, DataLibraryWindow, DeconvolutionWindow, DetectorsTab, DocumentationWindow,
+    EfficiencyWindow, FileDialogQueue,
+    InfoModal, IsotopicsTab, MapScreen, MeasureScreen, Modal, ModalKind, NetworkDeviceKind,
+    NetworkWindow, PeakFeaturesWindow, RealTimeValuesTab, ResolutionWindow, SerialGpsWindow,
+    SettingsDialog, SpectrogramRoisTab, SpectrogramScreen, SpectrumInfoTab, SpectrumRoisTab,
+    SpectrumScreen, StubWindow, SystemLogTab, UsbDeviceKind, UsbWindow, menu_bar,
+    render_modals_for,
 };
 use crate::logging::LogBuffer;
 use crate::settings::{Category, SharedSettings, SharedSettingsExt};
@@ -113,13 +116,13 @@ pub struct LuRaCsApp {
 
     // --- Bottom tabs ---
     pub spectrum_info_tab: SpectrumInfoTab,
-    pub spectrum_roi_tab: Stub,
-    pub spectrogram_roi_tab: Stub,
+    pub spectrum_roi_tab: SpectrumRoisTab,
+    pub spectrogram_roi_tab: SpectrogramRoisTab,
     pub real_time_values_tab: RealTimeValuesTab,
-    pub devices_tab: Stub,
+    pub devices_tab: DetectorsTab,
     pub isotopics_tab: IsotopicsTab,
-    pub console_tab: Stub,
-    pub log_tab: Stub,
+    pub console_tab: ConsoleTab,
+    pub log_tab: SystemLogTab,
 
     // --- Windows ---
     pub data_library: DataLibraryWindow,
@@ -129,8 +132,8 @@ pub struct LuRaCsApp {
     pub usb_window: UsbWindow,
     pub network_window: NetworkWindow,
     pub serial_gps_window: SerialGpsWindow,
-    pub documentation_dialog: StubWindow,
-    pub bibliography_dialog: StubWindow,
+    pub documentation_dialog: DocumentationWindow,
+    pub bibliography_dialog: BibliographyWindow,
     pub activity_window: StubWindow,
     pub efficiency_window: EfficiencyWindow,
     pub calibration_window: CalibrationWindow,
@@ -210,12 +213,14 @@ impl LuRaCsApp {
         let mut calibration_window = CalibrationWindow::new(&render_state);
         let mut resolution_window = ResolutionWindow::new(&render_state);
 
+        let mut spectrogram_roi_tab = SpectrogramRoisTab::new(real_time_scheme);
         let initial_plot_colors = theme_manager.current().resolved_plot();
         spectrum_screen.retheme(&initial_plot_colors);
         spectrogram_screen.retheme(&initial_plot_colors);
         real_time_values_tab.retheme(&initial_plot_colors);
         measure_screen.retheme(&initial_plot_colors);
         isotopics_tab.retheme(&initial_plot_colors);
+        spectrogram_roi_tab.retheme(&initial_plot_colors);
         efficiency_window.retheme(&initial_plot_colors);
         calibration_window.retheme(&initial_plot_colors);
         resolution_window.retheme(&initial_plot_colors);
@@ -243,13 +248,13 @@ impl LuRaCsApp {
             measure_screen,
 
             spectrum_info_tab,
-            spectrum_roi_tab: Stub::new("Spectrum ROIs"),
-            spectrogram_roi_tab: Stub::new("Spectrogram ROIs"),
+            spectrum_roi_tab: SpectrumRoisTab::new(),
+            spectrogram_roi_tab,
             real_time_values_tab,
-            devices_tab: Stub::new("Detectors"),
+            devices_tab: DetectorsTab::new(),
             isotopics_tab,
-            console_tab: Stub::new("Console"),
-            log_tab: Stub::new("System Log"),
+            console_tab: ConsoleTab::new(),
+            log_tab: SystemLogTab::new(),
 
             data_library: DataLibraryWindow::new(),
             driver_dialog: StubWindow::new("Drivers"),
@@ -258,8 +263,8 @@ impl LuRaCsApp {
             usb_window: UsbWindow::new(),
             network_window: NetworkWindow::new(),
             serial_gps_window: SerialGpsWindow::new(),
-            documentation_dialog: StubWindow::new("Documentation"),
-            bibliography_dialog: StubWindow::new("Bibliography"),
+            documentation_dialog: DocumentationWindow::new(),
+            bibliography_dialog: BibliographyWindow::new(),
             activity_window: StubWindow::new("Activity"),
             efficiency_window,
             calibration_window,
@@ -331,12 +336,17 @@ impl LuRaCsApp {
                 }
                 AppEvent::Run(RunManagerEvent::SpectrogramClosed { name }) => {
                     self.map_screen.on_spectrogram_closed(name);
+                    self.spectrogram_roi_tab.on_spectrogram_closed(name);
                 }
                 AppEvent::Run(RunManagerEvent::SpectrogramRoiAdded { roi }) => {
                     self.map_screen.on_roi_added(roi);
                 }
                 AppEvent::Run(RunManagerEvent::SpectrogramRoiRemoved { roi }) => {
                     self.map_screen.on_roi_removed(&roi.tag);
+                    self.spectrogram_roi_tab.on_roi_removed(&roi.tag);
+                }
+                AppEvent::Run(RunManagerEvent::SpectrogramRoiCountsUpdated { name, counts }) => {
+                    self.spectrogram_roi_tab.on_counts_updated(name, counts);
                 }
                 AppEvent::Run(RunManagerEvent::SpectrogramMapBufferUpdated { name, buffer }) => {
                     self.map_screen.on_map_buffer_updated(name, buffer);
@@ -351,16 +361,25 @@ impl LuRaCsApp {
                 AppEvent::Run(RunManagerEvent::SpectrogramDataUpdated { name, data }) => {
                     self.spectrogram_data.insert(name.clone(), data.clone());
                 }
+                AppEvent::Run(RunManagerEvent::DeviceWrapped { name }) => {
+                    self.devices_tab.on_device_wrapped(name);
+                }
+                AppEvent::Run(RunManagerEvent::DeviceStateUpdated { name, state }) => {
+                    self.devices_tab.on_state_updated(name, *state);
+                }
                 AppEvent::Run(RunManagerEvent::DeviceConnected { name }) => {
                     self.real_time_values_tab.device_connected(name);
                     self.measure_screen.on_device_connected(name);
+                    self.devices_tab.on_device_connected(name);
                 }
                 AppEvent::Run(RunManagerEvent::DeviceRemoved { name }) => {
                     self.real_time_values_tab.device_removed(name);
                     self.measure_screen.on_device_removed(name);
+                    self.devices_tab.on_device_removed(name);
                 }
                 AppEvent::Run(RunManagerEvent::StatusUpdated { name, data }) => {
                     self.measure_screen.on_status_updated(name, data);
+                    self.devices_tab.on_status_updated(name, data);
                 }
                 AppEvent::Run(RunManagerEvent::CurrentUpdated { name, data }) => {
                     self.measure_screen.on_realtime_updated(name, data);
@@ -397,6 +416,7 @@ impl LuRaCsApp {
             self.real_time_values_tab.retheme(&colors);
             self.measure_screen.retheme(&colors);
             self.isotopics_tab.retheme(&colors);
+            self.spectrogram_roi_tab.retheme(&colors);
             self.efficiency_window.retheme(&colors);
             self.calibration_window.retheme(&colors);
             self.resolution_window.retheme(&colors);
@@ -618,23 +638,45 @@ impl LuRaCsApp {
         ui.separator();
 
         match self.bottom_tab {
-            BottomTab::SpectrumInfo => self.spectrum_info_tab.render(ui, &mut self.spectrum_manager),
-            BottomTab::SpectrumRois => self.spectrum_roi_tab.render(ui),
-            BottomTab::SpectrogramRois => self.spectrogram_roi_tab.render(ui),
+            BottomTab::SpectrumInfo => {
+                self.spectrum_info_tab
+                    .render(ui, &mut self.spectrum_manager, &self.run_manager)
+            }
+            BottomTab::SpectrumRois => {
+                let use_chi2 = self.settings.read_settings().optimizer.use_chi2_weight;
+                self.spectrum_roi_tab.render(
+                    ui,
+                    &mut self.spectrum_manager,
+                    &mut self.modal_stack,
+                    use_chi2,
+                );
+            }
+            BottomTab::SpectrogramRois => {
+                let settings_guard = self.settings.read_settings();
+                let compact = self.view_spectrogram_rois_compact;
+                self.spectrogram_roi_tab.render(
+                    ui,
+                    &self.run_manager,
+                    self.run_manager.spectrogram_manager(),
+                    &settings_guard,
+                    &self.render_state,
+                    compact,
+                );
+            }
             BottomTab::RealTimeValues => {
                 let show_means = self.view_realtime_avg_line;
                 let settings_guard = self.settings.read_settings();
                 self.real_time_values_tab
                     .render(show_means, &settings_guard, ui);
             }
-            BottomTab::Detectors => self.devices_tab.render(ui),
+            BottomTab::Detectors => self.devices_tab.render(ui, &self.run_manager),
             BottomTab::Isotopics => {
                 let settings_guard = self.settings.read_settings();
                 self.isotopics_tab
                     .render(&mut self.spectrum_manager, &settings_guard, ui)
             }
-            BottomTab::Console => self.console_tab.render(ui),
-            BottomTab::SystemLog => self.log_tab.render(ui),
+            BottomTab::Console => ConsoleTab::render(self, ui),
+            BottomTab::SystemLog => self.log_tab.render(ui, &self.log_buffer),
         }
     }
 
@@ -668,8 +710,12 @@ impl LuRaCsApp {
         if let Some(req) = self.serial_gps_window.render(ui, gps_connected) {
             self.handle_connection_request(req);
         }
-        self.documentation_dialog.render(ui);
-        self.bibliography_dialog.render(ui);
+        let (doc_dir, bib_path) = {
+            let s = self.settings.read_settings();
+            (s.paths.documentation_dir.clone(), s.paths.bibliography.clone())
+        };
+        self.documentation_dialog.render(ui, &doc_dir);
+        self.bibliography_dialog.render(ui, &bib_path);
         self.activity_window.render(ui);
         self.efficiency_window
             .render(ui, &mut self.spectrum_manager);

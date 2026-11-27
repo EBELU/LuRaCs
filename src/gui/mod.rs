@@ -1,8 +1,11 @@
 mod calibration_window;
 mod color_rotator;
 pub mod connection_windows;
+mod console_tab;
 mod data_library;
 mod deconvolution_window;
+mod detectors_tab;
+mod documentation_windows;
 mod efficiency_window;
 mod file_dialog;
 mod isotopics_tab;
@@ -17,9 +20,12 @@ mod real_time_values;
 mod resolution_window;
 mod settings_window;
 mod spectogram_screen;
-mod spectrum_plot;
-mod stubs;
+mod spectrogram_rois_tab;
 mod spectrum_info_tab;
+mod spectrum_plot;
+mod spectrum_rois_tab;
+mod stubs;
+mod system_log_tab;
 
 pub use calibration_window::CalibrationWindow;
 pub use color_rotator::*;
@@ -27,8 +33,11 @@ pub use connection_windows::{
     BleDeviceKind, BluetoothWindow, ConnectionRequest, NetworkDeviceKind, NetworkWindow,
     SerialGpsWindow, UsbDeviceKind, UsbWindow,
 };
+pub use console_tab::ConsoleTab;
 pub use data_library::*;
 pub use deconvolution_window::DeconvolutionWindow;
+pub use detectors_tab::DetectorsTab;
+pub use documentation_windows::{BibliographyWindow, DocumentationWindow};
 pub use efficiency_window::EfficiencyWindow;
 pub use file_dialog::{FileDialogQueue, PendingFileSlot};
 pub use isotopics_tab::*;
@@ -42,6 +51,9 @@ pub use real_time_values::*;
 pub use resolution_window::ResolutionWindow;
 pub use settings_window::*;
 pub use spectogram_screen::*;
-pub use spectrum_plot::*;
-pub use stubs::*;
+pub use spectrogram_rois_tab::SpectrogramRoisTab;
 pub use spectrum_info_tab::SpectrumInfoTab;
+pub use spectrum_plot::*;
+pub use spectrum_rois_tab::SpectrumRoisTab;
+pub use stubs::*;
+pub use system_log_tab::SystemLogTab;
