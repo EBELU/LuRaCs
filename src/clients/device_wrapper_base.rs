@@ -858,4 +858,119 @@ mod tests {
         drop(j2.await);
         assert!(rx2.try_recv().is_ok());
     }
+
+    #[tokio::test]
+    async fn test_poll_loop_timeouts_config_change_behind_schedule_and_errors() {
+        #[derive(Clone, Copy)]
+        enum FailKind {
+            TimeoutAll,
+            StatusErr,
+            SpectrumErr,
+        }
+        struct EdgeWrapper {
+            kind: FailKind,
+        }
+        #[async_trait]
+        impl DeviceWrapper for EdgeWrapper {
+            fn type_key(&self) -> &'static str { "Edge" }
+            fn name(&self) -> &str { "edge" }
+            fn connection(&self) -> ConnectionType { ConnectionType::Network }
+            fn state(&self) -> DeviceState { DeviceState::Connected }
+            fn set_state(&self, _: DeviceState) {}
+            fn channels(&self) -> Option<usize> { Some(64) }
+            fn is_running(&self) -> bool { true }
+            fn is_stopped(&self) -> bool { false }
+            fn connected_timestamp(&self) -> f64 { 0.0 }
+            async fn start(&self) -> Result<(), DeviceError> { Ok(()) }
+            async fn stop(&self) -> Result<(), DeviceError> { Ok(()) }
+            async fn get_realtime_data(&self) -> Result<WrappedRealTimePackage, DeviceError> {
+                match self.kind {
+                    FailKind::TimeoutAll => {
+                        tokio::time::sleep(Duration::from_millis(5)).await;
+                        Ok(WrappedRealTimePackage::default())
+                    }
+                    _ => Ok(WrappedRealTimePackage::default()),
+                }
+            }
+            async fn get_status(&self) -> Result<WrappedStatusPackage, DeviceError> {
+                match self.kind {
+                    FailKind::TimeoutAll => Err(DeviceError::Timeout("status timeout".into())),
+                    FailKind::StatusErr => Err(DeviceError::Protocol("status fail".into())),
+                    FailKind::SpectrumErr => Ok(WrappedStatusPackage::default()),
+                }
+            }
+            async fn get_spectrum(&self) -> Result<WrappedSpectrumPackage, DeviceError> {
+                match self.kind {
+                    FailKind::TimeoutAll => Err(DeviceError::Timeout("spec timeout".into())),
+                    FailKind::StatusErr => Ok(WrappedSpectrumPackage::default()),
+                    FailKind::SpectrumErr => Err(DeviceError::Protocol("spec fail".into())),
+                }
+            }
+        }
+
+        // 1. Timeouts + PollConfig change + PollBehindSchedule
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let cfg = Arc::new(RwLock::new(PollConfig {
+            update_loop_delay: 0.001,
+            spectrum_update_delay: 0.001,
+        }));
+        let cancel = CancellationToken::new();
+        let j = tokio::spawn(run_poll_loop(
+            Arc::new(EdgeWrapper { kind: FailKind::TimeoutAll }),
+            tx,
+            Arc::clone(&cfg),
+            cancel.clone(),
+        ));
+        tokio::time::sleep(Duration::from_millis(12)).await;
+        *cfg.write().unwrap() = PollConfig {
+            update_loop_delay: 0.002,
+            spectrum_update_delay: 0.002,
+        };
+        tokio::time::sleep(Duration::from_millis(12)).await;
+        cancel.cancel();
+        drop(j.await);
+        assert!(rx.try_recv().is_ok());
+
+        // 2. Non-timeout status error -> PollFailed
+        let (tx_s, mut rx_s) = mpsc::unbounded_channel();
+        let cfg_s = Arc::new(RwLock::new(PollConfig {
+            update_loop_delay: 0.001,
+            spectrum_update_delay: 0.001,
+        }));
+        let j_s = tokio::spawn(run_poll_loop(
+            Arc::new(EdgeWrapper { kind: FailKind::StatusErr }),
+            tx_s,
+            cfg_s,
+            CancellationToken::new(),
+        ));
+        drop(j_s.await);
+        let mut saw_fail_s = false;
+        while let Ok(ev) = rx_s.try_recv() {
+            if matches!(ev, DeviceEvent::PollFailed { .. }) {
+                saw_fail_s = true;
+            }
+        }
+        assert!(saw_fail_s);
+
+        // 3. Non-timeout spectrum error -> PollFailed
+        let (tx_p, mut rx_p) = mpsc::unbounded_channel();
+        let cfg_p = Arc::new(RwLock::new(PollConfig {
+            update_loop_delay: 0.001,
+            spectrum_update_delay: 0.001,
+        }));
+        let j_p = tokio::spawn(run_poll_loop(
+            Arc::new(EdgeWrapper { kind: FailKind::SpectrumErr }),
+            tx_p,
+            cfg_p,
+            CancellationToken::new(),
+        ));
+        drop(j_p.await);
+        let mut saw_fail_p = false;
+        while let Ok(ev) = rx_p.try_recv() {
+            if matches!(ev, DeviceEvent::PollFailed { .. }) {
+                saw_fail_p = true;
+            }
+        }
+        assert!(saw_fail_p);
+    }
 }

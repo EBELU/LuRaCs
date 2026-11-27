@@ -14,6 +14,7 @@ use crate::clients::driver::{DeviceDriver, DeviceError};
 use crate::clients::link::{DeviceLink, UsbLink};
 
 /// Connect to an ORTEC digiDART over native async USB.
+#[cfg_attr(coverage_nightly, coverage(off))]
 pub async fn open_usb(serial: Option<&str>) -> Result<DigiDartDriver, DeviceError> {
     let link = UsbLink::open(VENDOR_ID, PRODUCT_ID, serial, 0, EP_IN, EP_OUT).await?;
     let name = serial.map_or_else(|| "digiDART".to_string(), |s| format!("digiDART-{s}"));

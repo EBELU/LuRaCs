@@ -20,6 +20,7 @@ use crate::clients::driver::{DeviceDriver, DeviceError};
 use crate::clients::link::{BleLink, DeviceLink, UsbLink};
 
 /// Connect to a RadiaCode device over native async USB.
+#[cfg_attr(coverage_nightly, coverage(off))]
 pub async fn open_usb(serial: Option<&str>) -> Result<RadiacodeDriver, DeviceError> {
     let link = UsbLink::open(
         VENDOR_ID,

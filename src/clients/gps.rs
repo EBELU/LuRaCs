@@ -399,7 +399,11 @@ impl Gps {
             Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => return false,
             Err(_) => return false,
         };
-        self.buffer.extend_from_slice(&buf[..n]);
+        self.feed_nmea_bytes(&buf[..n])
+    }
+
+    fn feed_nmea_bytes(&mut self, bytes: &[u8]) -> bool {
+        self.buffer.extend_from_slice(bytes);
 
         let mut updated = false;
         while let Some(pos) = find_crlf(&self.buffer) {
@@ -534,5 +538,33 @@ mod tests {
         assert_eq!(find_crlf(b"abcdef"), None);
         let empty_fmt = format_gps(&GpsData::default());
         assert!(empty_fmt.contains("---"));
+    }
+
+    #[test]
+    fn test_gps_nmea_edge_cases_and_serial_feed() {
+        // S / W negative coordinates & short/invalid NMEA coord
+        assert!(nmea_coord("", "N").is_none());
+        assert!(nmea_coord("4875.0", "N").is_none());
+        let south = nmea_coord("3352.1234", "S").unwrap();
+        assert!(south < 0.0);
+        let west = nmea_coord("15112.5678", "W").unwrap();
+        assert!(west < 0.0);
+
+        // Non-GGA/RMC/GSA/GSV sentence -> default empty GpsData
+        assert!(!parse_gps("$GPZDA,123456.00,01,01,2026*00").valid);
+
+        // feed_nmea_bytes: invalid UTF-8, blank/non-$ lines, and valid $GPGGA
+        let mut gps = Gps::new();
+        gps.state.connection_time = Some(std::time::Instant::now());
+        assert!(!gps.feed_nmea_bytes(b"\xff\xfe\r\n   \r\nNO_DOLLAR\r\n"));
+        assert!(gps.feed_nmea_bytes(
+            b"$GPGGA,123519,4807.038,S,01131.000,W,1,08,0.9,545.4,M,46.9,M,,*47\r\n"
+        ));
+        assert!(gps.data().latitude.unwrap() < 0.0);
+        assert!(gps.data().longitude.unwrap() < 0.0);
+        assert_eq!(gps.packets_received(), 1);
+
+        // Missing serial port returns Err cleanly
+        assert!(gps.open("/dev/nonexistent_tty_luracs_xyz", 9600).is_err());
     }
 }

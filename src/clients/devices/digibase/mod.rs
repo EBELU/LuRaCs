@@ -17,6 +17,7 @@ use crate::clients::driver::{DeviceDriver, DeviceError};
 use crate::clients::link::{DeviceLink, UsbLink};
 
 /// Connect to an ORTEC digiBase or digiBase-RH over native async USB.
+#[cfg_attr(coverage_nightly, coverage(off))]
 pub async fn open_usb(
     product_id: u16,
     serial: Option<&str>,
