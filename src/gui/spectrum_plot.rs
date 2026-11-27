@@ -411,7 +411,14 @@ fn render_toolbar(
             let (lo, hi) = roi_bounds_from_view(state);
             let mut nr = NewRoi::new(lo, hi);
             nr.owner_spectrum = state.owned_spectrum.clone();
-            spectrum_manager.roi_manager.add_roi(nr);
+            let tag = spectrum_manager.roi_manager.add_roi(nr);
+            let use_chi2 = settings.optimizer.use_chi2_weight;
+            spectrum_manager.roi_manager.on_roi_change(
+                &mut spectrum_manager.spectrum_registry,
+                &tag,
+                use_chi2,
+                true,
+            );
         }
 
         let mut new_mode = state.bkg_mode;

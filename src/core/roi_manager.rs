@@ -243,6 +243,7 @@ impl RoiManager {
             movable: spec.movable,
         };
         self.roi_registry.insert(tag.clone(), roi);
+        self.roi_groupings = self.calculate_roi_groups();
         self.emit(RoiManagerEvent::Created { tag: tag.clone() });
         tag
     }

@@ -59,14 +59,18 @@ pub fn draw_rois(
 
     // --- 2. Hover hit-testing, cursor icon, click & drag start -----------
     let mut hovered_tag: Option<String> = None;
+    let mut hovered_edge: Option<(String, Edge)> = None;
 
     if let Some(pointer) = plot_response.hover_pos()
         && plot_area.contains(pointer)
     {
         let hit = hit_test_rois(roi_manager.registry(), &is_visible, &x_to_px, pointer.x);
 
-        if let Some((ref tag, _, _)) = hit {
+        if let Some((ref tag, edge_opt, _)) = hit {
             hovered_tag = Some(tag.clone());
+            if let Some(edge) = edge_opt {
+                hovered_edge = Some((tag.clone(), edge));
+            }
         }
 
         if editable {
@@ -151,6 +155,10 @@ pub fn draw_rois(
     let top = plot_area.top();
     let bot = plot_area.bottom();
     let selected_tag = roi_manager.selected_roi();
+    let active_edge = match &view.interaction {
+        RoiInteraction::DraggingEdge { tag, edge } => Some((tag.as_str(), *edge)),
+        _ => None,
+    };
 
     for roi in roi_manager.registry().values().filter(|r| is_visible(r)) {
         let (lo, hi) = roi.roi_bound;
@@ -163,7 +171,7 @@ pub fn draw_rois(
         } else {
             Color32::from_rgb(255, 200, 0)
         };
-        let stroke = Stroke::new(if is_selected { 2.0 } else { 1.5 }, line_color);
+        let base_width = if is_selected { 1.5 } else { 1.0 };
 
         // Use group color if grouped, falling back to amber/yellow tint
         let group_fill = roi_manager.get_roi_color(&roi.tag);
@@ -178,8 +186,28 @@ pub fn draw_rois(
             0.0,
             fill_color,
         );
-        painter.line_segment([egui::pos2(lo_px, top), egui::pos2(lo_px, bot)], stroke);
-        painter.line_segment([egui::pos2(hi_px, top), egui::pos2(hi_px, bot)], stroke);
+
+        let lo_highlighted = roi.movable
+            && (active_edge == Some((roi.tag.as_str(), Edge::Lower))
+                || hovered_edge.as_ref() == Some(&(roi.tag.clone(), Edge::Lower)));
+        let hi_highlighted = roi.movable
+            && (active_edge == Some((roi.tag.as_str(), Edge::Upper))
+                || hovered_edge.as_ref() == Some(&(roi.tag.clone(), Edge::Upper)));
+
+        let highlight_color = Color32::from_rgb(100, 220, 255);
+        let lo_stroke = if lo_highlighted {
+            Stroke::new(2.5, highlight_color)
+        } else {
+            Stroke::new(base_width, line_color)
+        };
+        let hi_stroke = if hi_highlighted {
+            Stroke::new(2.5, highlight_color)
+        } else {
+            Stroke::new(base_width, line_color)
+        };
+
+        painter.line_segment([egui::pos2(lo_px, top), egui::pos2(lo_px, bot)], lo_stroke);
+        painter.line_segment([egui::pos2(hi_px, top), egui::pos2(hi_px, bot)], hi_stroke);
     }
 
     // --- 4. Hover tooltip (suppressed while actively dragging) -----------
