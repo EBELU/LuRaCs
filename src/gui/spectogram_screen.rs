@@ -152,8 +152,8 @@ pub struct SpectrogramScreen {
     pub pending_message: Option<String>,
 
     // Retained plots
-    bar_plot: Plot1D,
-    waterfall_plot: Plot1D,
+    bar_plot: Option<Plot1D>,
+    waterfall_plot: Option<Plot1D>,
 
     // Waterfall image & marker cache (kept so texture/marker rebuilds only fire
     // when data, LUT, or marker toggles change).
@@ -185,6 +185,16 @@ impl SpectrogramScreen {
         bar_plot.set_interaction_mode(PlotInteractionMode::Select);
         waterfall_plot.set_interaction_mode(PlotInteractionMode::Select);
 
+        Self::with_plots(Some(bar_plot), Some(waterfall_plot))
+    }
+
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn new_headless() -> Self {
+        Self::with_plots(None, None)
+    }
+
+    fn with_plots(bar_plot: Option<Plot1D>, waterfall_plot: Option<Plot1D>) -> Self {
         Self {
             selected_spectrogram: None,
             pause_visual: false,
@@ -211,8 +221,12 @@ impl SpectrogramScreen {
     }
 
     pub fn retheme(&mut self, colors: &crate::theme_manager::ResolvedPlotColors) {
-        colors.apply_to(&mut self.bar_plot);
-        colors.apply_to(&mut self.waterfall_plot);
+        if let Some(plot) = &mut self.bar_plot {
+            colors.apply_to(plot);
+        }
+        if let Some(plot) = &mut self.waterfall_plot {
+            colors.apply_to(plot);
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -551,7 +565,9 @@ impl SpectrogramScreen {
         theme_def: &theme_manager::ThemeDefinition,
         ui: &mut egui::Ui,
     ) {
-        self.bar_plot.clear();
+        if let Some(plot) = &mut self.bar_plot {
+            plot.clear();
+        }
 
         let Some(name) = &self.selected_spectrogram else {
             ui.centered_and_justified(|ui| {
@@ -586,8 +602,11 @@ impl SpectrogramScreen {
                 .unwrap_or_else(|| vec![0.0; p.spect_channels])
         };
 
+        let Some(plot) = &mut self.bar_plot else {
+            return;
+        };
         let x: Vec<f64> = (0..heights.len()).map(|i| i as f64).collect();
-        self.bar_plot.add_curve_with_interpolation(
+        plot.add_curve_with_interpolation(
             &x,
             &heights,
             theme_def.colors.text,
@@ -599,8 +618,8 @@ impl SpectrogramScreen {
         if reset_bar_zoom {
             self.last_bar_zoom_key = Some(bar_zoom_key);
         }
-        self.bar_plot.set_auto_reset_zoom(reset_bar_zoom);
-        self.bar_plot.show(ui);
+        plot.set_auto_reset_zoom(reset_bar_zoom);
+        plot.show(ui);
     }
 
     // -----------------------------------------------------------------------
@@ -616,7 +635,9 @@ impl SpectrogramScreen {
         ui: &mut egui::Ui,
     ) {
         let Some(name) = &self.selected_spectrogram else {
-            self.waterfall_plot.clear();
+            if let Some(plot) = &mut self.waterfall_plot {
+                plot.clear();
+            }
             self.last_image_key = None;
             ui.centered_and_justified(|ui| {
                 ui.label("Waterfall");
@@ -624,7 +645,9 @@ impl SpectrogramScreen {
             return;
         };
         let Some(p) = spectrogram_data.get(name) else {
-            self.waterfall_plot.clear();
+            if let Some(plot) = &mut self.waterfall_plot {
+                plot.clear();
+            }
             self.last_image_key = None;
             ui.centered_and_justified(|ui| {
                 ui.label("Waiting for data…");
@@ -632,13 +655,17 @@ impl SpectrogramScreen {
             return;
         };
 
+        let Some(plot) = &mut self.waterfall_plot else {
+            return;
+        };
+
         let n_rows = p.spectrogram.len();
         let channels = p.spect_channels;
 
         if n_rows == 0 || channels == 0 {
-            self.waterfall_plot.clear();
+            plot.clear();
             self.last_image_key = None;
-            self.waterfall_plot.show(ui);
+            plot.show(ui);
             return;
         }
 
@@ -651,7 +678,7 @@ impl SpectrogramScreen {
         let data_changed = self.last_image_key != Some(current_key);
         let is_new_spec = self.last_zoom_spectrogram.as_deref() != Some(name.as_str());
         if !self.pause_visual && (data_changed || self.lut_dirty) {
-            self.waterfall_plot.clear_images();
+            plot.clear_images();
 
             let mut data = vec![0.0f32; n_rows * channels];
             let mut max_val = 0.0f32;
@@ -699,7 +726,7 @@ impl SpectrogramScreen {
                 alpha: 1.0,
             };
 
-            if let Err(e) = self.waterfall_plot.add_image_with_geometry(
+            if let Err(e) = plot.add_image_with_geometry(
                 channels as u32,
                 n_rows as u32,
                 &data,
@@ -718,10 +745,10 @@ impl SpectrogramScreen {
         if self.time_selector_enabled
             && let Some((h1, h2)) = self.selector_handles
         {
-            if let Some((_, y1)) = self.waterfall_plot.marker_position(h1) {
+            if let Some((_, y1)) = plot.marker_position(h1) {
                 self.selector_range.0 = y1.clamp(0.0, max_row);
             }
-            if let Some((_, y2)) = self.waterfall_plot.marker_position(h2) {
+            if let Some((_, y2)) = plot.marker_position(h2) {
                 self.selector_range.1 = y2.clamp(0.0, max_row);
             }
         }
@@ -734,7 +761,7 @@ impl SpectrogramScreen {
             spectrogram_manager.roi_registry.len(),
         );
         if self.last_markers_key != Some(markers_key) {
-            self.waterfall_plot.clear_markers();
+            plot.clear_markers();
             self.selector_handles = None;
 
             // Break lines (reversed-row indices where a time gap appears).
@@ -757,7 +784,7 @@ impl SpectrogramScreen {
                     prev_idx = i as i64;
                 }
                 for row in break_rows {
-                    self.waterfall_plot.add_marker_data(
+                    plot.add_marker_data(
                         &Marker::hline(row)
                             .with_line_style(LineStyle::Dashed)
                             .with_line_width(1.5)
@@ -773,14 +800,14 @@ impl SpectrogramScreen {
                     .with_line_width(2.0)
                     .with_draggable(true);
                 m1.color = Color32::from_rgb(80, 200, 255);
-                let h1 = self.waterfall_plot.add_marker_data(&m1);
+                let h1 = plot.add_marker_data(&m1);
 
                 let mut m2 = Marker::hline(self.selector_range.1.clamp(0.0, max_row))
                     .with_line_style(LineStyle::Solid)
                     .with_line_width(2.0)
                     .with_draggable(true);
                 m2.color = Color32::from_rgb(80, 200, 255);
-                let h2 = self.waterfall_plot.add_marker_data(&m2);
+                let h2 = plot.add_marker_data(&m2);
                 self.selector_handles = Some((h1, h2));
             }
 
@@ -796,7 +823,7 @@ impl SpectrogramScreen {
                             .with_line_width(1.5)
                             .with_draggable(false);
                         m.color = color;
-                        self.waterfall_plot.add_marker_data(&m);
+                        plot.add_marker_data(&m);
                     }
                 }
             }
@@ -805,12 +832,12 @@ impl SpectrogramScreen {
         } else if self.time_selector_enabled
             && let Some((h1, h2)) = self.selector_handles
         {
-            self.waterfall_plot.set_marker_position(
+            plot.set_marker_position(
                 h1,
                 0.0,
                 self.selector_range.0.clamp(0.0, max_row),
             );
-            self.waterfall_plot.set_marker_position(
+            plot.set_marker_position(
                 h2,
                 0.0,
                 self.selector_range.1.clamp(0.0, max_row),
@@ -818,19 +845,18 @@ impl SpectrogramScreen {
         }
 
         // Enforce aspect-lock, bounds, and inverted Y (newest row at the top).
-        self.waterfall_plot.set_x_min_pos(Some(0.0));
-        self.waterfall_plot.set_x_max_pos(Some(channels as f64));
-        self.waterfall_plot.set_y_min_pos(Some(0.0));
-        self.waterfall_plot.set_y_max_pos(Some(n_rows as f64));
-        self.waterfall_plot.set_y_inverted(true);
-        self.waterfall_plot
-            .set_keep_data_aspect_ratio(self.keep_aspect);
+        plot.set_x_min_pos(Some(0.0));
+        plot.set_x_max_pos(Some(channels as f64));
+        plot.set_y_min_pos(Some(0.0));
+        plot.set_y_max_pos(Some(n_rows as f64));
+        plot.set_y_inverted(true);
+        plot.set_keep_data_aspect_ratio(self.keep_aspect);
 
-        self.waterfall_plot.set_auto_reset_zoom(is_new_spec);
+        plot.set_auto_reset_zoom(is_new_spec);
         if is_new_spec {
             self.last_zoom_spectrogram = Some(name.clone());
         }
-        self.waterfall_plot.show(ui);
+        plot.show(ui);
     }
 
     // -----------------------------------------------------------------------
@@ -1128,5 +1154,191 @@ fn format_dose(dose: f64) -> (f64, &'static str) {
         (dose * 1e-3, "mSv")
     } else {
         (dose, "uSv")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use egui_kittest::Harness;
+    use egui_kittest::kittest::Queryable;
+
+    use super::*;
+    use crate::settings::{PathOverrides, Paths};
+
+    fn make_test_settings(dir: &std::path::Path) -> Settings {
+        let paths = Paths::with_overrides(
+            PathOverrides::default()
+                .config(dir.join("cfg"))
+                .appdata(dir.join("app"))
+                .last_opened_dir(dir.to_path_buf()),
+        )
+        .unwrap();
+        Settings::builder().paths(paths).build().unwrap()
+    }
+
+    fn make_sample_data(name: &str) -> Arc<WrappedSpectrogramData> {
+        let row0 = Array1::from_vec(vec![1.0, 4.0, 2.0, 0.5]);
+        let row1 = Array1::from_vec(vec![2.0, 8.0, 3.0, 1.0]);
+        Arc::new(WrappedSpectrogramData {
+            db_name: name.to_string(),
+            instrument: "MockDet".to_string(),
+            calibration_coefficients: vec![100.0, 0.0],
+            start_date: 1_700_000_000.0,
+            duration: 65.0,
+            concat: 1,
+            spect_channels: 4,
+            save_interval: 1.0,
+            latest_spectrum: Some(row1.clone()),
+            spectrogram: vec![row0, row1],
+            timestamp_deque: vec![1_700_000_000.0, 1_700_000_010.0],
+            time_delta: 10.0,
+            estimated_dose: 0.25,
+            status: SpectrogramState::Active,
+            gps_queue: vec![None, None],
+            count_rate_queue: vec![10.0, 14.0],
+            dose_rate_queue: vec![0.1, 0.15],
+        })
+    }
+
+    #[test]
+    fn test_formatting_and_energy_axis_helpers() {
+        assert_eq!(format_duration(0.0), "0");
+        assert_eq!(format_duration(65.0), "1:05");
+        assert_eq!(format_duration(3665.0), "1:01:05");
+
+        assert_eq!(format_dose(0.25), (250.0, "nSv"));
+        assert_eq!(format_dose(10.0), (10.0, "uSv"));
+        assert_eq!(format_dose(1000.0), (1.0, "mSv"));
+
+        let data = make_sample_data("sg1");
+        let axis = energy_axis(&data).unwrap();
+        assert_eq!(axis.as_slice().unwrap(), &[0.0, 100.0, 200.0, 300.0]);
+        assert!(!epoch_to_local_string(1_700_000_000.0).is_empty());
+    }
+
+    #[test]
+    fn test_kittest_spectrogram_screen_controls_and_dialogs() {
+        let dir = std::env::temp_dir().join("luracs_sg_screen_test");
+        drop(std::fs::create_dir_all(&dir));
+        let settings = make_test_settings(&dir);
+        let theme = theme_manager::dark();
+
+        let mut mgr = SpectrogramManager::new();
+        mgr.spectrogram_registry.insert("sg_alpha".to_string());
+        let mut data_map = HashMap::new();
+        data_map.insert("sg_alpha".to_string(), make_sample_data("sg_alpha"));
+
+        struct State {
+            screen: SpectrogramScreen,
+            mgr: SpectrogramManager,
+            data: HashMap<String, Arc<WrappedSpectrogramData>>,
+            settings: Settings,
+            theme: ThemeDefinition,
+            devices: Vec<String>,
+            events: Vec<SpectrogramScreenEvent>,
+        }
+
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(1000.0, 680.0))
+            .with_accessibility_check(false)
+            .build_ui_state(
+                |ui, st: &mut State| {
+                    ui.ctx()
+                        .set_missing_glyph_policy(egui::epaint::text::MissingGlyphPolicy::Tofu);
+                    let ev = st.screen.render(
+                        &st.mgr,
+                        &st.data,
+                        &st.settings,
+                        &st.theme,
+                        ui,
+                        &st.devices,
+                    );
+                    st.events.extend(ev);
+                },
+                State {
+                    screen: SpectrogramScreen::new_headless(),
+                    mgr,
+                    data: data_map,
+                    settings,
+                    theme,
+                    devices: vec!["Det1".into()],
+                    events: Vec::new(),
+                },
+            );
+        harness.run();
+        assert_eq!(
+            harness.state().screen.selected_spectrogram.as_deref(),
+            Some("sg_alpha")
+        );
+
+        // Start New dialog -> OK -> emits RequestStart
+        harness.get_by_label("Start New").click();
+        harness.run();
+        assert!(harness.state().screen.start_dialog.is_some());
+        harness.get_by_label("OK").click();
+        harness.run();
+        assert!(matches!(
+            harness.state().events.last(),
+            Some(SpectrogramScreenEvent::RequestStart { .. })
+        ));
+
+        // Load -> RequestShowDataStore { tab: 1 }
+        harness.get_by_label("Load").click();
+        harness.run();
+        assert!(matches!(
+            harness.state().events.last(),
+            Some(SpectrogramScreenEvent::RequestShowDataStore { tab: 1 })
+        ));
+
+        // Stop -> RequestPause
+        harness.get_by_label("Stop").click();
+        harness.run();
+        assert!(matches!(
+            harness.state().events.last(),
+            Some(SpectrogramScreenEvent::RequestPause { .. })
+        ));
+
+        // Menu actions: Time Selector + Clear ROIs + Accumulated to Spectrum
+        harness.get_by_label("…").click();
+        harness.run();
+        harness.get_by_label("Time Selector").click();
+        harness.run();
+        assert!(harness.state().screen.time_selector_enabled);
+
+        if harness.query_by_label("Clear ROIs").is_none() {
+            harness.get_by_label("…").click();
+            harness.run();
+        }
+        harness.get_by_label("Clear ROIs").click();
+        harness.run();
+        assert!(harness.state().screen.pending_clear_rois_confirm);
+        harness.get_by_label("Yes").click();
+        harness.run();
+        assert!(matches!(
+            harness.state().events.last(),
+            Some(SpectrogramScreenEvent::RequestClearRois)
+        ));
+
+        harness.get_by_label("…").click();
+        harness.run();
+        harness.get_by_label("Accumulated to Spectrum").click();
+        harness.run();
+        assert!(harness.state().screen.export_dialog.is_some());
+        harness.get_by_label("OK").click();
+        harness.run();
+        assert!(matches!(
+            harness.state().events.last(),
+            Some(SpectrogramScreenEvent::RequestExportAccumulated { .. })
+        ));
+
+        // Unload -> RequestClose
+        harness.get_by_label("Unload").click();
+        harness.run();
+        assert!(matches!(
+            harness.state().events.last(),
+            Some(SpectrogramScreenEvent::RequestClose { .. })
+        ));
+
+        drop(std::fs::remove_dir_all(&dir));
     }
 }

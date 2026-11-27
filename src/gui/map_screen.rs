@@ -295,52 +295,11 @@ impl LoadOnlineMapDialog {
                 }
 
                 egui::CentralPanel::default().show(ui, |ui| {
-                    egui::Grid::new("load_online_map_grid")
-                        .num_columns(2)
-                        .spacing([12.0, 8.0])
-                        .show(ui, |ui| {
-                            ui.label("Source URL (+ API Key):");
-                            ui.add(
-                                egui::TextEdit::singleline(&mut self.url)
-                                    .desired_width(360.0)
-                                    .hint_text("https://tile.openstreetmap.org/{z}/{x}/{y}.png"),
-                            );
-                            ui.end_row();
-
-                            ui.label("Tile Type:");
-                            egui::ComboBox::from_id_salt("online_map_tile_type")
-                                .selected_text(if self.is_vector {
-                                    "Vector Tiles"
-                                } else {
-                                    "Raster Tiles"
-                                })
-                                .show_ui(ui, |ui| {
-                                    ui.selectable_value(&mut self.is_vector, false, "Raster Tiles");
-                                    ui.selectable_value(&mut self.is_vector, true, "Vector Tiles");
-                                });
-                            ui.end_row();
-
-                            ui.label("");
-                            ui.checkbox(&mut self.save_url, "Save URL");
-                            ui.end_row();
-                        });
-
-                    ui.add_space(10.0);
-                    ui.separator();
-
-                    ui.horizontal(|ui| {
-                        if ui.button("Cancel").clicked() {
-                            close_requested = true;
-                        }
-                        if ui
-                            .add_enabled(!self.url.trim().is_empty(), egui::Button::new("OK"))
-                            .clicked()
-                        {
-                            submitted =
-                                Some((self.url.trim().to_string(), self.is_vector, self.save_url));
-                            close_requested = true;
-                        }
-                    });
+                    let (sub, close) = self.render_contents(ui);
+                    if sub.is_some() {
+                        submitted = sub;
+                    }
+                    close_requested |= close;
                 });
             });
 
@@ -349,6 +308,59 @@ impl LoadOnlineMapDialog {
         }
 
         submitted
+    }
+
+    pub fn render_contents(&mut self, ui: &mut egui::Ui) -> (Option<(String, bool, bool)>, bool) {
+        let mut submitted = None;
+        let mut close_requested = false;
+
+        egui::Grid::new("load_online_map_grid")
+            .num_columns(2)
+            .spacing([12.0, 8.0])
+            .show(ui, |ui| {
+                ui.label("Source URL (+ API Key):");
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.url)
+                        .desired_width(360.0)
+                        .hint_text("https://tile.openstreetmap.org/{z}/{x}/{y}.png"),
+                );
+                ui.end_row();
+
+                ui.label("Tile Type:");
+                egui::ComboBox::from_id_salt("online_map_tile_type")
+                    .selected_text(if self.is_vector {
+                        "Vector Tiles"
+                    } else {
+                        "Raster Tiles"
+                    })
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut self.is_vector, false, "Raster Tiles");
+                        ui.selectable_value(&mut self.is_vector, true, "Vector Tiles");
+                    });
+                ui.end_row();
+
+                ui.label("");
+                ui.checkbox(&mut self.save_url, "Save URL");
+                ui.end_row();
+            });
+
+        ui.add_space(10.0);
+        ui.separator();
+
+        ui.horizontal(|ui| {
+            if ui.button("Cancel").clicked() {
+                close_requested = true;
+            }
+            if ui
+                .add_enabled(!self.url.trim().is_empty(), egui::Button::new("OK"))
+                .clicked()
+            {
+                submitted = Some((self.url.trim().to_string(), self.is_vector, self.save_url));
+                close_requested = true;
+            }
+        });
+
+        (submitted, close_requested)
     }
 }
 
@@ -693,9 +705,11 @@ impl MapScreen {
     // Rendering
     // -----------------------------------------------------------------------
 
-    pub fn render(app: &mut LuRaCsApp, ui: &mut egui::Ui) {
-        let point_alpha = app.settings.read_settings().gps.point_alpha;
-
+    pub fn render_screen(
+        &mut self,
+        point_alpha: u8,
+        ui: &mut egui::Ui,
+    ) -> (bool, bool, bool, bool) {
         let mut action_load_offline = false;
         let mut action_load_online = false;
         let mut action_import_track = false;
@@ -723,40 +737,39 @@ impl MapScreen {
                 }
             });
 
-            let (lon_str, lat_str) = app.map_screen.hover_lat_lon.map_or_else(
+            let (lon_str, lat_str) = self.hover_lat_lon.map_or_else(
                 || ("---".to_string(), "---".to_string()),
                 |(lat, lon)| (format!("{lon:.6}"), format!("{lat:.6}")),
             );
             ui.label(format!(
                 "Longitude: {lon_str}   Latitude: {lat_str}   Loaded Map: {}",
-                app.map_screen.loaded_map_name
+                self.loaded_map_name
             ));
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let curr_label = app
-                    .map_screen
+                let curr_label = self
                     .data_kinds
                     .iter()
-                    .find(|(_, k)| k == &app.map_screen.selected_data_key)
+                    .find(|(_, k)| k == &self.selected_data_key)
                     .map_or("Count Rate [/s]", |(l, _)| l.as_str())
                     .to_string();
-                let prev_key = app.map_screen.selected_data_key.clone();
+                let prev_key = self.selected_data_key.clone();
                 egui::ComboBox::from_id_salt("map_data_kind_combo")
                     .selected_text(curr_label)
                     .show_ui(ui, |ui| {
-                        for (label, key) in &app.map_screen.data_kinds {
+                        for (label, key) in &self.data_kinds {
                             ui.selectable_value(
-                                &mut app.map_screen.selected_data_key,
+                                &mut self.selected_data_key,
                                 key.clone(),
                                 label,
                             );
                         }
                     });
-                if app.map_screen.selected_data_key != prev_key {
-                    app.map_screen.recompute_auto_levels();
+                if self.selected_data_key != prev_key {
+                    self.recompute_auto_levels();
                 }
 
-                let prev_track = app.map_screen.selected_track.clone();
+                let prev_track = self.selected_track.clone();
                 egui::ComboBox::from_id_salt("map_track_combo")
                     .width(160.0)
                     .selected_text(if prev_track.is_empty() {
@@ -765,16 +778,16 @@ impl MapScreen {
                         &prev_track
                     })
                     .show_ui(ui, |ui| {
-                        for name in &app.map_screen.track_names {
+                        for name in &self.track_names {
                             ui.selectable_value(
-                                &mut app.map_screen.selected_track,
+                                &mut self.selected_track,
                                 name.clone(),
                                 name,
                             );
                         }
                     });
-                if app.map_screen.selected_track != prev_track {
-                    app.map_screen.recompute_auto_levels();
+                if self.selected_track != prev_track {
+                    self.recompute_auto_levels();
                 }
             });
         });
@@ -782,8 +795,7 @@ impl MapScreen {
         ui.separator();
 
         // --- 2. Bottom GPS status bar, Right LUT Bar, Central Walkers Map ---
-        let gps_text = app
-            .map_screen
+        let gps_text = self
             .latest_gps
             .as_ref()
             .map_or_else(|| "GPS: Disconnected".to_string(), format_gps);
@@ -791,18 +803,17 @@ impl MapScreen {
             ui.label(gps_text);
         });
 
-        let ms = &mut app.map_screen;
         egui::Panel::right("map_lut_bar")
             .exact_size(142.0)
             .resizable(false)
             .show(ui, |ui| {
                 let h = ui.available_height();
-                draw_lut_sidebar(ms, h, ui);
+                draw_lut_sidebar(self, h, ui);
             });
 
         egui::CentralPanel::default().show(ui, |ui| {
-            let gps_pos = if ms.gps_connected {
-                ms.latest_gps
+            let gps_pos = if self.gps_connected {
+                self.latest_gps
                     .as_ref()
                     .filter(|g| g.valid)
                     .and_then(|g| Some(lat_lon(g.latitude?, g.longitude?)))
@@ -810,26 +821,39 @@ impl MapScreen {
                 None
             };
             let my_position = gps_pos.unwrap_or_else(|| lat_lon(55.591_592_4, 12.998_014_9));
-            let mut tiles = ms.tiles.take();
+            let mut tiles = self.tiles.take();
 
-            let active_track = ms.tracks.get(&ms.selected_track);
+            let active_track = self.tracks.get(&self.selected_track);
             let plugin = TrackOverlayPlugin {
                 track: active_track,
-                data_key: &ms.selected_data_key,
-                lut_state: &ms.lut_state,
+                data_key: &self.selected_data_key,
+                lut_state: &self.lut_state,
                 alpha: point_alpha,
                 gps_pos,
-                hover_out: &mut ms.hover_lat_lon,
+                hover_out: &mut self.hover_lat_lon,
             };
 
             let tiles_ref = tiles.as_mut().map(ActiveTiles::as_tiles_mut);
-            let map_widget = Map::new(tiles_ref, &mut ms.map_memory, my_position)
+            let map_widget = Map::new(tiles_ref, &mut self.map_memory, my_position)
                 .with_plugin(plugin)
                 .zoom_with_ctrl(false);
 
             ui.add(map_widget);
-            ms.tiles = tiles;
+            self.tiles = tiles;
         });
+
+        (
+            action_load_offline,
+            action_load_online,
+            action_import_track,
+            action_export_geojson,
+        )
+    }
+
+    pub fn render(app: &mut LuRaCsApp, ui: &mut egui::Ui) {
+        let point_alpha = app.settings.read_settings().gps.point_alpha;
+        let (action_load_offline, action_load_online, action_import_track, action_export_geojson) =
+            app.map_screen.render_screen(point_alpha, ui);
 
         // --- 4. Actions & Modals ---
         if action_load_online {
@@ -1078,5 +1102,192 @@ mod tests {
             is_vector: true,
         };
         assert_eq!(vector.tile_size(), 512);
+    }
+
+    #[test]
+    fn test_map_screen_hooks_and_import() {
+        let mut ms = MapScreen::new();
+        assert_eq!(ms.selected_data_key, "count_rate");
+
+        let mut roi_counts = HashMap::new();
+        roi_counts.insert("roi_cs".into(), vec![10.0, 20.0]);
+        let buf = MappingBuffer {
+            timestamps: vec![1_700_000_000.0, 1_700_000_005.0],
+            gps: vec![
+                Some(GpsData {
+                    latitude: Some(55.59),
+                    longitude: Some(12.99),
+                    valid: true,
+                    ..Default::default()
+                }),
+                Some(GpsData {
+                    latitude: Some(55.60),
+                    longitude: Some(13.00),
+                    valid: true,
+                    ..Default::default()
+                }),
+            ],
+            count_rate: vec![15.0, 30.0],
+            dose_rate: vec![0.1, 0.2],
+            roi_counts: std::sync::Arc::new(roi_counts),
+        };
+        ms.on_map_buffer_updated("Run1", &buf);
+        assert_eq!(ms.selected_track, "Run1");
+
+        ms.move_to_start();
+        ms.move_to_end();
+
+        let gps = GpsData {
+            latitude: Some(55.61),
+            longitude: Some(13.01),
+            valid: true,
+            ..Default::default()
+        };
+        ms.on_gps_connection(true);
+        ms.track_current_location = true;
+        ms.on_gps_updated(&gps, 0.0);
+        ms.move_to_current();
+        ms.on_gps_connection(false);
+        assert!(ms.latest_gps.is_none());
+
+        ms.on_roi_removed("roi_cs");
+        ms.on_spectrogram_closed("Run1");
+        assert!(ms.selected_track.is_empty());
+
+        // Import from file (.rctrk and invalid).
+        let dir = std::env::temp_dir().join("luracs_map_import_test");
+        drop(std::fs::create_dir_all(&dir));
+        let rctrk_path = dir.join("track.rctrk");
+        std::fs::write(&rctrk_path, "1700000010\t55.61\t13.01\t0.18\t55.5\n").unwrap();
+        let imported = MapTrack::import_from_file(&rctrk_path).unwrap();
+        assert_eq!(imported.timestamps.len(), 1);
+        assert!(MapTrack::import_from_file(&dir.join("missing.geojson")).is_err());
+        drop(std::fs::remove_dir_all(&dir));
+    }
+
+    #[test]
+    fn test_kittest_load_online_map_dialog_and_map_screen() {
+        use egui_kittest::Harness;
+        use egui_kittest::kittest::Queryable;
+
+        // 1. LoadOnlineMapDialog closed + open interaction
+        let mut dlg = LoadOnlineMapDialog::default();
+        let mut closed = Harness::builder().build_ui(|ui| {
+            assert!(dlg.render(ui).is_none());
+        });
+        closed.run();
+        drop(closed);
+
+        dlg.open_with_url("");
+        assert!(dlg.open);
+        struct DlgState {
+            dlg: LoadOnlineMapDialog,
+            submitted: Option<(String, bool, bool)>,
+            closed: bool,
+        }
+        let mut dlg_harness = Harness::builder()
+            .with_size(egui::vec2(580.0, 200.0))
+            .with_accessibility_check(false)
+            .build_ui_state(
+                |ui, st: &mut DlgState| {
+                    let (sub, c) = st.dlg.render_contents(ui);
+                    if sub.is_some() {
+                        st.submitted = sub;
+                    }
+                    st.closed |= c;
+                },
+                DlgState {
+                    dlg,
+                    submitted: None,
+                    closed: false,
+                },
+            );
+        dlg_harness.run();
+        dlg_harness.get_by_label("Save URL").click();
+        dlg_harness.run();
+        dlg_harness.get_by_label("OK").click();
+        dlg_harness.run();
+        assert_eq!(
+            dlg_harness.state().submitted,
+            Some((
+                "https://tile.openstreetmap.org/{z}/{x}/{y}.png".into(),
+                false,
+                false,
+            ))
+        );
+        assert!(dlg_harness.state().closed);
+
+        // 2. MapScreen full layout with active track + GPS + LUT sidebar + Map Options menu
+        let mut ms = MapScreen::new();
+        let buf = MappingBuffer {
+            timestamps: vec![1_700_000_000.0, 1_700_000_005.0],
+            gps: vec![
+                Some(GpsData {
+                    latitude: Some(55.591_592_4),
+                    longitude: Some(12.998_014_9),
+                    valid: true,
+                    ..Default::default()
+                }),
+                Some(GpsData {
+                    latitude: Some(55.592),
+                    longitude: Some(12.999),
+                    valid: true,
+                    ..Default::default()
+                }),
+            ],
+            count_rate: vec![12.0, 24.0],
+            dose_rate: vec![0.08, 0.16],
+            roi_counts: std::sync::Arc::new(HashMap::new()),
+        };
+        ms.on_map_buffer_updated("TrackA", &buf);
+        ms.on_gps_connection(true);
+        ms.on_gps_updated(
+            &GpsData {
+                latitude: Some(55.591_592_4),
+                longitude: Some(12.998_014_9),
+                valid: true,
+                ..Default::default()
+            },
+            0.0,
+        );
+
+        struct MapState {
+            ms: MapScreen,
+            actions: (bool, bool, bool, bool),
+        }
+        let mut map_harness = Harness::builder()
+            .with_size(egui::vec2(900.0, 600.0))
+            .with_accessibility_check(false)
+            .build_ui_state(
+                |ui, st: &mut MapState| {
+                    ui.ctx()
+                        .set_missing_glyph_policy(egui::epaint::text::MissingGlyphPolicy::Tofu);
+                    let a = st.ms.render_screen(200, ui);
+                    st.actions.0 |= a.0;
+                    st.actions.1 |= a.1;
+                    st.actions.2 |= a.2;
+                    st.actions.3 |= a.3;
+                },
+                MapState {
+                    ms,
+                    actions: (false, false, false, false),
+                },
+            );
+        map_harness.run();
+
+        // Toggle Auto checkbox in LUT sidebar.
+        map_harness.get_by_label("Auto").click();
+        map_harness.run();
+        assert!(!map_harness.state().ms.auto_levels);
+        map_harness.get_by_label("Auto").click();
+        map_harness.run();
+        assert!(map_harness.state().ms.auto_levels);
+
+        // Open "Map Options" menu and click "Load Online Map".
+        map_harness.get_by_label("Map Options").click();
+        map_harness.run();
+        map_harness.get_by_label("Load Online Map").click();
+        map_harness.run();
+        assert!(map_harness.state().actions.1);
     }
 }

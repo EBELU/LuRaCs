@@ -201,92 +201,9 @@ impl ReportFormDialog {
                 }
 
                 egui::CentralPanel::default().show(ui, |ui| {
-                    ui.heading("Enter additional report information");
-                    ui.add_space(6.0);
-
-                    egui::Grid::new("report_form_grid")
-                        .num_columns(2)
-                        .spacing([12.0, 6.0])
-                        .show(ui, |ui| {
-                            ui.label("Name:");
-                            ui.text_edit_singleline(&mut self.author_name);
-                            ui.end_row();
-
-                            ui.label("Location:");
-                            ui.text_edit_singleline(&mut self.location);
-                            ui.end_row();
-
-                            ui.label("Longitude (°):");
-                            ui.add(
-                                egui::DragValue::new(&mut self.longitude)
-                                    .range(-180.0..=180.0)
-                                    .speed(0.0001)
-                                    .max_decimals(6),
-                            );
-                            ui.end_row();
-
-                            ui.label("Latitude (°):");
-                            ui.add(
-                                egui::DragValue::new(&mut self.latitude)
-                                    .range(-90.0..=90.0)
-                                    .speed(0.0001)
-                                    .max_decimals(6),
-                            );
-                            ui.end_row();
-
-                            ui.label("Weather:");
-                            ui.text_edit_singleline(&mut self.weather);
-                            ui.end_row();
-
-                            ui.label("Wind Direction:");
-                            egui::ComboBox::from_id_salt("report_wind_dir")
-                                .selected_text(WIND_DIRECTIONS[self.wind_direction_idx])
-                                .show_ui(ui, |ui| {
-                                    for (i, dir) in WIND_DIRECTIONS.iter().enumerate() {
-                                        ui.selectable_value(&mut self.wind_direction_idx, i, *dir);
-                                    }
-                                });
-                            ui.end_row();
-
-                            ui.label("Wind Speed (m/s):");
-                            ui.add(
-                                egui::DragValue::new(&mut self.wind_speed)
-                                    .range(0.0..=100.0)
-                                    .speed(0.1)
-                                    .max_decimals(1),
-                            );
-                            ui.end_row();
-
-                            ui.label("Air Temperature (°C):");
-                            ui.add(
-                                egui::DragValue::new(&mut self.air_temperature)
-                                    .range(-100.0..=100.0)
-                                    .speed(0.1)
-                                    .max_decimals(1),
-                            );
-                            ui.end_row();
-
-                            ui.label("Comments:");
-                            ui.add(
-                                egui::TextEdit::multiline(&mut self.remark)
-                                    .desired_rows(3)
-                                    .desired_width(240.0),
-                            );
-                            ui.end_row();
-                        });
-
-                    ui.add_space(10.0);
-                    ui.separator();
-
-                    ui.horizontal(|ui| {
-                        if ui.button("Cancel").clicked() {
-                            close_requested = true;
-                        }
-                        if ui.button("Next →").clicked() {
-                            submitted = true;
-                            close_requested = true;
-                        }
-                    });
+                    let (sub, close) = self.render_contents(ui);
+                    submitted |= sub;
+                    close_requested |= close;
                 });
             });
 
@@ -295,6 +212,100 @@ impl ReportFormDialog {
         }
 
         submitted
+    }
+
+    pub fn render_contents(&mut self, ui: &mut egui::Ui) -> (bool, bool) {
+        let mut submitted = false;
+        let mut close_requested = false;
+
+        ui.heading("Enter additional report information");
+        ui.add_space(6.0);
+
+        egui::Grid::new("report_form_grid")
+            .num_columns(2)
+            .spacing([12.0, 6.0])
+            .show(ui, |ui| {
+                ui.label("Name:");
+                ui.text_edit_singleline(&mut self.author_name);
+                ui.end_row();
+
+                ui.label("Location:");
+                ui.text_edit_singleline(&mut self.location);
+                ui.end_row();
+
+                ui.label("Longitude (°):");
+                ui.add(
+                    egui::DragValue::new(&mut self.longitude)
+                        .range(-180.0..=180.0)
+                        .speed(0.0001)
+                        .max_decimals(6),
+                );
+                ui.end_row();
+
+                ui.label("Latitude (°):");
+                ui.add(
+                    egui::DragValue::new(&mut self.latitude)
+                        .range(-90.0..=90.0)
+                        .speed(0.0001)
+                        .max_decimals(6),
+                );
+                ui.end_row();
+
+                ui.label("Weather:");
+                ui.text_edit_singleline(&mut self.weather);
+                ui.end_row();
+
+                ui.label("Wind Direction:");
+                egui::ComboBox::from_id_salt("report_wind_dir")
+                    .selected_text(WIND_DIRECTIONS[self.wind_direction_idx])
+                    .show_ui(ui, |ui| {
+                        for (i, dir) in WIND_DIRECTIONS.iter().enumerate() {
+                            ui.selectable_value(&mut self.wind_direction_idx, i, *dir);
+                        }
+                    });
+                ui.end_row();
+
+                ui.label("Wind Speed (m/s):");
+                ui.add(
+                    egui::DragValue::new(&mut self.wind_speed)
+                        .range(0.0..=100.0)
+                        .speed(0.1)
+                        .max_decimals(1),
+                );
+                ui.end_row();
+
+                ui.label("Air Temperature (°C):");
+                ui.add(
+                    egui::DragValue::new(&mut self.air_temperature)
+                        .range(-100.0..=100.0)
+                        .speed(0.1)
+                        .max_decimals(1),
+                );
+                ui.end_row();
+
+                ui.label("Comments:");
+                ui.add(
+                    egui::TextEdit::multiline(&mut self.remark)
+                        .desired_rows(3)
+                        .desired_width(240.0),
+                );
+                ui.end_row();
+            });
+
+        ui.add_space(10.0);
+        ui.separator();
+
+        ui.horizontal(|ui| {
+            if ui.button("Cancel").clicked() {
+                close_requested = true;
+            }
+            if ui.button("Next →").clicked() {
+                submitted = true;
+                close_requested = true;
+            }
+        });
+
+        (submitted, close_requested)
     }
 }
 
@@ -325,9 +336,9 @@ pub struct MeasureScreen {
     bg: Measurement,
     buffer_real_time: Option<WrappedRealTimePackage>,
 
-    spectrum_plot: Plot1D,
-    count_rate_plot: Plot1D,
-    dose_rate_plot: Plot1D,
+    spectrum_plot: Option<Plot1D>,
+    count_rate_plot: Option<Plot1D>,
+    dose_rate_plot: Option<Plot1D>,
     fg_color: Color32,
     bg_color: Color32,
 
@@ -337,11 +348,6 @@ pub struct MeasureScreen {
 
 impl MeasureScreen {
     pub fn new(render_state: &RenderState, scheme: ColorScheme) -> Self {
-        let mut rotator = ColorRotator::new(scheme);
-        let fg_color = rotator.next_color();
-        let _ = rotator.next_color(); // skip orange, matching Python
-        let bg_color = rotator.next_color();
-
         let mut spectrum_plot = Plot1D::new(render_state, 0x4001);
         spectrum_plot.set_graph_x_label("Energy [keV]");
         spectrum_plot.set_graph_y_label("Counts per Channel per Second", YAxis::Left);
@@ -353,6 +359,31 @@ impl MeasureScreen {
         let mut dose_rate_plot = Plot1D::new(render_state, 0x4003);
         dose_rate_plot.set_graph_x_label("Measurement Time [s]");
         dose_rate_plot.set_graph_y_label("Dose Rate [µSv/h]", YAxis::Left);
+
+        Self::with_plots(
+            scheme,
+            Some(spectrum_plot),
+            Some(count_rate_plot),
+            Some(dose_rate_plot),
+        )
+    }
+
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn new_headless(scheme: ColorScheme) -> Self {
+        Self::with_plots(scheme, None, None, None)
+    }
+
+    fn with_plots(
+        scheme: ColorScheme,
+        spectrum_plot: Option<Plot1D>,
+        count_rate_plot: Option<Plot1D>,
+        dose_rate_plot: Option<Plot1D>,
+    ) -> Self {
+        let mut rotator = ColorRotator::new(scheme);
+        let fg_color = rotator.next_color();
+        let _ = rotator.next_color(); // skip orange, matching Python
+        let bg_color = rotator.next_color();
 
         Self {
             detectors: Vec::new(),
@@ -378,9 +409,15 @@ impl MeasureScreen {
     }
 
     pub fn retheme(&mut self, colors: &crate::theme_manager::ResolvedPlotColors) {
-        colors.apply_to(&mut self.spectrum_plot);
-        colors.apply_to(&mut self.count_rate_plot);
-        colors.apply_to(&mut self.dose_rate_plot);
+        if let Some(plot) = &mut self.spectrum_plot {
+            colors.apply_to(plot);
+        }
+        if let Some(plot) = &mut self.count_rate_plot {
+            colors.apply_to(plot);
+        }
+        if let Some(plot) = &mut self.dose_rate_plot {
+            colors.apply_to(plot);
+        }
     }
 
     const fn active_measurement(&self) -> &Measurement {
@@ -559,14 +596,11 @@ impl MeasureScreen {
     // Rendering
     // -----------------------------------------------------------------------
 
-    pub fn render(app: &mut LuRaCsApp, ui: &mut egui::Ui) {
-        let spectrum_update_delay = app
-            .settings
-            .read_settings()
-            .scanning
-            .spectrum_update_delay_s
-            .max(0.05);
-
+    pub fn render_screen(
+        &mut self,
+        spectrum_update_delay: f64,
+        ui: &mut egui::Ui,
+    ) -> (Option<String>, bool, bool, bool) {
         let mut pending_detector_change: Option<String> = None;
         let mut request_start = false;
         let mut request_clear = false;
@@ -575,7 +609,7 @@ impl MeasureScreen {
         // --- 1. Top Detector Status Row ---
         ui.horizontal(|ui| {
             ui.label("Detector:");
-            let current_det = app.measure_screen.selected_detector.clone();
+            let current_det = self.selected_detector.clone();
             let mut chosen = current_det.clone();
             egui::ComboBox::from_id_salt("measure_detector_combo")
                 .width(180.0)
@@ -585,7 +619,7 @@ impl MeasureScreen {
                     &current_det
                 })
                 .show_ui(ui, |ui| {
-                    for det in &app.measure_screen.detectors {
+                    for det in &self.detectors {
                         ui.selectable_value(&mut chosen, det.clone(), det);
                     }
                 });
@@ -593,10 +627,9 @@ impl MeasureScreen {
                 pending_detector_change = Some(chosen);
             }
 
-            let mut snap = app
-                .measure_screen
+            let mut snap = self
                 .statuses
-                .get(&app.measure_screen.selected_detector)
+                .get(&self.selected_detector)
                 .cloned()
                 .unwrap_or_default();
 
@@ -624,21 +657,24 @@ impl MeasureScreen {
         ui.horizontal(|ui| {
             ui.strong("Timer");
             ui.label("Hours:");
-            ui.add(egui::DragValue::new(&mut app.measure_screen.hours).range(0..=100));
+            ui.add(egui::DragValue::new(&mut self.hours).range(0..=100));
             ui.label("Minutes:");
-            ui.add(egui::DragValue::new(&mut app.measure_screen.minutes).range(0..=59));
+            ui.add(egui::DragValue::new(&mut self.minutes).range(0..=59));
             ui.label("Seconds:");
-            ui.add(egui::DragValue::new(&mut app.measure_screen.seconds).range(0..=59));
+            ui.add(egui::DragValue::new(&mut self.seconds).range(0..=59));
 
             if ui.button("Confirm Time").clicked() {
-                app.measure_screen.confirm_time();
+                self.confirm_time();
             }
 
-            let elapsed = app.measure_screen.active_measurement().measurement_time;
-            let limit = app.measure_screen.time_limit_seconds;
+            let elapsed = self.active_measurement().measurement_time;
+            let limit = self.time_limit_seconds;
             let (fraction, text) = if limit > 0.0 {
                 let rem = (limit - elapsed).max(0.0).round() as u64;
-                ((elapsed / limit).clamp(0.0, 1.0) as f32, format!("Remaining: {}", format_hms(rem)))
+                (
+                    (elapsed / limit).clamp(0.0, 1.0) as f32,
+                    format!("Remaining: {}", format_hms(rem)),
+                )
             } else {
                 (0.0, "Remaining: 00:00:00".to_string())
             };
@@ -649,47 +685,33 @@ impl MeasureScreen {
         ui.horizontal(|ui| {
             ui.strong("Controls");
 
-            let prev_kind = app.measure_screen.active_kind;
-            ui.radio_value(
-                &mut app.measure_screen.active_kind,
-                MeasureKind::Foreground,
-                "Foreground",
-            );
-            ui.radio_value(
-                &mut app.measure_screen.active_kind,
-                MeasureKind::Background,
-                "Background",
-            );
-            if app.measure_screen.active_kind != prev_kind {
-                let new_kind = app.measure_screen.active_kind;
-                app.measure_screen.active_kind = prev_kind;
-                app.measure_screen.stop_measurement();
-                app.measure_screen.active_kind = new_kind;
+            let prev_kind = self.active_kind;
+            ui.radio_value(&mut self.active_kind, MeasureKind::Foreground, "Foreground");
+            ui.radio_value(&mut self.active_kind, MeasureKind::Background, "Background");
+            if self.active_kind != prev_kind {
+                let new_kind = self.active_kind;
+                self.active_kind = prev_kind;
+                self.stop_measurement();
+                self.active_kind = new_kind;
             }
 
-            let start_label = if app.measure_screen.measuring {
+            let start_label = if self.measuring {
                 "Measuring..."
             } else {
                 "Start Measurement"
             };
             if ui
-                .add_enabled(
-                    !app.measure_screen.measuring,
-                    egui::Button::new(start_label),
-                )
+                .add_enabled(!self.measuring, egui::Button::new(start_label))
                 .clicked()
             {
                 request_start = true;
             }
 
             if ui
-                .add_enabled(
-                    app.measure_screen.measuring,
-                    egui::Button::new("Stop Measurement"),
-                )
+                .add_enabled(self.measuring, egui::Button::new("Stop Measurement"))
                 .clicked()
             {
-                app.measure_screen.stop_measurement();
+                self.stop_measurement();
             }
 
             if ui.button("Clear Measurement").clicked() {
@@ -728,8 +750,8 @@ impl MeasureScreen {
                                     .auto_shrink([false, false])
                                     .show(ui, |ui| {
                                         ui.monospace(format_summary(
-                                            &app.measure_screen.fg,
-                                            &app.measure_screen.bg,
+                                            &self.fg,
+                                            &self.bg,
                                             spectrum_update_delay,
                                         ));
                                     });
@@ -743,11 +765,11 @@ impl MeasureScreen {
                         egui::Layout::top_down(egui::Align::LEFT),
                         |ui| {
                             draw_spectrum_plot(
-                                &mut app.measure_screen.spectrum_plot,
-                                &app.measure_screen.fg,
-                                &app.measure_screen.bg,
-                                app.measure_screen.fg_color,
-                                app.measure_screen.bg_color,
+                                &mut self.spectrum_plot,
+                                &self.fg,
+                                &self.bg,
+                                self.fg_color,
+                                self.bg_color,
                                 ui,
                             );
                         },
@@ -761,13 +783,13 @@ impl MeasureScreen {
                         egui::Layout::top_down(egui::Align::LEFT),
                         |ui| {
                             draw_rate_plot(
-                                &mut app.measure_screen.count_rate_plot,
-                                &app.measure_screen.fg.rate_axis,
-                                &app.measure_screen.fg.count_rate_data,
-                                &app.measure_screen.bg.rate_axis,
-                                &app.measure_screen.bg.count_rate_data,
-                                app.measure_screen.fg_color,
-                                app.measure_screen.bg_color,
+                                &mut self.count_rate_plot,
+                                &self.fg.rate_axis,
+                                &self.fg.count_rate_data,
+                                &self.bg.rate_axis,
+                                &self.bg.count_rate_data,
+                                self.fg_color,
+                                self.bg_color,
                                 spectrum_update_delay,
                                 ui,
                             );
@@ -780,13 +802,13 @@ impl MeasureScreen {
                         egui::Layout::top_down(egui::Align::LEFT),
                         |ui| {
                             draw_rate_plot(
-                                &mut app.measure_screen.dose_rate_plot,
-                                &app.measure_screen.fg.rate_axis,
-                                &app.measure_screen.fg.dose_rate_data,
-                                &app.measure_screen.bg.rate_axis,
-                                &app.measure_screen.bg.dose_rate_data,
-                                app.measure_screen.fg_color,
-                                app.measure_screen.bg_color,
+                                &mut self.dose_rate_plot,
+                                &self.fg.rate_axis,
+                                &self.fg.dose_rate_data,
+                                &self.bg.rate_axis,
+                                &self.bg.dose_rate_data,
+                                self.fg_color,
+                                self.bg_color,
                                 spectrum_update_delay,
                                 ui,
                             );
@@ -794,6 +816,25 @@ impl MeasureScreen {
                     );
                 });
             });
+
+        (
+            pending_detector_change,
+            request_start,
+            request_clear,
+            request_report,
+        )
+    }
+
+    pub fn render(app: &mut LuRaCsApp, ui: &mut egui::Ui) {
+        let spectrum_update_delay = app
+            .settings
+            .read_settings()
+            .scanning
+            .spectrum_update_delay_s
+            .max(0.05);
+
+        let (pending_detector_change, request_start, request_clear, request_report) =
+            app.measure_screen.render_screen(spectrum_update_delay, ui);
 
         // --- Deferred Actions & Modals ---
         if let Some(new_det) = pending_detector_change {
@@ -872,13 +913,16 @@ impl MeasureScreen {
 // ---------------------------------------------------------------------------
 
 fn draw_spectrum_plot(
-    plot: &mut Plot1D,
+    plot_opt: &mut Option<Plot1D>,
     fg: &Measurement,
     bg: &Measurement,
     fg_color: Color32,
     bg_color: Color32,
     ui: &mut egui::Ui,
 ) {
+    let Some(plot) = plot_opt else {
+        return;
+    };
     plot.clear();
 
     for (label, m, color) in [("Foreground", fg, fg_color), ("Background", bg, bg_color)] {
@@ -912,7 +956,7 @@ fn draw_spectrum_plot(
 
 #[allow(clippy::too_many_arguments)]
 fn draw_rate_plot(
-    plot: &mut Plot1D,
+    plot_opt: &mut Option<Plot1D>,
     fg_x: &[f64],
     fg_y: &[f64],
     bg_x: &[f64],
@@ -922,6 +966,9 @@ fn draw_rate_plot(
     delay: f64,
     ui: &mut egui::Ui,
 ) {
+    let Some(plot) = plot_opt else {
+        return;
+    };
     plot.clear();
 
     for (label, xs, ys, color) in [
@@ -1167,5 +1214,190 @@ mod tests {
     fn test_format_hms() {
         assert_eq!(format_hms(0), "00:00:00");
         assert_eq!(format_hms(3661), "01:01:01");
+    }
+
+    #[test]
+    fn test_measure_screen_hooks_and_timed_completion() {
+        use std::path::Path;
+
+        let dir = std::env::temp_dir().join("luracs_measure_hooks_sm");
+        drop(std::fs::create_dir_all(&dir));
+        let sm = SpectrumManager::new(
+            ColorScheme::default(),
+            dir,
+            Path::new("resources/nuclide_data"),
+        )
+        .unwrap();
+
+        let mut ms = MeasureScreen::new_headless(ColorScheme::default());
+        ms.on_device_connected("Det1");
+        ms.on_device_connected("Det2");
+        assert_eq!(ms.selected_detector, "Det1");
+
+        ms.on_status_updated(
+            "Det1",
+            &WrappedStatusPackage {
+                battery: Some(85),
+                ..Default::default()
+            },
+        );
+        assert_eq!(ms.statuses["Det1"].battery, "85%");
+
+        ms.hours = 0;
+        ms.minutes = 0;
+        ms.seconds = 2;
+        ms.confirm_time();
+        assert!((ms.time_limit_seconds - 2.0).abs() < 1e-6);
+
+        ms.measuring = true;
+        ms.on_realtime_updated(
+            "Det1",
+            &WrappedRealTimePackage {
+                cps: 12.0,
+                dr: 0.25,
+                ..Default::default()
+            },
+        );
+
+        let pkg1 = WrappedSpectrumPackage {
+            y_axis: Array1::from_vec(vec![1.0, 2.0, 3.0]),
+            live_time: 1.0,
+            calib_coeff: Some(vec![0.0, 1.0]),
+            ..Default::default()
+        };
+        assert!(ms.on_spectrum_updated("Det1", &pkg1, &sm, 1.0).is_none());
+
+        let pkg2 = WrappedSpectrumPackage {
+            y_axis: Array1::from_vec(vec![3.0, 5.0, 8.0]),
+            live_time: 3.0,
+            calib_coeff: None,
+            ..Default::default()
+        };
+        let done = ms.on_spectrum_updated("Det1", &pkg2, &sm, 1.0);
+        assert!(done.is_some());
+        assert!(!ms.measuring);
+
+        let gm = ms.fg.to_ground_measurement();
+        assert!((gm.accumulated_counts - 10.0).abs() < 1e-6);
+        let summary = format_summary(&ms.fg, &ms.bg, 1.0);
+        assert!(summary.contains("Foreground Summary"));
+
+        ms.clear_active_measurement();
+        assert_eq!(ms.fg.measurement_time, 0.0);
+        ms.reset_all_measurements();
+        ms.on_device_removed("Det1");
+        assert_eq!(ms.selected_detector, "Det2");
+    }
+
+    #[test]
+    fn test_kittest_report_dialog_and_measure_screen() {
+        use egui_kittest::Harness;
+        use egui_kittest::kittest::Queryable;
+
+        // 1. ReportFormDialog closed noop & open form
+        let mut dlg = ReportFormDialog::default();
+        let mut closed = Harness::builder().build_ui(|ui| {
+            assert!(!dlg.render(ui));
+        });
+        closed.run();
+        drop(closed);
+
+        dlg.open();
+        struct DlgState {
+            dlg: ReportFormDialog,
+            submitted: bool,
+            closed: bool,
+        }
+        let mut dlg_harness = Harness::builder()
+            .with_size(egui::vec2(450.0, 460.0))
+            .with_accessibility_check(false)
+            .build_ui_state(
+                |ui, st: &mut DlgState| {
+                    ui.ctx()
+                        .set_missing_glyph_policy(egui::epaint::text::MissingGlyphPolicy::Tofu);
+                    let (sub, c) = st.dlg.render_contents(ui);
+                    st.submitted |= sub;
+                    st.closed |= c;
+                },
+                DlgState {
+                    dlg,
+                    submitted: false,
+                    closed: false,
+                },
+            );
+        dlg_harness.run();
+        dlg_harness.get_by_label("Next →").click();
+        dlg_harness.run();
+        assert!(dlg_harness.state().submitted);
+        assert!(dlg_harness.state().closed);
+
+        // 2. MeasureScreen::render_screen UI
+        let mut ms = MeasureScreen::new_headless(ColorScheme::default());
+        ms.on_device_connected("DetA");
+        ms.on_status_updated(
+            "DetA",
+            &WrappedStatusPackage {
+                battery: Some(90),
+                ..Default::default()
+            },
+        );
+        ms.fg.measurement_time = 10.0;
+        ms.fg.accumulated_counts = 100.0;
+        ms.fg.set_calibration(None, 4);
+        ms.fg.spectrum = Some(vec![10.0, 20.0, 30.0, 40.0]);
+        ms.fg.rate_axis = vec![1.0, 2.0];
+        ms.fg.count_rate_data = vec![50.0, 50.0];
+        ms.fg.dose_rate_data = vec![0.1, 0.12];
+
+        struct MsState {
+            ms: MeasureScreen,
+            start: bool,
+            clear: bool,
+            report: bool,
+        }
+        let mut ms_harness = Harness::builder()
+            .with_size(egui::vec2(920.0, 640.0))
+            .with_accessibility_check(false)
+            .build_ui_state(
+                |ui, st: &mut MsState| {
+                    ui.ctx()
+                        .set_missing_glyph_policy(egui::epaint::text::MissingGlyphPolicy::Tofu);
+                    let (_, start, clear, report) = st.ms.render_screen(1.0, ui);
+                    st.start |= start;
+                    st.clear |= clear;
+                    st.report |= report;
+                },
+                MsState {
+                    ms,
+                    start: false,
+                    clear: false,
+                    report: false,
+                },
+            );
+        ms_harness.run();
+
+        ms_harness.get_by_label("Confirm Time").click();
+        ms_harness.run();
+        ms_harness.get_by_label("Start Measurement").click();
+        ms_harness.run();
+        assert!(ms_harness.state().start);
+
+        ms_harness.state_mut().ms.measuring = true;
+        ms_harness.run();
+        ms_harness.get_by_label("Stop Measurement").click();
+        ms_harness.run();
+        assert!(!ms_harness.state().ms.measuring);
+
+        ms_harness.get_by_label("Background").click();
+        ms_harness.run();
+        assert_eq!(ms_harness.state().ms.active_kind, MeasureKind::Background);
+
+        ms_harness.get_by_label("Clear Measurement").click();
+        ms_harness.run();
+        assert!(ms_harness.state().clear);
+
+        ms_harness.get_by_label("Make Report").click();
+        ms_harness.run();
+        assert!(ms_harness.state().report);
     }
 }
