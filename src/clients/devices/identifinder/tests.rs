@@ -171,4 +171,42 @@ async fn test_identifinder_connect_network_and_driver_methods() {
     )
     .unwrap();
     assert!(dead.command("Start").await.is_err());
+
+    // Stream line edge cases (empty after data:, non-numeric, null/bool values)
+    assert!(parse_stream_line("data:   ").is_none());
+    let edge = parse_stream_line(
+        r#"{"M":[{"success":true,"Misc":{"GammaRate":"bad","DoseRate":null,"LiveTime":true}}]}"#,
+    )
+    .unwrap();
+    let misc = edge.misc.as_ref().unwrap();
+    assert_eq!(parse_seconds(misc.live_time.as_ref()), 0.0);
+    assert_eq!(parse_leading_number(Some(&serde_json::json!(true))), 0.0);
+    assert_eq!(parse_leading_number(None), 0.0);
+
+    // HTTP 500 and invalid JSON -> map_reqwest_err status & decode branches
+    let err_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let err_addr = err_listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        for resp in [
+            "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 8\r\nConnection: close\r\n\r\nnot json",
+        ] {
+            if let Ok((mut s, _)) = err_listener.accept().await {
+                let mut buf = [0u8; 512];
+                drop(s.read(&mut buf).await);
+                drop(s.write_all(resp.as_bytes()).await);
+            }
+        }
+    });
+    let err_drv = crate::clients::devices::identifinder::IdentifinderDriver::new(
+        format!("http://{err_addr}"),
+        "Err",
+    )
+    .unwrap();
+    assert!(matches!(
+        err_drv.command("Start").await,
+        Err(crate::clients::driver::DeviceError::Hardware(_))
+    ));
+    assert!(err_drv.command("Stop").await.is_err());
 }

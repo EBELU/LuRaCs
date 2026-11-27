@@ -412,4 +412,154 @@ fn test_radiacode_v1_eof_errors_and_data_buf_records() {
     let (rt, st) = decode_data_buf(&buf, 100.0);
     assert!(rt.is_none());
     assert!(st.is_none());
+
+    // Valid v1 spectrum with vlen=4 (24-bit signed delta) and vlen=5 (32-bit signed delta)
+    let mut spec_v4 = vec![0u8; 16];
+    spec_v4.extend_from_slice(&((1u16 << 4) | 1u16).to_le_bytes());
+    spec_v4.push(100);
+    spec_v4.extend_from_slice(&((1u16 << 4) | 4u16).to_le_bytes());
+    spec_v4.extend_from_slice(&[0xFE, 0xFF, 0xFF]); // -2 in 24-bit little-endian two's complement
+    assert_eq!(decode_spectrum(&spec_v4, 1).unwrap().counts, vec![100, 98]);
+
+    let mut spec_v5 = vec![0u8; 16];
+    spec_v5.extend_from_slice(&((1u16 << 4) | 1u16).to_le_bytes());
+    spec_v5.push(100);
+    spec_v5.extend_from_slice(&((1u16 << 4) | 5u16).to_le_bytes());
+    spec_v5.extend_from_slice(&(-50i32).to_le_bytes());
+    assert_eq!(decode_spectrum(&spec_v5, 1).unwrap().counts, vec![100, 50]);
+
+    // Truncated data_buf records hit `break` cleanly for every eid/gid arm
+    for (eid, gid) in [
+        (0u8, 1u8),
+        (0, 2),
+        (0, 3),
+        (0, 4),
+        (0, 5),
+        (0, 6),
+        (0, 7),
+        (0, 8),
+        (0, 9),
+        (1, 1),
+        (1, 2),
+        (1, 3),
+    ] {
+        let short = [0, eid, gid, 0, 0, 0, 0, 1];
+        let (r, s) = decode_data_buf(&short, 1.0);
+        assert!(r.is_none());
+        assert!(s.is_none());
+    }
+}
+
+#[tokio::test]
+async fn test_radiacode_protocol_error_paths() {
+    use crate::clients::driver::DeviceError;
+
+    let link = Arc::new(MockLink::usb_mock("USB:RC-err"));
+    let seq: u8 = 0x80;
+
+    // 1. Header mismatch in execute_transaction
+    let bad_hdr = vec![0x04, 0x00, 0x00, 0x00, 0x99, 0x99, 0x00, 0x00];
+    link.push_incoming(bad_hdr);
+    assert!(matches!(
+        execute_transaction(
+            link.as_ref(),
+            Command::GetStatus as u16,
+            seq,
+            &[],
+            Duration::from_millis(50)
+        )
+        .await,
+        Err(DeviceError::Protocol(_))
+    ));
+
+    // 2. RD_VIRT_STRING short response, nonzero retcode, and length mismatch
+    let mut short_vs = vec![4, 0, 0, 0];
+    short_vs.extend_from_slice(&(Command::RdVirtString as u16).to_le_bytes());
+    short_vs.push(0);
+    short_vs.push(seq);
+    link.push_incoming(short_vs);
+    assert!(matches!(
+        read_virtual_string(
+            link.as_ref(),
+            seq,
+            VirtualString::SerialNumber as u32,
+            Duration::from_millis(50)
+        )
+        .await,
+        Err(DeviceError::Protocol(_))
+    ));
+
+    let mut err_vs = vec![12, 0, 0, 0];
+    err_vs.extend_from_slice(&(Command::RdVirtString as u16).to_le_bytes());
+    err_vs.push(0);
+    err_vs.push(seq);
+    err_vs.extend_from_slice(&0u32.to_le_bytes()); // retcode = 0 (error)
+    err_vs.extend_from_slice(&0u32.to_le_bytes()); // flen = 0
+    link.push_incoming(err_vs);
+    assert!(matches!(
+        read_virtual_string(
+            link.as_ref(),
+            seq,
+            VirtualString::SerialNumber as u32,
+            Duration::from_millis(50)
+        )
+        .await,
+        Err(DeviceError::Hardware(_))
+    ));
+
+    let mut len_mismatch = vec![14, 0, 0, 0];
+    len_mismatch.extend_from_slice(&(Command::RdVirtString as u16).to_le_bytes());
+    len_mismatch.push(0);
+    len_mismatch.push(seq);
+    len_mismatch.extend_from_slice(&1u32.to_le_bytes()); // retcode = 1
+    len_mismatch.extend_from_slice(&99u32.to_le_bytes()); // flen = 99
+    len_mismatch.push(b'A');
+    len_mismatch.push(0); // trailing NUL
+    link.push_incoming(len_mismatch);
+    assert!(matches!(
+        read_virtual_string(
+            link.as_ref(),
+            seq,
+            VirtualString::SerialNumber as u32,
+            Duration::from_millis(50)
+        )
+        .await,
+        Err(DeviceError::Protocol(_))
+    ));
+
+    // 3. WR_VIRT_STRING missing retcode & nonzero/zero retcode
+    let mut wr_short = vec![4, 0, 0, 0];
+    wr_short.extend_from_slice(&(Command::WrVirtString as u16).to_le_bytes());
+    wr_short.push(0);
+    wr_short.push(seq);
+    link.push_incoming(wr_short);
+    assert!(matches!(
+        write_virtual_string(
+            link.as_ref(),
+            seq,
+            VirtualString::SerialNumber as u32,
+            b"X",
+            Duration::from_millis(50)
+        )
+        .await,
+        Err(DeviceError::Protocol(_))
+    ));
+
+    let mut wr_fail = vec![8, 0, 0, 0];
+    wr_fail.extend_from_slice(&(Command::WrVirtString as u16).to_le_bytes());
+    wr_fail.push(0);
+    wr_fail.push(seq);
+    wr_fail.extend_from_slice(&0u32.to_le_bytes());
+    link.push_incoming(wr_fail);
+    assert!(matches!(
+        write_virtual_string(
+            link.as_ref(),
+            seq,
+            VirtualString::SerialNumber as u32,
+            b"X",
+            Duration::from_millis(50)
+        )
+        .await,
+        Err(DeviceError::Hardware(_))
+    ));
 }

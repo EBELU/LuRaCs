@@ -220,3 +220,29 @@ fn test_raysid_decode_spectrum_packet_variants_and_errors() {
     let d9 = decode_spectrum_packet(&pkt9).unwrap();
     assert_eq!(d9.values.len(), 9);
 }
+
+#[tokio::test]
+async fn test_raysid_driver_active_tab_and_keepalive_packets() {
+    use crate::clients::devices::raysid::driver::RaysidDriver;
+    use crate::clients::driver::DeviceDriver;
+    use crate::clients::link::MockLink;
+    use std::sync::Arc;
+
+    let link = Arc::new(MockLink::ble_mock("BLE:RaySID-extra"));
+    let cloned = Arc::clone(&link);
+    let dyn_link: Arc<dyn crate::clients::link::DeviceLink> = cloned;
+    let drv = RaysidDriver::new(dyn_link, "RaySID-extra");
+
+    drv.set_active_tab(2).await.unwrap();
+    let sent = link.sent_packets();
+    assert!(!sent.is_empty());
+
+    // Keepalive/ack (0x03, 0x06), invalid length=0 framing
+    link.push_incoming(vec![1, 0x03]);
+    link.push_incoming(vec![1, 0x06]);
+    link.push_incoming(vec![0, 0xFF]); // invalid length 0 -> buf.clear()
+    tokio::time::sleep(std::time::Duration::from_millis(40)).await;
+
+    let rt = drv.read_realtime().await.unwrap();
+    assert_eq!(rt.cps, 0.0);
+}
