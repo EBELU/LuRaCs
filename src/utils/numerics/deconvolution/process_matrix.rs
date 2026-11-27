@@ -314,3 +314,46 @@ pub fn process_matrix(
 
     CsrMatrix::from_parts(offsets, indices, values, n_col)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_process_matrix_and_helpers() {
+        assert_eq!(find_index_from_energy(5.0, &[1.0, 5.0, 10.0]), Some(1));
+        assert_eq!(find_index_from_energy(20.0, &[1.0, 5.0, 10.0]), None);
+        assert!((linear_interpolation(1.5, 1.0, 2.0, 10.0, 20.0) - 15.0).abs() < 1e-12);
+        assert!(interpolate_point_on_axis(0.5, &[1.0, 2.0], &[10.0, 20.0]).is_nan());
+        assert!((interpolate_point_on_axis(1.5, &[1.0, 2.0], &[10.0, 20.0]) - 15.0).abs() < 1e-12);
+
+        let reg_no_esc = calculate_regions(662.0, 1500.0, false);
+        assert_eq!(reg_no_esc.len(), 6);
+        let reg_esc = calculate_regions(1460.0, 2000.0, true);
+        assert_eq!(reg_esc.len(), 8);
+
+        // Synthetic 3-row response matrix
+        let ref_e: Vec<f64> = (0..20).map(|i| i as f64 * 100.0).collect();
+        let ref_idx = vec![300.0, 700.0, 1400.0];
+        let mut resp = Array2::<f64>::zeros((3, 20));
+        resp[(0, 3)] = 1.0;
+        resp[(1, 7)] = 1.0;
+        resp[(2, 14)] = 1.0;
+
+        let req_idx = vec![200.0, 500.0, 1000.0, 1600.0];
+        let csr = process_matrix(&resp, &ref_idx, &ref_e, &req_idx, &ref_e);
+        assert_eq!(csr.nrows(), 4);
+        assert_eq!(csr.ncols(), 20);
+        // Out-of-range rows (200.0 <= 300.0, 1600.0 > 1400.0) are empty
+        assert_eq!(csr.offsets[1] - csr.offsets[0], 0);
+        assert_eq!(csr.offsets[4] - csr.offsets[3], 0);
+        // Interior rows (500.0, 1000.0) are non-empty
+        assert!(csr.offsets[2] - csr.offsets[1] > 0);
+        assert!(csr.offsets[3] - csr.offsets[2] > 0);
+
+        // Exercise parallel outer threshold (>= 32 rows)
+        let many_req: Vec<f64> = (0..36).map(|i| (i as f64).mul_add(25.0, 350.0)).collect();
+        let csr_par = process_matrix(&resp, &ref_idx, &ref_e, &many_req, &ref_e);
+        assert_eq!(csr_par.nrows(), 36);
+    }
+}

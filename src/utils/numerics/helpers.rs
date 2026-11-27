@@ -101,3 +101,43 @@ pub fn nanmean(v: &[f64]) -> Option<f64> {
         Some(sum / count as f64)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_polyval_interp_searchsorted_monotonic_median_nanmean() {
+        // polyval: 2x^2 + 3x + 1 at x = 2 => 8 + 6 + 1 = 15
+        assert!((polyval(&[2.0, 3.0, 1.0], 2.0) - 15.0).abs() < 1e-12);
+
+        // interp: empty, below, above, flat segment, linear interior
+        assert!(interp(1.0, &[], &[]).is_nan());
+        let xp = [0.0, 10.0, 10.0, 20.0];
+        let fp = [1.0, 11.0, 11.0, 31.0];
+        assert!((interp(-5.0, &xp, &fp) - 1.0).abs() < 1e-12);
+        assert!((interp(25.0, &xp, &fp) - 31.0).abs() < 1e-12);
+        assert!((interp(10.0, &xp, &fp) - 11.0).abs() < 1e-12);
+        assert!((interp(15.0, &xp, &fp) - 21.0).abs() < 1e-12);
+
+        // searchsorted_left & searchsorted_left_arr (contiguous & non-contiguous)
+        assert_eq!(searchsorted_left(&xp, 10.0), 1);
+        let arr = Array1::from_vec(vec![1.0, 3.0, 5.0, 7.0]);
+        assert_eq!(searchsorted_left_arr(&arr, 4.0), 2);
+        let strided = arr.slice(ndarray::s![..;2]).to_owned();
+        assert_eq!(searchsorted_left_arr(&strided, 4.0), 1);
+
+        // is_monotonic_increasing
+        assert!(is_monotonic_increasing(&[1.0, 1.0, 2.0, 5.0]));
+        assert!(!is_monotonic_increasing(&[1.0, 3.0, 2.0]));
+
+        // median
+        assert!(median(&[]).is_nan());
+        assert!((median(&[5.0, 1.0, 3.0]) - 3.0).abs() < 1e-12);
+        assert!((median(&[4.0, 1.0, 3.0, 2.0]) - 2.5).abs() < 1e-12);
+
+        // nanmean
+        assert_eq!(nanmean(&[f64::NAN, f64::INFINITY]), None);
+        assert_eq!(nanmean(&[2.0, f64::NAN, 4.0]), Some(3.0));
+    }
+}

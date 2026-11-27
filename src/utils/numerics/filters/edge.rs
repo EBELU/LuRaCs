@@ -82,3 +82,34 @@ where
         f(w);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_edge_modes_and_for_each_window() {
+        assert_eq!(map_index(-1, 4, EdgeMode::Zeros), None);
+        assert_eq!(map_index(4, 4, EdgeMode::Zeros), None);
+        assert_eq!(map_index(2, 4, EdgeMode::Zeros), Some(2));
+        assert_eq!(map_index(-1, 4, EdgeMode::Wrap), Some(3));
+        assert_eq!(map_index(4, 4, EdgeMode::Wrap), Some(0));
+        assert_eq!(map_index(-1, 4, EdgeMode::Mirror), Some(1));
+        assert_eq!(map_index(4, 4, EdgeMode::Mirror), Some(2));
+        assert_eq!(map_index(5, 1, EdgeMode::Mirror), Some(0));
+
+        // Short signal path (n <= 2 * radius)
+        let mut windows_short = Vec::new();
+        for_each_window(&[10.0, 20.0], 3, EdgeMode::Zeros, |w| {
+            windows_short.push(w.to_vec());
+        });
+        assert_eq!(windows_short, vec![vec![0.0, 10.0, 20.0], vec![10.0, 20.0, 0.0]]);
+
+        // Normal signal path (n > 2 * radius)
+        let mut windows_long = Vec::new();
+        for_each_window(&[1.0, 2.0, 3.0, 4.0], 3, EdgeMode::Mirror, |w| {
+            windows_long.push(w.to_vec());
+        });
+        assert_eq!(windows_long.len(), 4);
+    }
+}

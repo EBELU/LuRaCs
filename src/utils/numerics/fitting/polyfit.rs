@@ -90,3 +90,36 @@ pub fn polyfit_weighted(
         covariance: cov,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_polyfit_weighted_and_errors() {
+        let x = [0.0, 1.0, 2.0, 3.0];
+        let y = [1.0, 3.0, 5.0, 7.0]; // y = 2x + 1
+        let w = [1.0, 1.0, 1.0, 1.0];
+
+        let res_unscaled = polyfit_weighted(&x, &y, None, 1, false).unwrap();
+        assert!((res_unscaled.coefficients[0] - 2.0).abs() < 1e-9);
+        assert!((res_unscaled.coefficients[1] - 1.0).abs() < 1e-9);
+
+        let res_scaled = polyfit_weighted(&x, &y, Some(&w), 1, true).unwrap();
+        assert!((res_scaled.coefficients[0] - 2.0).abs() < 1e-9);
+        assert_eq!(res_scaled.covariance.nrows(), 2);
+
+        assert!(matches!(
+            polyfit_weighted(&[1.0], &[1.0, 2.0], None, 1, false),
+            Err(PolyfitError::SizeMismatch { .. })
+        ));
+        assert!(matches!(
+            polyfit_weighted(&[1.0], &[1.0], None, 1, false),
+            Err(PolyfitError::TooFewPoints { .. })
+        ));
+        assert!(matches!(
+            polyfit_weighted(&x, &y, Some(&[1.0]), 1, false),
+            Err(PolyfitError::SizeMismatch { .. })
+        ));
+    }
+}

@@ -103,3 +103,27 @@ pub fn try_multi_gaussian_jacobian(
     }
     Ok(multi_gaussian_jacobian(x, params))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_multi_gaussian_and_jacobian() {
+        let x = Array1::from_vec(vec![0.0, 1.0, 2.0, 3.0, 4.0]);
+        let params = [10.0, 2.0, 1.0];
+
+        let y = try_multi_gaussian(x.view(), &params).unwrap();
+        assert!((y[2] - 10.0).abs() < 1e-12);
+        assert!((y[0] - y[4]).abs() < 1e-12);
+
+        let jac = try_multi_gaussian_jacobian(x.view(), &params).unwrap();
+        assert_eq!(jac.dim(), (5, 3));
+        assert!((jac[(2, 0)] - 1.0).abs() < 1e-12);
+        assert!(jac[(2, 1)].abs() < 1e-12);
+        assert!(jac[(2, 2)].abs() < 1e-12);
+
+        assert!(try_multi_gaussian(x.view(), &[1.0, 2.0]).is_err());
+        assert!(try_multi_gaussian_jacobian(x.view(), &[1.0]).is_err());
+    }
+}

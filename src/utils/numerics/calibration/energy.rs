@@ -173,3 +173,42 @@ fn polyfit(x: &[f64], y: &[f64], degree: usize) -> CalibrationnResult<Vec<f64>> 
 
     Ok(coeffs.as_slice().to_vec())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_calibrate_x_axis_direct_and_remapped_and_errors() {
+        // Direct linear fit: E = 2 * ch + 10
+        let res = calibrate_x_axis(&[0.0, 50.0, 100.0], &[10.0, 110.0, 210.0], 1, 5, None).unwrap();
+        assert_eq!(res.x_axis.len(), 5);
+        assert!((res.x_axis[0] - 10.0).abs() < 1e-9);
+        assert!((res.x_axis[4] - 18.0).abs() < 1e-9);
+
+        // Remapped from current_x_axis
+        let current = [0.0, 10.0, 20.0, 30.0, 40.0];
+        let res2 = calibrate_x_axis(&[10.0, 30.0], &[100.0, 300.0], 1, 5, Some(&current)).unwrap();
+        assert!((res2.reference_channels[0] - 1.0).abs() < 1e-9);
+        assert!((res2.reference_channels[1] - 3.0).abs() < 1e-9);
+        assert!((res2.x_axis[2] - 200.0).abs() < 1e-9);
+
+        // Error branches
+        assert!(matches!(
+            calibrate_x_axis(&[1.0], &[1.0, 2.0], 1, 5, None),
+            Err(CalibrationError::LengthMismatch { .. })
+        ));
+        assert!(matches!(
+            calibrate_x_axis(&[1.0], &[1.0], 2, 5, None),
+            Err(CalibrationError::TooFewPoints { .. })
+        ));
+        assert!(matches!(
+            calibrate_x_axis(&[1.0, 2.0], &[10.0, 20.0], 1, 5, Some(&[0.0, 1.0])),
+            Err(CalibrationError::AxisLengthMismatch { .. })
+        ));
+        assert!(matches!(
+            calibrate_x_axis(&[1.0, 2.0], &[10.0, 20.0], 1, 3, Some(&[0.0, 5.0, 2.0])),
+            Err(CalibrationError::NonMonotonicAxis)
+        ));
+    }
+}

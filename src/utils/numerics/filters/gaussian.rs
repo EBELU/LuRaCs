@@ -43,3 +43,28 @@ pub fn gaussian_filter_1d(
     // Symmetric kernel: correlate1d skips cloning and reversing `kernel`
     correlate1d(signal, &kernel, edge_mode)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_gaussian_kernel_and_filter() {
+        assert!(gaussian_kernel(0, 1.0).is_none());
+        assert!(gaussian_kernel(4, 1.0).is_none());
+        assert!(gaussian_kernel(3, 0.0).is_none());
+        assert!(gaussian_kernel(3, f64::NAN).is_none());
+
+        let k = gaussian_kernel(5, 1.0).unwrap();
+        assert_eq!(k.len(), 5);
+        assert!((k.iter().sum::<f64>() - 1.0).abs() < 1e-12);
+        assert!((k[0] - k[4]).abs() < 1e-12);
+
+        assert!(gaussian_filter_1d(&[1.0, 2.0, 3.0], 4, 1.0, EdgeMode::Zeros).is_empty());
+        let smoothed = gaussian_filter_1d(&[1.0, 1.0, 1.0, 1.0, 1.0], 3, 1.0, EdgeMode::Mirror);
+        assert_eq!(smoothed.len(), 5);
+        for v in smoothed {
+            assert!((v - 1.0).abs() < 1e-12);
+        }
+    }
+}

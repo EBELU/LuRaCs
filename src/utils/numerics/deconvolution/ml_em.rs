@@ -164,3 +164,40 @@ pub fn ml_em(
     x
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ml_em_serial_and_parallel_identity() {
+        let opts = MlEmOptions::default();
+        assert_eq!(opts.iterations, 30);
+
+        // Small serial case (n = 4 < 512)
+        let n_small = 4;
+        let csr_small = CsrMatrix::from_parts(
+            vec![0, 1, 2, 3, 4],
+            vec![0, 1, 2, 3],
+            vec![1.0; 4],
+            n_small,
+        );
+        let y_small = Array1::from_vec(vec![0.0, 10.0, 20.0, 0.0]);
+        let sens_small = Array1::ones(n_small);
+        let x_small = ml_em(&y_small, &csr_small, &sens_small, &MlEmOptions { iterations: 5 });
+        assert!((x_small[1] - 10.0).abs() < 1e-6);
+        assert!((x_small[2] - 20.0).abs() < 1e-6);
+
+        // Large parallel case (n = 512 >= PARALLEL_ROW_THRESHOLD)
+        let n_big = PARALLEL_ROW_THRESHOLD;
+        let offsets: Vec<usize> = (0..=n_big).collect();
+        let indices: Vec<usize> = (0..n_big).collect();
+        let values = vec![1.0; n_big];
+        let csr_big = CsrMatrix::from_parts(offsets, indices, values, n_big);
+        let mut y_big = Array1::zeros(n_big);
+        y_big[100] = 50.0;
+        let sens_big = Array1::ones(n_big);
+        let x_big = ml_em(&y_big, &csr_big, &sens_big, &MlEmOptions { iterations: 2 });
+        assert!((x_big[100] - 50.0).abs() < 1e-6);
+    }
+}
+

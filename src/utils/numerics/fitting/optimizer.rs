@@ -33,3 +33,21 @@ pub fn pseudo_inverse_array(a: &Array2<f64>) -> Option<Array2<f64>> {
     }
     Some(out)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_pseudo_inverse_and_array() {
+        let m = DMatrix::from_row_slice(2, 2, &[2.0, 0.0, 0.0, 4.0]);
+        let inv = pseudo_inverse(&m).unwrap();
+        assert!((inv[(0, 0)] - 0.5).abs() < 1e-12);
+        assert!((inv[(1, 1)] - 0.25).abs() < 1e-12);
+
+        let arr = Array2::from_shape_vec((2, 2), vec![2.0, 0.0, 0.0, 4.0]).unwrap();
+        let inv_arr = pseudo_inverse_array(&arr).unwrap();
+        assert!((inv_arr[(0, 0)] - 0.5).abs() < 1e-12);
+        assert!((inv_arr[(1, 1)] - 0.25).abs() < 1e-12);
+    }
+}

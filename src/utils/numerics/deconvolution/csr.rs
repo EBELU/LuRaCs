@@ -128,3 +128,31 @@ impl CsrMatrix {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_csr_matrix_construction_validation_and_conversions() {
+        let m = CsrMatrix::from_parts(vec![0, 1, 2], vec![0, 1], vec![2.0, 3.0], 2);
+        assert_eq!(m.nrows(), 2);
+        assert_eq!(m.ncols(), 2);
+        assert_eq!(m.nnz(), 2);
+        let (offs, idxs, vals) = m.to_i64_i32();
+        assert_eq!(offs, vec![0, 1, 2]);
+        assert_eq!(idxs, vec![0, 1]);
+        assert_eq!(vals, vec![2.0, 3.0]);
+
+        let dense = Array2::from_shape_vec((2, 2), vec![1.0, 0.0, 0.0, 4.0]).unwrap();
+        let from_d = CsrMatrix::from_dense(&dense);
+        assert_eq!(from_d.nnz(), 2);
+
+        // Validation errors
+        assert!(CsrMatrix::new(vec![0], vec![], vec![], 1, 1).is_err());
+        assert!(CsrMatrix::new(vec![0, 1], vec![0], vec![], 1, 1).is_err());
+        assert!(CsrMatrix::new(vec![1, 1], vec![], vec![], 1, 1).is_err());
+        assert!(CsrMatrix::new(vec![0, 2, 1], vec![0], vec![1.0], 2, 2).is_err());
+        assert!(CsrMatrix::new(vec![0, 1], vec![5], vec![1.0], 1, 2).is_err());
+    }
+}

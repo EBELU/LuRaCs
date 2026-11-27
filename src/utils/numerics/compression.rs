@@ -163,3 +163,50 @@ where
     zip.finish()?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_spectrum_zlib_and_base64_roundtrip() {
+        let counts = vec![0u32, 42, 1000, u32::MAX];
+        let blob = compress_spectrum(&counts).unwrap();
+        let decoded = decompress_spectrum(&blob, counts.len()).unwrap();
+        assert_eq!(decoded, counts);
+
+        let f64_counts = vec![0.0, 42.9, -5.0, 1000.0];
+        let blob2 = compress_spectrum_f64(&f64_counts).unwrap();
+        let decoded2 = decompress_spectrum(&blob2, f64_counts.len()).unwrap();
+        assert_eq!(decoded2, vec![0, 42, 0, 1000]);
+
+        // Too short error
+        let err = decompress_spectrum(&blob, counts.len() + 1).unwrap_err();
+        assert!(matches!(err, CompressionError::DecompressedTooShort { .. }));
+
+        // Base64
+        let b64 = encode_base64(b"hello world");
+        assert_eq!(decode_base64(&b64).unwrap(), b"hello world");
+        assert!(decode_base64("!!!invalid!!!").is_err());
+    }
+
+    #[test]
+    fn test_zip_files_roundtrip_and_no_filename() {
+        let dir = std::env::temp_dir().join("luracs_test_zip");
+        std::fs::create_dir_all(&dir).unwrap();
+        let f1 = dir.join("a.txt");
+        let f2 = dir.join("b.txt");
+        let zip_path = dir.join("out.zip");
+        std::fs::write(&f1, b"alpha").unwrap();
+        std::fs::write(&f2, b"beta").unwrap();
+
+        zip_files([&f1, &f2], &zip_path).unwrap();
+        assert!(zip_path.exists());
+
+        // Path with no filename component ("/")
+        let err = zip_files([Path::new("/")], &zip_path).unwrap_err();
+        assert!(matches!(err, CompressionError::NoFileName(_)));
+
+        drop(std::fs::remove_dir_all(&dir));
+    }
+}

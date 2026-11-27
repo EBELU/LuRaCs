@@ -215,3 +215,40 @@ pub mod resolution {
 
 pub use efficiency::EfficiencySignature;
 pub use resolution::ResolutionSignature;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_efficiency_and_resolution_models() {
+        // EfficiencySignature
+        for &sig in EfficiencySignature::ALL {
+            let s = sig.to_string();
+            assert_eq!(EfficiencySignature::from_str(&s).unwrap(), sig);
+            assert!(sig.expected_params() > 0);
+        }
+        assert!(EfficiencySignature::from_str("unknown").is_err());
+
+        let f_atten = efficiency::lookup(EfficiencySignature::ExpAtten);
+        assert!((f_atten(10.0, &[2.0, 0.0]).unwrap() - 2.0).abs() < 1e-12);
+        assert!(f_atten(10.0, &[2.0]).is_err());
+
+        let f_poly = efficiency::lookup(EfficiencySignature::ExpPoly);
+        assert!((f_poly(1.0, &[0.0, 1.0, 2.0, 3.0]).unwrap() - 1.0).abs() < 1e-12);
+        assert!(f_poly(1.0, &[0.0]).is_err());
+
+        // ResolutionSignature
+        for &sig in ResolutionSignature::ALL {
+            let s = sig.to_string();
+            assert_eq!(ResolutionSignature::from_str(&s).unwrap(), sig);
+            assert_eq!(sig.expected_params(), 1);
+        }
+        assert!(ResolutionSignature::from_str("unknown").is_err());
+
+        let f_res = resolution::lookup(ResolutionSignature::KOverSqrtE);
+        assert!((f_res(100.0, &[50.0]).unwrap() - 5.0).abs() < 1e-12);
+        assert!(f_res(100.0, &[]).is_err());
+    }
+}

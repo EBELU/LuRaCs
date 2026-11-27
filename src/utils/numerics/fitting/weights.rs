@@ -105,3 +105,27 @@ impl WeightProvider for Poisson {
         poisson_weights(yfit, self.eps)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_huber_and_poisson_weights() {
+        let r = Array1::from_vec(vec![0.0, 0.5, 2.0, -4.0, f64::NAN]);
+        let h = Huber::default();
+        let hw = h.weights(r.view(), r.view(), &[]);
+        assert!((hw[0] - 1.0).abs() < 1e-12);
+        assert!((hw[1] - 1.0).abs() < 1e-12);
+        assert!((hw[2] - 0.5).abs() < 1e-12);
+        assert!((hw[3] - 0.25).abs() < 1e-12);
+        assert!(hw[4].is_nan());
+
+        let yfit = Array1::from_vec(vec![4.0, -1.0, f64::NAN]);
+        let p = Poisson::default();
+        let pw = p.weights(r.view(), yfit.view(), &[]);
+        assert!((pw[0] - 0.25).abs() < 1e-12);
+        assert!((pw[1] - 1.0 / 1e-10).abs() < 1e-2);
+        assert!(pw[2].is_nan());
+    }
+}

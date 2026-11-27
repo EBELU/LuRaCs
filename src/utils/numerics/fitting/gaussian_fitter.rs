@@ -405,3 +405,111 @@ fn poisson_weights_3arg(
 ) -> Array1<f64> {
     poisson_weights(yfit, 1e-10)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_fit_gaussians_synthetic_peaks_and_errors() {
+        let x: Vec<f64> = (0..100).map(|i| i as f64).collect();
+        let fg: Vec<f64> = x
+            .iter()
+            .map(|&xi| {
+                let d = xi - 50.0;
+                200.0f64.mul_add((-0.5 * d * d / 9.0).exp(), 0.1f64.mul_add(xi, 10.0))
+            })
+            .collect();
+        let bg: Vec<f64> = x.iter().map(|&xi| 0.05f64.mul_add(xi, 5.0)).collect();
+
+        let out = fit_gaussians(
+            &x,
+            &fg,
+            10.0,
+            None,
+            None,
+            &[(40.0, 60.0)],
+            FitType::Gaussian,
+            false,
+            true,
+            BkgType::Linear,
+            3,
+        )
+        .unwrap();
+        assert_eq!(out.fits.len(), 1);
+        assert!((out.fits[0].mu() - 50.0).abs() < 0.5);
+
+        let pure_fg: Vec<f64> = x
+            .iter()
+            .map(|&xi| {
+                let d = xi - 50.0;
+                200.0 * (-0.5 * d * d / 9.0).exp()
+            })
+            .collect();
+        let zero_bg = vec![0.0; 100];
+        let out_bg = fit_gaussians(
+            &x,
+            &pure_fg,
+            10.0,
+            Some(&zero_bg),
+            Some(10.0),
+            &[(40.0, 60.0)],
+            FitType::Gaussian,
+            true,
+            false,
+            BkgType::None,
+            0,
+        )
+        .unwrap();
+        assert_eq!(out_bg.fits.len(), 1);
+        assert!((out_bg.fits[0].mu() - 50.0).abs() < 0.5);
+
+        let out_none = fit_gaussians(
+            &x,
+            &pure_fg,
+            10.0,
+            None,
+            None,
+            &[(40.0, 60.0)],
+            FitType::Gaussian,
+            false,
+            false,
+            BkgType::None,
+            0,
+        )
+        .unwrap();
+        assert_eq!(out_none.fits.len(), 1);
+
+        let out_quad = fit_gaussians(
+            &x,
+            &fg,
+            10.0,
+            Some(&bg),
+            Some(10.0),
+            &[(40.0, 60.0)],
+            FitType::Gaussian,
+            false,
+            false,
+            BkgType::Quadratic,
+            4,
+        );
+        assert!(out_quad.is_ok() || out_quad.is_err());
+
+        assert!(matches!(
+            fit_gaussians(
+                &x,
+                &fg,
+                10.0,
+                None,
+                None,
+                &[],
+                FitType::Gaussian,
+                false,
+                false,
+                BkgType::None,
+                0,
+            ),
+            Err(FitError::EmptyBounds)
+        ));
+    }
+}

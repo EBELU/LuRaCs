@@ -85,3 +85,38 @@ pub fn convolve1d(signal: &[f64], kernel: &[f64], edge_mode: EdgeMode) -> Vec<f6
     let rev_kernel: Vec<f64> = kernel.iter().rev().copied().collect();
     correlate1d(signal, &rev_kernel, edge_mode)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_mean_median_correlate_convolve() {
+        // Empty/even invalid inputs
+        assert!(mean_filter(&[], 3, EdgeMode::Zeros).is_empty());
+        assert!(mean_filter(&[1.0, 2.0], 2, EdgeMode::Zeros).is_empty());
+        assert!(median_filter(&[], 3, EdgeMode::Zeros).is_empty());
+        assert!(correlate1d(&[], &[1.0], EdgeMode::Zeros).is_empty());
+        assert!(convolve1d(&[1.0], &[1.0, 2.0], EdgeMode::Zeros).is_empty());
+
+        // Short signal (n <= 2 * radius)
+        let short_mean = mean_filter(&[3.0, 6.0], 3, EdgeMode::Zeros);
+        assert_eq!(short_mean, vec![3.0, 3.0]);
+
+        // Long signal (> 1024 to hit DRIFT_RESET_INTERVAL)
+        let long_sig = vec![2.0; 1100];
+        let long_mean = mean_filter(&long_sig, 3, EdgeMode::Mirror);
+        assert_eq!(long_mean.len(), 1100);
+        assert!((long_mean[1050] - 2.0).abs() < 1e-12);
+
+        // Median filter removes spike
+        let med = median_filter(&[1.0, 100.0, 1.0, 1.0, 1.0], 3, EdgeMode::Zeros);
+        assert_eq!(med, vec![1.0, 1.0, 1.0, 1.0, 1.0]);
+
+        // Asymmetric kernel distinguishes correlate1d vs convolve1d
+        let sig = [0.0, 0.0, 10.0, 0.0, 0.0];
+        let kern = [1.0, 2.0, 3.0];
+        assert_eq!(correlate1d(&sig, &kern, EdgeMode::Zeros), vec![0.0, 30.0, 20.0, 10.0, 0.0]);
+        assert_eq!(convolve1d(&sig, &kern, EdgeMode::Zeros), vec![0.0, 10.0, 20.0, 30.0, 0.0]);
+    }
+}

@@ -125,3 +125,24 @@ pub fn richardson_lucy(
 
     ml_em(y, &matrix, sensitivity, opts)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_richardson_lucy_gaussian_deconvolution() {
+        let n = 32;
+        let x_axis = Array1::from_iter((0..n).map(|i| (i + 1) as f64 * 10.0));
+        let mut y = Array1::zeros(n);
+        y[15] = 100.0;
+        y[14] = 40.0;
+        y[16] = 40.0;
+        let sens = Array1::ones(n);
+        let opts = MlEmOptions { iterations: 10 };
+
+        let deconv = richardson_lucy(&x_axis, &y, 0.01, &sens, &opts);
+        assert_eq!(deconv.len(), n);
+        assert!(deconv[15] > deconv[0]);
+    }
+}
