@@ -666,7 +666,7 @@ impl MapScreen {
         self.lut_state.auto_range();
     }
 
-    fn set_online_source(&mut self, url: &str, is_vector: bool, ctx: &egui::Context) {
+    pub fn set_online_source(&mut self, url: &str, is_vector: bool, ctx: &egui::Context) {
         let source = CustomUrlSource {
             template: url.to_string(),
             is_vector,
@@ -680,7 +680,7 @@ impl MapScreen {
             .to_string();
     }
 
-    fn set_offline_pmtiles(&mut self, path: &Path, ctx: &egui::Context) {
+    pub fn set_offline_pmtiles(&mut self, path: &Path, ctx: &egui::Context) {
         self.tiles = Some(ActiveTiles::PmTiles(PmTiles::new(path, ctx.clone())));
         self.loaded_map_name = path
             .file_name()

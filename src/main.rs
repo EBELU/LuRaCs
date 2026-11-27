@@ -249,14 +249,8 @@ fn dispatch_cli_args(
         }
     }
 
-    if let Some(url) = &cli.map_url {
-        if cli.map_file.is_some() {
-            tracing::warn!("Both --map_url and --map_file given; ignoring both");
-        } else {
-            tracing::info!(url, "--map_url: map widget not yet ported");
-        }
-    } else if cli.map_file.is_some() {
-        tracing::info!("--map_file: map widget not yet ported");
+    if cli.map_url.is_some() && cli.map_file.is_some() {
+        tracing::warn!("Both --map_url and --map_file given; ignoring both");
     }
 
     if let Some(port) = &cli.serial_gps {
@@ -315,12 +309,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if cli.headless {
         run_headless(run_manager, spectrum_manager, io_manager, shared_settings)?;
     } else {
+        let (map_url, map_file) = if cli.map_url.is_some() && cli.map_file.is_some() {
+            (None, None)
+        } else {
+            (cli.map_url, cli.map_file)
+        };
         run_gui(
             shared_settings,
             run_manager,
             spectrum_manager,
             io_manager,
             log_buffer,
+            map_url,
+            map_file,
         )?;
     }
 
@@ -337,6 +338,8 @@ fn run_gui(
     spectrum_manager: SpectrumManager,
     io_manager: IoManager,
     log_buffer: Arc<LogBuffer>,
+    map_url: Option<String>,
+    map_file: Option<PathBuf>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let title = app_title();
 
@@ -356,7 +359,7 @@ fn run_gui(
         &title,
         options,
         Box::new(move |cc| {
-            let app = LuRaCsApp::new(
+            let mut app = LuRaCsApp::new(
                 cc,
                 shared_settings,
                 run_manager,
@@ -364,6 +367,12 @@ fn run_gui(
                 io_manager,
                 log_buffer,
             );
+            if let Some(url) = map_url {
+                let is_vector = url.contains(".pbf");
+                app.map_screen.set_online_source(&url, is_vector, &cc.egui_ctx);
+            } else if let Some(path) = map_file {
+                app.map_screen.set_offline_pmtiles(&path, &cc.egui_ctx);
+            }
             Ok(Box::new(app))
         }),
     )?;
