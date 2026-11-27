@@ -55,6 +55,10 @@ impl CalibrationWindow {
         self.open = true;
     }
 
+    pub fn retheme(&mut self, colors: &crate::theme_manager::ResolvedPlotColors) {
+        colors.apply_to(&mut self.plot);
+    }
+
     fn populate_table(&mut self, spectrum_manager: &SpectrumManager) {
         self.rows.clear();
         for roi in spectrum_manager.roi_manager.registry().values() {

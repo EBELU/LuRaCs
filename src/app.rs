@@ -194,21 +194,31 @@ impl LuRaCsApp {
         drop(theme_manager.drain_events());
         let initial_theme_version = theme_manager.version();
 
-        let spectrum_screen = SpectrumScreen::new(&render_state);
-        let spectrogram_screen = SpectrogramScreen::new(&render_state);
+        let mut spectrum_screen = SpectrumScreen::new(&render_state);
+        let mut spectrogram_screen = SpectrogramScreen::new(&render_state);
 
         let real_time_scheme = settings.read_settings().theme.color_rotator_scheme;
-        let real_time_values_tab = RealTimeValuesTab::new(&render_state, real_time_scheme);
-        let measure_screen = MeasureScreen::new(&render_state, real_time_scheme);
-        let isotopics_tab = IsotopicsTab::new(&render_state);
+        let mut real_time_values_tab = RealTimeValuesTab::new(&render_state, real_time_scheme);
+        let mut measure_screen = MeasureScreen::new(&render_state, real_time_scheme);
+        let mut isotopics_tab = IsotopicsTab::new(&render_state);
         let spectrum_info_tab = SpectrumInfoTab::new(&render_state);
 
         // --- Font size from settings ---
         apply_font_size(&cc.egui_ctx, &settings);
 
-        let efficiency_window = EfficiencyWindow::new(&render_state);
-        let calibration_window = CalibrationWindow::new(&render_state);
-        let resolution_window = ResolutionWindow::new(&render_state);
+        let mut efficiency_window = EfficiencyWindow::new(&render_state);
+        let mut calibration_window = CalibrationWindow::new(&render_state);
+        let mut resolution_window = ResolutionWindow::new(&render_state);
+
+        let initial_plot_colors = theme_manager.current().resolved_plot();
+        spectrum_screen.retheme(&initial_plot_colors);
+        spectrogram_screen.retheme(&initial_plot_colors);
+        real_time_values_tab.retheme(&initial_plot_colors);
+        measure_screen.retheme(&initial_plot_colors);
+        isotopics_tab.retheme(&initial_plot_colors);
+        efficiency_window.retheme(&initial_plot_colors);
+        calibration_window.retheme(&initial_plot_colors);
+        resolution_window.retheme(&initial_plot_colors);
         Self {
             settings,
             run_manager,
@@ -379,18 +389,17 @@ impl LuRaCsApp {
         // rsplot's `Plot1D` is a retained widget: it does not pick up
         // `ctx.set_style` automatically. Whenever the theme version changes,
         // re-apply the plot palette to every retained plot.
-        //
-        // TODO: implement `retheme(&ResolvedPlotColors)` on `SpectrumScreen`
-        // and `SpectrogramScreen` and uncomment:
-        //
-        // if self.last_theme_version != self.theme_manager.version() {
-        //     self.last_theme_version = self.theme_manager.version();
-        //     let colors = self.theme_manager.current().resolved_plot();
-        //     self.spectrum_screen.retheme(&colors);
-        //     self.spectrogram_screen.retheme(&colors);
-        // }
         if self.last_theme_version != self.theme_manager.version() {
             self.last_theme_version = self.theme_manager.version();
+            let colors = self.theme_manager.current().resolved_plot();
+            self.spectrum_screen.retheme(&colors);
+            self.spectrogram_screen.retheme(&colors);
+            self.real_time_values_tab.retheme(&colors);
+            self.measure_screen.retheme(&colors);
+            self.isotopics_tab.retheme(&colors);
+            self.efficiency_window.retheme(&colors);
+            self.calibration_window.retheme(&colors);
+            self.resolution_window.retheme(&colors);
             tracing::debug!(version = self.last_theme_version, "theme version bumped");
         }
 
@@ -839,6 +848,7 @@ impl eframe::App for LuRaCsApp {
             egui::Panel::top("top_area")
                 .resizable(true)
                 .default_size(ui.available_height() * 0.6)
+                .min_size(300.0)
                 .show(ui, |ui| {
                     self.render_top_area(ui);
                 });

@@ -489,6 +489,10 @@ impl EfficiencyWindow {
         self.open = true;
     }
 
+    pub fn retheme(&mut self, colors: &crate::theme_manager::ResolvedPlotColors) {
+        colors.apply_to(&mut self.plot);
+    }
+
     fn collect_peaks(&self, spectrum_manager: &SpectrumManager) -> Vec<PeakRow> {
         let mut out = Vec::new();
         for roi in spectrum_manager.roi_manager.registry().values() {

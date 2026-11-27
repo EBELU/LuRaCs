@@ -210,6 +210,11 @@ impl SpectrogramScreen {
         }
     }
 
+    pub fn retheme(&mut self, colors: &crate::theme_manager::ResolvedPlotColors) {
+        colors.apply_to(&mut self.bar_plot);
+        colors.apply_to(&mut self.waterfall_plot);
+    }
+
     // -----------------------------------------------------------------------
     // Render
     // -----------------------------------------------------------------------

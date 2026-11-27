@@ -186,6 +186,10 @@ impl SpectrumPlotState {
     pub const fn request_reset(&mut self) {
         self.reset_pending = true;
     }
+
+    pub fn retheme(&mut self, colors: &crate::theme_manager::ResolvedPlotColors) {
+        colors.apply_to(&mut self.plot);
+    }
 }
 
 fn plot_id_from(name: &str) -> u64 {

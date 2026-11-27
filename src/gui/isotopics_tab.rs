@@ -296,6 +296,12 @@ impl IsotopicsTab {
         }
     }
 
+    pub fn retheme(&mut self, colors: &crate::theme_manager::ResolvedPlotColors) {
+        colors.apply_to(&mut self.debug.spectrum_plot);
+        colors.apply_to(&mut self.debug.d1_plot);
+        colors.apply_to(&mut self.debug.d2_plot);
+    }
+
     pub fn render(
         &mut self,
         spectrum_manager: &mut SpectrumManager,

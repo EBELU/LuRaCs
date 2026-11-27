@@ -196,6 +196,23 @@ pub struct ResolvedPlotColors {
     pub series: Vec<Color32>,
 }
 
+impl ResolvedPlotColors {
+    /// Apply this palette to a retained `rsplot::Plot1D` widget.
+    pub fn apply_to(&self, plot: &mut rsplot::Plot1D) {
+        // `ThemeDefinition::resolved_plot` falls back to opaque `surface_raised`
+        // for `grid`, whereas rsplot's default chrome uses a faint tint (alpha 28)
+        // of the axis color. Keep that subtle grid unless a translucent color
+        // was explicitly configured.
+        let grid = if self.grid.a() == 255 {
+            Color32::from_rgba_unmultiplied(self.axis.r(), self.axis.g(), self.axis.b(), 28)
+        } else {
+            self.grid
+        };
+        plot.set_foreground_colors(self.axis, grid);
+        plot.set_background_colors(self.background, self.background);
+    }
+}
+
 // ===========================================================================
 // Built-in themes
 // ===========================================================================

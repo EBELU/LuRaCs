@@ -377,6 +377,12 @@ impl MeasureScreen {
         }
     }
 
+    pub fn retheme(&mut self, colors: &crate::theme_manager::ResolvedPlotColors) {
+        colors.apply_to(&mut self.spectrum_plot);
+        colors.apply_to(&mut self.count_rate_plot);
+        colors.apply_to(&mut self.dose_rate_plot);
+    }
+
     const fn active_measurement(&self) -> &Measurement {
         match self.active_kind {
             MeasureKind::Foreground => &self.fg,
@@ -699,84 +705,95 @@ impl MeasureScreen {
 
         // --- 4. Central 2x2 Grid ---
         let avail = ui.available_size();
-        let col_w = ((avail.x - 8.0) / 2.0).max(200.0);
-        let row_h = ((avail.y - 8.0) / 2.0).max(160.0);
+        let col_w = ((avail.x - 16.0) / 2.0).max(200.0);
+        let row_h = ((avail.y - 12.0) / 2.0).max(200.0);
 
-        ui.horizontal(|ui| {
-            // Top-left: Summary text
-            ui.allocate_ui_with_layout(
-                egui::vec2(col_w, row_h),
-                egui::Layout::top_down(egui::Align::LEFT),
-                |ui| {
-                    egui::Frame::group(ui.style()).show(ui, |ui| {
-                        ui.set_min_size(egui::vec2(col_w - 16.0, row_h - 16.0));
-                        egui::ScrollArea::vertical().show(ui, |ui| {
-                            ui.monospace(format_summary(
+        egui::ScrollArea::vertical()
+            .id_salt("measure_grid_scroll")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    // Top-left: Summary text
+                    ui.allocate_ui_with_layout(
+                        egui::vec2(col_w, row_h),
+                        egui::Layout::top_down(egui::Align::LEFT),
+                        |ui| {
+                            ui.set_max_height(row_h);
+                            egui::Frame::group(ui.style()).show(ui, |ui| {
+                                let inner_h = (row_h - 16.0).max(40.0);
+                                ui.set_min_size(egui::vec2((col_w - 16.0).max(120.0), inner_h));
+                                egui::ScrollArea::vertical()
+                                    .id_salt("measure_summary_scroll")
+                                    .max_height(inner_h)
+                                    .auto_shrink([false, false])
+                                    .show(ui, |ui| {
+                                        ui.monospace(format_summary(
+                                            &app.measure_screen.fg,
+                                            &app.measure_screen.bg,
+                                            spectrum_update_delay,
+                                        ));
+                                    });
+                            });
+                        },
+                    );
+
+                    // Top-right: Measured Spectrum Plot
+                    ui.allocate_ui_with_layout(
+                        egui::vec2(col_w, row_h),
+                        egui::Layout::top_down(egui::Align::LEFT),
+                        |ui| {
+                            draw_spectrum_plot(
+                                &mut app.measure_screen.spectrum_plot,
                                 &app.measure_screen.fg,
                                 &app.measure_screen.bg,
+                                app.measure_screen.fg_color,
+                                app.measure_screen.bg_color,
+                                ui,
+                            );
+                        },
+                    );
+                });
+
+                ui.horizontal(|ui| {
+                    // Bottom-left: Count Rate Plot
+                    ui.allocate_ui_with_layout(
+                        egui::vec2(col_w, row_h),
+                        egui::Layout::top_down(egui::Align::LEFT),
+                        |ui| {
+                            draw_rate_plot(
+                                &mut app.measure_screen.count_rate_plot,
+                                &app.measure_screen.fg.rate_axis,
+                                &app.measure_screen.fg.count_rate_data,
+                                &app.measure_screen.bg.rate_axis,
+                                &app.measure_screen.bg.count_rate_data,
+                                app.measure_screen.fg_color,
+                                app.measure_screen.bg_color,
                                 spectrum_update_delay,
-                            ));
-                        });
-                    });
-                },
-            );
-
-            // Top-right: Measured Spectrum Plot
-            ui.allocate_ui_with_layout(
-                egui::vec2(col_w, row_h),
-                egui::Layout::top_down(egui::Align::LEFT),
-                |ui| {
-                    draw_spectrum_plot(
-                        &mut app.measure_screen.spectrum_plot,
-                        &app.measure_screen.fg,
-                        &app.measure_screen.bg,
-                        app.measure_screen.fg_color,
-                        app.measure_screen.bg_color,
-                        ui,
+                                ui,
+                            );
+                        },
                     );
-                },
-            );
-        });
 
-        ui.horizontal(|ui| {
-            // Bottom-left: Count Rate Plot
-            ui.allocate_ui_with_layout(
-                egui::vec2(col_w, row_h),
-                egui::Layout::top_down(egui::Align::LEFT),
-                |ui| {
-                    draw_rate_plot(
-                        &mut app.measure_screen.count_rate_plot,
-                        &app.measure_screen.fg.rate_axis,
-                        &app.measure_screen.fg.count_rate_data,
-                        &app.measure_screen.bg.rate_axis,
-                        &app.measure_screen.bg.count_rate_data,
-                        app.measure_screen.fg_color,
-                        app.measure_screen.bg_color,
-                        spectrum_update_delay,
-                        ui,
+                    // Bottom-right: Dose Rate Plot
+                    ui.allocate_ui_with_layout(
+                        egui::vec2(col_w, row_h),
+                        egui::Layout::top_down(egui::Align::LEFT),
+                        |ui| {
+                            draw_rate_plot(
+                                &mut app.measure_screen.dose_rate_plot,
+                                &app.measure_screen.fg.rate_axis,
+                                &app.measure_screen.fg.dose_rate_data,
+                                &app.measure_screen.bg.rate_axis,
+                                &app.measure_screen.bg.dose_rate_data,
+                                app.measure_screen.fg_color,
+                                app.measure_screen.bg_color,
+                                spectrum_update_delay,
+                                ui,
+                            );
+                        },
                     );
-                },
-            );
-
-            // Bottom-right: Dose Rate Plot
-            ui.allocate_ui_with_layout(
-                egui::vec2(col_w, row_h),
-                egui::Layout::top_down(egui::Align::LEFT),
-                |ui| {
-                    draw_rate_plot(
-                        &mut app.measure_screen.dose_rate_plot,
-                        &app.measure_screen.fg.rate_axis,
-                        &app.measure_screen.fg.dose_rate_data,
-                        &app.measure_screen.bg.rate_axis,
-                        &app.measure_screen.bg.dose_rate_data,
-                        app.measure_screen.fg_color,
-                        app.measure_screen.bg_color,
-                        spectrum_update_delay,
-                        ui,
-                    );
-                },
-            );
-        });
+                });
+            });
 
         // --- Deferred Actions & Modals ---
         if let Some(new_det) = pending_detector_change {

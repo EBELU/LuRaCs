@@ -113,6 +113,7 @@ pub struct SpectrumScreen {
     /// Persistent feature lines (peak-features gamma tool). Survives tab
     /// creation: any new `SpectrumPlotState` inherits these.
     feature_lines: HashMap<String, FeatureLine>,
+    plot_colors: Option<theme_manager::ResolvedPlotColors>,
 }
 
 impl SpectrumScreen {
@@ -124,7 +125,16 @@ impl SpectrumScreen {
             tab_order: Vec::new(),
             current_tab: None,
             feature_lines: HashMap::new(),
+            plot_colors: None,
         }
+    }
+
+    pub fn retheme(&mut self, colors: &theme_manager::ResolvedPlotColors) {
+        self.combined.retheme(colors);
+        for state in self.tabs.values_mut() {
+            state.retheme(colors);
+        }
+        self.plot_colors = Some(colors.clone());
     }
 
     // -----------------------------------------------------------------------
@@ -214,6 +224,9 @@ impl SpectrumScreen {
         for name in &new_names {
             let mut state = SpectrumPlotState::for_spectrum(render_state, name.clone());
             state.feature_lines = self.feature_lines.clone();
+            if let Some(colors) = &self.plot_colors {
+                state.retheme(colors);
+            }
             self.tabs.insert(name.clone(), state);
             self.tab_order.push(name.clone());
         }

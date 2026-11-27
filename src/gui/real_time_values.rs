@@ -74,6 +74,11 @@ impl RealTimeValuesTab {
         }
     }
 
+    pub fn retheme(&mut self, colors: &crate::theme_manager::ResolvedPlotColors) {
+        colors.apply_to(&mut self.cps_plot);
+        colors.apply_to(&mut self.dr_plot);
+    }
+
     // -----------------------------------------------------------------------
     // Event hooks (called from App::handle_run_manager_event)
     // -----------------------------------------------------------------------
