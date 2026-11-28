@@ -93,29 +93,47 @@ pub fn draw_rois(
                 },
             }
 
-            // Start a new drag (only if `roi.movable` is true)
+            // Start a new drag (only if `roi.movable` is true).
+            // Use `press_origin` rather than `interact_pointer_pos`: by the time
+            // egui crosses its ~6px drag threshold, the current pointer has often
+            // already moved beyond `GRAB_PX` (6px) from the edge.
             if plot_response.drag_started_by(egui::PointerButton::Primary)
                 && !view.interaction.is_active()
-                && let Some(interact_pos) = plot_response.interact_pointer_pos()
+                && let Some(press_pos) = ui
+                    .input(|i| i.pointer.press_origin())
+                    .or_else(|| plot_response.interact_pointer_pos())
+                && plot_area.contains(press_pos)
             {
                 let start_hit = hit_test_rois(
                     roi_manager.registry(),
                     &is_visible,
                     &x_to_px,
-                    interact_pos.x,
+                    press_pos.x,
                 );
                 match start_hit {
                     Some((tag, Some(edge), true)) => {
                         view.interaction = RoiInteraction::DraggingEdge { tag, edge };
+                        if let Some(cur_pos) = plot_response.interact_pointer_pos() {
+                            let data_x = px_to_x(cur_pos.x);
+                            if data_x.is_finite() {
+                                apply_drag(roi_manager, view, data_x);
+                            }
+                        }
                     }
                     Some((tag, None, true)) => {
-                        let grab_x = px_to_x(interact_pos.x);
+                        let grab_x = px_to_x(press_pos.x);
                         if let (true, Some(roi)) = (grab_x.is_finite(), roi_manager.get_roi(&tag)) {
                             view.interaction = RoiInteraction::DraggingRegion {
                                 tag,
                                 grab_x,
                                 initial_bound: roi.roi_bound,
                             };
+                            if let Some(cur_pos) = plot_response.interact_pointer_pos() {
+                                let data_x = px_to_x(cur_pos.x);
+                                if data_x.is_finite() {
+                                    apply_drag(roi_manager, view, data_x);
+                                }
+                            }
                         }
                     }
                     Some(_) => {} // ROI is locked (`movable == false`)
@@ -883,5 +901,62 @@ mod tests {
             assert_eq!(out.platform_output.cursor_icon, egui::CursorIcon::ResizeHorizontal);
             assert_eq!(count_line_strokes(&out.shapes, hl_stroke), 1);
         }
+        // 3. Fast outward edge drag (> GRAB_PX in one step) still catches edge via press_origin
+        let mut mgr_fast = RoiManager::default();
+        let tag_fast = mgr_fast.add_roi(crate::core::NewRoi::new(100.0, 200.0));
+        let ctx_fast = egui::Context::default();
+        let mut view_fast = RoiViewState::default();
+        drop(run_draw_frame(
+            &ctx_fast,
+            egui::RawInput {
+                screen_rect: screen,
+                ..Default::default()
+            },
+            &mut mgr_fast,
+            None,
+            &mut view_fast,
+            true,
+        ));
+        drop(run_draw_frame(
+            &ctx_fast,
+            egui::RawInput {
+                screen_rect: screen,
+                events: vec![
+                    egui::Event::PointerMoved(egui::pos2(99.0, 150.0)),
+                    egui::Event::PointerButton {
+                        pos: egui::pos2(99.0, 150.0),
+                        button: egui::PointerButton::Primary,
+                        pressed: true,
+                        modifiers: Default::default(),
+                    },
+                ],
+                ..Default::default()
+            },
+            &mut mgr_fast,
+            None,
+            &mut view_fast,
+            true,
+        ));
+        // Move 19px left in a single frame (well past GRAB_PX = 6px)
+        drop(run_draw_frame(
+            &ctx_fast,
+            egui::RawInput {
+                screen_rect: screen,
+                events: vec![egui::Event::PointerMoved(egui::pos2(80.0, 150.0))],
+                ..Default::default()
+            },
+            &mut mgr_fast,
+            None,
+            &mut view_fast,
+            true,
+        ));
+        assert!(matches!(
+            view_fast.interaction,
+            RoiInteraction::DraggingEdge {
+                edge: Edge::Lower,
+                ..
+            }
+        ));
+        assert_eq!(mgr_fast.get_roi(&tag_fast).unwrap().roi_bound, (80.0, 200.0));
     }
 }
