@@ -205,3 +205,42 @@ pub mod opt_vec_quantity_serde {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use physure_core::quantity::Quantity;
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Serialize, Deserialize)]
+    struct DimlessOptVec {
+        #[serde(with = "opt_vec_quantity_serde::dimensionless")]
+        vals: Option<Vec<Quantity>>,
+    }
+
+    #[test]
+    fn test_bq_per_g_unit_and_opt_vec_dimensionless_serde() {
+        assert_eq!(
+            bq_per_g(),
+            RationalUnit::new_from_dimensions([
+                ("Bq".to_string(), (1, 1)),
+                ("g".to_string(), (-1, 1)),
+            ])
+        );
+
+        let some_vals = DimlessOptVec {
+            vals: Some(vec![Quantity::new_scalar(1.5, 0.25, dimensionless(), None, None)]),
+        };
+        let json = serde_json::to_string(&some_vals).unwrap();
+        let decoded: DimlessOptVec = serde_json::from_str(&json).unwrap();
+        let v = decoded.vals.expect("expected Some(vec![..])");
+        assert_eq!(v.len(), 1);
+        assert!((v[0].value.mean() - 1.5).abs() < 1e-12);
+        assert!((v[0].value.std_dev() - 0.25).abs() < 1e-12);
+
+        let none_vals = DimlessOptVec { vals: None };
+        let json_none = serde_json::to_string(&none_vals).unwrap();
+        let decoded_none: DimlessOptVec = serde_json::from_str(&json_none).unwrap();
+        assert!(decoded_none.vals.is_none());
+    }
+}

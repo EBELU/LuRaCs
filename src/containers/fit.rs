@@ -91,5 +91,11 @@ mod tests {
         let json = serde_json::to_string(&fit).unwrap();
         let decoded: Fit = serde_json::from_str(&json).unwrap();
         assert_eq!(fit, decoded);
+
+        // Non-4.0 variance so `2.0 * sigma` != `2.0 + sigma`
+        let mut fit9 = fit;
+        fit9.params[2] = 9.0;
+        assert!((fit9.sigma() - 3.0).abs() < 1e-12);
+        assert!((fit9.sigma_err() - (0.4 / 6.0)).abs() < 1e-12);
     }
 }

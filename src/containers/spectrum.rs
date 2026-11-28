@@ -343,11 +343,13 @@ mod tests {
         assert_eq!(spec.get_background(false, true).unwrap().as_slice().unwrap(), &[1.0, 2.0, 0.0, 5.0]);
         let bg_log = spec.get_background(true, false).unwrap();
         assert!(bg_log[2].is_nan());
+        assert!((bg_log[3] - 1.0).abs() < 1e-12);
 
         // Bkg-sub with background (linear & log)
         assert_eq!(spec.get_bkg_sub(false).unwrap().as_slice().unwrap(), &[4.0, 8.0, 0.0, 15.0]);
         let sub_log = spec.get_bkg_sub(true).unwrap();
         assert!(sub_log[2].is_nan());
+        assert!((sub_log[0] - 4.0_f64.log10()).abs() < 1e-12);
 
         // Zero live_time -> None when cps == true
         spec.set_foreground(make_data(vec![1.0; 4], 0.0), None);

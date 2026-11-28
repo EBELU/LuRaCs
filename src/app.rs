@@ -1042,7 +1042,7 @@ fn apply_font_size(ctx: &egui::Context, settings: &SharedSettings) {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use std::path::Path;
 
     use egui_kittest::Harness;

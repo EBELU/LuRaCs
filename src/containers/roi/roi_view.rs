@@ -409,40 +409,479 @@ mod tests {
         };
         apply_drag(&mut mgr, &view_reg, 170.0);
         assert_eq!(mgr.get_roi(&tag).unwrap().roi_bound, (140.0, 270.0));
+
+        // Clamping to MIN_ROI_WIDTH (1.0) on both edges
+        apply_drag(&mut mgr, &view_lo, 500.0);
+        assert_eq!(mgr.get_roi(&tag).unwrap().roi_bound, (269.0, 270.0));
+        apply_drag(&mut mgr, &view_hi, 10.0);
+        assert_eq!(mgr.get_roi(&tag).unwrap().roi_bound, (269.0, 270.0));
+    }
+
+    fn run_draw_frame(
+        ctx: &egui::Context,
+        raw_input: egui::RawInput,
+        mgr: &mut RoiManager,
+        owned: Option<&str>,
+        view: &mut RoiViewState,
+        editable: bool,
+    ) -> (Vec<RoiEvent>, egui::FullOutput) {
+        let mut events = Vec::new();
+        let mut out = ctx.run_ui(raw_input, |ui| {
+            let plot_area = Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(500.0, 300.0));
+            let resp = ui.allocate_rect(plot_area, egui::Sense::click_and_drag());
+            events = draw_rois(
+                ui,
+                &resp,
+                plot_area,
+                mgr,
+                owned,
+                view,
+                |x| x as f32,
+                f64::from,
+                editable,
+            );
+        });
+        out.textures_delta.clear();
+        (events, out)
+    }
+
+    fn collect_shape_texts(shapes: &[egui::epaint::ClippedShape]) -> Vec<String> {
+        let mut texts = Vec::new();
+        fn visit(shape: &egui::Shape, out: &mut Vec<String>) {
+            match shape {
+                egui::Shape::Text(t) => out.push(t.galley.text().to_string()),
+                egui::Shape::Vec(v) => {
+                    for s in v {
+                        visit(s, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+        for cs in shapes {
+            visit(&cs.shape, &mut texts);
+        }
+        texts
+    }
+
+    fn has_rect_fill(shapes: &[egui::epaint::ClippedShape], color: Color32) -> bool {
+        shapes.iter().any(|cs| match &cs.shape {
+            egui::Shape::Rect(r) => r.fill == color,
+            _ => false,
+        })
+    }
+
+    fn has_line_stroke(shapes: &[egui::epaint::ClippedShape], stroke: Stroke) -> bool {
+        count_line_strokes(shapes, stroke) > 0
+    }
+
+    fn count_line_strokes(shapes: &[egui::epaint::ClippedShape], stroke: Stroke) -> usize {
+        shapes
+            .iter()
+            .filter(|cs| matches!(&cs.shape, egui::Shape::LineSegment { stroke: s, .. } if *s == stroke))
+            .count()
     }
 
     #[test]
     fn test_draw_rois_headless_egui() {
         let mut mgr = RoiManager::default();
-        let mut spec = crate::core::NewRoi::new(100.0, 200.0);
-        spec.owner_spectrum = Some("s1".to_string());
-        spec.emission = Some(Emission::annihilation());
-        let tag = mgr.add_roi(spec);
-        mgr.select_roi(&tag);
+        let mut spec1 = crate::core::NewRoi::new(100.0, 200.0);
+        spec1.owner_spectrum = Some("s1".to_string());
+        spec1.emission = Some(Emission::annihilation());
+        let tag1 = mgr.add_roi(spec1);
+
+        // Second ROI on another spectrum ("s2") to verify owned_spectrum filtering
+        let mut spec2 = crate::core::NewRoi::new(300.0, 400.0);
+        spec2.owner_spectrum = Some("s2".to_string());
+        let _tag2 = mgr.add_roi(spec2);
+
+        // Put tag1 into a 1-element group so get_roi_color returns non-transparent blue tint
+        mgr.calculate_roi_groups();
+        let group_color = mgr.get_roi_color(&tag1);
+        assert_ne!(group_color, Color32::TRANSPARENT);
+
         let mut view = RoiViewState::default();
-
         let ctx = egui::Context::default();
-        let raw_input = egui::RawInput {
-            screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(500.0, 300.0))),
-            ..Default::default()
-        };
+        ctx.all_styles_mut(|s| s.interaction.tooltip_delay = 0.0);
+        let screen = Some(Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(500.0, 300.0)));
 
-        let mut out = ctx.run_ui(raw_input, |ui| {
-            let plot_area = Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(500.0, 300.0));
-            let resp = ui.allocate_rect(plot_area, egui::Sense::click_and_drag());
-            let events = draw_rois(
-                ui,
-                &resp,
-                plot_area,
+        // Warm-up frame so egui registers `plot_area` for hover/click hit-testing
+        drop(run_draw_frame(
+            &ctx,
+            egui::RawInput {
+                screen_rect: screen,
+                time: Some(0.0),
+                events: vec![egui::Event::PointerMoved(egui::pos2(150.0, 150.0))],
+                ..Default::default()
+            },
+            &mut mgr,
+            Some("s1"),
+            &mut view,
+            true,
+        ));
+
+        // 1. Hover interior of unselected grouped ROI -> Grab cursor, group_color fill, tooltip with Nuclide
+        let (ev, out) = run_draw_frame(
+            &ctx,
+            egui::RawInput {
+                screen_rect: screen,
+                time: Some(1.0),
+                events: vec![egui::Event::PointerMoved(egui::pos2(150.0, 150.0))],
+                ..Default::default()
+            },
+            &mut mgr,
+            Some("s1"),
+            &mut view,
+            true,
+        );
+        assert!(ev.is_empty());
+        assert_eq!(out.platform_output.cursor_icon, egui::CursorIcon::Grab);
+        assert!(has_rect_fill(&out.shapes, group_color));
+        let hl_stroke = Stroke::new(2.5, Color32::from_rgb(100, 220, 255));
+        assert!(!has_line_stroke(&out.shapes, hl_stroke));
+        // Stationary frame so tooltip opens
+        let (_, out_tt) = run_draw_frame(
+            &ctx,
+            egui::RawInput {
+                screen_rect: screen,
+                time: Some(2.0),
+                ..Default::default()
+            },
+            &mut mgr,
+            Some("s1"),
+            &mut view,
+            true,
+        );
+        let texts = collect_shape_texts(&out_tt.shapes);
+        assert!(texts.iter().any(|t| t.contains("Nuclide:")), "texts={texts:?}");
+
+        // 2. Hover lower edge -> ResizeHorizontal cursor & highlighted lower stroke
+        let (_, out) = run_draw_frame(
+            &ctx,
+            egui::RawInput {
+                screen_rect: screen,
+                events: vec![egui::Event::PointerMoved(egui::pos2(100.0, 150.0))],
+                ..Default::default()
+            },
+            &mut mgr,
+            Some("s1"),
+            &mut view,
+            true,
+        );
+        assert_eq!(out.platform_output.cursor_icon, egui::CursorIcon::ResizeHorizontal);
+        assert!(has_line_stroke(&out.shapes, hl_stroke));
+
+        // 3. Hover upper edge -> highlighted upper stroke
+        let (_, out) = run_draw_frame(
+            &ctx,
+            egui::RawInput {
+                screen_rect: screen,
+                events: vec![egui::Event::PointerMoved(egui::pos2(200.0, 150.0))],
+                ..Default::default()
+            },
+            &mut mgr,
+            Some("s1"),
+            &mut view,
+            true,
+        );
+        assert!(has_line_stroke(&out.shapes, hl_stroke));
+
+        // 4. Primary click on interior -> Selected event & selected fill (YELLOW tint, not group_color)
+        drop(run_draw_frame(
+            &ctx,
+            egui::RawInput {
+                screen_rect: screen,
+                events: vec![
+                    egui::Event::PointerMoved(egui::pos2(150.0, 150.0)),
+                    egui::Event::PointerButton {
+                        pos: egui::pos2(150.0, 150.0),
+                        button: egui::PointerButton::Primary,
+                        pressed: true,
+                        modifiers: Default::default(),
+                    },
+                ],
+                ..Default::default()
+            },
+            &mut mgr,
+            Some("s1"),
+            &mut view,
+            true,
+        ));
+        let (ev, out) = run_draw_frame(
+            &ctx,
+            egui::RawInput {
+                screen_rect: screen,
+                events: vec![egui::Event::PointerButton {
+                    pos: egui::pos2(150.0, 150.0),
+                    button: egui::PointerButton::Primary,
+                    pressed: false,
+                    modifiers: Default::default(),
+                }],
+                ..Default::default()
+            },
+            &mut mgr,
+            Some("s1"),
+            &mut view,
+            true,
+        );
+        assert!(matches!(ev.as_slice(), [RoiEvent::Selected(t)] if t == &tag1));
+        assert_eq!(mgr.selected_roi(), Some(tag1.as_str()));
+        assert!(!has_rect_fill(&out.shapes, group_color));
+
+        // 5. Hovering "s2" ROI at x=350 must NOT hit when owned_spectrum = Some("s1")
+        let (_, out) = run_draw_frame(
+            &ctx,
+            egui::RawInput {
+                screen_rect: screen,
+                events: vec![egui::Event::PointerMoved(egui::pos2(350.0, 150.0))],
+                ..Default::default()
+            },
+            &mut mgr,
+            Some("s1"),
+            &mut view,
+            true,
+        );
+        assert_eq!(out.platform_output.cursor_icon, egui::CursorIcon::Default);
+
+        // 6. DraggingEdge: cursor ResizeHorizontal, tooltip suppressed, editable=false blocks drag, release emits SettingsUpdated
+        drop(run_draw_frame(
+            &ctx,
+            egui::RawInput {
+                screen_rect: screen,
+                events: vec![
+                    egui::Event::PointerMoved(egui::pos2(98.0, 150.0)),
+                    egui::Event::PointerButton {
+                        pos: egui::pos2(98.0, 150.0),
+                        button: egui::PointerButton::Primary,
+                        pressed: true,
+                        modifiers: Default::default(),
+                    },
+                ],
+                ..Default::default()
+            },
+            &mut mgr,
+            Some("s1"),
+            &mut view,
+            true,
+        ));
+        let (_, out) = run_draw_frame(
+            &ctx,
+            egui::RawInput {
+                screen_rect: screen,
+                events: vec![egui::Event::PointerMoved(egui::pos2(105.0, 150.0))],
+                ..Default::default()
+            },
+            &mut mgr,
+            Some("s1"),
+            &mut view,
+            true,
+        );
+        assert!(matches!(view.interaction, RoiInteraction::DraggingEdge { .. }));
+        assert_eq!(out.platform_output.cursor_icon, egui::CursorIcon::ResizeHorizontal);
+        assert!(has_line_stroke(&out.shapes, hl_stroke));
+        assert!(!collect_shape_texts(&out.shapes).iter().any(|t| t.contains("Nuclide:")));
+
+        // With editable=false, active drag must NOT mutate bounds or stop interaction
+        let bound_before = mgr.get_roi(&tag1).unwrap().roi_bound;
+        let (ev_ro, _) = run_draw_frame(
+            &ctx,
+            egui::RawInput {
+                screen_rect: screen,
+                events: vec![egui::Event::PointerMoved(egui::pos2(130.0, 150.0))],
+                ..Default::default()
+            },
+            &mut mgr,
+            Some("s1"),
+            &mut view,
+            false,
+        );
+        assert!(ev_ro.is_empty());
+        assert_eq!(mgr.get_roi(&tag1).unwrap().roi_bound, bound_before);
+
+        // Release drag -> SettingsUpdated
+        let (ev, _) = run_draw_frame(
+            &ctx,
+            egui::RawInput {
+                screen_rect: screen,
+                events: vec![egui::Event::PointerButton {
+                    pos: egui::pos2(110.0, 150.0),
+                    button: egui::PointerButton::Primary,
+                    pressed: false,
+                    modifiers: Default::default(),
+                }],
+                ..Default::default()
+            },
+            &mut mgr,
+            Some("s1"),
+            &mut view,
+            true,
+        );
+        assert!(matches!(ev.as_slice(), [RoiEvent::SettingsUpdated(t)] if t == &tag1));
+        assert!(!view.interaction.is_active());
+
+        // 7. DraggingRegion -> Grabbing cursor
+        drop(run_draw_frame(
+            &ctx,
+            egui::RawInput {
+                screen_rect: screen,
+                events: vec![
+                    egui::Event::PointerMoved(egui::pos2(150.0, 150.0)),
+                    egui::Event::PointerButton {
+                        pos: egui::pos2(150.0, 150.0),
+                        button: egui::PointerButton::Primary,
+                        pressed: true,
+                        modifiers: Default::default(),
+                    },
+                ],
+                ..Default::default()
+            },
+            &mut mgr,
+            Some("s1"),
+            &mut view,
+            true,
+        ));
+        let (_, _) = run_draw_frame(
+            &ctx,
+            egui::RawInput {
+                screen_rect: screen,
+                events: vec![egui::Event::PointerMoved(egui::pos2(165.0, 150.0))],
+                ..Default::default()
+            },
+            &mut mgr,
+            Some("s1"),
+            &mut view,
+            true,
+        );
+        assert!(matches!(view.interaction, RoiInteraction::DraggingRegion { .. }));
+        let (_, out) = run_draw_frame(
+            &ctx,
+            egui::RawInput {
+                screen_rect: screen,
+                events: vec![egui::Event::PointerMoved(egui::pos2(170.0, 150.0))],
+                ..Default::default()
+            },
+            &mut mgr,
+            Some("s1"),
+            &mut view,
+            true,
+        );
+        assert_eq!(out.platform_output.cursor_icon, egui::CursorIcon::Grabbing);
+        drop(run_draw_frame(
+            &ctx,
+            egui::RawInput {
+                screen_rect: screen,
+                events: vec![egui::Event::PointerButton {
+                    pos: egui::pos2(165.0, 150.0),
+                    button: egui::PointerButton::Primary,
+                    pressed: false,
+                    modifiers: Default::default(),
+                }],
+                ..Default::default()
+            },
+            &mut mgr,
+            Some("s1"),
+            &mut view,
+            true,
+        ));
+
+        // 8. Non-movable ROI edge hover must NOT highlight either edge
+        let mut locked_spec = crate::core::NewRoi::new(220.0, 260.0);
+        locked_spec.owner_spectrum = Some("s1".to_string());
+        locked_spec.movable = false;
+        let _locked_tag = mgr.add_roi(locked_spec);
+        for edge_x in [220.0, 260.0] {
+            let (_, out) = run_draw_frame(
+                &ctx,
+                egui::RawInput {
+                    screen_rect: screen,
+                    events: vec![egui::Event::PointerMoved(egui::pos2(edge_x, 150.0))],
+                    ..Default::default()
+                },
                 &mut mgr,
                 Some("s1"),
                 &mut view,
-                |x| x as f32,
-                f64::from,
                 true,
             );
-            assert!(events.is_empty());
-        });
-        out.textures_delta.clear();
+            assert!(!has_line_stroke(&out.shapes, hl_stroke));
+        }
+    }
+
+    #[test]
+    fn test_draw_rois_active_edge_and_locked_roi() {
+        let hl_stroke = Stroke::new(2.5, Color32::from_rgb(100, 220, 255));
+        let screen = Some(Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(500.0, 300.0)));
+
+        // 1. Locked ROI (movable = false): hovering lower or upper edge must NOT highlight
+        let mut mgr_locked = RoiManager::default();
+        let mut spec_locked = crate::core::NewRoi::new(50.0, 150.0);
+        spec_locked.movable = false;
+        mgr_locked.add_roi(spec_locked);
+        let mut view_locked = RoiViewState::default();
+        let ctx_locked = egui::Context::default();
+        drop(run_draw_frame(
+            &ctx_locked,
+            egui::RawInput {
+                screen_rect: screen,
+                ..Default::default()
+            },
+            &mut mgr_locked,
+            None,
+            &mut view_locked,
+            true,
+        ));
+        for edge_x in [50.0, 150.0] {
+            let (_, out) = run_draw_frame(
+                &ctx_locked,
+                egui::RawInput {
+                    screen_rect: screen,
+                    events: vec![egui::Event::PointerMoved(egui::pos2(edge_x, 150.0))],
+                    ..Default::default()
+                },
+                &mut mgr_locked,
+                None,
+                &mut view_locked,
+                true,
+            );
+            assert_eq!(count_line_strokes(&out.shapes, hl_stroke), 0);
+        }
+
+        // 2. Active DraggingEdge while pointer is inside interior (no hovered_edge):
+        //    must set ResizeHorizontal cursor and highlight ONLY the dragged edge.
+        let mut mgr = RoiManager::default();
+        let tag = mgr.add_roi(crate::core::NewRoi::new(100.0, 200.0));
+        let ctx = egui::Context::default();
+        let mut view = RoiViewState::default();
+        drop(run_draw_frame(
+            &ctx,
+            egui::RawInput {
+                screen_rect: screen,
+                ..Default::default()
+            },
+            &mut mgr,
+            None,
+            &mut view,
+            true,
+        ));
+
+        for edge in [Edge::Lower, Edge::Upper] {
+            view.interaction = RoiInteraction::DraggingEdge {
+                tag: tag.clone(),
+                edge,
+            };
+            let (_, out) = run_draw_frame(
+                &ctx,
+                egui::RawInput {
+                    screen_rect: screen,
+                    events: vec![egui::Event::PointerMoved(egui::pos2(150.0, 150.0))],
+                    ..Default::default()
+                },
+                &mut mgr,
+                None,
+                &mut view,
+                true,
+            );
+            assert_eq!(out.platform_output.cursor_icon, egui::CursorIcon::ResizeHorizontal);
+            assert_eq!(count_line_strokes(&out.shapes, hl_stroke), 1);
+        }
     }
 }
